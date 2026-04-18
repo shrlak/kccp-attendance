@@ -1,0 +1,2138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>KCCP 출석</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#34D399">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="KCCP 출석">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root{--bg:#08090D;--bg-sub:#0F1016;--card:#15161F;--card-hi:#1D1E2C;--bdr:#24253A;--acc:#34D399;--acc-h:#2CC48C;--acc-dim:rgba(52,211,153,.1);--red:#FB7185;--red-dim:rgba(251,113,133,.1);--amber:#FBBF24;--amber-dim:rgba(251,191,36,.1);--blue:#60A5FA;--blue-dim:rgba(96,165,250,.1);--purple:#A78BFA;--purple-dim:rgba(167,139,250,.1);--txt:#E2E3F0;--txt-m:#8082A0;--txt-d:#4A4B64;--white:#FFF}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--txt);min-height:100vh;-webkit-font-smoothing:antialiased}
+@keyframes fadein{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}@keyframes popcheck{0%{transform:scale(0) rotate(-10deg)}55%{transform:scale(1.15) rotate(2deg)}100%{transform:scale(1) rotate(0)}}@keyframes ripple{0%{box-shadow:0 0 0 0 rgba(52,211,153,.5)}100%{box-shadow:0 0 0 40px rgba(52,211,153,0)}}@keyframes pulse{0%,100%{opacity:.5;transform:scale(1)}50%{opacity:1;transform:scale(1.06)}}@keyframes countdown{from{width:100%}to{width:0%}}
+.fi{animation:fadein .4s ease-out both}.pc{animation:popcheck .5s ease-out both}.rp{animation:ripple .8s ease-out}.mono{font-family:'IBM Plex Mono',monospace}
+.btn{padding:10px 20px;border-radius:12px;border:none;cursor:pointer;font-family:'Sora',sans-serif;font-size:14px;transition:all .2s}.btn:disabled{opacity:.4}.btn-primary{background:var(--acc);color:var(--bg);font-weight:700}.btn-primary:hover:not(:disabled){background:var(--acc-h)}.btn-secondary{background:var(--card);color:var(--txt);border:1px solid var(--bdr)}.btn-secondary:hover:not(:disabled){background:var(--card-hi)}.btn-danger{background:var(--red);color:var(--white);font-weight:700}.btn-ghost{background:transparent;color:var(--acc);font-weight:600;text-decoration:none;display:inline-flex;align-items:center}.btn-ghost:hover{background:var(--acc-dim)}.btn-full{width:100%}.btn-sm{font-size:11px;padding:5px 12px}
+.inp{width:100%;padding:11px 15px;border-radius:12px;background:var(--bg);border:1.5px solid var(--bdr);color:var(--txt);font-family:'Sora',sans-serif;font-size:14px;outline:none;transition:border .2s}.inp:focus{border-color:var(--acc)}.inp-mono{font-family:'IBM Plex Mono',monospace}
+select.inp{-webkit-appearance:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%238082A0' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center}
+select.inp option{background:var(--card);color:var(--txt)}
+.card{background:var(--card);border-radius:18px;padding:22px;border:1px solid var(--bdr)}
+.tag{display:inline-flex;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:600;font-family:'IBM Plex Mono',monospace;letter-spacing:.8px;text-transform:uppercase}.tag-green{color:var(--acc);background:var(--acc-dim)}.tag-amber{color:var(--amber);background:var(--amber-dim)}.tag-blue{color:var(--blue);background:var(--blue-dim)}.tag-purple{color:var(--purple);background:var(--purple-dim)}
+.sl{font-size:11px;font-weight:700;color:var(--txt-m);margin-bottom:12px;font-family:'IBM Plex Mono',monospace;letter-spacing:1.5px;text-transform:uppercase}
+.att-table{width:100%;border-collapse:collapse;font-family:'IBM Plex Mono',monospace;font-size:11px}
+.att-table th{padding:10px 12px;background:#4a2d87;color:#fff;font-weight:700;font-size:10px;white-space:nowrap;border:1px solid #5a3d97;text-align:center}
+.att-table th.name-col{text-align:left;position:sticky;left:0;z-index:3;min-width:130px;background:#4a2d87}
+.att-table th.total-col{min-width:55px;background:#3d2570}
+.att-table td{padding:8px 10px;text-align:center;border:1px solid var(--bdr);font-size:11px}
+.att-table td.name-cell{text-align:left;font-family:'Sora',sans-serif;font-weight:600;font-size:12px;position:sticky;left:0;z-index:1;border-right:2px solid var(--bdr)}
+.att-table tr:nth-child(even) td{background:var(--card)}.att-table tr:nth-child(odd) td{background:var(--bg-sub)}
+.att-table tr:nth-child(even) td.name-cell{background:var(--card)}.att-table tr:nth-child(odd) td.name-cell{background:var(--bg-sub)}
+.att-table td.total-cell{font-weight:800;color:var(--acc);font-size:14px;background:rgba(52,211,153,.06)!important}
+.att-table td.present{color:var(--acc);font-size:10px}.att-table td.absent{color:var(--txt-d);font-size:14px}
+.att-table tr.total-row td{background:#1a1528!important;font-weight:700;color:var(--acc);border-top:2px solid #4a2d87}
+.log-table{width:100%;border-collapse:collapse;font-family:'IBM Plex Mono',monospace;font-size:12px}
+.log-table th{padding:12px 14px;text-align:left;background:var(--acc);color:var(--bg);font-weight:700;font-size:11px;white-space:nowrap}
+.log-table td{padding:10px 14px}.log-table tr:nth-child(even) td{background:var(--card)}.log-table tr:nth-child(odd) td{background:var(--bg-sub)}
+.nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:960px;display:flex;background:rgba(8,9,13,.94);backdrop-filter:blur(16px);border-top:1px solid var(--bdr);z-index:10}.nav-btn{flex:1;padding:8px 0 8px;border:none;cursor:pointer;background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-family:'Sora',sans-serif;font-size:9px;font-weight:600;color:var(--txt-d);transition:color .2s;border-top:2px solid transparent}.nav-btn.active{color:var(--acc);border-top-color:var(--acc)}
+.toast{position:fixed;bottom:68px;left:50%;transform:translateX(-50%);padding:10px 22px;border-radius:14px;z-index:100;font-weight:700;font-size:13px;box-shadow:0 8px 32px rgba(0,0,0,.5);animation:fadein .25s ease-out;white-space:nowrap}.toast-ok{background:var(--acc);color:var(--bg)}.toast-warn{background:var(--amber);color:var(--bg)}.toast-err{background:var(--red);color:var(--white)}
+.view{display:none}.view.active{display:block}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:50;display:flex;align-items:center;justify-content:center;padding:24px}.modal{background:var(--card);border:1px solid var(--bdr);border-radius:20px;padding:28px;max-width:420px;width:100%}
+.grp-tabs{display:flex;gap:4px;margin-bottom:14px;flex-wrap:wrap}.grp-tab{padding:6px 14px;border-radius:10px;border:1px solid var(--bdr);background:var(--card);color:var(--txt-m);font-size:12px;font-weight:600;cursor:pointer;font-family:'Sora',sans-serif}.grp-tab.active{background:var(--acc-dim);color:var(--acc);border-color:rgba(52,211,153,.3)}
+.tag-red{color:var(--red);background:var(--red-dim)}
+.att-table td.present.first-visit{color:#A78BFA}
+.summary-table{width:100%;border-collapse:collapse;font-family:'IBM Plex Mono',monospace;font-size:12px;margin-top:8px}
+.summary-table th{padding:8px 12px;background:var(--card-hi);color:var(--txt-m);font-size:10px;font-weight:700;text-align:left;border:1px solid var(--bdr);letter-spacing:.8px}
+.summary-table td{padding:8px 12px;border:1px solid var(--bdr);font-size:12px}
+.summary-table tr:nth-child(even) td{background:var(--card)}.summary-table tr:nth-child(odd) td{background:var(--bg-sub)}
+.offline-banner{position:fixed;top:0;left:50%;transform:translateX(-50%);width:100%;max-width:960px;background:var(--amber);color:var(--bg);padding:7px 16px;text-align:center;font-size:12px;font-weight:700;z-index:200;display:none;}
+/* ── Light mode ── */
+body.light-mode{--bg:#F4F5FA;--bg-sub:#ECEDF5;--card:#FFFFFF;--card-hi:#F0F1FA;--bdr:#D8D9EE;--txt:#1A1B2E;--txt-m:#5A5C7A;--txt-d:#9A9BB8;--white:#FFF}
+body.light-mode .att-table th{background:#6d28d9;border-color:#7c3aed}
+body.light-mode .att-table th.name-col{background:#6d28d9}
+body.light-mode .att-table th.total-col{background:#5b21b6}
+body.light-mode .att-table tr:nth-child(even) td{background:#f5f5fb}
+body.light-mode .att-table tr:nth-child(odd) td{background:#fafafa}
+body.light-mode .att-table tr.total-row td{background:#ede9fe!important}
+body.light-mode .nav{background:rgba(244,245,250,.94)}
+/* ── Pull-to-refresh indicator ── */
+#pull-indicator{height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;opacity:0;transition:none;pointer-events:none;}
+.ptr-spinner{width:22px;height:22px;border:2.5px solid var(--acc);border-top-color:transparent;border-radius:50%;margin-right:8px;animation:none;}
+.ptr-spinner.spinning{animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* ── Hold-to-confirm modal ── */
+.confirm-hold-track{position:relative;overflow:hidden;border-radius:12px;cursor:pointer;user-select:none;-webkit-user-select:none;touch-action:none;}
+.confirm-hold-fill{position:absolute;left:0;top:0;bottom:0;width:0%;pointer-events:none;transition:none;}
+.confirm-hold-inner{position:relative;padding:14px 20px;border-radius:12px;text-align:center;font-size:14px;font-weight:700;border:1.5px solid;}
+/* ── Member grid (responsive) ── */
+.member-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;}
+@media(max-width:540px){.member-grid{grid-template-columns:1fr;}}
+/* ── Flip card ── */
+.flip-wrap{perspective:900px;flex:1;min-width:0;}
+.card-inner{transform-style:preserve-3d;transition:transform .38s cubic-bezier(.4,0,.2,1);position:relative;}
+.card-inner.flipped{transform:rotateY(180deg);}
+.card-face{backface-visibility:hidden;-webkit-backface-visibility:hidden;}
+.card-back{transform:rotateY(180deg);position:absolute;inset:0;background:var(--card-hi);border-radius:0 8px 8px 0;overflow-y:auto;}
+</style>
+</head>
+<body>
+
+<div id="checkin-view" style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 24px 24px;text-align:center;position:relative;overflow-y:auto;">
+  <button id="checkin-theme-toggle" onclick="toggleTheme()" style="position:absolute;top:16px;right:16px;background:rgba(128,128,128,.12);border:1px solid rgba(128,128,128,.2);color:var(--txt-m);font-size:18px;padding:8px 10px;border-radius:12px;cursor:pointer;z-index:5;min-width:42px;min-height:42px;line-height:1;">🌙</button>
+  <div id="checkin-glow" style="position:absolute;top:30%;left:50%;transform:translate(-50%,-50%);width:400px;height:400px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.02),transparent 70%);pointer-events:none;transition:all 1s;"></div>
+  <div id="checkin-content" class="fi" style="position:relative;z-index:1;"></div>
+  <div style="position:absolute;bottom:max(24px,env(safe-area-inset-bottom,24px));left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:8px;">
+    <div style="display:flex;gap:10px;">
+      <button onclick="openGuestCheckin()" style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);color:var(--txt-m);font-size:12px;font-family:'IBM Plex Mono',monospace;cursor:pointer;padding:10px 18px;letter-spacing:.8px;border-radius:14px;min-height:44px;">👋 방문자</button>
+      <button onclick="shareCheckinLink()" style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);color:var(--txt-m);font-size:12px;font-family:'IBM Plex Mono',monospace;cursor:pointer;padding:10px 18px;letter-spacing:.8px;border-radius:14px;min-height:44px;">📤 공유</button>
+    </div>
+    <button onclick="tryAdmin()" style="background:none;border:1px solid transparent;color:var(--txt-d);font-size:11px;font-family:'IBM Plex Mono',monospace;cursor:pointer;padding:8px 16px;letter-spacing:.8px;border-radius:14px;min-height:36px;">ADMIN →</button>
+  </div>
+</div>
+
+<!-- Registration modal with group selection -->
+<div id="register-modal" class="overlay" style="display:none;"><div class="modal fi">
+  <div style="font-size:28px;text-align:center;margin-bottom:12px;">👋</div>
+  <div style="font-size:20px;font-weight:800;text-align:center;margin-bottom:6px;">환영합니다!</div>
+  <div style="font-size:13px;color:var(--txt-m);text-align:center;margin-bottom:8px;line-height:1.6;">이름을 입력해주세요</div>
+  <div style="font-size:12px;color:var(--amber);text-align:center;margin-bottom:20px;line-height:1.6;">첫 방문이시라면 새가족팀을 찾아주세요~!</div>
+  <input id="self-name" class="inp" placeholder="이름" style="margin-bottom:12px;" onkeydown="if(event.key==='Enter')document.getElementById('self-group').focus()">
+  <select id="self-group" class="inp" style="margin-bottom:12px;" onchange="updateSelfSubgroup()">
+    <option value="" disabled selected>부서를 선택해주세요~</option>
+    <option value="대학부">대학부</option>
+    <option value="청년부">청년부</option>
+  </select>
+  <select id="self-subgroup" class="inp" style="margin-bottom:12px;display:none;">
+    <option value="">동산 선택 안함</option>
+    <option value="동산1">동산 1</option>
+    <option value="동산2">동산 2</option>
+    <option value="동산3">동산 3</option>
+    <option value="동산4">동산 4</option>
+  </select>
+  <button class="btn btn-primary btn-full" onclick="submitSelfRegister()">저장 후 출석</button>
+</div></div>
+
+<!-- Password modal -->
+<div id="password-modal" class="overlay" style="display:none;"><div class="modal fi"><div style="font-size:28px;text-align:center;margin-bottom:12px;">🔒</div><div style="font-size:20px;font-weight:800;text-align:center;margin-bottom:6px;">Admin Access</div><div id="admin-access-msg" style="font-size:13px;color:var(--txt-m);text-align:center;margin-bottom:20px;line-height:1.6;"></div><input id="admin-pw" type="password" class="inp" placeholder="Admin password" style="margin-bottom:12px;" onkeydown="if(event.key==='Enter')submitAdminPassword()"><button class="btn btn-primary btn-full" onclick="submitAdminPassword()" style="margin-bottom:8px;">Unlock</button><button class="btn btn-secondary btn-full" onclick="document.getElementById('password-modal').style.display='none'">Cancel</button></div></div>
+
+<!-- Attendance edit modal -->
+<div id="attendance-modal" class="overlay" style="display:none;"><div class="modal fi" style="max-width:460px;max-height:82vh;display:flex;flex-direction:column;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+    <div style="font-size:18px;font-weight:800;">📋 출석 편집</div>
+    <button onclick="document.getElementById('attendance-modal').style.display='none'" style="background:none;border:none;color:var(--txt-d);font-size:20px;cursor:pointer;line-height:1;">✕</button>
+  </div>
+  <div id="att-modal-name" style="font-size:13px;font-weight:700;color:var(--acc);margin-bottom:14px;"></div>
+  <div style="display:flex;gap:8px;margin-bottom:14px;align-items:center;">
+    <input type="date" id="manual-date" class="inp" style="flex:1;font-size:13px;">
+    <button class="btn btn-primary btn-sm" onclick="addManualAttendance()">+ 추가</button>
+  </div>
+  <div id="att-modal-list" style="overflow-y:auto;flex:1;"></div>
+</div></div>
+
+<!-- Notes modal -->
+<div id="notes-modal" class="overlay" style="display:none;"><div class="modal fi" style="max-width:420px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+    <div style="font-size:18px;font-weight:800;">📝 메모</div>
+    <button onclick="document.getElementById('notes-modal').style.display='none'" style="background:none;border:none;color:var(--txt-d);font-size:20px;cursor:pointer;">✕</button>
+  </div>
+  <div id="notes-modal-name" style="font-size:13px;font-weight:700;color:var(--acc);margin-bottom:12px;"></div>
+  <textarea id="notes-textarea" class="inp" rows="5" placeholder="메모를 입력하세요..." style="resize:vertical;line-height:1.5;"></textarea>
+  <div style="display:flex;gap:8px;margin-top:12px;">
+    <button class="btn btn-primary" style="flex:1;" onclick="saveNotes()">저장</button>
+    <button class="btn btn-secondary" style="flex:1;" onclick="document.getElementById('notes-modal').style.display='none'">취소</button>
+  </div>
+</div></div>
+
+<!-- Bulk attendance modal -->
+<div id="bulk-modal" class="overlay" style="display:none;"><div class="modal fi" style="max-width:480px;max-height:88vh;display:flex;flex-direction:column;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+    <div style="font-size:18px;font-weight:800;">📋 일괄 출석 입력</div>
+    <button onclick="document.getElementById('bulk-modal').style.display='none'" style="background:none;border:none;color:var(--txt-d);font-size:20px;cursor:pointer;line-height:1;">✕</button>
+  </div>
+  <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap;">
+    <input type="date" id="bulk-date" class="inp" style="flex:1;font-size:13px;min-width:140px;">
+    <button class="btn btn-secondary btn-sm" onclick="selectAllBulk()">전체 선택</button>
+    <button class="btn btn-secondary btn-sm" onclick="selectNoneBulk()">전체 해제</button>
+  </div>
+  <div id="bulk-members" style="overflow-y:auto;flex:1;min-height:200px;"></div>
+  <button class="btn btn-primary btn-full" style="margin-top:12px;" onclick="submitBulk()">출석 등록</button>
+</div></div>
+
+<!-- Merge members modal -->
+<div id="merge-modal" class="overlay" style="display:none;"><div class="modal fi" style="max-width:420px;">
+  <div style="font-size:18px;font-weight:800;margin-bottom:6px;">🔀 멤버 합치기</div>
+  <div style="font-size:12px;color:var(--txt-m);margin-bottom:14px;line-height:1.6;">두 멤버를 하나로 합칩니다. <b>병합 대상</b>의 장치들이 <b>유지할 멤버</b>로 이전됩니다.</div>
+  <div style="font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">병합할 멤버 (사라지는 쪽)</div>
+  <select id="merge-from" class="inp" style="margin-bottom:10px;"><option value="">선택...</option></select>
+  <div style="font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">유지할 멤버 (남는 쪽)</div>
+  <select id="merge-to" class="inp" style="margin-bottom:14px;"><option value="">선택...</option></select>
+  <div style="display:flex;gap:8px;">
+    <button class="btn btn-primary" style="flex:1;" onclick="submitMerge()">합치기</button>
+    <button class="btn btn-secondary" style="flex:1;" onclick="document.getElementById('merge-modal').style.display='none'">취소</button>
+  </div>
+</div></div>
+
+<!-- Hold-to-confirm modal -->
+<div id="confirm-modal" class="overlay" style="display:none;"><div class="modal fi" style="max-width:340px;">
+  <div id="confirm-icon" style="font-size:36px;text-align:center;margin-bottom:10px;"></div>
+  <div id="confirm-title" style="font-size:18px;font-weight:800;text-align:center;margin-bottom:8px;"></div>
+  <div id="confirm-desc" style="font-size:13px;color:var(--txt-m);text-align:center;line-height:1.6;margin-bottom:20px;"></div>
+  <div class="confirm-hold-track" id="confirm-hold-btn" style="margin-bottom:8px;">
+    <div class="confirm-hold-fill" id="confirm-hold-fill"></div>
+    <div class="confirm-hold-inner" id="confirm-hold-inner">
+      <div class="ptr-spinner" id="confirm-spinner" style="display:inline-block;vertical-align:middle;margin-right:6px;margin-top:-2px;"></div>
+      <span id="confirm-hold-label">길게 눌러서 확인</span>
+    </div>
+  </div>
+  <button class="btn btn-secondary btn-full" onclick="closeConfirm()">취소</button>
+</div></div>
+
+<!-- Manual check-in modal (admin) -->
+<div id="manual-checkin-modal" class="overlay" style="display:none;"><div class="modal fi" style="max-width:380px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+    <div style="font-size:18px;font-weight:800;">🙋 수동 출석 등록</div>
+    <button onclick="document.getElementById('manual-checkin-modal').style.display='none'" style="background:none;border:none;color:var(--txt-d);font-size:20px;cursor:pointer;line-height:1;">✕</button>
+  </div>
+  <div style="font-size:12px;color:var(--txt-m);margin-bottom:14px;line-height:1.6;">오늘 날짜로 출석을 직접 등록합니다. 시간/위치 제한이 적용되지 않습니다.</div>
+  <div style="font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">멤버 선택</div>
+  <select id="mc-name" class="inp" style="margin-bottom:14px;"><option value="">멤버를 선택하세요...</option></select>
+  <div style="display:flex;gap:8px;">
+    <button class="btn btn-primary" style="flex:1;" onclick="submitAdminCheckin()">출석 등록</button>
+    <button class="btn btn-secondary" style="flex:1;" onclick="document.getElementById('manual-checkin-modal').style.display='none'">취소</button>
+  </div>
+</div></div>
+
+<!-- Guest check-in modal -->
+<div id="guest-checkin-modal" class="overlay" style="display:none;"><div class="modal fi" style="max-width:380px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+    <div style="font-size:18px;font-weight:800;">👋 방문자 출석</div>
+    <button onclick="document.getElementById('guest-checkin-modal').style.display='none'" style="background:none;border:none;color:var(--txt-d);font-size:20px;cursor:pointer;line-height:1;">✕</button>
+  </div>
+  <div style="font-size:12px;color:var(--txt-m);margin-bottom:14px;line-height:1.6;">장치 등록 없이 방문자로 출석합니다.</div>
+  <input id="guest-name" class="inp" placeholder="이름을 입력해주세요" style="margin-bottom:14px;" onkeydown="if(event.key==='Enter')submitGuestCheckin()">
+  <div style="display:flex;gap:8px;">
+    <button class="btn btn-primary" style="flex:1;" onclick="submitGuestCheckin()">출석</button>
+    <button class="btn btn-secondary" style="flex:1;" onclick="document.getElementById('guest-checkin-modal').style.display='none'">취소</button>
+  </div>
+  <div id="guest-checkin-result" style="display:none;margin-top:12px;padding:10px 14px;border-radius:10px;font-size:13px;font-weight:600;text-align:center;"></div>
+</div></div>
+
+<!-- Edit person modal -->
+<div id="edit-modal" class="overlay" style="display:none;"><div class="modal fi">
+  <div style="font-size:18px;font-weight:800;margin-bottom:14px;">Edit Member</div>
+  <div style="font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Name</div>
+  <input id="edit-name" class="inp" style="margin-bottom:12px;">
+  <div style="font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Group</div>
+  <select id="edit-group" class="inp" style="margin-bottom:12px;" onchange="updateEditSubgroup()">
+    <option value="">None</option>
+    <option value="대학부">대학부</option>
+    <option value="청년부">청년부</option>
+  </select>
+  <div id="edit-subgroup-wrap" style="display:none;">
+    <div style="font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">동산</div>
+    <select id="edit-subgroup" class="inp" style="margin-bottom:12px;">
+      <option value="">없음</option>
+    </select>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:10px 14px;background:var(--bg);border-radius:10px;border:1px solid var(--bdr);">
+    <input type="checkbox" id="edit-visitor" style="width:16px;height:16px;accent-color:var(--amber);cursor:pointer;">
+    <label for="edit-visitor" style="font-size:13px;font-weight:600;color:var(--txt);cursor:pointer;">방문자 (Visitor) — 출석률 통계 제외</label>
+  </div>
+  <input type="hidden" id="edit-original-name">
+  <div style="display:flex;gap:8px;">
+    <button class="btn btn-primary" style="flex:1;" onclick="saveEdit()">Save</button>
+    <button class="btn btn-secondary" style="flex:1;" onclick="document.getElementById('edit-modal').style.display='none'">Cancel</button>
+  </div>
+</div></div>
+
+<!-- Admin panel -->
+<div id="admin-view" style="display:none;max-width:960px;margin:0 auto;position:relative;padding-bottom:76px;">
+  <div id="pull-indicator"><div class="ptr-spinner" id="ptr-spinner"></div><span class="ptr-text" style="font-size:12px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:var(--txt-d);letter-spacing:.8px;">당겨서 새로고침</span></div>
+  <div style="position:relative;z-index:1;padding:24px 22px 6px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+    <div><span style="font-size:22px;font-weight:800;letter-spacing:-1px;"><span style="color:var(--acc);">KCCP</span></span><span class="mono" style="font-size:10px;color:var(--txt-d);margin-left:8px;letter-spacing:1px;">ATTENDANCE</span></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      <button id="theme-toggle" class="btn btn-sm" style="background:var(--card);border:1px solid var(--bdr);font-size:16px;padding:5px 10px;" onclick="toggleTheme()" title="다크/라이트 모드">🌙</button>
+      <button class="btn btn-sm" style="background:var(--acc-dim);border:1px solid rgba(52,211,153,.2);color:var(--acc);font-weight:600;" onclick="showCheckin()">← Check-in</button>
+    </div>
+  </div>
+  <div id="stats-bar" style="position:relative;z-index:1;display:flex;gap:8px;padding:14px 22px 16px;overflow-x:auto;"></div>
+  <div style="position:relative;z-index:1;padding:0 22px 20px;">
+
+    <!-- SHEETS with group tabs -->
+    <div id="tab-sheet" class="view active fi">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+        <div class="sl" style="margin-bottom:0;">Attendance Sheet</div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-primary btn-sm" id="btn-gridview" onclick="setMode('grid')">Grid</button>
+          <button class="btn btn-secondary btn-sm" id="btn-logview" onclick="setMode('log')">Log</button>
+          <button class="btn btn-secondary btn-sm" onclick="exportExcel()" style="font-size:12px;">↓ Excel</button>
+        </div>
+      </div>
+      <div class="grp-tabs" id="sheet-grp-tabs"></div>
+      <div class="grp-tabs" id="sheet-subgrp-tabs" style="display:none;padding-left:16px;border-left:2px solid var(--purple-dim);margin-left:4px;"></div>
+      <div id="sheet-content" style="border-radius:14px;border:1px solid var(--bdr);overflow:hidden;"></div>
+      <div style="margin-top:10px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+        <button class="btn btn-secondary btn-sm" onclick="openPrintReport()" style="font-size:12px;">🖨️ PDF 리포트</button>
+        <button class="btn btn-secondary btn-sm" onclick="openBulk()" style="font-size:12px;">📋 일괄 출석 입력</button>
+      </div>
+      <div style="margin-top:16px;">
+        <button class="btn btn-secondary btn-sm" onclick="toggleSummary()" id="summary-toggle-btn" style="width:100%;text-align:left;padding:10px 14px;border-radius:12px;">📈 월별 / 학기 요약 보기</button>
+        <div id="summary-section" style="display:none;margin-top:12px;"></div>
+      </div>
+      <div style="margin-top:10px;">
+        <button class="btn btn-secondary btn-sm" onclick="toggleCharts()" id="charts-toggle-btn" style="width:100%;text-align:left;padding:10px 14px;border-radius:12px;">📊 Attendance Charts 보기</button>
+        <div id="charts-content" style="display:none;margin-top:12px;"></div>
+      </div>
+      <div id="clear-area" style="margin-top:12px;text-align:center;display:none;"><button class="btn btn-danger btn-sm" onclick="clearLog()" style="margin-right:8px;">Clear All Records</button><button class="btn btn-danger btn-sm" onclick="clearDevices()">Clear All Devices</button><button class="btn btn-danger btn-sm" onclick="clearEverything()" style="margin-left:8px;">Clear Everything</button></div>
+    </div>
+
+    <!-- TODAY -->
+    <div id="tab-today" class="view fi">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;flex-wrap:wrap;gap:8px;">
+        <div class="sl" id="today-label" style="margin-bottom:0;"></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <button class="btn btn-secondary btn-sm" onclick="copyKakaoSummary()" style="font-size:12px;">💬 카카오 요약</button>
+          <button class="btn btn-secondary btn-sm" onclick="showWeeklyRecap()" style="font-size:12px;">📅 주간 요약</button>
+          <button class="btn btn-secondary btn-sm" onclick="openWeeklySummaryReport()" style="font-size:12px;">📊 주간 리포트</button>
+          <button class="btn btn-secondary btn-sm" onclick="openBulkCheckin()" style="font-size:12px;">📋 일괄 출석</button>
+          <button class="btn btn-primary btn-sm" onclick="openAdminCheckin()" style="font-size:12px;">🙋 수동 출석</button>
+        </div>
+      </div>
+      <div class="grp-tabs" id="today-grp-tabs"></div>
+      <div class="grp-tabs" id="today-subgrp-tabs" style="display:none;padding-left:16px;border-left:2px solid var(--purple-dim);margin-left:4px;"></div>
+      <div id="leader-dashboard" style="display:none;margin-top:4px;"></div>
+      <div id="today-list"></div>
+      <div id="weekly-recap-section" style="display:none;margin-top:16px;"></div>
+    </div>
+
+    <!-- DEVICES -->
+    <div id="tab-devices" class="view fi">
+      <div class="card" style="margin-bottom:16px;">
+        <div style="font-size:16px;font-weight:800;margin-bottom:4px;">Register a Device</div>
+        <div style="font-size:12px;color:var(--txt-m);margin-bottom:14px;line-height:1.6;">New users self-register on first check-in. Use this to manually register or rename.</div>
+        <input id="reg-id" class="inp inp-mono" placeholder="Device ID" style="font-size:12px;margin-bottom:8px;">
+        <div style="margin-bottom:8px;"><button onclick="document.getElementById('reg-id').value=deviceId" style="background:none;border:none;color:var(--acc);font-size:11px;cursor:pointer;font-family:'IBM Plex Mono',monospace;padding:0;">↑ paste this device's ID</button></div>
+        <input id="reg-name" class="inp" placeholder="Person's name" style="margin-bottom:8px;">
+        <select id="reg-group" class="inp" style="margin-bottom:10px;" onchange="updateRegSubgroup()">
+          <option value="">No group</option>
+          <option value="대학부">대학부</option>
+          <option value="청년부">청년부</option>
+        </select>
+        <select id="reg-subgroup" class="inp" style="margin-bottom:10px;display:none;">
+          <option value="">동산 선택 안함</option>
+          <option value="동산1">동산 1</option>
+          <option value="동산2">동산 2</option>
+          <option value="동산3">동산 3</option>
+          <option value="동산4">동산 4</option>
+        </select>
+        <button class="btn btn-primary btn-full" onclick="registerDevice()">Register</button>
+      </div>
+      <div class="card" style="margin-bottom:16px;">
+        <div style="font-size:16px;font-weight:800;margin-bottom:4px;">🔗 Link Device to Existing Person</div>
+        <div style="font-size:12px;color:var(--txt-m);margin-bottom:14px;line-height:1.6;">Link a new device to an existing member.</div>
+        <input id="link-device-id" class="inp inp-mono" placeholder="New Device ID" style="font-size:12px;margin-bottom:8px;">
+        <div style="margin-bottom:8px;"><button onclick="document.getElementById('link-device-id').value=deviceId" style="background:none;border:none;color:var(--acc);font-size:11px;cursor:pointer;font-family:'IBM Plex Mono',monospace;padding:0;">↑ paste this device's ID</button></div>
+        <select id="link-name" class="inp" style="margin-bottom:10px;"><option value="">Select a person...</option></select>
+        <button class="btn btn-primary btn-full" onclick="linkDevice()">Link Device</button>
+      </div>
+    </div>
+
+    <!-- MEMBERS -->
+    <div id="tab-members" class="view fi">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+        <input id="member-search" class="inp" placeholder="🔍 멤버 검색..." style="flex:1;font-size:13px;padding:9px 14px;" oninput="memberSearch=this.value;renderDevices()">
+        <button class="btn btn-secondary btn-sm" onclick="openMerge()" style="font-size:12px;white-space:nowrap;">🔀 합치기</button>
+      </div>
+      <div class="grp-tabs" id="dev-grp-tabs"></div>
+      <div class="grp-tabs" id="dev-subgrp-tabs" style="display:none;padding-left:16px;border-left:2px solid var(--purple-dim);margin-left:4px;"></div>
+      <div class="sl" id="devices-count"></div>
+      <div id="devices-list"></div>
+    </div>
+
+    <!-- ADMINS -->
+    <div id="tab-admins" class="view fi">
+      <div class="card" style="margin-bottom:16px;"><div style="font-size:18px;font-weight:800;margin-bottom:6px;">🔐 Admin Access</div><div style="font-size:13px;color:var(--txt-m);line-height:1.7;margin-bottom:16px;">Master password required.</div><div style="margin-bottom:10px;"><label style="display:block;font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Master Password</label><input id="acl-pw" type="password" class="inp" placeholder="Enter master password"></div><div style="margin-bottom:10px;"><label style="display:block;font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Device ID</label><input id="acl-device" class="inp inp-mono" style="font-size:12px;" placeholder="DEV-..."></div><div style="margin-bottom:10px;"><button onclick="document.getElementById('acl-device').value=deviceId" style="background:none;border:none;color:var(--acc);font-size:11px;cursor:pointer;font-family:'IBM Plex Mono',monospace;padding:0;">↑ use this device</button></div><div style="margin-bottom:12px;"><label style="display:block;font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Role</label><select id="acl-role" class="inp"><option value="super">Super Admin — 모든 권한 (수정, 삭제, 설정)</option><option value="leader">Leader — 조회 및 출석 편집만 가능</option></select></div><div style="display:flex;gap:8px;margin-bottom:12px;"><button class="btn btn-primary" style="flex:1;" onclick="addAdmin()">Add Admin</button><button class="btn btn-danger" style="flex:1;" onclick="removeAdmin()">Remove Admin</button></div><button class="btn btn-secondary btn-full" onclick="listAdmins()">View Admins</button><div id="admin-list" style="margin-top:12px;"></div></div>
+      <div class="card" style="margin-bottom:16px;"><div style="font-size:14px;font-weight:700;margin-bottom:8px;">Your Device ID</div><div class="mono" style="font-size:12px;color:var(--acc);word-break:break-all;padding:10px;background:var(--bg);border-radius:10px;border:1px solid var(--bdr);" id="my-device-id"></div></div>
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;"><div style="font-size:16px;font-weight:800;">⏳ 등록 승인 대기</div><span id="pending-badge-card" style="display:none;background:var(--red);color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px;"></span></div>
+        <div style="font-size:12px;color:var(--txt-m);margin-bottom:12px;line-height:1.6;">자기 등록 후 관리자 승인을 기다리는 멤버 목록입니다. (승인 설정이 켜진 경우에만 사용됩니다)</div>
+        <button class="btn btn-secondary btn-full" onclick="loadPendingList()">대기 목록 불러오기</button>
+        <div id="pending-list" style="margin-top:12px;"></div>
+      </div>
+      <div class="card" style="margin-bottom:16px;">
+        <div style="font-size:16px;font-weight:800;margin-bottom:4px;">📋 감사 로그</div>
+        <div style="font-size:12px;color:var(--txt-m);margin-bottom:12px;line-height:1.6;">관리자 활동 기록 (최근 100건)</div>
+        <button class="btn btn-secondary btn-full" onclick="loadAuditLog()">로그 불러오기</button>
+        <div id="audit-log-list" style="margin-top:12px;"></div>
+      </div>
+      <div class="card" style="margin-bottom:16px;">
+        <div style="font-size:16px;font-weight:800;margin-bottom:6px;">✅ 등록 승인 설정</div>
+        <div style="font-size:12px;color:var(--txt-m);margin-bottom:14px;line-height:1.6;">활성화 시 자기 등록은 관리자 승인 후 출석이 가능합니다.</div>
+        <label style="display:flex;align-items:center;gap:12px;cursor:pointer;padding:10px 14px;background:var(--bg);border-radius:10px;border:1px solid var(--bdr);">
+          <input type="checkbox" id="approval-toggle" style="width:18px;height:18px;accent-color:var(--acc);" onchange="saveApprovalSetting()">
+          <span style="font-size:14px;font-weight:600;">등록 승인 필요 (Require Admin Approval)</span>
+        </label>
+      </div>
+      <div class="card" style="margin-bottom:16px;">
+        <div style="font-size:16px;font-weight:800;margin-bottom:6px;">💾 데이터 백업 / 복원</div>
+        <div style="font-size:12px;color:var(--txt-m);margin-bottom:14px;line-height:1.6;">모든 출석, 멤버, 이벤트 데이터를 하나의 파일로 내보내거나 복원합니다.</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-secondary" style="flex:1;min-width:140px;" onclick="downloadBackup()">⬇️ 백업 다운로드</button>
+          <label class="btn btn-secondary" style="flex:1;min-width:140px;cursor:pointer;text-align:center;line-height:normal;display:flex;align-items:center;justify-content:center;">
+            ⬆️ 백업 복원
+            <input type="file" id="restore-file" accept=".json" style="display:none;" onchange="uploadRestore(this)">
+          </label>
+        </div>
+        <div id="restore-status" style="display:none;margin-top:10px;font-size:12px;padding:8px 12px;border-radius:8px;"></div>
+      </div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div id="tab-settings" class="view fi">
+      <div class="card" style="margin-bottom:16px;">
+        <div style="font-size:16px;font-weight:800;margin-bottom:4px;">⏰ 출석 가능 시간 설정</div>
+        <div style="font-size:12px;color:var(--txt-m);margin-bottom:14px;line-height:1.6;">출석 체크가 가능한 요일과 시간을 설정합니다.</div>
+        <div id="ci-current" class="mono" style="font-size:12px;color:var(--acc);margin-bottom:14px;padding:8px 12px;background:var(--bg);border-radius:8px;border:1px solid var(--bdr);"></div>
+        <div style="margin-bottom:12px;">
+          <div style="font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:8px;">출석 가능 요일</div>
+          <div id="checkin-days-wrap" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+        </div>
+        <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
+          <div style="flex:1;min-width:140px;">
+            <div style="font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:6px;">시작 시간</div>
+            <div style="display:flex;gap:6px;">
+              <select id="ci-start-hour" class="inp" style="flex:1;font-size:12px;padding:8px 10px;"></select>
+              <select id="ci-start-min" class="inp" style="width:80px;font-size:12px;padding:8px 10px;"><option value="0">:00</option><option value="15">:15</option><option value="30">:30</option><option value="45">:45</option></select>
+            </div>
+          </div>
+          <div style="flex:1;min-width:140px;">
+            <div style="font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:6px;">종료 시간</div>
+            <div style="display:flex;gap:6px;">
+              <select id="ci-end-hour" class="inp" style="flex:1;font-size:12px;padding:8px 10px;"></select>
+              <select id="ci-end-min" class="inp" style="width:80px;font-size:12px;padding:8px 10px;"><option value="0">:00</option><option value="15">:15</option><option value="30">:30</option><option value="45">:45</option></select>
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-primary btn-full" onclick="saveCheckinWindow()">저장</button>
+      </div>
+      <div class="card" style="margin-bottom:16px;">
+        <div style="font-size:16px;font-weight:800;margin-bottom:4px;">📢 공지사항</div>
+        <div style="font-size:12px;color:var(--txt-m);margin-bottom:14px;line-height:1.6;">출석 완료 화면에 표시될 공지사항을 입력합니다.</div>
+        <textarea id="announcement-text" class="inp" rows="4" placeholder="공지사항을 입력하세요..." style="resize:vertical;line-height:1.5;margin-bottom:12px;"></textarea>
+        <button class="btn btn-primary btn-full" onclick="saveAnnouncement()">저장</button>
+      </div>
+      <div class="card" style="margin-bottom:16px;">
+        <div style="font-size:16px;font-weight:800;margin-bottom:4px;">✏️ 동산 이름 설정</div>
+        <div style="font-size:12px;color:var(--txt-m);margin-bottom:14px;line-height:1.6;">각 그룹의 동산 이름을 변경합니다. 저장 시 기존 출석 기록도 자동으로 업데이트됩니다.</div>
+        <div id="dongsan-editor"></div>
+      </div>
+      <div class="card" style="margin-bottom:16px;">
+        <div style="font-size:16px;font-weight:800;margin-bottom:4px;">👑 동산지기 / 부동산지기 설정</div>
+        <div style="font-size:12px;color:var(--txt-m);margin-bottom:14px;line-height:1.6;">각 동산의 동산지기(👑)와 부동산지기(⭐)를 지정합니다. 지정된 멤버에게는 이름 옆에 배지가 표시됩니다.</div>
+        <div id="dongsan-leaders-editor"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="nav">
+    <button class="nav-btn active" data-tab="sheet" onclick="switchTab('sheet')"><span style="font-size:18px;display:block;height:22px;line-height:22px;text-align:center;">📊</span>Sheet</button>
+    <button class="nav-btn" data-tab="today" onclick="switchTab('today')"><span style="font-size:18px;display:block;height:22px;line-height:22px;text-align:center;">📡</span>Today</button>
+    <button class="nav-btn" data-tab="members" onclick="switchTab('members')"><span style="font-size:18px;display:block;height:22px;line-height:22px;text-align:center;">👥</span>Members</button>
+    <button class="nav-btn" data-tab="devices" onclick="switchTab('devices')"><span style="font-size:18px;display:block;height:22px;line-height:22px;text-align:center;">⚙️</span>Devices</button>
+    <button class="nav-btn" data-tab="admins" onclick="switchTab('admins')"><span style="font-size:18px;display:block;height:22px;line-height:22px;text-align:center;position:relative;"><span style="position:relative;display:inline-block;">🔐<span id="pending-nav-badge" style="display:none;position:absolute;top:-3px;right:-8px;background:var(--red);color:#fff;font-size:7px;font-weight:800;min-width:13px;height:13px;border-radius:7px;padding:0 2px;line-height:13px;text-align:center;"></span></span></span>Admins</button>
+    <button class="nav-btn" data-tab="settings" onclick="switchTab('settings')"><span style="font-size:18px;display:block;height:22px;line-height:22px;text-align:center;">⚙️</span>설정</button>
+  </div>
+</div>
+
+<div id="offline-banner" class="offline-banner">📵 오프라인 모드 — 서버에 연결할 수 없습니다. 일부 기능이 제한됩니다.</div>
+
+<!-- PWA Install Banner -->
+<div id="pwa-banner" style="display:none;position:fixed;bottom:70px;left:50%;transform:translateX(-50%);width:calc(100% - 32px);max-width:480px;background:var(--card);border:1px solid var(--bdr);border-radius:18px;padding:16px 18px;z-index:90;box-shadow:0 8px 32px rgba(0,0,0,.4);">
+  <div style="display:flex;align-items:center;gap:14px;">
+    <img src="/icon-192.png" style="width:48px;height:48px;border-radius:12px;flex-shrink:0;" onerror="this.style.display='none'">
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:14px;font-weight:800;margin-bottom:2px;">KCCP 출석 앱 설치 / Install App</div>
+      <div style="font-size:11px;color:var(--txt-m);line-height:1.5;">홈 화면에 추가하면 앱처럼 실행됩니다.<br>Add to home screen for instant access.</div>
+    </div>
+    <button onclick="document.getElementById('pwa-banner').style.display='none';localStorage.setItem('pwa-dismissed','1');" style="background:none;border:none;color:var(--txt-d);font-size:20px;cursor:pointer;flex-shrink:0;padding:4px;line-height:1;">✕</button>
+  </div>
+  <div id="pwa-ios-steps" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--bdr);">
+    <div style="font-size:11px;color:var(--txt-m);margin-bottom:10px;font-weight:700;letter-spacing:.5px;">홈 화면에 추가 / How to install:</div>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <div style="display:flex;align-items:center;gap:10px;font-size:12px;">
+        <span style="width:22px;height:22px;border-radius:50%;background:var(--acc);color:var(--bg);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;flex-shrink:0;">1</span>
+        <span>Safari 하단 <strong>공유 버튼</strong> 탭 &nbsp;<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-bottom:2px;"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg><br><span style="color:var(--txt-d);font-size:10px;">Tap the Share button at the bottom of Safari</span></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;font-size:12px;">
+        <span style="width:22px;height:22px;border-radius:50%;background:var(--acc);color:var(--bg);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;flex-shrink:0;">2</span>
+        <span><strong>홈 화면에 추가</strong> 선택<br><span style="color:var(--txt-d);font-size:10px;">Scroll down and tap "Add to Home Screen"</span></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;font-size:12px;">
+        <span style="width:22px;height:22px;border-radius:50%;background:var(--acc);color:var(--bg);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;flex-shrink:0;">3</span>
+        <span>오른쪽 상단 <strong>추가</strong> 탭<br><span style="color:var(--txt-d);font-size:10px;">Tap "Add" in the top-right corner</span></span>
+      </div>
+    </div>
+  </div>
+  <div id="pwa-install-btn-wrap" style="display:none;margin-top:12px;">
+    <button id="pwa-install-btn" class="btn btn-primary btn-full" style="font-size:14px;">📲 지금 설치하기 / Install Now</button>
+  </div>
+</div>
+
+<div id="toast" class="toast" style="display:none;"></div>
+
+<!-- Share Modal -->
+<div id="share-modal" class="overlay" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal fi" style="max-width:380px;width:100%;padding:24px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+      <div><div style="font-size:18px;font-weight:800;">📤 링크 공유</div><div style="font-size:11px;color:var(--txt-m);margin-top:2px;">Share Check-in Link</div></div>
+      <button onclick="document.getElementById('share-modal').style.display='none'" style="background:none;border:none;color:var(--txt-d);font-size:22px;cursor:pointer;padding:4px;line-height:1;">✕</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--bg);border:1px solid var(--bdr);border-radius:10px;margin-bottom:16px;">
+      <span id="share-url-text" class="mono" style="font-size:12px;color:var(--acc);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+      <button onclick="copyShareUrl()" id="share-copy-btn" style="background:var(--acc);color:var(--bg);border:none;border-radius:8px;font-size:11px;font-weight:800;padding:6px 12px;cursor:pointer;flex-shrink:0;font-family:'Sora',sans-serif;">복사</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <button onclick="shareSMS()" style="display:flex;align-items:center;gap:12px;padding:13px 16px;background:var(--card-hi);border:1px solid var(--bdr);border-radius:12px;cursor:pointer;text-align:left;width:100%;">
+        <span style="font-size:22px;">💬</span>
+        <div><div style="font-size:13px;font-weight:700;color:var(--txt);">문자 메시지 (SMS)</div><div style="font-size:11px;color:var(--txt-m);">Send via text message</div></div>
+      </button>
+      <button onclick="shareKakao()" style="display:flex;align-items:center;gap:12px;padding:13px 16px;background:#FEE500;border:none;border-radius:12px;cursor:pointer;text-align:left;width:100%;">
+        <div style="width:36px;height:36px;border-radius:8px;background:#FEE500;border:1.5px solid rgba(0,0,0,.08);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;">
+          <img src="https://cdn.simpleicons.org/kakaotalk/3C1E1E"
+               width="24" height="24"
+               onerror="this.parentElement.innerHTML='<svg viewBox=\'0 0 24 24\' width=\'24\' height=\'24\' fill=\'%233C1E1E\'><path d=\'M12 3C6.48 3 2 6.72 2 11.3c0 2.84 1.77 5.34 4.47 6.89L5.27 22l4.99-3.31c.56.08 1.14.12 1.74.12 5.52 0 10-3.72 10-8.51S17.52 3 12 3z\'/></svg>';"
+               alt="KakaoTalk" style="display:block;">
+        </div>
+        <div><div style="font-size:13px;font-weight:700;color:#3A1D1D;">카카오톡으로 공유</div><div style="font-size:11px;color:#5A3D3D;">Open KakaoTalk to share</div></div>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Bulk Check-in Modal -->
+<div id="bulk-checkin-modal" class="overlay" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal fi" style="max-width:460px;width:100%;max-height:82vh;display:flex;flex-direction:column;padding:24px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-shrink:0;">
+      <div><div style="font-size:18px;font-weight:800;">📋 일괄 출석 등록</div><div style="font-size:11px;color:var(--txt-m);margin-top:2px;">Bulk Manual Check-in</div></div>
+      <button onclick="document.getElementById('bulk-checkin-modal').style.display='none'" style="background:none;border:none;color:var(--txt-d);font-size:22px;cursor:pointer;padding:4px;line-height:1;">✕</button>
+    </div>
+    <div style="font-size:12px;color:var(--txt-m);margin-bottom:12px;flex-shrink:0;">오늘 날짜(<span id="bulk-date-label"></span>)로 선택한 멤버를 일괄 출석 등록합니다.</div>
+    <div style="display:flex;gap:6px;margin-bottom:10px;flex-shrink:0;">
+      <button class="btn btn-secondary btn-sm" onclick="bulkSelectAll(true)">전체 선택</button>
+      <button class="btn btn-secondary btn-sm" onclick="bulkSelectAll(false)">전체 해제</button>
+      <span id="bulk-selected-count" style="font-size:12px;color:var(--acc);font-weight:700;display:flex;align-items:center;margin-left:4px;"></span>
+    </div>
+    <div id="bulk-member-list" style="overflow-y:auto;flex:1;padding-right:4px;"></div>
+    <div style="margin-top:14px;flex-shrink:0;">
+      <button class="btn btn-primary btn-full" onclick="submitBulkCheckin()">출석 등록 / Check In Selected</button>
+    </div>
+  </div>
+</div>
+
+<!-- Transfer Member Modal -->
+<div id="transfer-modal" class="overlay" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal fi" style="max-width:380px;width:100%;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div><div style="font-size:18px;font-weight:800;">🔀 멤버 전출</div><div style="font-size:11px;color:var(--txt-m);margin-top:2px;">Transfer Member</div></div>
+      <button onclick="document.getElementById('transfer-modal').style.display='none'" style="background:none;border:none;color:var(--txt-d);font-size:22px;cursor:pointer;padding:4px;line-height:1;">✕</button>
+    </div>
+    <div id="transfer-member-label" style="font-size:13px;font-weight:700;color:var(--acc);margin-bottom:14px;padding:8px 12px;background:var(--acc-dim);border-radius:8px;"></div>
+    <div style="font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">새 부서 / New Group</div>
+    <select id="transfer-group" class="inp" style="margin-bottom:10px;font-size:13px;" onchange="renderTransferSubgroups()">
+      <option value="">부서 선택...</option>
+      <option value="대학부">대학부</option>
+      <option value="청년부">청년부</option>
+    </select>
+    <div style="font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">새 동산 / New Dongsan</div>
+    <select id="transfer-subgroup" class="inp" style="margin-bottom:16px;font-size:13px;"></select>
+    <button class="btn btn-primary btn-full" onclick="submitTransfer()">전출 확인 / Confirm Transfer</button>
+  </div>
+</div>
+
+<!-- Personal History Modal -->
+<div id="history-modal" class="overlay" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal fi" style="max-width:480px;width:100%;max-height:80vh;display:flex;flex-direction:column;padding:24px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-shrink:0;">
+      <div>
+        <div style="font-size:18px;font-weight:800;">📅 내 출석 기록</div>
+        <div style="font-size:11px;color:var(--txt-m);margin-top:2px;">My Attendance History</div>
+      </div>
+      <button onclick="document.getElementById('history-modal').style.display='none'" style="background:none;border:none;color:var(--txt-d);font-size:22px;cursor:pointer;padding:4px;line-height:1;">✕</button>
+    </div>
+    <div id="history-content" style="overflow-y:auto;flex:1;"></div>
+  </div>
+</div>
+
+<script>
+let deviceId=null,D={devices:{},log:[]},viewMode="grid",sheetGroup="",sheetSubgroup="",todayGroup="",todaySubgroup="",devGroup="",devSubgroup="",nameOrder=[],dongsanNames={"대학부":["동산1","동산2","동산3","동산4"],"청년부":["동산1","동산2","동산3","동산4"]},activeTab="sheet",myAdminRole=null,announcement="",lightMode=false,myLeaderGroup="",myLeaderSubgroup="",checkinDays=[0],checkinStartMin=780,checkinEndMin=900,memberSearch="",dongsanLeaders={},requireApproval=false,pendingCount=0,chartsVisible=false,_trendChart=null,_groupChart=null;
+function fp(){const n=navigator,s=screen;const r=[n.userAgent,n.language,n.hardwareConcurrency,n.maxTouchPoints,s.width,s.height,s.colorDepth,Intl.DateTimeFormat().resolvedOptions().timeZone,n.platform,n.deviceMemory||"x"].join("|");let h1=5381,h2=0;for(let i=0;i<r.length;i++){h1=((h1<<5)+h1+r.charCodeAt(i))&0xFFFFFFFF;h2=r.charCodeAt(i)+((h2<<6)+(h2<<16)-h2)&0xFFFFFFFF;}return`DEV-${(h1>>>0).toString(16).padStart(8,"0")}-${(h2>>>0).toString(16).padStart(8,"0")}`.toUpperCase();}
+function today(){return new Date().toLocaleDateString("en-CA",{timeZone:"America/New_York"})}
+function fmtD(d){return new Date(d+"T12:00:00").toLocaleDateString("en-US",{timeZone:"America/New_York",weekday:"short",month:"short",day:"numeric"})}
+function fmtDL(d){return new Date(d+"T12:00:00").toLocaleDateString("en-US",{timeZone:"America/New_York",weekday:"long",month:"long",day:"numeric",year:"numeric"})}
+function esc(s){const d=document.createElement("div");d.textContent=s;return d.innerHTML;}
+async function api(m,p,b,h={}){const o={method:m,headers:{"Content-Type":"application/json",...h}};if(b)o.body=JSON.stringify(b);return(await fetch(p,o)).json();}
+function setOffline(v){const b=document.getElementById("offline-banner");if(b)b.style.display=v?"block":"none";}
+async function load(){
+  try{
+    const d=await api("GET","/api/data");
+    if(d&&d.offline){setOffline(true);}else{setOffline(false);D=d||D;}
+  }catch(e){setOffline(true);}
+  try{const o=await api("GET","/api/name-order");if(!o.offline)nameOrder=o.order||[];}catch(e){}
+  try{const o=await api("GET","/api/dongsan-names");if(o.names)dongsanNames=o.names;}catch(e){}
+  try{const o=await api("GET","/api/config");if(!o.offline){if(o.announcement!==undefined){announcement=o.announcement;const el=document.getElementById("announcement-text");if(el)el.value=announcement;}if(o.checkinDays!==undefined)checkinDays=o.checkinDays;if(o.checkinStartMin!==undefined)checkinStartMin=o.checkinStartMin;if(o.checkinEndMin!==undefined)checkinEndMin=o.checkinEndMin;if(o.requireApproval!==undefined){requireApproval=o.requireApproval;const at=document.getElementById("approval-toggle");if(at)at.checked=requireApproval;}renderCheckinWindow();}}catch(e){}
+  try{const o=await api("GET","/api/dongsan-leaders");if(o.leaders)dongsanLeaders=o.leaders;}catch(e){}
+}
+function sortNames(names){
+  // Sort by custom order first, then alphabetically for unordered names
+  return names.sort((a,b)=>{
+    const ia=nameOrder.indexOf(a),ib=nameOrder.indexOf(b);
+    if(ia>=0&&ib>=0)return ia-ib;
+    if(ia>=0)return -1;
+    if(ib>=0)return 1;
+    return a.localeCompare(b);
+  });
+}
+function getDongsanRole(name,group,subgroup){
+  if(!dongsanLeaders||!group||!subgroup)return null;
+  const sg=dongsanLeaders[group]&&dongsanLeaders[group][subgroup];
+  if(!sg)return null;
+  if(sg.leader===name)return "동산지기";
+  if((sg.subLeaders||[]).includes(name))return "부동산지기";
+  return null;
+}
+function dongsanRoleTag(role){
+  if(!role)return "";
+  if(role==="동산지기")return `<span class="tag" style="background:rgba(251,191,36,.15);color:#FBBF24;font-size:9px;">👑 동산지기</span>`;
+  if(role==="부동산지기")return `<span class="tag" style="background:rgba(167,139,250,.15);color:#A78BFA;font-size:9px;">⭐ 부동산지기</span>`;
+  return "";
+}
+async function saveOrder(){await api("POST","/api/name-order",{order:nameOrder,adminDeviceId:deviceId});}
+let tt;function flash(m,t="ok"){const e=document.getElementById("toast");e.textContent=m;e.className="toast toast-"+t;e.style.display="block";clearTimeout(tt);tt=setTimeout(()=>e.style.display="none",3500);}
+
+// ─── Device info helpers ───
+function dInfo(did){const v=D.devices[did];if(!v)return null;if(typeof v==="string")return{name:v,group:""};return v;}
+function dName(did){const i=dInfo(did);return i?i.name:null;}
+function dGroup(did){const i=dInfo(did);return i?i.group||"":"";}
+function dSubgroup(did){const i=dInfo(did);return i?i.subgroup||"":"";}
+function getGroups(){const g=new Set();Object.values(D.devices).forEach(v=>{const gr=typeof v==="string"?"":v.group||"";if(gr)g.add(gr);});return[...g].sort();}
+function getUniqueNames(group,subgroup){const m={};Object.entries(D.devices).forEach(([did,v])=>{const info=typeof v==="string"?{name:v,group:"",subgroup:""}:v;if(group&&info.group!==group)return;if(subgroup&&(info.subgroup||"")!==subgroup)return;if(!m[info.name])m[info.name]={group:info.group||"",subgroup:info.subgroup||"",devices:[]};m[info.name].devices.push(did);});return m;}
+function getDevicesFor(name){return Object.entries(D.devices).filter(([d,v])=>(typeof v==="string"?v:v.name)===name).map(([d])=>d);}
+function totalForName(name){const dids=getDevicesFor(name);const dates=new Set();D.log.forEach(e=>{if(dids.includes(e.deviceId))dates.add(e.date);});return dates.size;}
+
+const ROLE_LABELS={"pastor":"목사님","elder":"장로님","deacon":"집사님","mentor":"멘토","visitor":"방문자"};
+const ROLE_TAG_CLS={"pastor":"tag-green","elder":"tag-blue","deacon":"tag-blue","mentor":"tag-purple","visitor":"tag-amber"};
+function getMemberRole(name){const dids=getDevicesFor(name);for(const d of dids){const v=D.devices[d];if(v&&typeof v==="object"){if(v.memberRole)return v.memberRole;if(v.visitor)return "visitor";}}return "";}
+function isVisitorMember(name){return getMemberRole(name)!="";}
+function attRate(name){
+  // Individual: denominator = Sundays from this person's first attendance onward
+  const dids=getDevicesFor(name);
+  const attended=new Set();
+  D.log.forEach(e=>{if(dids.includes(e.deviceId))attended.add(e.date);});
+  if(!attended.size)return null;
+  const firstDate=[...attended].sort()[0];
+  const allDates=[...new Set(D.log.filter(e=>{const v=D.devices[e.deviceId];return!(v&&typeof v==="object"&&(v.memberRole||v.visitor));}).map(e=>e.date))].filter(d=>d>=firstDate);
+  if(!allDates.length)return null;
+  return Math.round(attended.size/allDates.length*100);
+}
+function getMemberNotes(name){const dids=getDevicesFor(name);for(const d of dids){const v=D.devices[d];if(v&&typeof v==="object"&&v.notes)return v.notes;}return "";}
+function roleTag(role){if(!role)return "";return `<span class="tag ${ROLE_TAG_CLS[role]||'tag-amber'}" style="font-size:9px;">${ROLE_LABELS[role]||role}</span>`;}
+function grpTag(g,sg){let t="";if(g==="대학부")t=`<span class="tag tag-amber" style="font-size:11px;">대학부</span>`;else if(g==="청년부")t=`<span class="tag tag-blue" style="font-size:11px;">청년부</span>`;if(sg)t+=` <span class="tag tag-purple" style="font-size:11px;">${esc(sg)}</span>`;return t;}
+function grpAccent(g){if(g==="대학부")return{bg:"rgba(251,191,36,.08)",bdr:"rgba(251,191,36,.2)",dot:"#FBBF24"};if(g==="청년부")return{bg:"rgba(96,165,250,.08)",bdr:"rgba(96,165,250,.2)",dot:"#60A5FA"};return{bg:"var(--card)",bdr:"var(--bdr)",dot:"var(--acc)"};}
+function grpDot(g){const c=grpAccent(g);return`background:${c.dot}`;}
+function renderGrpTabs(containerId,current,setter){
+  const groups=getGroups();const el=document.getElementById(containerId);
+  const colors={"대학부":"#FBBF24","청년부":"#60A5FA"};
+  el.innerHTML=[{l:"All",v:""}, ...groups.map(g=>({l:g,v:g}))].map(t=>{
+    const active=t.v===current;const c=colors[t.v]||"var(--acc)";
+    return`<button class="grp-tab${active?" active":""}" style="${active?`background:${c}22;color:${c};border-color:${c}55;`:""}" onclick="${setter}('${t.v}');renderAll();">${esc(t.l)}</button>`;
+  }).join("");
+}
+function setSheetGroup(g){sheetGroup=g;sheetSubgroup="";}function setTodayGroup(g){todayGroup=g;todaySubgroup="";}function setDevGroup(g){devGroup=g;devSubgroup="";}
+function setSheetSubgroup(g){sheetSubgroup=g;}function setTodaySubgroup(g){todaySubgroup=g;}function setDevSubgroup(g){devSubgroup=g;}
+function renderSubgroupTabs(containerId,curGroup,curSub,setter){
+  const el=document.getElementById(containerId);
+  if(!curGroup){el.style.display="none";return;}
+  el.style.display="flex";
+  const subs=dongsanNames[curGroup]||["동산1","동산2","동산3","동산4"];
+  el.innerHTML=[{l:"All 동산",v:""},...subs.map(s=>({l:s,v:s}))].map(t=>{
+    const active=t.v===curSub;const c="#A78BFA";
+    return`<button class="grp-tab${active?" active":""}" style="${active?`background:${c}22;color:${c};border-color:${c}55;`:""}" onclick="${setter}('${t.v}');renderAll();">${esc(t.l)}</button>`;
+  }).join("");
+}
+function buildSubgroupOptions(group,selectedVal){const names=dongsanNames[group]||["동산1","동산2","동산3","동산4"];return`<option value="">동산 선택 안함</option>`+names.map(n=>`<option value="${esc(n)}"${n===selectedVal?" selected":""}>${esc(n)}</option>`).join("");}
+function updateSelfSubgroup(){const g=document.getElementById("self-group").value;const el=document.getElementById("self-subgroup");if(g==="대학부"||g==="청년부"){el.innerHTML=buildSubgroupOptions(g,"");el.style.display="block";}else{el.style.display="none";}el.value="";}
+function updateEditSubgroup(keepVal){const g=document.getElementById("edit-group").value;const wrap=document.getElementById("edit-subgroup-wrap");const sel=document.getElementById("edit-subgroup");if(g==="대학부"||g==="청년부"){sel.innerHTML=buildSubgroupOptions(g,keepVal||"");wrap.style.display="block";}else{wrap.style.display="none";sel.value="";}}
+function updateRegSubgroup(){const g=document.getElementById("reg-group").value;const el=document.getElementById("reg-subgroup");if(g==="대학부"||g==="청년부"){el.innerHTML=buildSubgroupOptions(g,"");el.style.display="block";}else{el.style.display="none";}el.value="";}
+
+// ─── LOGO ───
+function kccpLogo(size){
+  const s=size||140;
+  // Scale factor relative to 300px design
+  const sc=s/300;
+  function p(v){return Math.round(v*sc*10)/10;}
+  return`<svg width="${s}" height="${s}" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
+    <!-- Circle background -->
+    <circle cx="150" cy="150" r="147" fill="#ffffff" stroke="#d8d8d8" stroke-width="1.5"/>
+    <!-- Green square (main face) -->
+    <rect x="82" y="62" width="80" height="82" fill="#3CC88A"/>
+    <!-- Yellow perspective shape (right face, open-door/book effect) -->
+    <polygon points="162,62 192,78 192,130 162,144" fill="#F7D23E"/>
+    <!-- White cross on green square -->
+    <rect x="116" y="72" width="8" height="62" rx="2" fill="#ffffff"/>
+    <rect x="90" y="93" width="54" height="8" rx="2" fill="#ffffff"/>
+    <!-- Church name -->
+    <text x="150" y="175" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="13" font-weight="400" fill="#1a3a6b" letter-spacing="1.5">KOREAN CENTRAL CHURCH</text>
+    <text x="150" y="191" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="13" font-weight="400" fill="#1a3a6b" letter-spacing="1.5">OF PITTSBURGH</text>
+    <!-- Decorative lines -->
+    <line x1="118" y1="199" x2="142" y2="199" stroke="#F7D23E" stroke-width="2"/>
+    <line x1="158" y1="199" x2="182" y2="199" stroke="#3CC88A" stroke-width="2"/>
+    <!-- Korean subtitle -->
+    <text x="150" y="221" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="14" fill="#2a5caa" letter-spacing="2">대학 · 청년부</text>
+  </svg>`;
+}
+
+// ─── CHECK-IN ───
+let userLat=null,userLng=null;
+function getLocation(){
+  return new Promise((resolve)=>{
+    if(!navigator.geolocation){resolve({lat:null,lng:null});return;}
+    navigator.geolocation.getCurrentPosition(
+      pos=>{userLat=pos.coords.latitude;userLng=pos.coords.longitude;resolve({lat:userLat,lng:userLng});},
+      err=>{console.warn("Location error:",err.message);resolve({lat:null,lng:null});},
+      {enableHighAccuracy:true,timeout:10000,maximumAge:60000}
+    );
+  });
+}
+async function doCheckin(){
+  const el=document.getElementById("checkin-content");
+  el.innerHTML=`<div style="margin:0 auto 20px;animation:pulse 1.5s ease-in-out infinite;">${kccpLogo(140)}</div><div style="font-size:20px;font-weight:700;margin-bottom:8px;">출석 확인 중...</div><div style="font-size:12px;color:var(--txt-d);">위치 확인 중...</div>`;
+  const loc=await getLocation();
+  userLat=loc.lat;userLng=loc.lng;
+  if(!dName(deviceId)){document.getElementById("register-modal").style.display="flex";document.getElementById("self-name").focus();return;}
+  await doCheckinFinish();
+}
+function getEasternNow(){
+  const n=new Date();
+  const parts=n.toLocaleDateString("en-US",{timeZone:"America/New_York",month:"2-digit",day:"2-digit",year:"numeric"}).split("/");
+  const d=`${parts[0]}-${parts[1]}-${parts[2]}`;
+  const eastern=new Date(n.toLocaleString("en-US",{timeZone:"America/New_York"}));
+  const korDays=["(일)","(월)","(화)","(수)","(목)","(금)","(토)"];
+  const dayKr=korDays[eastern.getDay()];
+  return{date:d,dayKr,h:eastern.getHours(),m:eastern.getMinutes(),s:eastern.getSeconds()};
+}
+function drawAnalogClock(color){
+  const now=getEasternNow();
+  const h=now.h%12,m=now.m,s=now.s;
+  const hAngle=(h*30)+(m*0.5)-90;
+  const mAngle=(m*6)+(s*0.1)-90;
+  const sAngle=(s*6)-90;
+  const hRad=hAngle*Math.PI/180,mRad=mAngle*Math.PI/180,sRad=sAngle*Math.PI/180;
+  const cx=60,cy=60,r=52;
+  // Hour markers
+  let markers="";
+  for(let i=0;i<12;i++){
+    const a=(i*30-90)*Math.PI/180;
+    const isMain=i%3===0;
+    const x1=cx+Math.cos(a)*(r-(isMain?12:8)),y1=cy+Math.sin(a)*(r-(isMain?12:8));
+    const x2=cx+Math.cos(a)*r,y2=cy+Math.sin(a)*r;
+    markers+=`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="${isMain?2.5:1}" stroke-linecap="round" opacity="${isMain?0.9:0.4}"/>`;
+  }
+  // Numbers
+  let nums="";
+  [12,3,6,9].forEach(n=>{
+    const a=((n%12)*30-90)*Math.PI/180;
+    const x=cx+Math.cos(a)*(r-22),y=cy+Math.sin(a)*(r-22);
+    nums+=`<text x="${x}" y="${y}" fill="${color}" font-size="10" font-weight="700" font-family="'IBM Plex Mono',monospace" text-anchor="middle" dominant-baseline="central" opacity="0.6">${n}</text>`;
+  });
+  return`<svg width="120" height="120" viewBox="0 0 120 120">
+    <circle cx="${cx}" cy="${cy}" r="${r+4}" fill="none" stroke="${color}" stroke-width="2" opacity="0.25"/>
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="1" opacity="0.1"/>
+    ${markers}${nums}
+    <line x1="${cx}" y1="${cy}" x2="${cx+Math.cos(hRad)*28}" y2="${cy+Math.sin(hRad)*28}" stroke="${color}" stroke-width="3.5" stroke-linecap="round" opacity="0.9"/>
+    <line x1="${cx}" y1="${cy}" x2="${cx+Math.cos(mRad)*38}" y2="${cy+Math.sin(mRad)*38}" stroke="${color}" stroke-width="2.5" stroke-linecap="round" opacity="0.8"/>
+    <line x1="${cx}" y1="${cy}" x2="${cx+Math.cos(sRad)*42}" y2="${cy+Math.sin(sRad)*42}" stroke="${color}" stroke-width="1" stroke-linecap="round"/>
+    <circle cx="${cx}" cy="${cy}" r="3" fill="${color}"/>
+    <circle cx="${cx}" cy="${cy}" r="1.5" fill="${color}"/>
+  </svg>`;
+}
+function showRestriction(el,gl,icon,color,title,msg,type){
+  if(gl)gl.style.background=`radial-gradient(circle,${color}18,transparent 70%)`;
+  let iconHtml;
+  if(type==="wrong-day"||type==="wrong-time"){
+    const now=getEasternNow();
+    const timeStr=formatDigitalTime(now);
+    iconHtml=`<div style="margin:0 auto 24px;display:flex;flex-direction:column;align-items:center;gap:10px;">
+      ${kccpLogo(140)}
+      <div id="live-date" class="mono" style="font-size:17px;font-weight:600;color:var(--txt-m);letter-spacing:1px;">${esc(now.date)} <span style="color:var(--acc);">${esc(now.dayKr)}</span></div>
+      <div id="live-time" class="mono" style="font-size:24px;font-weight:800;color:var(--txt);letter-spacing:2px;">${esc(timeStr)}</div>
+    </div>`;
+    setTimeout(()=>{
+      const iv=setInterval(()=>{
+        const de=document.getElementById("live-date"),te=document.getElementById("live-time");
+        if(!te){clearInterval(iv);return;}
+        const c=getEasternNow();
+        if(de)de.innerHTML=`${esc(c.date)} <span style="color:var(--acc);">${esc(c.dayKr)}</span>`;
+        te.textContent=formatDigitalTime(c);
+      },1000);
+    },100);
+  }else{
+    iconHtml=`<div style="width:140px;height:140px;border-radius:50%;background:${color}15;border:2px solid ${color}40;margin:0 auto 28px;display:flex;align-items:center;justify-content:center;font-size:44px;">${icon}</div>`;
+  }
+  el.innerHTML=`<div class="fi">${iconHtml}<div style="font-size:22px;font-weight:800;color:${color};margin-bottom:10px;">${esc(title)}</div><div style="font-size:14px;color:var(--txt-m);line-height:1.6;max-width:300px;margin:0 auto;">${esc(msg)}</div><button class="btn btn-secondary" style="margin-top:20px;" onclick="location.reload()">다시 시도</button></div>`;
+}
+function formatDigitalTime(now){
+  const h12=now.h%12||12;
+  const ampm=now.h>=12?"PM":"AM";
+  return`${String(h12).padStart(2,"0")}:${String(now.m).padStart(2,"0")}:${String(now.s).padStart(2,"0")} ${ampm}`;
+}
+async function doCheckinFinish(){
+  const el=document.getElementById("checkin-content"),gl=document.getElementById("checkin-glow");
+  try{
+  const r=await api("POST","/api/checkin",{deviceId,lat:userLat,lng:userLng});
+  if(r.status==="time-restricted"){const type=r.message.includes("요일")?"wrong-day":"wrong-time";showRestriction(el,gl,"","#FBBF24",r.message,r.sub||"",type);return;}
+  if(r.status==="location-restricted"){showRestriction(el,gl,"📍","#FB7185","교회 근처가 아닙니다",r.message,"location");return;}
+  if(r.status==="location-required"){showRestriction(el,gl,"📍","#FB7185","위치 정보 필요",r.message,"location");return;}
+  await load();
+  const name=dName(deviceId)||r.name;const total=r.totalAttendance||0;
+  if(r.status==="already"){
+    gl.style.background="radial-gradient(circle,rgba(251,191,36,.12),transparent 70%)";
+    el.innerHTML=`<div class="fi"><div style="width:140px;height:140px;border-radius:50%;background:var(--amber-dim);border:2px solid rgba(251,191,36,.3);margin:0 auto 28px;display:flex;align-items:center;justify-content:center;font-size:44px;">📋</div><div style="font-size:24px;font-weight:800;color:var(--amber);margin-bottom:6px;">이미 출석하셨습니다</div><div style="font-size:15px;font-weight:500;">${esc(name)}</div><div class="mono" style="font-size:14px;color:var(--txt-m);margin-top:4px;">${esc(r.time)}</div><div style="margin-top:14px;padding:8px 20px;border-radius:10px;background:var(--acc-dim);border:1px solid rgba(52,211,153,.2);display:inline-block;"><span style="font-size:15px;font-weight:700;color:var(--acc);">총 출석: ${total}</span></div>${announcement?`<div style="margin-top:16px;padding:10px 16px;border-radius:10px;background:var(--amber-dim);border:1px solid rgba(251,191,36,.3);max-width:320px;margin-left:auto;margin-right:auto;"><div style="font-size:10px;font-weight:700;color:var(--amber);margin-bottom:3px;letter-spacing:.5px;">📢 공지사항</div><div style="font-size:12px;color:var(--txt);line-height:1.5;">${esc(announcement)}</div></div>`:""}<div style="width:200px;height:3px;border-radius:2px;background:var(--bdr);margin:20px auto 0;overflow:hidden;"><div style="height:100%;background:var(--amber);border-radius:2px;animation:countdown 4s linear forwards;"></div></div><div style="font-size:11px;color:var(--txt-d);margin-top:8px;">이 페이지를 닫으셔도 됩니다</div></div>`;
+  }else{
+    const isFirst=r.firstVisit||total===1;
+    if(navigator.vibrate)navigator.vibrate(isFirst?[100,50,100,50,200]:[100,50,200]);
+    gl.style.background=isFirst?"radial-gradient(circle,rgba(167,139,250,.18),transparent 70%)":"radial-gradient(circle,rgba(52,211,153,.18),transparent 70%)";
+    const checkColor=isFirst?"var(--purple)":"var(--acc)";
+    el.innerHTML=`<div class="fi">${isFirst?`<div style="font-size:32px;margin-bottom:8px;">🌟</div>`:""}
+      <div class="pc rp" style="width:110px;height:110px;border-radius:50%;background:${checkColor};margin:0 auto 20px;display:flex;align-items:center;justify-content:center;"><svg width="52" height="52" viewBox="0 0 52 52" fill="none"><path d="M14 27l8 8 16-18" stroke="var(--bg)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      ${isFirst?`<div style="font-size:20px;font-weight:800;color:var(--purple);margin-bottom:4px;">첫 출석을 축하합니다!</div>`:""}
+      <div style="font-size:${isFirst?"18":"26"}px;font-weight:800;color:${checkColor};margin-bottom:6px;">출석 완료!</div>
+      <div style="font-size:16px;font-weight:500;margin-bottom:4px;">${esc(name)}</div>
+      <div class="mono" style="font-size:14px;color:var(--txt-m);">${esc(r.time)}</div>
+      <div style="margin-top:14px;padding:8px 20px;border-radius:10px;background:var(--acc-dim);border:1px solid rgba(52,211,153,.2);display:inline-block;"><span style="font-size:15px;font-weight:700;color:var(--acc);">총 출석: ${total}</span></div>
+      ${announcement?`<div style="margin-top:16px;padding:10px 16px;border-radius:10px;background:var(--amber-dim);border:1px solid rgba(251,191,36,.3);max-width:320px;margin-left:auto;margin-right:auto;"><div style="font-size:10px;font-weight:700;color:var(--amber);margin-bottom:3px;letter-spacing:.5px;">📢 공지사항</div><div style="font-size:12px;color:var(--txt);line-height:1.5;">${esc(announcement)}</div></div>`:""}
+      <div style="width:200px;height:3px;border-radius:2px;background:var(--bdr);margin:20px auto 0;overflow:hidden;"><div style="height:100%;background:${checkColor};border-radius:2px;animation:countdown 5s linear forwards;"></div></div>
+      <div style="font-size:11px;color:var(--txt-d);margin-top:8px;">이 페이지를 닫으셔도 됩니다</div>
+      <button onclick="showMyHistory('${esc(name)}')" style="margin-top:14px;background:rgba(255,255,255,.06);border:1px solid var(--bdr);color:var(--txt-m);font-size:12px;font-family:'IBM Plex Mono',monospace;cursor:pointer;padding:10px 20px;border-radius:14px;letter-spacing:.5px;">📅 내 출석 기록 · My History</button>
+      </div>`;
+  }
+  }catch(e){
+    console.error("Checkin error:",e);
+    queueCheckin(deviceId,userLat,userLng);
+    gl.style.background="radial-gradient(circle,rgba(251,191,36,.12),transparent 70%)";
+    el.innerHTML=`<div class="fi">
+      <div style="font-size:44px;margin-bottom:12px;">📡</div>
+      <div style="font-size:22px;font-weight:800;color:var(--amber);margin-bottom:6px;">오프라인 대기 중</div>
+      <div style="font-size:13px;color:var(--txt-m);margin-bottom:14px;line-height:1.6;">인터넷 연결이 없습니다.<br>온라인 복구 시 자동으로 출석이 등록됩니다.</div>
+      <div style="font-size:12px;color:var(--txt-d);">Queued — will sync when back online</div>
+    </div>`;
+  }
+}
+function showMyHistory(name){
+  const modal=document.getElementById("history-modal");
+  const content=document.getElementById("history-content");
+  const entries=[...D.log].filter(e=>(dName(e.deviceId)||e.name||"").trim()===name.trim()).sort((a,b)=>b.date.localeCompare(a.date));
+  if(!entries.length){
+    content.innerHTML=`<div style="text-align:center;padding:30px;color:var(--txt-d);font-size:13px;">No records found.<br>출석 기록이 없습니다.</div>`;
+    modal.style.display="flex";return;
+  }
+  const total=entries.length;
+  // Group by year-month
+  const byMonth={};
+  entries.forEach(e=>{const ym=e.date.slice(0,7);if(!byMonth[ym])byMonth[ym]=[];byMonth[ym].push(e);});
+  const monthNames=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  let html=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;padding:12px 14px;background:var(--acc-dim);border:1px solid rgba(52,211,153,.2);border-radius:12px;">
+    <span style="font-size:28px;font-weight:800;color:var(--acc);">${total}</span>
+    <div><div style="font-size:13px;font-weight:700;color:var(--acc);">총 출석일 / Total Days</div><div style="font-size:11px;color:var(--txt-m);">${esc(name)}</div></div>
+  </div>`;
+  Object.keys(byMonth).sort((a,b)=>b.localeCompare(a)).forEach(ym=>{
+    const [yr,mo]=ym.split("-");
+    const label=`${monthNames[parseInt(mo,10)-1]} ${yr}`;
+    const monthEntries=byMonth[ym];
+    html+=`<div style="margin-bottom:14px;">
+      <div style="font-size:11px;font-weight:700;color:var(--txt-m);letter-spacing:.8px;text-transform:uppercase;margin-bottom:6px;font-family:'IBM Plex Mono',monospace;">${label} · ${monthEntries.length}일</div>
+      ${monthEntries.map(e=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;margin-bottom:4px;border-radius:10px;background:var(--bg);border:1px solid var(--bdr);">
+        <div style="font-size:13px;font-weight:600;">${fmtD(e.date)}</div>
+        <div class="mono" style="font-size:11px;color:var(--txt-m);">${e.time||""}</div>
+      </div>`).join("")}
+    </div>`;
+  });
+  content.innerHTML=html;
+  modal.style.display="flex";
+}
+async function submitSelfRegister(){
+  const n=document.getElementById("self-name").value.trim(),g=document.getElementById("self-group").value,sg=document.getElementById("self-subgroup").value;
+  if(!n){flash("이름을 입력해주세요","warn");return;}
+  if(!g){flash("부서를 선택해주세요~","warn");return;}
+  const r=await api("POST","/api/self-register",{deviceId,name:n,group:g,subgroup:sg});
+  document.getElementById("register-modal").style.display="none";
+  if(r.status==="pending"){
+    const el=document.getElementById("checkin-content"),gl=document.getElementById("checkin-glow");
+    if(gl)gl.style.background="radial-gradient(circle,rgba(251,191,36,.12),transparent 70%)";
+    if(el)el.innerHTML=`<div class="fi"><div style="font-size:60px;margin-bottom:16px;">⏳</div><div style="font-size:22px;font-weight:800;color:var(--amber);margin-bottom:8px;">등록 대기 중</div><div style="font-size:14px;color:var(--txt-m);line-height:1.8;max-width:300px;margin:0 auto;">관리자 승인 후 출석이 가능합니다.<br><span style="font-size:12px;color:var(--txt-d);">Awaiting admin approval.</span></div></div>`;
+    return;
+  }
+  await load();await doCheckinFinish();
+}
+
+// ─── ADMIN ───
+async function tryAdmin(){const r=await api("POST","/api/check-admin",{deviceId});if(r.noAdminsYet){document.getElementById("admin-access-msg").textContent="No admins yet. Enter master password.";document.getElementById("password-modal").style.display="flex";document.getElementById("admin-pw").focus();return;}if(r.isAdmin){showAdmin();return;}document.getElementById("admin-access-msg").textContent="Not authorized. Enter master password.";document.getElementById("password-modal").style.display="flex";document.getElementById("admin-pw").focus();}
+async function submitAdminPassword(){const pw=document.getElementById("admin-pw").value;const r=await api("POST","/api/admin/add",{password:pw,targetDeviceId:deviceId});if(r.error){flash("Wrong password","err");return;}document.getElementById("password-modal").style.display="none";document.getElementById("admin-pw").value="";flash("Admin access granted!");showAdmin();}
+async function showAdmin(){
+  document.getElementById("checkin-view").style.display="none";
+  document.getElementById("admin-view").style.display="block";
+  const r=await api("POST","/api/check-admin",{deviceId});
+  myAdminRole=r.role||null;
+  myLeaderGroup=r.leaderGroup||"";
+  myLeaderSubgroup=r.leaderSubgroup||"";
+  // If leader is scoped, force their group filter
+  if(myAdminRole==="leader"&&myLeaderGroup){sheetGroup=myLeaderGroup;todayGroup=myLeaderGroup;devGroup=myLeaderGroup;if(myLeaderSubgroup){sheetSubgroup=myLeaderSubgroup;todaySubgroup=myLeaderSubgroup;devSubgroup=myLeaderSubgroup;}}
+  await load();
+  document.getElementById("my-device-id").textContent=deviceId;
+  initSwipe();
+  initPullToRefresh();
+  applyTheme();
+  renderAll();
+  renderPendingBadge();
+}
+function showCheckin(){document.getElementById("admin-view").style.display="none";document.getElementById("checkin-view").style.display="flex";}
+function switchTab(t){activeTab=t;document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));document.getElementById("tab-"+t).classList.add("active");document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.tab===t));load().then(()=>renderAll());}
+function renderLinkDropdown(){const allNames=Object.keys(getUniqueNames("","")).sort();const sel=document.getElementById("link-name");if(!sel)return;const cv=sel.value;sel.innerHTML='<option value="">Select a person...</option>'+allNames.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");sel.value=cv;}
+function renderDongsanEditor(){
+  const el=document.getElementById("dongsan-editor");if(!el)return;
+  const groups=["대학부","청년부"];
+  el.innerHTML=groups.map(g=>{
+    const names=dongsanNames[g]||["동산1","동산2","동산3","동산4"];
+    return`<div style="margin-bottom:16px;"><div style="font-size:12px;font-weight:700;color:var(--txt-m);margin-bottom:8px;letter-spacing:.5px;">${esc(g)}</div>${names.map((n,i)=>`<div style="display:flex;gap:8px;margin-bottom:6px;align-items:center;"><span class="mono" style="font-size:10px;color:var(--txt-d);min-width:20px;">${i+1}</span><input class="inp" style="flex:1;font-size:13px;padding:8px 12px;" id="ds-${esc(g)}-${i}" value="${esc(n)}" placeholder="동산 ${i+1} 이름"><button class="btn btn-primary btn-sm" onclick="saveDongsanName('${esc(g)}',${i})">저장</button></div>`).join("")}</div>`;
+  }).join("");
+}
+async function saveDongsanName(group,index){
+  const inp=document.getElementById(`ds-${group}-${index}`);
+  if(!inp)return;
+  const name=inp.value.trim();
+  if(!name){flash("이름을 입력해주세요","warn");return;}
+  const r=await api("POST","/api/dongsan-names",{group,index,name,adminDeviceId:deviceId});
+  if(r.error){flash(r.error,"err");return;}
+  dongsanNames=r.names;
+  flash(`저장됨: ${name}`);
+  await load();renderAll();
+}
+function renderDongsanLeadersEditor(){
+  const el=document.getElementById("dongsan-leaders-editor");if(!el)return;
+  const groups=["대학부","청년부"];
+  const allMembers=getUniqueNames("","");
+  el.innerHTML=groups.map(g=>{
+    const subgroups=dongsanNames[g]||["동산1","동산2","동산3","동산4"];
+    return subgroups.map(sg=>{
+      const key=`${g}__${sg}`;
+      const cur=(dongsanLeaders[g]&&dongsanLeaders[g][sg])||{leader:"",subLeaders:[]};
+      const sgMembers=Object.keys(allMembers).filter(n=>{const m=allMembers[n];return m&&m.group===g&&(m.subgroup||"")===(sg||"");});
+      const makeLeaderOpts=()=>`<option value="">-- 없음 --</option>`+sgMembers.map(n=>`<option value="${esc(n)}"${cur.leader===n?" selected":""}>${esc(n)}</option>`).join("");
+      const subLeaderCheckboxes=sgMembers.length?sgMembers.map(n=>`<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:3px 0;"><input type="checkbox" value="${esc(n)}" id="sl-${esc(key)}-${esc(n)}" ${(cur.subLeaders||[]).includes(n)?"checked":""} style="accent-color:var(--acc);width:14px;height:14px;"> ${esc(n)}</label>`).join(""):`<span style="font-size:12px;color:var(--txt-d);">해당 동산 멤버 없음</span>`;
+      return`<div style="margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--bdr);">
+        <div style="font-size:13px;font-weight:700;color:var(--acc);margin-bottom:10px;">${esc(g)} · ${esc(sg)}</div>
+        <div style="margin-bottom:10px;">
+          <div style="font-size:11px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">👑 동산지기</div>
+          <select id="leader-${esc(key)}" class="inp" style="font-size:12px;padding:8px 10px;">${makeLeaderOpts()}</select>
+        </div>
+        <div style="margin-bottom:10px;">
+          <div style="font-size:11px;font-weight:600;color:var(--txt-m);margin-bottom:6px;">⭐ 부동산지기 (복수 선택)</div>
+          <div style="display:flex;flex-direction:column;gap:2px;max-height:110px;overflow-y:auto;padding:8px;background:var(--bg);border-radius:8px;border:1px solid var(--bdr);">${subLeaderCheckboxes}</div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="saveDongsanLeaders('${esc(g)}','${esc(sg)}')">저장</button>
+      </div>`;
+    }).join("");
+  }).join("");
+}
+async function saveDongsanLeaders(group,subgroup){
+  const key=`${group}__${subgroup}`;
+  const leaderEl=document.getElementById(`leader-${key}`);
+  const leader=leaderEl?leaderEl.value:"";
+  const allMembers=getUniqueNames("","");
+  const sgMembers=Object.keys(allMembers).filter(n=>{const m=allMembers[n];return m&&m.group===group&&(m.subgroup||"")===(subgroup||"");});
+  const subLeaders=sgMembers.filter(n=>{const el=document.getElementById(`sl-${key}-${n}`);return el&&el.checked;});
+  const r=await api("POST","/api/dongsan-leaders",{group,subgroup,leader,subLeaders,adminDeviceId:deviceId});
+  if(r.error){flash(r.error,"err");return;}
+  dongsanLeaders=r.leaders;
+  flash(`${group} ${subgroup} 리더 저장됨`);
+  renderAll();
+}
+function renderAll(){renderStats();renderGrpTabs("sheet-grp-tabs",sheetGroup,"setSheetGroup");renderSubgroupTabs("sheet-subgrp-tabs",sheetGroup,sheetSubgroup,"setSheetSubgroup");renderGrpTabs("today-grp-tabs",todayGroup,"setTodayGroup");renderSubgroupTabs("today-subgrp-tabs",todayGroup,todaySubgroup,"setTodaySubgroup");renderGrpTabs("dev-grp-tabs",devGroup,"setDevGroup");renderSubgroupTabs("dev-subgrp-tabs",devGroup,devSubgroup,"setDevSubgroup");renderSheet();renderToday();renderDevices();renderDongsanEditor();renderDongsanLeadersEditor();renderLinkDropdown();renderLeaderDashboard();if(chartsVisible)renderCharts();}
+
+function renderStats(){
+  const grp=activeTab==="today"?todayGroup:activeTab==="members"?devGroup:sheetGroup;
+  const sub=activeTab==="today"?todaySubgroup:activeTab==="members"?devSubgroup:sheetSubgroup;
+  const td=today();
+  const todayPeople=new Set();
+  D.log.filter(e=>e.date===td).forEach(e=>{
+    const g=dGroup(e.deviceId)||e.group||"";const sg=dSubgroup(e.deviceId)||e.subgroup||"";
+    if((!grp||g===grp)&&(!sub||sg===sub))todayPeople.add(dName(e.deviceId)||e.name);
+  });
+  const mc=Object.keys(getUniqueNames(grp,sub)).length;
+  let filteredLog=D.log;
+  if(grp)filteredLog=filteredLog.filter(e=>(dGroup(e.deviceId)||e.group||"")===grp);
+  if(sub)filteredLog=filteredLog.filter(e=>(dSubgroup(e.deviceId)||e.subgroup||"")===sub);
+  const dates=[...new Set(filteredLog.map(e=>e.date))].length;
+  document.getElementById("stats-bar").innerHTML=[{l:"Today",v:todayPeople.size,c:"var(--acc)"},{l:"Members",v:mc,c:"var(--txt)"},{l:"Records",v:filteredLog.length,c:"var(--txt)"},{l:"Days",v:dates,c:"var(--txt)"}].map(s=>`<div style="flex:1;background:var(--card);border-radius:12px;padding:12px 10px;border:1px solid var(--bdr);text-align:center;min-width:70px;"><div class="mono" style="font-size:8px;color:var(--txt-d);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:3px;">${s.l}</div><div style="font-size:20px;font-weight:800;color:${s.c};">${s.v}</div></div>`).join("");
+}
+
+function setMode(m){viewMode=m;document.getElementById("btn-gridview").className="btn btn-sm "+(m==="grid"?"btn-primary":"btn-secondary");document.getElementById("btn-logview").className="btn btn-sm "+(m==="log"?"btn-primary":"btn-secondary");renderSheet();}
+
+function renderSheet(){
+  const c=document.getElementById("sheet-content");document.getElementById("clear-area").style.display=(D.log.length>0||Object.keys(D.devices).length>0)?"block":"none";
+
+  if(!D.log.length){c.innerHTML=`<div style="padding:40px;text-align:center;color:var(--txt-d);font-size:13px;">No attendance records yet.</div>`;return;}
+
+  if(viewMode==="grid"){
+    const dates=[...new Set(D.log.map(e=>e.date))].sort();
+    const members=getUniqueNames("","");
+    let names=sortNames(Object.keys(members));
+    if(sheetGroup)names=names.filter(n=>members[n].group===sheetGroup);
+    if(sheetSubgroup)names=names.filter(n=>(members[n].subgroup||"")===sheetSubgroup);
+
+    let h=`<tr><th style="width:30px;min-width:30px;background:#3d2570;padding:4px;"></th><th class="name-col">Name</th><th style="min-width:60px;background:#3d2570;">Group</th><th class="total-col">Total</th>`;
+    dates.forEach(d=>{h+=`<th>${esc(fmtD(d))}<div style="font-size:8px;opacity:.7;margin-top:1px;">${esc(d)}</div></th>`;});
+    h+=`</tr>`;
+    let rows="";
+    names.forEach(name=>{
+      const dids=members[name].devices;const group=members[name].group;const total=totalForName(name);
+      rows+=`<tr class="grid-drag-row" data-name="${esc(name)}"><td style="cursor:grab;color:var(--txt-d);font-size:14px;text-align:center;user-select:none;touch-action:none;" class="grid-drag-handle">⠿</td><td class="name-cell">${esc(name)}${dids.length>1?`<div class="mono" style="font-size:8px;color:var(--txt-d);">${dids.length} devices</div>`:""}</td><td style="text-align:center;">${grpTag(group,members[name].subgroup)}</td><td class="total-cell">${total}</td>`;
+      dates.forEach(d=>{const e=D.log.find(x=>dids.includes(x.deviceId)&&x.date===d);if(e){const cls="present"+(e.firstVisit?" first-visit":"");const indicator=e.firstVisit?"🌟 ":"";rows+=`<td class="${cls}">${indicator}${esc(e.time)}</td>`;}else{rows+=`<td class="absent">—</td>`;}});
+      rows+=`</tr>`;
+    });
+    rows+=`<tr class="total-row"><td style="background:#1a1528!important;"></td><td class="name-cell" style="background:#1a1528!important;">TOTAL</td><td style="background:#1a1528!important;"></td><td style="background:#1a1528!important;"></td>`;
+    dates.forEach(d=>{const p=new Set();D.log.filter(e=>e.date===d).forEach(e=>{const n=dName(e.deviceId)||e.name;const g=dGroup(e.deviceId)||"";const sg=dSubgroup(e.deviceId)||"";if((!sheetGroup||g===sheetGroup)&&(!sheetSubgroup||sg===sheetSubgroup))p.add(n);});rows+=`<td>${p.size}</td>`;});
+    rows+=`</tr>`;
+    c.innerHTML=`<div style="overflow-x:auto;"><table class="att-table"><thead>${h}</thead><tbody id="grid-tbody">${rows}</tbody></table></div>`;
+    initGridDrag();
+  } else {
+    let sorted=[...D.log].sort((a,b)=>b.ts-a.ts);
+    if(sheetGroup)sorted=sorted.filter(e=>dGroup(e.deviceId)===sheetGroup||(e.group||"")===sheetGroup);
+    if(sheetSubgroup)sorted=sorted.filter(e=>dSubgroup(e.deviceId)===sheetSubgroup||(e.subgroup||"")===sheetSubgroup);
+    const rows=sorted.map(e=>{const name=dName(e.deviceId)||e.name;const group=dGroup(e.deviceId)||e.group||"";const subgroup=dSubgroup(e.deviceId)||e.subgroup||"";const badges=(e.firstVisit?`<span class="tag tag-purple" style="font-size:9px;margin-left:4px;">첫출석</span>`:"")+(e.manual?`<span class="tag tag-amber" style="font-size:9px;margin-left:4px;">수동</span>`:"")+(e.visitor?`<span class="tag tag-amber" style="font-size:9px;margin-left:4px;">방문자</span>`:"");return`<tr><td style="font-family:'Sora',sans-serif;font-weight:500;">${esc(name)}${badges}</td><td>${grpTag(group,subgroup)}</td><td style="color:var(--txt-m);">${esc(fmtD(e.date))}</td><td style="color:var(--txt-m);">${esc(e.time)}</td><td style="color:var(--acc);font-weight:700;text-align:center;">${totalForName(name)}</td></tr>`;}).join("");
+    c.innerHTML=`<div style="overflow-x:auto;"><table class="log-table"><thead><tr><th>Name</th><th>Group</th><th>Date</th><th>Time</th><th>Total</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+}
+
+function renderToday(){
+  const td=today();document.getElementById("today-label").textContent="Today — "+fmtDL(td);
+  let entries=D.log.filter(e=>e.date===td);
+  if(todayGroup)entries=entries.filter(e=>dGroup(e.deviceId)===todayGroup||(e.group||"")===todayGroup);
+  if(todaySubgroup)entries=entries.filter(e=>dSubgroup(e.deviceId)===todaySubgroup||(e.subgroup||"")===todaySubgroup);
+  if(!entries.length){document.getElementById("today-list").innerHTML=`<div class="card"><div style="text-align:center;padding:20px;color:var(--txt-d);font-size:13px;">No check-ins today.</div></div>`;return;}
+  const reg=entries.filter(e=>!getMemberRole(dName(e.deviceId)||e.name));
+  const spec=entries.filter(e=>getMemberRole(dName(e.deviceId)||e.name));
+  let html=reg.map(e=>{const name=dName(e.deviceId)||e.name;const group=dGroup(e.deviceId)||e.group||"";const subgroup=dSubgroup(e.deviceId)||e.subgroup||"";const gc=grpAccent(group);const badges=((e.firstVisit||e.manual&&totalForName(name)<=1)?`<span class="tag tag-purple" style="font-size:9px;">🌟첫출석</span>`:"");const lrTag=dongsanRoleTag(getDongsanRole(name,group,subgroup));return`<div style="display:flex;align-items:center;justify-content:space-between;padding:11px 14px;margin-bottom:4px;border-radius:10px;background:${gc.bg};border:1px solid ${gc.bdr};"><div style="display:flex;align-items:center;gap:10px;"><div style="width:30px;height:30px;border-radius:50%;${grpDot(group)};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;">${esc((name||"?")[0])}</div><div><div style="font-size:14px;font-weight:600;">${esc(name)} ${badges}${lrTag}</div><div>${grpTag(group,subgroup)}</div></div></div><div style="display:flex;align-items:center;gap:10px;"><span style="font-size:16px;font-weight:800;color:var(--acc);">${totalForName(name)}</span><span class="mono" style="font-size:11px;color:var(--txt-m);">${esc(e.time)}</span></div></div>`;}).join("");
+  if(spec.length){
+    const specLabel=[...new Set(spec.map(e=>getMemberRole(dName(e.deviceId)||e.name)))].map(r=>ROLE_LABELS[r]||r).join(" · ");
+    html+=`<div style="margin-top:12px;margin-bottom:4px;" class="sl">${specLabel} (${spec.length})</div>`+spec.map(e=>{const name=dName(e.deviceId)||e.name;const role=getMemberRole(name);const group=dGroup(e.deviceId)||e.group||"";const subgroup=dSubgroup(e.deviceId)||e.subgroup||"";const dotColor={"pastor":"#34D399","elder":"#60A5FA","deacon":"#60A5FA","mentor":"#A78BFA","visitor":"#FBBF24"}[role]||"#FBBF24";const lrTag=dongsanRoleTag(getDongsanRole(name,group,subgroup));return`<div style="display:flex;align-items:center;justify-content:space-between;padding:11px 14px;margin-bottom:4px;border-radius:10px;background:rgba(0,0,0,.15);border:1px solid var(--bdr);"><div style="display:flex;align-items:center;gap:10px;"><div style="width:30px;height:30px;border-radius:50%;background:${dotColor};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;">${esc((name||"?")[0])}</div><div><div style="font-size:14px;font-weight:600;">${esc(name)} ${roleTag(role)}${lrTag}</div><div>${grpTag(group,subgroup)}</div></div></div><span class="mono" style="font-size:11px;color:var(--txt-m);">${esc(e.time)}</span></div>`;}).join("");}
+  document.getElementById("today-list").innerHTML=html;
+}
+
+function flipCard(el){
+  const inner=el.closest('.drag-item').querySelector('.card-inner');if(!inner)return;
+  inner.classList.toggle('flipped');
+}
+function renderDevices(){
+  const members=getUniqueNames("","");let names=sortNames(Object.keys(members));
+  if(devGroup)names=names.filter(n=>members[n].group===devGroup);
+  if(devSubgroup)names=names.filter(n=>(members[n].subgroup||"")===devSubgroup);
+  if(memberSearch){const q=memberSearch.toLowerCase();names=names.filter(n=>n.toLowerCase().includes(q));}
+  const regularNames=names.filter(n=>!isVisitorMember(n));
+  const visitorNames=names.filter(n=>isVisitorMember(n));
+  document.getElementById("devices-count").textContent=regularNames.length+" members"+(visitorNames.length?` · ${visitorNames.length} visitors`:"");
+
+  if(!names.length){document.getElementById("devices-list").innerHTML=`<div style="text-align:center;padding:20px;color:var(--txt-d);font-size:13px;">No members.</div>`;return;}
+  names=sortNames(names);
+  const allMemberNames=sortNames(Object.keys(getUniqueNames("","")));
+  if(nameOrder.length===0||nameOrder.length!==allMemberNames.length){nameOrder=allMemberNames;}
+  const listEl=document.getElementById("devices-list");
+
+  function renderMemberCard(name){
+    const m=members[name];const dids=m.devices;const t=totalForName(name);const isYou=dids.includes(deviceId);
+    const role=getMemberRole(name);const isVis=role!=="";const rate=isVis?null:attRate(name);const notes=getMemberNotes(name);
+    const roleDot={"pastor":"#34D399","elder":"#60A5FA","deacon":"#60A5FA","mentor":"#A78BFA","visitor":"#FBBF24"};
+    const gc=isVis?{bg:`rgba(${role==="pastor"?"52,211,153":role==="mentor"?"167,139,250":role==="elder"||role==="deacon"?"96,165,250":"251,191,36"},.06)`,bdr:`rgba(${role==="pastor"?"52,211,153":role==="mentor"?"167,139,250":role==="elder"||role==="deacon"?"96,165,250":"251,191,36"},.2)`,dot:roleDot[role]||"#FBBF24"}:grpAccent(m.group);
+    const frontFace=`<div class="card-face" style="display:flex;align-items:center;height:48px;padding:0 6px 0 0;">
+        <div style="flex:1;min-width:0;overflow:hidden;padding:0 7px;display:flex;align-items:center;gap:3px;flex-wrap:wrap;cursor:pointer;user-select:none;-webkit-user-select:none;" onclick="flipCard(this)" title="탭하여 장치 정보 보기">
+          <span style="font-size:13px;font-weight:700;white-space:nowrap;">${esc(name)}</span>
+          ${dongsanRoleTag(getDongsanRole(name,m.group,m.subgroup))}
+          ${grpTag(m.group,m.subgroup)}
+          ${roleTag(role)}
+          ${isYou?'<span class="tag tag-green" style="font-size:9px;">you</span>':""}
+        </div>
+        <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
+          <button style="width:28px;height:28px;padding:0;background:none;border:1.5px solid var(--bdr);border-radius:8px;cursor:pointer;font-size:13px;color:var(--txt-m);display:flex;align-items:center;justify-content:center;" title="출석 편집" onclick="event.stopPropagation();openAttendanceEdit('${esc(name)}')">📋</button>
+          <button style="width:28px;height:28px;padding:0;background:none;border:1.5px solid var(--bdr);border-radius:8px;cursor:pointer;font-size:13px;color:var(--txt-m);display:flex;align-items:center;justify-content:center;" title="메모" onclick="event.stopPropagation();openNotes('${esc(name)}')">📝</button>
+          <button style="width:28px;height:28px;padding:0;background:none;border:1.5px solid var(--bdr);border-radius:8px;cursor:pointer;font-size:13px;color:var(--txt-m);display:flex;align-items:center;justify-content:center;" title="편집" onclick="event.stopPropagation();openEdit('${esc(name)}')">✏️</button>
+          <button style="width:28px;height:28px;padding:0;background:none;border:1.5px solid rgba(251,113,133,.35);border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;color:var(--red);display:flex;align-items:center;justify-content:center;" onclick="event.stopPropagation();removePerson('${esc(name)}')">✕</button>
+          <div style="display:flex;align-items:baseline;gap:2px;padding:0 6px;flex-shrink:0;">
+            <span style="font-size:16px;font-weight:800;color:var(--acc);line-height:1;">${t}</span>
+            <span class="mono" style="font-size:10px;font-weight:700;color:var(--txt-d);line-height:1;">일</span>
+          </div>
+        </div>
+      </div>`;
+    const backFace=`<div class="card-face card-back" style="padding:8px 10px 8px 10px;cursor:pointer;" onclick="flipCard(this)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <div style="font-size:10px;font-weight:700;color:var(--acc);letter-spacing:.5px;">장치 정보 — ${esc(name)} <span style="color:var(--txt-d);font-weight:400;font-size:9px;">← 탭하여 돌아가기</span></div>
+          <button style="background:none;border:1px solid var(--bdr);border-radius:6px;color:var(--blue);font-size:9px;font-weight:700;cursor:pointer;padding:2px 7px;flex-shrink:0;font-family:'Sora',sans-serif;" onclick="event.stopPropagation();openTransfer('${esc(name)}')">🔀 전출</button>
+        </div>
+        ${notes?`<div style="font-size:10px;color:var(--txt-m);margin-bottom:8px;padding:5px 7px;background:var(--bg);border-radius:6px;border:1px solid var(--bdr);line-height:1.5;">📝 ${esc(notes)}</div>`:""}
+        ${dids.map(d=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 0;gap:4px;"><span class="mono" style="font-size:9px;color:var(--txt-d);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(d)}${d===deviceId?' <span style="color:var(--acc);">(you)</span>':""}</span><button style="background:none;border:none;color:var(--red);font-size:10px;cursor:pointer;padding:2px 4px;flex-shrink:0;" onclick="event.stopPropagation();removeSingleDevice('${esc(d)}')">unlink</button></div>`).join("")}
+      </div>`;
+    return`<div class="drag-item" data-name="${esc(name)}" style="display:flex;gap:0;border-radius:10px;overflow:hidden;background:${isYou?"var(--acc-dim)":gc.bg};border:1px solid ${isYou?"rgba(52,211,153,.2)":gc.bdr};border-left:3px solid ${gc.dot};">
+      <div class="drag-handle" style="display:flex;align-items:center;justify-content:center;width:26px;min-width:26px;cursor:grab;color:var(--txt-d);font-size:13px;user-select:none;touch-action:none;background:rgba(255,255,255,.03);">⠿</div>
+      <div class="flip-wrap">
+        <div class="card-inner" style="min-height:48px;height:48px;">
+          ${frontFace}
+          ${backFace}
+        </div>
+      </div>
+    </div>`;
+  }
+
+  let html=`<div class="member-grid">`+regularNames.map(renderMemberCard).join("")+`</div>`;
+  if(visitorNames.length){
+    const roleGroups=["pastor","elder","deacon","mentor","visitor"];
+    const sectionLabel=roleGroups.filter(r=>visitorNames.some(n=>getMemberRole(n)===r)).map(r=>ROLE_LABELS[r]).join(" · ");
+    html+=`<div style="margin-top:14px;margin-bottom:6px;" class="sl">${sectionLabel} (${visitorNames.length})</div>`;
+    html+=`<div class="member-grid">`+visitorNames.map(renderMemberCard).join("")+`</div>`;
+  }
+  listEl.innerHTML=html;
+  initDragDrop();
+}
+
+// ─── Drag and Drop reorder ───
+let dragEl=null,dragName="",dragStartY=0,dragOffsetY=0,placeholder=null;
+// ─── Grid table drag and drop ───
+let gridDragRow=null,gridPlaceholder=null,gridStartY=0,gridOffY=0;
+function initGridDrag(){
+  document.querySelectorAll(".grid-drag-handle").forEach(h=>{
+    h.addEventListener("mousedown",startGridDrag);
+    h.addEventListener("touchstart",startGridDrag,{passive:false});
+  });
+}
+function startGridDrag(e){
+  e.preventDefault();
+  gridDragRow=e.target.closest(".grid-drag-row");if(!gridDragRow)return;
+  const rect=gridDragRow.getBoundingClientRect();
+  const clientY=e.touches?e.touches[0].clientY:e.clientY;
+  gridOffY=clientY-rect.top;
+  // Create placeholder row
+  gridPlaceholder=document.createElement("tr");
+  gridPlaceholder.innerHTML=`<td colspan="99" style="height:${rect.height}px;border:2px dashed var(--acc);background:var(--acc-dim);opacity:0.4;"></td>`;
+  gridDragRow.parentNode.insertBefore(gridPlaceholder,gridDragRow);
+  // Float row
+  const cells=gridDragRow.querySelectorAll("td");
+  cells.forEach(td=>{td.style.width=td.offsetWidth+"px";});
+  gridDragRow.style.position="fixed";
+  gridDragRow.style.top=(clientY-gridOffY)+"px";
+  gridDragRow.style.left=rect.left+"px";
+  gridDragRow.style.width=rect.width+"px";
+  gridDragRow.style.zIndex="999";
+  gridDragRow.style.opacity="0.9";
+  gridDragRow.style.boxShadow="0 8px 32px rgba(0,0,0,0.5)";
+  gridDragRow.style.background="var(--card)";
+  gridDragRow.style.display="flex";
+  e.target.style.cursor="grabbing";
+  document.addEventListener("mousemove",onGridDrag);
+  document.addEventListener("mouseup",endGridDrag);
+  document.addEventListener("touchmove",onGridDrag,{passive:false});
+  document.addEventListener("touchend",endGridDrag);
+}
+function onGridDrag(e){
+  if(!gridDragRow)return;e.preventDefault();
+  const clientY=e.touches?e.touches[0].clientY:e.clientY;
+  gridDragRow.style.top=(clientY-gridOffY)+"px";
+  const rows=[...document.querySelectorAll(".grid-drag-row")].filter(r=>r!==gridDragRow);
+  for(const row of rows){
+    const rect=row.getBoundingClientRect();
+    if(clientY<rect.top+rect.height/2){row.parentNode.insertBefore(gridPlaceholder,row);return;}
+  }
+  if(rows.length>0){const last=rows[rows.length-1];last.parentNode.insertBefore(gridPlaceholder,last.nextSibling);}
+}
+function endGridDrag(e){
+  if(!gridDragRow)return;
+  document.removeEventListener("mousemove",onGridDrag);
+  document.removeEventListener("mouseup",endGridDrag);
+  document.removeEventListener("touchmove",onGridDrag);
+  document.removeEventListener("touchend",endGridDrag);
+  // Restore row
+  if(gridPlaceholder&&gridPlaceholder.parentNode){gridPlaceholder.parentNode.insertBefore(gridDragRow,gridPlaceholder);gridPlaceholder.remove();}
+  gridDragRow.style.position="";gridDragRow.style.top="";gridDragRow.style.left="";gridDragRow.style.width="";gridDragRow.style.zIndex="";gridDragRow.style.opacity="";gridDragRow.style.boxShadow="";gridDragRow.style.background="";gridDragRow.style.display="";
+  gridDragRow.querySelectorAll("td").forEach(td=>{td.style.width="";});
+  // Read new order
+  const newOrder=[...document.querySelectorAll(".grid-drag-row")].map(r=>r.dataset.name);
+  nameOrder=newOrder;
+  gridDragRow=null;gridPlaceholder=null;
+  saveOrder().then(()=>{renderDevices();renderToday();});
+}
+
+// ─── Device list drag and drop ───
+function initDragDrop(){
+  const handles=document.querySelectorAll(".drag-handle");
+  handles.forEach(h=>{
+    h.addEventListener("mousedown",startDrag);
+    h.addEventListener("touchstart",startDrag,{passive:false});
+  });
+}
+function startDrag(e){
+  e.preventDefault();
+  dragEl=e.target.closest(".drag-item");if(!dragEl)return;
+  dragName=dragEl.dataset.name;
+  const rect=dragEl.getBoundingClientRect();
+  const clientY=e.touches?e.touches[0].clientY:e.clientY;
+  dragOffsetY=clientY-rect.top;
+  // Create placeholder
+  placeholder=document.createElement("div");
+  placeholder.style.cssText=`height:${rect.height}px;margin-bottom:4px;border-radius:12px;border:2px dashed var(--acc);background:var(--acc-dim);opacity:0.4;`;
+  dragEl.parentNode.insertBefore(placeholder,dragEl);
+  // Float the dragged element
+  dragEl.style.position="fixed";
+  dragEl.style.top=(clientY-dragOffsetY)+"px";
+  dragEl.style.left=rect.left+"px";
+  dragEl.style.width=rect.width+"px";
+  dragEl.style.zIndex="999";
+  dragEl.style.opacity="0.9";
+  dragEl.style.boxShadow="0 8px 32px rgba(0,0,0,0.5)";
+  dragEl.style.transition="none";
+  dragEl.querySelector(".drag-handle").style.cursor="grabbing";
+  document.addEventListener("mousemove",onDrag);
+  document.addEventListener("mouseup",endDrag);
+  document.addEventListener("touchmove",onDrag,{passive:false});
+  document.addEventListener("touchend",endDrag);
+}
+function onDrag(e){
+  if(!dragEl)return;
+  e.preventDefault();
+  const clientY=e.touches?e.touches[0].clientY:e.clientY;
+  dragEl.style.top=(clientY-dragOffsetY)+"px";
+  // Find which item we're hovering over
+  const items=[...document.querySelectorAll(".drag-item")].filter(el=>el!==dragEl);
+  for(const item of items){
+    const rect=item.getBoundingClientRect();
+    const mid=rect.top+rect.height/2;
+    if(clientY<mid){
+      item.parentNode.insertBefore(placeholder,item);
+      return;
+    }
+  }
+  // If past all items, put placeholder at end
+  if(items.length>0){const last=items[items.length-1];last.parentNode.insertBefore(placeholder,last.nextSibling);}
+}
+function endDrag(e){
+  if(!dragEl)return;
+  document.removeEventListener("mousemove",onDrag);
+  document.removeEventListener("mouseup",endDrag);
+  document.removeEventListener("touchmove",onDrag);
+  document.removeEventListener("touchend",endDrag);
+  // Put element back in place
+  if(placeholder&&placeholder.parentNode){placeholder.parentNode.insertBefore(dragEl,placeholder);placeholder.remove();}
+  dragEl.style.position="";dragEl.style.top="";dragEl.style.left="";dragEl.style.width="";dragEl.style.zIndex="";dragEl.style.opacity="";dragEl.style.boxShadow="";dragEl.style.transition="";
+  dragEl.querySelector(".drag-handle").style.cursor="grab";
+  // Read new order from DOM
+  const newOrder=[...document.querySelectorAll(".drag-item")].map(el=>el.dataset.name);
+  nameOrder=newOrder;
+  dragEl=null;placeholder=null;
+  saveOrder().then(()=>{renderSheet();renderToday();});
+}
+async function registerDevice(){const id=document.getElementById("reg-id").value.trim(),name=document.getElementById("reg-name").value.trim(),group=document.getElementById("reg-group").value,subgroup=document.getElementById("reg-subgroup").value;if(!id||!name)return flash("Fill ID and name","warn");await api("POST","/api/register",{deviceId:id,name,group,subgroup,adminDeviceId:deviceId});document.getElementById("reg-id").value="";document.getElementById("reg-name").value="";flash("Registered: "+name);await load();renderAll();}
+async function linkDevice(){const did=document.getElementById("link-device-id").value.trim(),name=document.getElementById("link-name").value;if(!did||!name)return flash("Select a person and enter device ID","warn");const r=await api("POST","/api/link-device",{newDeviceId:did,existingName:name,adminDeviceId:deviceId});if(r.error){flash(r.error,"err");return;}document.getElementById("link-device-id").value="";flash(`Linked to ${name}`);await load();renderAll();}
+function removeSingleDevice(did){confirmAction("장치 연결 해제",async()=>{await api("DELETE","/api/device/"+encodeURIComponent(did),null,{"X-Device-Id":deviceId});flash("Device unlinked");await load();renderAll();},{icon:"🔗",desc:"이 장치를 멤버에서 연결 해제합니다.",holdMs:800});}
+function removePerson(name){confirmAction(`${name} 제거`,async()=>{const r=await api("POST","/api/remove-person",{name,deleteRecords:true,adminDeviceId:deviceId});if(r.error){flash(r.error,"err");return;}flash("Removed "+name);await load();renderAll();},{icon:"👤",desc:"멤버와 모든 출석 기록을 삭제합니다."});}
+function removePersonFull(name){confirmAction(`${name} 완전 삭제`,async()=>{await api("POST","/api/remove-person",{name,deleteRecords:true,adminDeviceId:deviceId});flash("Deleted "+name+" and all records");await load();renderAll();},{icon:"🗑️",desc:"멤버와 모든 출석 기록을 영구 삭제합니다. 되돌릴 수 없습니다.",holdMs:2000});}
+
+let attEditName=null;
+function openAttendanceEdit(name){
+  attEditName=name;
+  document.getElementById("att-modal-name").textContent=name;
+  document.getElementById("manual-date").value=today();
+  renderAttendanceModal();
+  document.getElementById("attendance-modal").style.display="flex";
+}
+function renderAttendanceModal(){
+  const el=document.getElementById("att-modal-list");if(!el)return;
+  const dids=getDevicesFor(attEditName);
+  const entries=[...D.log].filter(e=>dids.includes(e.deviceId)||(e.name===attEditName&&!dids.length)).sort((a,b)=>b.ts-a.ts);
+  if(!entries.length){el.innerHTML=`<div style="text-align:center;color:var(--txt-d);padding:20px;font-size:13px;">출석 기록 없음</div>`;return;}
+  el.innerHTML=entries.map(e=>{
+    const manualTag=e.manual?`<span class="tag tag-amber" style="font-size:9px;margin-left:4px;">수동</span>`:"";
+    return`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;margin-bottom:4px;border-radius:10px;background:var(--card);border:1px solid var(--bdr);">
+      <div><div style="font-size:13px;font-weight:600;">${esc(fmtDL(e.date))}${manualTag}</div><div class="mono" style="font-size:11px;color:var(--txt-m);margin-top:2px;">${esc(e.time)}</div></div>
+      <button class="btn btn-danger" style="padding:4px 10px;font-size:11px;flex-shrink:0;" onclick="removeAttendanceEntry(${e.ts})">✕ 삭제</button>
+    </div>`;
+  }).join("");
+}
+async function addManualAttendance(){
+  const date=document.getElementById("manual-date").value;
+  if(!date||!attEditName)return flash("날짜를 선택해주세요","warn");
+  const r=await api("POST","/api/log/add-manual",{name:attEditName,date,adminDeviceId:deviceId});
+  if(r.error){flash(r.error,"err");return;}
+  if(r.status==="already"){flash("이미 출석 기록이 있습니다","warn");return;}
+  flash(`${attEditName} — ${date} 출석 추가됨`);
+  await load();renderAttendanceModal();renderAll();
+}
+function removeAttendanceEntry(ts){confirmAction("출석 기록 삭제",async()=>{const r=await api("POST","/api/log/remove-entry",{ts,adminDeviceId:deviceId});if(r.error){flash(r.error,"err");return;}flash("삭제됨");await load();renderAttendanceModal();renderAll();},{icon:"📋",desc:"이 날짜의 출석 기록을 삭제합니다."});}
+function openEdit(name){const members=getUniqueNames("","");const m=members[name];if(!m)return;document.getElementById("edit-name").value=name;const grp=m.group||"";document.getElementById("edit-group").value=grp;const sg=m.subgroup||"";updateEditSubgroup(sg);document.getElementById("edit-subgroup").value=sg;document.getElementById("edit-visitor").checked=getMemberRole(name)==="visitor";document.getElementById("edit-original-name").value=name;document.getElementById("edit-modal").style.display="flex";}
+async function saveEdit(){
+  const orig=document.getElementById("edit-original-name").value;const name=document.getElementById("edit-name").value.trim();const group=document.getElementById("edit-group").value;const subgroup=document.getElementById("edit-subgroup").value;const memberRole=document.getElementById("edit-visitor").checked?"visitor":"";
+  if(!name){flash("Name required","warn");return;}
+  const dids=getDevicesFor(orig);
+  for(const did of dids){await api("PUT","/api/device",{deviceId:did,name,group,subgroup,memberRole,adminDeviceId:deviceId});}
+  document.getElementById("edit-modal").style.display="none";flash("Updated: "+name);await load();renderAll();
+}
+
+function clearLog(){confirmAction("모든 출석 기록 삭제",async()=>{await api("DELETE","/api/log",null,{"X-Device-Id":deviceId});flash("Records cleared");await load();renderAll();},{icon:"📊",desc:"모든 출석 기록이 삭제됩니다. 장치 등록은 유지됩니다.",holdMs:2000});}
+function clearDevices(){confirmAction("모든 장치 초기화",async()=>{await api("DELETE","/api/devices",null,{"X-Device-Id":deviceId});flash("All devices cleared");await load();renderAll();},{icon:"📱",desc:"모든 등록 장치가 삭제됩니다. 모든 멤버가 재등록이 필요합니다.",holdMs:2000});}
+function clearEverything(){confirmAction("모든 데이터 삭제",async()=>{await api("DELETE","/api/all",null,{"X-Device-Id":deviceId});flash("Everything cleared");await load();renderAll();},{icon:"💣",desc:"장치 및 출석 기록이 모두 영구 삭제됩니다. 되돌릴 수 없습니다.",holdMs:2500});}
+async function removeAdmin(){const pw=document.getElementById("acl-pw").value,did=document.getElementById("acl-device").value.trim();if(!pw||!did){flash("Fill both fields","warn");return;}const r=await api("POST","/api/admin/remove",{password:pw,targetDeviceId:did});if(r.error){flash(r.error,"err");return;}flash("Admin removed");listAdmins();}
+async function listAdmins(){const pw=document.getElementById("acl-pw").value;if(!pw){flash("Enter password","warn");return;}const r=await api("POST","/api/admin/list",{password:pw});if(r.error){flash(r.error,"err");return;}const el=document.getElementById("admin-list");if(!r.adminDevices.length){el.innerHTML=`<div style="color:var(--txt-d);font-size:12px;text-align:center;padding:12px;">No admins.</div>`;return;}el.innerHTML=`<div class="sl" style="margin-top:8px;">${r.adminDevices.length} admin(s)</div>`+r.adminDevices.map(a=>{const roleCls=a.role==="super"?"tag-green":"tag-purple";const roleLabel=a.role==="super"?"super admin":"leader";return`<div style="padding:8px 12px;margin-bottom:4px;border-radius:8px;background:var(--card);border:1px solid var(--bdr);display:flex;justify-content:space-between;align-items:center;"><div><div style="font-size:13px;font-weight:600;">${esc(a.name)}</div><div class="mono" style="font-size:10px;color:var(--txt-d);">${esc(a.deviceId)}</div></div><span class="tag ${roleCls}">${esc(roleLabel)}</span></div>`;}).join("");}
+
+// ─── Notes ───
+let notesEditName=null;
+function openNotes(name){notesEditName=name;document.getElementById("notes-modal-name").textContent=name;document.getElementById("notes-textarea").value=getMemberNotes(name);document.getElementById("notes-modal").style.display="flex";document.getElementById("notes-textarea").focus();}
+async function saveNotes(){
+  if(!notesEditName)return;
+  const notes=document.getElementById("notes-textarea").value;
+  const dids=getDevicesFor(notesEditName);
+  for(const did of dids){await api("PUT","/api/device",{deviceId:did,name:notesEditName,notes,adminDeviceId:deviceId});}
+  document.getElementById("notes-modal").style.display="none";
+  flash("메모 저장됨");await load();renderAll();
+}
+
+// ─── Monthly/Semester Summary ───
+let summaryVisible=false;
+function toggleSummary(){
+  summaryVisible=!summaryVisible;
+  const el=document.getElementById("summary-section");const btn=document.getElementById("summary-toggle-btn");
+  if(el)el.style.display=summaryVisible?"block":"none";
+  if(btn)btn.textContent=summaryVisible?"📈 월별 / 학기 요약 닫기":"📈 월별 / 학기 요약 보기";
+  if(summaryVisible)renderSummary();
+}
+function renderSummary(){
+  const el=document.getElementById("summary-section");if(!el)return;
+  if(!D.log.length){el.innerHTML=`<div style="color:var(--txt-d);text-align:center;padding:16px;font-size:13px;">출석 기록이 없습니다.</div>`;return;}
+  // Filter non-visitor log entries
+  const log=D.log.filter(e=>{const v=D.devices[e.deviceId];return!(v&&typeof v==="object"&&v.visitor);});
+  // Group by month
+  const byMonth={};log.forEach(e=>{const m=e.date.slice(0,7);if(!byMonth[m])byMonth[m]={dates:new Set(),people:new Set(),firstVisits:0};byMonth[m].dates.add(e.date);byMonth[m].people.add(dName(e.deviceId)||e.name);if(e.firstVisit)byMonth[m].firstVisits++;});
+  const months=Object.keys(byMonth).sort();
+  const monthRows=months.map(m=>{const d=byMonth[m];const label=new Date(m+"-15").toLocaleDateString("en-US",{month:"long",year:"numeric"});return`<tr><td style="font-weight:600;">${esc(label)}</td><td style="text-align:center;color:var(--acc);font-weight:700;">${d.dates.size}</td><td style="text-align:center;">${d.people.size}</td><td style="text-align:center;color:var(--purple);">${d.firstVisits}</td></tr>`;}).join("");
+  // Semester summary
+  const bySem={};log.forEach(e=>{const yr=e.date.slice(0,4);const mo=parseInt(e.date.slice(5,7));const sem=mo<=6?`${yr} 상반기`:`${yr} 하반기`;if(!bySem[sem])bySem[sem]={dates:new Set(),people:new Set()};bySem[sem].dates.add(e.date);bySem[sem].people.add(dName(e.deviceId)||e.name);});
+  const sems=Object.keys(bySem).sort();
+  const semRows=sems.map(s=>{const d=bySem[s];return`<tr><td style="font-weight:600;">${esc(s)}</td><td style="text-align:center;color:var(--acc);font-weight:700;">${d.dates.size}</td><td style="text-align:center;">${d.people.size}</td></tr>`;}).join("");
+  el.innerHTML=`
+    <div style="margin-bottom:16px;">
+      <div class="sl" style="margin-bottom:8px;">월별 요약</div>
+      <div style="overflow-x:auto;border-radius:10px;border:1px solid var(--bdr);">
+        <table class="summary-table"><thead><tr><th>월</th><th style="text-align:center;">주일 수</th><th style="text-align:center;">출석 인원</th><th style="text-align:center;">첫 출석</th></tr></thead><tbody>${monthRows}</tbody></table>
+      </div>
+    </div>
+    <div>
+      <div class="sl" style="margin-bottom:8px;">학기 요약</div>
+      <div style="overflow-x:auto;border-radius:10px;border:1px solid var(--bdr);">
+        <table class="summary-table"><thead><tr><th>학기</th><th style="text-align:center;">주일 수</th><th style="text-align:center;">출석 인원</th></tr></thead><tbody>${semRows}</tbody></table>
+      </div>
+    </div>`;
+}
+
+// ─── Admin roles ───
+async function addAdmin(){
+  const pw=document.getElementById("acl-pw").value,did=document.getElementById("acl-device").value.trim();
+  const roleEl=document.getElementById("acl-role");const role=roleEl?roleEl.value:"super";
+  if(!pw||!did){flash("Fill both fields","warn");return;}
+  const body={password:pw,targetDeviceId:did,role};
+  if(role==="leader"){
+    const g=document.getElementById("acl-leader-group");const sg=document.getElementById("acl-leader-subgroup");
+    if(g&&g.value)body.group=g.value;
+    if(sg&&sg.value)body.subgroup=sg.value;
+  }
+  const r=await api("POST","/api/admin/add",body);
+  if(r.error){flash(r.error,"err");return;}
+  flash("Admin added!");listAdmins();
+}
+
+// ─── Announcement ───
+async function saveAnnouncement(){
+  const text=document.getElementById("announcement-text").value;
+  const r=await api("POST","/api/config",{announcement:text,adminDeviceId:deviceId});
+  if(r.error){flash(r.error,"err");return;}
+  announcement=text;
+  flash(text?"공지사항 저장됨":"공지사항 삭제됨");
+}
+
+// ─── KakaoTalk summary ───
+function copyKakaoSummary(){
+  const td=today();
+  let entries=D.log.filter(e=>e.date===td);
+  if(todayGroup)entries=entries.filter(e=>dGroup(e.deviceId)===todayGroup||(e.group||"")===todayGroup);
+  if(todaySubgroup)entries=entries.filter(e=>dSubgroup(e.deviceId)===todaySubgroup||(e.subgroup||"")===todaySubgroup);
+  if(!entries.length){flash("오늘 출석 기록이 없습니다","warn");return;}
+  const reg=entries.filter(e=>!getMemberRole(dName(e.deviceId)||e.name));
+  const spec=entries.filter(e=>getMemberRole(dName(e.deviceId)||e.name));
+  const grpLabel=(todayGroup&&todaySubgroup)?`${todayGroup} ${todaySubgroup}`:todayGroup||"전체";
+  let lines=[`📋 KCCP 출석 현황`,`📅 ${fmtDL(td)}${grpLabel!=="전체"?` (${grpLabel})`:""}`,`총 ${reg.length}명 출석\n`];
+  if(reg.length){
+    lines.push("✅ 출석:");
+    const names=[...new Set(reg.map(e=>dName(e.deviceId)||e.name))];
+    names.forEach((n,i)=>lines.push(`${i+1}. ${n}`));
+  }
+  if(spec.length){
+    lines.push("\n👥 방문 / 기타:");
+    const names=[...new Set(spec.map(e=>dName(e.deviceId)||e.name))];
+    names.forEach((n,i)=>{const role=getMemberRole(n);lines.push(`${i+1}. ${n} (${ROLE_LABELS[role]||role})`);});
+  }
+  if(announcement)lines.push(`\n📢 ${announcement}`);
+  const text=lines.join("\n");
+  navigator.clipboard.writeText(text).then(()=>flash("카카오 요약 복사됨 ✓")).catch(()=>{
+    // Fallback for older browsers
+    const ta=document.createElement("textarea");ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand("copy");document.body.removeChild(ta);flash("카카오 요약 복사됨 ✓");
+  });
+}
+
+// ─── PDF / Print report ───
+function openPrintReport(){
+  let q="?period=today";
+  if(sheetGroup)q+=`&group=${encodeURIComponent(sheetGroup)}`;
+  if(sheetSubgroup)q+=`&subgroup=${encodeURIComponent(sheetSubgroup)}`;
+  window.open("/api/report/html"+q,"_blank");
+}
+
+// ─── Bulk attendance ───
+function openBulk(){
+  document.getElementById("bulk-date").value=today();
+  renderBulkMembers();
+  document.getElementById("bulk-modal").style.display="flex";
+}
+function renderBulkMembers(){
+  const members=getUniqueNames("","");
+  const names=sortNames(Object.keys(members).filter(n=>!isVisitorMember(n)));
+  const el=document.getElementById("bulk-members");if(!el)return;
+  if(!names.length){el.innerHTML=`<div style="text-align:center;color:var(--txt-d);padding:20px;font-size:13px;">등록된 멤버가 없습니다.</div>`;return;}
+  el.innerHTML=names.map(n=>`<label style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;cursor:pointer;border:1px solid var(--bdr);margin-bottom:4px;background:var(--bg);">
+    <input type="checkbox" class="bulk-chk" value="${esc(n)}" style="width:16px;height:16px;accent-color:var(--acc);cursor:pointer;">
+    <span style="font-size:13px;font-weight:600;flex:1;">${esc(n)}</span>
+    <span style="font-size:11px;color:var(--txt-d);">${grpTag(dGroup(getDevicesFor(n)[0]||""),dSubgroup(getDevicesFor(n)[0]||""))}</span>
+  </label>`).join("");
+}
+function selectAllBulk(){document.querySelectorAll(".bulk-chk").forEach(c=>c.checked=true);}
+function selectNoneBulk(){document.querySelectorAll(".bulk-chk").forEach(c=>c.checked=false);}
+async function submitBulk(){
+  const date=document.getElementById("bulk-date").value;
+  if(!date){flash("날짜를 선택해주세요","warn");return;}
+  const names=[...document.querySelectorAll(".bulk-chk:checked")].map(c=>c.value);
+  if(!names.length){flash("멤버를 선택해주세요","warn");return;}
+  const r=await api("POST","/api/log/add-bulk",{names,date,adminDeviceId:deviceId});
+  if(r.error){flash(r.error,"err");return;}
+  flash(`${r.added||names.length}명 출석 등록됨`);
+  document.getElementById("bulk-modal").style.display="none";
+  await load();renderAll();
+}
+
+// ─── Audit log ───
+async function loadAuditLog(){
+  const el=document.getElementById("audit-log-list");if(!el)return;
+  el.innerHTML=`<div style="text-align:center;color:var(--txt-d);padding:16px;font-size:12px;">불러오는 중...</div>`;
+  const r=await api("GET","/api/audit",null,{"X-Device-Id":deviceId});
+  if(r.error){el.innerHTML=`<div style="color:var(--red);font-size:12px;padding:8px;">${esc(r.error)}</div>`;return;}
+  const log=r.log||[];
+  if(!log.length){el.innerHTML=`<div style="text-align:center;color:var(--txt-d);padding:16px;font-size:12px;">로그가 없습니다.</div>`;return;}
+  const ACTION_KR={"check-in":"출석","manual-add":"수동 추가","manual-remove":"기록 삭제","device-register":"기기 등록","device-edit":"기기 편집","device-unlink":"기기 해제","person-remove":"멤버 삭제","admin-add":"관리자 추가","admin-remove":"관리자 삭제","config-change":"설정 변경","bulk-add":"일괄 출석"};
+  el.innerHTML=`<div class="sl" style="margin-bottom:8px;">${log.length}건</div>`+log.slice(0,100).map(entry=>{
+    const dt=new Date(entry.ts).toLocaleString("ko-KR",{timeZone:"America/New_York",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"});
+    const actionLabel=ACTION_KR[entry.action]||entry.action;
+    return`<div style="padding:8px 12px;margin-bottom:4px;border-radius:8px;background:var(--bg);border:1px solid var(--bdr);">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;">
+        <div style="flex:1;min-width:0;">
+          <span class="tag tag-blue" style="font-size:9px;margin-right:6px;">${esc(actionLabel)}</span>
+          <span style="font-size:12px;font-weight:600;">${esc(entry.adminName||entry.adminId||"?")}</span>
+          ${entry.details?`<div style="font-size:10px;color:var(--txt-m);margin-top:2px;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(JSON.stringify(entry.details))}</div>`:""}
+        </div>
+        <span class="mono" style="font-size:9px;color:var(--txt-d);flex-shrink:0;">${dt}</span>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+// ─── Dark / Light mode ───
+function applyTheme(){
+  lightMode=localStorage.getItem("kccp-theme")==="light";
+  document.body.classList.toggle("light-mode",lightMode);
+  const icon=lightMode?"☀️":"🌙";
+  const btn=document.getElementById("theme-toggle");if(btn)btn.textContent=icon;
+  const btn2=document.getElementById("checkin-theme-toggle");if(btn2)btn2.textContent=icon;
+}
+function toggleTheme(){
+  lightMode=!lightMode;
+  localStorage.setItem("kccp-theme",lightMode?"light":"dark");
+  document.body.classList.toggle("light-mode",lightMode);
+  const icon=lightMode?"☀️":"🌙";
+  const btn=document.getElementById("theme-toggle");if(btn)btn.textContent=icon;
+  const btn2=document.getElementById("checkin-theme-toggle");if(btn2)btn2.textContent=icon;
+}
+
+// ─── Swipe gestures ───
+const TAB_ORDER=["sheet","today","members","devices","admins","settings"];
+let swipeStartX=0,swipeStartY=0;
+function initSwipe(){
+  const el=document.getElementById("admin-view");if(!el||el._swipeInit)return;
+  el._swipeInit=true;
+  el.addEventListener("touchstart",e=>{swipeStartX=e.touches[0].clientX;swipeStartY=e.touches[0].clientY;},{passive:true});
+  el.addEventListener("touchend",e=>{
+    const dx=e.changedTouches[0].clientX-swipeStartX;
+    const dy=e.changedTouches[0].clientY-swipeStartY;
+    if(Math.abs(dx)<50||Math.abs(dx)<Math.abs(dy)*1.5)return;
+    const cur=TAB_ORDER.indexOf(activeTab);
+    if(dx<0&&cur<TAB_ORDER.length-1)switchTab(TAB_ORDER[cur+1]);
+    else if(dx>0&&cur>0)switchTab(TAB_ORDER[cur-1]);
+  },{passive:true});
+}
+
+// ─── Check-in window UI ───
+function renderCheckinWindow(){
+  // Populate hour dropdowns
+  ["ci-start-hour","ci-end-hour"].forEach(id=>{
+    const el=document.getElementById(id);if(!el)return;
+    if(el.options.length>0)return; // already populated
+    for(let h=0;h<24;h++){
+      const h12=h%12||12;const ampm=h>=12?"PM":"AM";
+      const o=document.createElement("option");o.value=String(h);o.textContent=`${String(h12).padStart(2,"0")} ${ampm}`;
+      el.appendChild(o);
+    }
+  });
+  // Populate days checkboxes
+  const wrap=document.getElementById("checkin-days-wrap");
+  if(wrap&&!wrap.dataset.init){
+    wrap.dataset.init="1";
+    const DAYS=["일","월","화","수","목","금","토"];
+    wrap.innerHTML=DAYS.map((d,i)=>`<label style="display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:8px;border:1px solid var(--bdr);background:var(--card);cursor:pointer;font-size:12px;font-weight:600;">
+      <input type="checkbox" class="ci-day-chk" value="${i}" style="accent-color:var(--acc);">${d}</label>`).join("");
+  }
+  // Set current values
+  document.querySelectorAll(".ci-day-chk").forEach(c=>{c.checked=checkinDays.includes(parseInt(c.value));});
+  const sh=document.getElementById("ci-start-hour"),sm=document.getElementById("ci-start-min");
+  const eh=document.getElementById("ci-end-hour"),em=document.getElementById("ci-end-min");
+  if(sh)sh.value=String(Math.floor(checkinStartMin/60));
+  if(sm){const mins=[0,15,30,45];const closest=mins.reduce((a,b)=>Math.abs(b-checkinStartMin%60)<Math.abs(a-checkinStartMin%60)?b:a);sm.value=String(closest);}
+  if(eh)eh.value=String(Math.floor(checkinEndMin/60));
+  if(em){const mins=[0,15,30,45];const closest=mins.reduce((a,b)=>Math.abs(b-checkinEndMin%60)<Math.abs(a-checkinEndMin%60)?b:a);em.value=String(closest);}
+  const el=document.getElementById("ci-current");
+  if(el){
+    const DAYS=["일","월","화","수","목","금","토"];
+    const dayStr=checkinDays.map(d=>DAYS[d]).join(", ")||"없음";
+    const fmtM=m=>{const h=Math.floor(m/60);const mn=m%60;const h12=h%12||12;return`${String(h12).padStart(2,"0")}:${String(mn).padStart(2,"0")} ${h>=12?"PM":"AM"}`;};
+    el.textContent=`현재: ${dayStr} | ${fmtM(checkinStartMin)} ~ ${fmtM(checkinEndMin)}`;
+  }
+}
+async function saveCheckinWindow(){
+  const days=[...document.querySelectorAll(".ci-day-chk:checked")].map(c=>parseInt(c.value));
+  const sh=parseInt(document.getElementById("ci-start-hour").value);
+  const sm=parseInt(document.getElementById("ci-start-min").value);
+  const eh=parseInt(document.getElementById("ci-end-hour").value);
+  const em=parseInt(document.getElementById("ci-end-min").value);
+  const startMin=sh*60+sm;const endMin=eh*60+em;
+  if(endMin<=startMin){flash("종료 시간이 시작 시간보다 늦어야 합니다","warn");return;}
+  const r=await api("POST","/api/config",{checkinDays:days,checkinStartMin:startMin,checkinEndMin:endMin,adminDeviceId:deviceId});
+  if(r.error){flash(r.error,"err");return;}
+  checkinDays=days;checkinStartMin=startMin;checkinEndMin=endMin;
+  renderCheckinWindow();flash("출석 시간 설정 저장됨");
+}
+
+// ─── Weekly recap ───
+let weeklyRecapVisible=false;
+function showWeeklyRecap(){
+  weeklyRecapVisible=!weeklyRecapVisible;
+  const el=document.getElementById("weekly-recap-section");if(!el)return;
+  if(!weeklyRecapVisible){el.style.display="none";return;}
+  el.style.display="block";
+  // Get last 5 Sundays (or whichever days are in log)
+  const dates=[...new Set(D.log.map(e=>e.date))].sort().slice(-7);
+  if(!dates.length){el.innerHTML=`<div class="card" style="text-align:center;color:var(--txt-d);padding:20px;font-size:13px;">출석 기록이 없습니다.</div>`;return;}
+  const rows=dates.map(d=>{
+    let entries=D.log.filter(e=>e.date===d);
+    if(todayGroup)entries=entries.filter(e=>dGroup(e.deviceId)===todayGroup||(e.group||"")===todayGroup);
+    if(todaySubgroup)entries=entries.filter(e=>dSubgroup(e.deviceId)===todaySubgroup||(e.subgroup||"")===todaySubgroup);
+    const names=[...new Set(entries.filter(e=>!getMemberRole(dName(e.deviceId)||e.name)).map(e=>dName(e.deviceId)||e.name))];
+    const first=entries.filter(e=>e.firstVisit).length;
+    return`<tr>
+      <td style="font-weight:600;font-size:12px;">${esc(fmtD(d))}</td>
+      <td style="text-align:center;font-weight:800;color:var(--acc);font-size:15px;">${names.length}</td>
+      <td style="text-align:center;color:var(--purple);font-size:12px;">${first||"—"}</td>
+    </tr>`;
+  }).join("");
+  const copyText=dates.map(d=>{
+    let entries=D.log.filter(e=>e.date===d);
+    const names=[...new Set(entries.filter(e=>!getMemberRole(dName(e.deviceId)||e.name)).map(e=>dName(e.deviceId)||e.name))];
+    return`${fmtD(d)}: ${names.length}명`;
+  }).join("\n");
+  el.innerHTML=`<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div class="sl" style="margin-bottom:0;">주간 요약 (최근 ${dates.length}주)</div>
+      <button class="btn btn-secondary btn-sm" onclick="navigator.clipboard.writeText(\`${copyText.replace(/`/g,'\\`')}\`).then(()=>flash('복사됨 ✓'))">📋 복사</button>
+    </div>
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-family:'IBM Plex Mono',monospace;">
+        <thead><tr style="background:var(--card-hi);">
+          <th style="padding:8px 10px;text-align:left;font-size:10px;color:var(--txt-m);border:1px solid var(--bdr);">날짜</th>
+          <th style="padding:8px 10px;text-align:center;font-size:10px;color:var(--txt-m);border:1px solid var(--bdr);">출석</th>
+          <th style="padding:8px 10px;text-align:center;font-size:10px;color:var(--purple);border:1px solid var(--bdr);">첫출석</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+// ─── Merge members ───
+function openMerge(){
+  const names=sortNames(Object.keys(getUniqueNames("","")));
+  const opts='<option value="">선택...</option>'+names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");
+  document.getElementById("merge-from").innerHTML=opts;
+  document.getElementById("merge-to").innerHTML=opts;
+  document.getElementById("merge-modal").style.display="flex";
+}
+function submitMerge(){
+  const from=document.getElementById("merge-from").value;
+  const to=document.getElementById("merge-to").value;
+  if(!from||!to){flash("두 멤버를 모두 선택해주세요","warn");return;}
+  if(from===to){flash("같은 멤버를 선택할 수 없습니다","warn");return;}
+  confirmAction(`"${from}" → "${to}" 합치기`,async()=>{
+    const r=await api("POST","/api/merge-members",{fromName:from,toName:to,adminDeviceId:deviceId});
+    if(r.error){flash(r.error,"err");return;}
+    document.getElementById("merge-modal").style.display="none";
+    flash(`합치기 완료: ${r.merged}개 장치 이전됨`);
+    await load();renderAll();
+  },{icon:"🔀",desc:`"${from}"의 모든 장치를 "${to}"로 이전합니다.`});
+}
+
+// ─── Admin leader fields ───
+function updateAclLeaderFields(){
+  const role=document.getElementById("acl-role").value;
+  const wrap=document.getElementById("acl-leader-fields");
+  if(wrap)wrap.style.display=role==="leader"?"block":"none";
+}
+function updateAclLeaderSubgroup(){
+  const g=document.getElementById("acl-leader-group").value;
+  const el=document.getElementById("acl-leader-subgroup");
+  if(!el)return;
+  if(g==="대학부"||g==="청년부"){el.innerHTML=`<option value="">전체 동산</option>`+(dongsanNames[g]||[]).map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join("");el.style.display="block";}
+  else{el.style.display="none";el.value="";}
+}
+
+// ─── Pull-to-refresh ───
+let _ptrInit=false;
+function initPullToRefresh(){
+  if(_ptrInit)return;_ptrInit=true;
+  let startY=0,pulling=false,pulled=0,refreshing=false;
+  const THRESHOLD=72;
+  const ind=document.getElementById("pull-indicator");
+  const spinner=document.getElementById("ptr-spinner");
+  const txt=ind.querySelector(".ptr-text");
+  window.addEventListener("touchstart",e=>{
+    if(document.getElementById("admin-view").style.display==="none")return;
+    if(window.scrollY===0){startY=e.touches[0].clientY;pulling=true;}
+  },{passive:true});
+  window.addEventListener("touchmove",e=>{
+    if(!pulling||refreshing)return;
+    const dy=e.touches[0].clientY-startY;
+    if(dy<0){pulling=false;return;}
+    pulled=Math.min(dy*0.45,THRESHOLD+24);
+    ind.style.height=pulled+"px";
+    ind.style.opacity=String(Math.min(1,pulled/THRESHOLD));
+    const ready=pulled>=THRESHOLD;
+    txt.textContent=ready?"놓으면 새로고침 ↻":"당겨서 새로고침 ↓";
+    txt.style.color=ready?"var(--acc)":"var(--txt-d)";
+    spinner.style.borderTopColor=ready?"transparent":"transparent";
+  },{passive:true});
+  window.addEventListener("touchend",async()=>{
+    if(!pulling)return;pulling=false;
+    if(pulled>=THRESHOLD&&!refreshing){
+      refreshing=true;
+      spinner.classList.add("spinning");
+      txt.textContent="새로고침 중...";
+      txt.style.color="var(--acc)";
+      await load();renderAll();
+      spinner.classList.remove("spinning");
+      ind.style.transition="height .25s ease,opacity .25s ease";
+      ind.style.height="0px";ind.style.opacity="0";
+      setTimeout(()=>{ind.style.transition="";},250);
+      refreshing=false;
+    } else {
+      ind.style.transition="height .25s ease,opacity .25s ease";
+      ind.style.height="0px";ind.style.opacity="0";
+      setTimeout(()=>{ind.style.transition="";},250);
+    }
+    pulled=0;txt.textContent="당겨서 새로고침 ↓";txt.style.color="var(--txt-d)";
+  });
+}
+
+// ─── Hold-to-confirm ───
+let _confirmCb=null,_confirmIv=null;
+function confirmAction(title,onConfirm,{icon="⚠️",desc="",holdMs=1200,confirmText="길게 눌러서 확인"}={}){
+  _confirmCb=onConfirm;
+  document.getElementById("confirm-icon").textContent=icon;
+  document.getElementById("confirm-title").textContent=title;
+  document.getElementById("confirm-desc").textContent=desc;
+  const label=document.getElementById("confirm-hold-label");
+  const fill=document.getElementById("confirm-hold-fill");
+  const inner=document.getElementById("confirm-hold-inner");
+  const spinner=document.getElementById("confirm-spinner");
+  label.textContent=confirmText;
+  fill.style.width="0%";fill.style.transition="none";
+  // Style based on danger level
+  const danger=holdMs>=1200;
+  fill.style.background=danger?"var(--red)":"var(--acc)";
+  inner.style.background=danger?"var(--red-dim)":"var(--acc-dim)";
+  inner.style.borderColor=danger?"var(--red)":"var(--acc)";
+  inner.style.color=danger?"var(--red)":"var(--acc)";
+  spinner.style.border=`2.5px solid ${danger?"var(--red)":"var(--acc)"}`;
+  spinner.style.borderTopColor="transparent";
+  spinner.classList.remove("spinning");
+  document.getElementById("confirm-modal").style.display="flex";
+  const btn=document.getElementById("confirm-hold-btn");
+  let startT=null;
+  function startHold(e){e.preventDefault();startT=Date.now();spinner.classList.add("spinning");_confirmIv=setInterval(()=>{const pct=Math.min(100,(Date.now()-startT)/holdMs*100);fill.style.width=pct+"%";if(pct>=100){clearInterval(_confirmIv);label.textContent="✓";spinner.classList.remove("spinning");setTimeout(()=>{const cb=_confirmCb;closeConfirm();if(cb)cb();},200);}},16);}
+  function endHold(){if(!startT)return;clearInterval(_confirmIv);fill.style.transition="width .3s ease";fill.style.width="0%";setTimeout(()=>{fill.style.transition="none";},300);label.textContent=confirmText;spinner.classList.remove("spinning");startT=null;}
+  btn.onmousedown=startHold;btn.ontouchstart=startHold;
+  btn.onmouseup=endHold;btn.onmouseleave=endHold;btn.ontouchend=endHold;btn.ontouchcancel=endHold;
+}
+function closeConfirm(){document.getElementById("confirm-modal").style.display="none";clearInterval(_confirmIv);_confirmCb=null;}
+
+// ─── Admin manual check-in ───
+function openAdminCheckin(){
+  const names=sortNames(Object.keys(getUniqueNames("","")));
+  const sel=document.getElementById("mc-name");
+  sel.innerHTML='<option value="">멤버를 선택하세요...</option>'+names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");
+  document.getElementById("manual-checkin-modal").style.display="flex";
+  sel.focus();
+}
+async function submitAdminCheckin(){
+  const name=document.getElementById("mc-name").value;
+  if(!name){flash("멤버를 선택해주세요","warn");return;}
+  const r=await api("POST","/api/admin/checkin",{name,adminDeviceId:deviceId});
+  if(r.error){flash(r.error,"err");return;}
+  document.getElementById("manual-checkin-modal").style.display="none";
+  if(r.status==="already"){flash(`${name} — 이미 출석하셨습니다 (${r.time})`,"warn");}
+  else{flash(`출석 등록: ${name} (총 ${r.total||"?"}회)`);await load();renderAll();}
+}
+
+// ─── Guest check-in ───
+function openGuestCheckin(){
+  document.getElementById("guest-name").value="";
+  document.getElementById("guest-checkin-result").style.display="none";
+  document.getElementById("guest-checkin-modal").style.display="flex";
+  setTimeout(()=>document.getElementById("guest-name").focus(),100);
+}
+async function submitGuestCheckin(){
+  const name=document.getElementById("guest-name").value.trim();
+  if(!name){flash("이름을 입력해주세요","warn");return;}
+  const loc=await getLocation();
+  const r=await api("POST","/api/guest-checkin",{name,lat:loc.lat,lng:loc.lng});
+  const res=document.getElementById("guest-checkin-result");
+  if(r.status==="time-restricted"||r.status==="location-restricted"||r.status==="location-required"){
+    res.style.display="block";res.style.background="var(--amber-dim)";res.style.color="var(--amber)";res.style.border="1px solid rgba(251,191,36,.3)";res.textContent=r.message;return;
+  }
+  if(r.error){flash(r.error,"err");return;}
+  if(r.status==="already"){
+    res.style.display="block";res.style.background="var(--amber-dim)";res.style.color="var(--amber)";res.style.border="1px solid rgba(251,191,36,.3)";res.textContent=`이미 출석하셨습니다 (${r.time})`;return;
+  }
+  res.style.display="block";res.style.background="var(--acc-dim)";res.style.color="var(--acc)";res.style.border="1px solid rgba(52,211,153,.3)";res.textContent=`✓ 출석 완료! ${name} — ${r.time}`;
+  document.getElementById("guest-name").value="";
+  if(navigator.vibrate)navigator.vibrate([100,50,200]);
+  setTimeout(()=>{document.getElementById("guest-checkin-modal").style.display="none";},2000);
+}
+
+// ─── Export to Excel ───
+function exportExcel(){
+  if(typeof XLSX==="undefined"){flash("Excel 라이브러리 로딩 중...","warn");return;}
+  const wb=XLSX.utils.book_new();
+  // Sheet 1: Grid (members × dates)
+  const members=getUniqueNames("","");
+  const allNames=sortNames(Object.keys(members));
+  const dates=[...new Set(D.log.map(e=>e.date))].sort();
+  const gridHeader=["이름","그룹","동산","총 출석",...dates];
+  const gridRows=allNames.map(name=>{
+    const m=members[name];
+    const dids=m.devices;
+    const total=totalForName(name);
+    const cells=dates.map(d=>{const e=D.log.find(x=>dids.includes(x.deviceId)&&x.date===d);return e?e.time:"";});
+    return[name,m.group||"",m.subgroup||"",total,...cells];
+  });
+  const ws1=XLSX.utils.aoa_to_sheet([gridHeader,...gridRows]);
+  ws1["!cols"]=[{wch:16},{wch:8},{wch:8},{wch:8},...dates.map(()=>({wch:12}))];
+  XLSX.utils.book_append_sheet(wb,ws1,"출석 현황");
+  // Sheet 2: Log (all records)
+  const logHeader=["이름","그룹","동산","날짜","시간","총 출석","비고"];
+  const sorted=[...D.log].sort((a,b)=>b.ts-a.ts);
+  const logRows=sorted.map(e=>{
+    const name=dName(e.deviceId)||e.name;
+    const group=dGroup(e.deviceId)||e.group||"";
+    const subgroup=dSubgroup(e.deviceId)||e.subgroup||"";
+    const note=(e.firstVisit?"첫출석 ":"")+(e.manual?"수동 ":"")+(e.guest?"방문자 ":"");
+    return[name,group,subgroup,e.date,e.time,totalForName(name),note.trim()];
+  });
+  const ws2=XLSX.utils.aoa_to_sheet([logHeader,...logRows]);
+  ws2["!cols"]=[{wch:16},{wch:8},{wch:8},{wch:12},{wch:14},{wch:8},{wch:16}];
+  XLSX.utils.book_append_sheet(wb,ws2,"전체 로그");
+  const t=today();
+  const label=sheetGroup?(sheetGroup+(sheetSubgroup?"-"+sheetSubgroup:"")):"all";
+  XLSX.writeFile(wb,`kccp-attendance-${label}-${t}.xlsx`);
+  flash("Excel 파일 다운로드 완료!");
+}
+
+// ─── Bulk Check-in ───
+function openBulkCheckin(){
+  const td=today();
+  document.getElementById("bulk-date-label").textContent=fmtD(td);
+  const allMembers=getUniqueNames("","");
+  const names=sortNames(Object.keys(allMembers)).filter(n=>!isVisitorMember(n));
+  const byGroup={};
+  names.forEach(n=>{const g=(allMembers[n].group||"기타")+" "+(allMembers[n].subgroup||"");if(!byGroup[g])byGroup[g]=[];byGroup[g].push(n);});
+  const alreadyIn=new Set(D.log.filter(e=>e.date===td).map(e=>dName(e.deviceId)||e.name));
+  let html="";
+  Object.keys(byGroup).sort().forEach(grp=>{
+    html+=`<div style="font-size:10px;font-weight:700;color:var(--txt-m);letter-spacing:.8px;text-transform:uppercase;margin:10px 0 5px;font-family:'IBM Plex Mono',monospace;">${esc(grp)}</div>`;
+    byGroup[grp].forEach(n=>{
+      const done=alreadyIn.has(n);
+      html+=`<label style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;cursor:${done?"default":"pointer"};background:${done?"var(--acc-dim)":"var(--bg)"};border:1px solid ${done?"rgba(52,211,153,.2)":"var(--bdr)"};margin-bottom:4px;opacity:${done?".6":"1"};">
+        <input type="checkbox" class="bulk-cb" value="${esc(n)}" ${done?"checked disabled":""} style="accent-color:var(--acc);width:16px;height:16px;" onchange="updateBulkCount()">
+        <span style="font-size:13px;font-weight:600;flex:1;">${esc(n)}</span>
+        ${done?`<span style="font-size:10px;color:var(--acc);font-weight:700;">✓ 출석</span>`:""}
+      </label>`;
+    });
+  });
+  document.getElementById("bulk-member-list").innerHTML=html;
+  updateBulkCount();
+  document.getElementById("bulk-checkin-modal").style.display="flex";
+}
+function bulkSelectAll(v){document.querySelectorAll(".bulk-cb:not(:disabled)").forEach(c=>c.checked=v);updateBulkCount();}
+function updateBulkCount(){const n=document.querySelectorAll(".bulk-cb:not(:disabled):checked").length;document.getElementById("bulk-selected-count").textContent=n?`${n}명 선택`:"";}
+async function submitBulkCheckin(){
+  const names=[...document.querySelectorAll(".bulk-cb:not(:disabled):checked")].map(c=>c.value);
+  if(!names.length){flash("멤버를 선택해주세요","warn");return;}
+  const r=await api("POST","/api/log/add-bulk",{names,date:today(),adminDeviceId:deviceId});
+  if(r.error){flash(r.error,"err");return;}
+  document.getElementById("bulk-checkin-modal").style.display="none";
+  flash(`${r.added}명 출석 등록 완료!`);
+  await load();renderAll();
+}
+
+// ─── Member Transfer ───
+let _transferName=null;
+function openTransfer(name){
+  _transferName=name;
+  document.getElementById("transfer-member-label").textContent=`${name} 전출`;
+  document.getElementById("transfer-group").value="";
+  document.getElementById("transfer-subgroup").innerHTML="<option value=''>동산 선택...</option>";
+  document.getElementById("transfer-modal").style.display="flex";
+}
+function renderTransferSubgroups(){
+  const g=document.getElementById("transfer-group").value;
+  const subs=dongsanNames[g]||[];
+  document.getElementById("transfer-subgroup").innerHTML="<option value=''>동산 선택...</option>"+subs.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join("");
+}
+async function submitTransfer(){
+  if(!_transferName){return;}
+  const newGroup=document.getElementById("transfer-group").value;
+  const newSubgroup=document.getElementById("transfer-subgroup").value;
+  if(!newGroup){flash("부서를 선택해주세요","warn");return;}
+  if(!newSubgroup){flash("동산을 선택해주세요","warn");return;}
+  const r=await api("POST","/api/transfer-member",{name:_transferName,newGroup,newSubgroup,adminDeviceId:deviceId});
+  if(r.error){flash(r.error,"err");return;}
+  document.getElementById("transfer-modal").style.display="none";
+  flash(`${_transferName} → ${newGroup} ${newSubgroup} 전출 완료`);
+  await load();renderAll();
+}
+
+// ─── Share / KakaoTalk ───
+function shareCheckinLink(){
+  const url=location.origin;
+  document.getElementById("share-url-text").textContent=url;
+  document.getElementById("share-copy-btn").textContent="복사";
+  document.getElementById("share-modal").style.display="flex";
+}
+function copyShareUrl(){
+  const url=location.origin;
+  const btn=document.getElementById("share-copy-btn");
+  try{
+    // Works on HTTP too
+    const ta=document.createElement("textarea");
+    ta.value=url;ta.style.cssText="position:fixed;opacity:0;top:0;left:0;";
+    document.body.appendChild(ta);ta.focus();ta.select();
+    document.execCommand("copy");
+    document.body.removeChild(ta);
+    btn.textContent="✓ 복사됨";setTimeout(()=>btn.textContent="복사",2000);
+  }catch(e){btn.textContent="실패";}
+}
+function shareSMS(){
+  const url=location.origin;
+  const msg=encodeURIComponent("KCCP 출석 체크인 링크입니다 📋\n"+url);
+  window.open("sms:?body="+msg,"_blank");
+}
+function shareKakao(){
+  const url=location.origin;
+  const msg=encodeURIComponent("KCCP 출석 체크인 링크입니다 📋\n"+url);
+  // Try KakaoTalk deep link, fallback to generic share
+  const kakaoUrl="kakaotalk://msg/send?text="+msg;
+  const a=document.createElement("a");a.href=kakaoUrl;a.click();
+  // Show copy fallback after short delay in case deep link fails
+  setTimeout(()=>{
+    copyShareUrl();
+    document.getElementById("share-copy-btn").textContent="복사됨 — 카톡에 붙여넣기";
+  },800);
+}
+
+// ─── Offline Check-in Queue ───
+const QUEUE_KEY="kccp-offline-queue";
+function getQueue(){try{return JSON.parse(localStorage.getItem(QUEUE_KEY)||"[]");}catch(e){return[];}}
+function saveQueue(q){localStorage.setItem(QUEUE_KEY,JSON.stringify(q));}
+function queueCheckin(did,lat,lng){
+  const q=getQueue();
+  if(!q.find(x=>x.deviceId===did)){q.push({deviceId:did,lat,lng,ts:Date.now()});saveQueue(q);}
+  updateQueueBadge();
+}
+function updateQueueBadge(){
+  const q=getQueue();
+  let badge=document.getElementById("offline-queue-badge");
+  if(!badge){badge=document.createElement("div");badge.id="offline-queue-badge";badge.style.cssText="position:fixed;top:12px;left:50%;transform:translateX(-50%);background:var(--amber);color:var(--bg);font-size:11px;font-weight:800;padding:5px 14px;border-radius:20px;z-index:300;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.3);";badge.onclick=syncOfflineQueue;document.body.appendChild(badge);}
+  if(q.length){badge.textContent=`📡 오프라인 ${q.length}건 대기 중 — 탭하여 동기화`;badge.style.display="block";}
+  else{badge.style.display="none";}
+}
+async function syncOfflineQueue(){
+  const q=getQueue();if(!q.length)return;
+  let synced=0;const remaining=[];
+  for(const item of q){
+    try{const r=await fetch("/api/checkin",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({deviceId:item.deviceId,lat:item.lat,lng:item.lng})});const d=await r.json();if(d.offline){remaining.push(item);}else{synced++;}}
+    catch(e){remaining.push(item);}
+  }
+  saveQueue(remaining);updateQueueBadge();
+  if(synced){flash(`${synced}건 동기화 완료!`);await load();renderAll();}
+  else if(remaining.length){flash("아직 오프라인 상태입니다","warn");}
+}
+window.addEventListener("online",()=>{if(getQueue().length)syncOfflineQueue();});
+
+if("serviceWorker"in navigator){navigator.serviceWorker.register("/sw.js").catch(()=>{});}
+
+// ─── Feature 6: Weekly Summary Report ───
+function openWeeklySummaryReport(){
+  let q="?dummy=1";
+  if(todayGroup)q+=`&group=${encodeURIComponent(todayGroup)}`;
+  window.open("/api/report/weekly-summary"+q,"_blank");
+}
+
+// ─── Feature 9: Pending Registration Approval ───
+async function renderPendingBadge(){
+  if(!myAdminRole)return;
+  try{
+    const r=await api("GET",`/api/pending/count?deviceId=${encodeURIComponent(deviceId)}`);
+    if(r.error||r.offline)return;
+    pendingCount=r.count||0;
+    const navBadge=document.getElementById("pending-nav-badge");
+    const cardBadge=document.getElementById("pending-badge-card");
+    if(pendingCount>0){
+      const label=pendingCount>9?"9+":String(pendingCount);
+      if(navBadge){navBadge.textContent=label;navBadge.style.display="inline-block";}
+      if(cardBadge){cardBadge.textContent=label+"명 대기";cardBadge.style.display="inline-block";}
+    }else{
+      if(navBadge)navBadge.style.display="none";
+      if(cardBadge)cardBadge.style.display="none";
+    }
+  }catch(e){}
+}
+async function loadPendingList(){
+  const el=document.getElementById("pending-list");if(!el)return;
+  el.innerHTML=`<div style="text-align:center;color:var(--txt-d);padding:12px;font-size:12px;">불러오는 중...</div>`;
+  const r=await api("GET","/api/pending",null,{"X-Device-Id":deviceId});
+  if(r.error){el.innerHTML=`<div style="color:var(--red);font-size:12px;padding:8px;">${esc(r.error)}</div>`;return;}
+  const list=r.pending||[];
+  if(!list.length){el.innerHTML=`<div style="text-align:center;color:var(--txt-d);padding:16px;font-size:12px;">대기 중인 등록이 없습니다.</div>`;return;}
+  el.innerHTML=`<div class="sl" style="margin-bottom:8px;">${list.length}명 대기 중</div>`+
+    list.map(p=>{
+      const dt=new Date(p.requestedAt).toLocaleString("ko-KR",{timeZone:"America/New_York",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"});
+      return`<div style="padding:10px 12px;margin-bottom:6px;border-radius:10px;background:var(--bg);border:1px solid var(--bdr);">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+          <div style="min-width:0;flex:1;">
+            <div style="font-size:14px;font-weight:700;">${esc(p.name)}</div>
+            <div style="font-size:11px;color:var(--txt-m);margin-top:2px;">${grpTag(p.group,p.subgroup)} <span class="mono" style="font-size:9px;color:var(--txt-d);">${esc(p.deviceId.slice(0,18))}…</span></div>
+            <div style="font-size:10px;color:var(--txt-d);margin-top:2px;">${dt}</div>
+          </div>
+          <div style="display:flex;gap:6px;flex-shrink:0;">
+            <button class="btn btn-primary btn-sm" onclick="approvePending('${esc(p.deviceId)}','${esc(p.name)}')">✓ 승인</button>
+            <button class="btn btn-danger btn-sm" onclick="rejectPending('${esc(p.deviceId)}','${esc(p.name)}')">✕ 거부</button>
+          </div>
+        </div>
+      </div>`;
+    }).join("");
+}
+async function approvePending(pendingDeviceId,name){
+  const r=await api("POST","/api/pending/approve",{pendingDeviceId,adminDeviceId:deviceId});
+  if(r.error){flash(r.error,"err");return;}
+  flash(`승인됨: ${name}`);
+  await load();renderAll();loadPendingList();renderPendingBadge();
+}
+function rejectPending(pendingDeviceId,name){
+  confirmAction(`"${name}" 등록 거부`,async()=>{
+    const r=await api("POST","/api/pending/reject",{pendingDeviceId,adminDeviceId:deviceId});
+    if(r.error){flash(r.error,"err");return;}
+    flash(`거부됨: ${name}`,"warn");
+    loadPendingList();renderPendingBadge();
+  },{icon:"🚫",desc:"이 사람의 등록 요청을 거부합니다."});
+}
+async function saveApprovalSetting(){
+  const checked=document.getElementById("approval-toggle").checked;
+  const r=await api("POST","/api/config",{requireApproval:checked,adminDeviceId:deviceId});
+  if(r.error){flash(r.error,"err");return;}
+  requireApproval=checked;
+  flash(checked?"등록 승인 필요 활성화됨":"등록 승인 필요 비활성화됨");
+}
+
+// ─── Feature 10: Attendance Trend Charts ───
+function toggleCharts(){
+  chartsVisible=!chartsVisible;
+  const el=document.getElementById("charts-content");
+  const btn=document.getElementById("charts-toggle-btn");
+  if(el)el.style.display=chartsVisible?"block":"none";
+  if(btn)btn.textContent=chartsVisible?"📊 Charts 닫기":"📊 Attendance Charts 보기";
+  if(chartsVisible)renderCharts();
+}
+function renderCharts(){
+  const el=document.getElementById("charts-content");if(!el)return;
+  if(!D.log.length){el.innerHTML=`<div style="color:var(--txt-d);text-align:center;padding:20px;font-size:13px;">No data to chart yet.</div>`;return;}
+  let logData=D.log;
+  if(sheetGroup)logData=logData.filter(e=>(dGroup(e.deviceId)||e.group||"")===sheetGroup);
+  if(sheetSubgroup)logData=logData.filter(e=>(dSubgroup(e.deviceId)||e.subgroup||"")===sheetSubgroup);
+  const dates=[...new Set(logData.map(e=>e.date))].sort();
+  if(dates.length<2){el.innerHTML=`<div style="color:var(--txt-d);text-align:center;padding:20px;font-size:13px;">Need at least 2 dates to draw charts.</div>`;return;}
+  const trendData=dates.map(d=>{
+    const p=new Set(logData.filter(e=>e.date===d&&!isVisitorMember(dName(e.deviceId)||e.name)).map(e=>dName(e.deviceId)||e.name));
+    return p.size;
+  });
+  const groups=getGroups();
+  const groupDatasets=!sheetGroup?groups.map((g,i)=>{
+    const colors=["#FBBF24","#60A5FA","#34D399","#A78BFA"];
+    return{label:g,data:dates.map(d=>{const p=new Set(D.log.filter(e=>e.date===d&&(dGroup(e.deviceId)||e.group||"")===g&&!isVisitorMember(dName(e.deviceId)||e.name)).map(e=>dName(e.deviceId)||e.name));return p.size;}),backgroundColor:colors[i%colors.length]+"99",borderColor:colors[i%colors.length],borderWidth:2};
+  }):[];
+  const labels=dates.map(d=>fmtD(d));
+  const tc=lightMode?"#444":"#ccc";const gc=lightMode?"#ddd":"#2a2b3a";
+  if(_trendChart){_trendChart.destroy();_trendChart=null;}
+  if(_groupChart){_groupChart.destroy();_groupChart=null;}
+  el.innerHTML=`<div class="card" style="margin-bottom:12px;padding:16px;"><div class="sl" style="margin-bottom:10px;">Weekly Attendance Trend</div><canvas id="trend-chart" height="190"></canvas></div>${groupDatasets.length>1?`<div class="card" style="margin-bottom:12px;padding:16px;"><div class="sl" style="margin-bottom:10px;">Group Comparison (Bar)</div><canvas id="group-chart" height="190"></canvas></div>`:""}`;
+  if(typeof Chart==="undefined"){el.innerHTML=`<div style="color:var(--red);padding:16px;font-size:12px;">Chart.js failed to load.</div>`;return;}
+  const tCtx=document.getElementById("trend-chart");
+  if(tCtx){_trendChart=new Chart(tCtx,{type:"line",data:{labels,datasets:[{label:"Attendance",data:trendData,borderColor:"#34D399",backgroundColor:"rgba(52,211,153,.12)",borderWidth:2.5,pointBackgroundColor:"#34D399",pointRadius:4,fill:true,tension:0.3}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{ticks:{color:tc,maxRotation:45,font:{size:9}},grid:{color:gc}},y:{beginAtZero:true,ticks:{color:tc,stepSize:1,font:{size:10}},grid:{color:gc}}}}});}
+  if(groupDatasets.length>1){const gCtx=document.getElementById("group-chart");if(gCtx){_groupChart=new Chart(gCtx,{type:"bar",data:{labels,datasets:groupDatasets},options:{responsive:true,plugins:{legend:{labels:{color:tc,font:{size:10}}}},scales:{x:{ticks:{color:tc,maxRotation:45,font:{size:9}},grid:{color:gc}},y:{beginAtZero:true,ticks:{color:tc,stepSize:1,font:{size:10}},grid:{color:gc}}}}});}}
+}
+
+// ─── Feature 12: Dongsan Leader Dashboard ───
+function renderLeaderDashboard(){
+  const el=document.getElementById("leader-dashboard");if(!el)return;
+  const group=todayGroup||myLeaderGroup;
+  const subgroup=todaySubgroup||myLeaderSubgroup;
+  const showDashboard=myAdminRole&&group&&subgroup;
+  el.style.display=showDashboard?"block":"none";
+  if(!showDashboard)return;
+  const td=today();
+  const dongsanMembers=Object.keys(getUniqueNames(group,subgroup)).filter(n=>!isVisitorMember(n));
+  const checkedSet=new Set(D.log.filter(e=>e.date===td&&(dGroup(e.deviceId)||e.group||"")===group&&(dSubgroup(e.deviceId)||e.subgroup||"")===subgroup).map(e=>dName(e.deviceId)||e.name));
+  const absentToday=dongsanMembers.filter(n=>!checkedSet.has(n));
+  const recentDates=[...new Set(D.log.filter(e=>(dGroup(e.deviceId)||e.group||"")===group&&(dSubgroup(e.deviceId)||e.subgroup||"")===subgroup).map(e=>e.date))].sort().slice(-4);
+  const avgRate=recentDates.length&&dongsanMembers.length?Math.round(recentDates.reduce((s,d)=>{const c=new Set(D.log.filter(e=>e.date===d&&(dGroup(e.deviceId)||e.group||"")===group&&(dSubgroup(e.deviceId)||e.subgroup||"")===subgroup).map(e=>dName(e.deviceId)||e.name)).size;return s+c/dongsanMembers.length*100;},0)/recentDates.length):0;
+  const rateColor=avgRate>=80?"var(--acc)":avgRate>=60?"var(--amber)":"var(--red)";
+  el.innerHTML=`<div class="card" style="border-left:3px solid var(--purple);margin-bottom:12px;">
+    <div style="font-size:13px;font-weight:800;color:var(--purple);margin-bottom:10px;">🏠 내 동산 현황 — ${esc(group)} ${esc(subgroup)}</div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;">
+      <div style="flex:1;text-align:center;background:var(--acc-dim);border-radius:10px;padding:10px 4px;"><div style="font-size:20px;font-weight:800;color:var(--acc);">${checkedSet.size}</div><div style="font-size:8px;color:var(--txt-m);text-transform:uppercase;letter-spacing:.6px;margin-top:2px;">오늘 출석</div></div>
+      <div style="flex:1;text-align:center;background:var(--red-dim);border-radius:10px;padding:10px 4px;"><div style="font-size:20px;font-weight:800;color:var(--red);">${absentToday.length}</div><div style="font-size:8px;color:var(--txt-m);text-transform:uppercase;letter-spacing:.6px;margin-top:2px;">미출석</div></div>
+      <div style="flex:1;text-align:center;background:var(--purple-dim);border-radius:10px;padding:10px 4px;"><div style="font-size:20px;font-weight:800;color:${rateColor};">${avgRate}%</div><div style="font-size:8px;color:var(--txt-m);text-transform:uppercase;letter-spacing:.6px;margin-top:2px;">4주 평균</div></div>
+      <div style="flex:1;text-align:center;background:var(--card-hi);border-radius:10px;padding:10px 4px;"><div style="font-size:20px;font-weight:800;color:var(--txt);">${dongsanMembers.length}</div><div style="font-size:8px;color:var(--txt-m);text-transform:uppercase;letter-spacing:.6px;margin-top:2px;">전체 멤버</div></div>
+    </div>
+    ${absentToday.length?`<div style="font-size:11px;font-weight:700;color:var(--txt-m);margin-bottom:6px;letter-spacing:.3px;">⚠️ 오늘 미출석 (${absentToday.length}명)</div><div style="display:flex;flex-wrap:wrap;gap:4px;">${absentToday.map(n=>`<span style="padding:3px 10px;border-radius:20px;background:var(--red-dim);color:var(--red);font-size:11px;font-weight:600;">${esc(n)}</span>`).join("")}</div>`:`<div style="font-size:12px;color:var(--acc);font-weight:700;text-align:center;">✅ 전원 출석!</div>`}
+  </div>`;
+}
+
+// ─── Feature 13: Data Backup / Restore ───
+function downloadBackup(){
+  const a=document.createElement("a");
+  a.href=`/api/backup?deviceId=${encodeURIComponent(deviceId)}`;
+  a.download="";
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  flash("백업 다운로드 시작됨");
+}
+async function uploadRestore(input){
+  const file=input.files[0];if(!file)return;
+  const statusEl=document.getElementById("restore-status");
+  if(statusEl){statusEl.style.display="block";statusEl.style.background="var(--amber-dim)";statusEl.style.color="var(--amber)";statusEl.style.border="1px solid rgba(251,191,36,.3)";statusEl.textContent="파일 읽는 중...";}
+  try{
+    const text=await file.text();
+    const bundle=JSON.parse(text);
+    if(!bundle.version||!bundle.attendance){if(statusEl){statusEl.style.background="var(--red-dim)";statusEl.style.color="var(--red)";statusEl.style.border="1px solid rgba(251,113,133,.3)";statusEl.textContent="올바르지 않은 백업 파일입니다.";}return;}
+    const exportDate=bundle.exportedAt?new Date(bundle.exportedAt).toLocaleString("ko-KR",{timeZone:"America/New_York"}):"알 수 없음";
+    if(statusEl)statusEl.textContent=`백업 날짜: ${exportDate}`;
+    confirmAction("데이터 복원",async()=>{
+      const r=await api("POST","/api/restore",bundle,{"X-Device-Id":deviceId});
+      if(r.error){flash(r.error,"err");return;}
+      if(statusEl){statusEl.style.background="var(--acc-dim)";statusEl.style.color="var(--acc)";statusEl.style.border="1px solid rgba(52,211,153,.3)";statusEl.textContent="✓ 복원 완료! 페이지를 새로고침합니다.";}
+      flash("복원 완료!");
+      setTimeout(()=>location.reload(),1500);
+    },{icon:"💾",desc:`백업 (${exportDate})을 복원합니다. 현재 데이터가 덮어씌워집니다.`,holdMs:2000});
+  }catch(e){
+    if(statusEl){statusEl.style.background="var(--red-dim)";statusEl.style.color="var(--red)";statusEl.style.border="1px solid rgba(251,113,133,.3)";statusEl.textContent="파일 파싱 오류: "+e.message;}
+  }
+  input.value="";
+}
+
+// ─── PWA Install Prompt ───
+(function(){
+  if(localStorage.getItem("pwa-dismissed")||localStorage.getItem("pwa-installed"))return;
+  const isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isInStandalone=window.matchMedia("(display-mode: standalone)").matches||navigator.standalone;
+  if(isInStandalone)return; // already installed
+  const banner=document.getElementById("pwa-banner");
+  const iosSteps=document.getElementById("pwa-ios-steps");
+  const installWrap=document.getElementById("pwa-install-btn-wrap");
+  const installBtn=document.getElementById("pwa-install-btn");
+  if(isIOS){
+    iosSteps.style.display="block";
+    banner.style.display="block";
+  } else {
+    let deferredPrompt=null;
+    window.addEventListener("beforeinstallprompt",e=>{
+      e.preventDefault();
+      deferredPrompt=e;
+      installWrap.style.display="block";
+      installBtn.onclick=async()=>{
+        if(!deferredPrompt)return;
+        deferredPrompt.prompt();
+        const{outcome}=await deferredPrompt.userChoice;
+        if(outcome==="accepted"){localStorage.setItem("pwa-installed","1");flash("앱이 설치되었습니다 🎉");}
+        deferredPrompt=null;
+        banner.style.display="none";
+      };
+      banner.style.display="block";
+    });
+    window.addEventListener("appinstalled",()=>{
+      localStorage.setItem("pwa-installed","1");
+      banner.style.display="none";
+    });
+  }
+})();
+
+(async function(){
+  deviceId=fp();
+  applyTheme();
+  updateQueueBadge();
+  syncOfflineQueue();
+  try{await load();}catch(e){console.error("Load failed:",e);}
+  try{await doCheckin();}catch(e){
+    console.error("Checkin failed:",e);
+    document.getElementById("checkin-content").innerHTML=`<div style="font-size:18px;font-weight:700;color:var(--red);margin-bottom:8px;">연결 오류</div><div style="font-size:13px;color:var(--txt-m);margin-bottom:16px;">서버에 연결할 수 없습니다</div><button class="btn btn-primary" onclick="location.reload()">다시 시도</button>`;
+  }
+})();
+</script>
+</body>
+</html>
