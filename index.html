@@ -698,6 +698,7 @@ function getGroups(){const g=new Set();Object.values(D.devices).forEach(v=>{cons
 function getUniqueNames(group,subgroup){const m={};Object.entries(D.devices).forEach(([did,v])=>{const info=typeof v==="string"?{name:v,group:"",subgroup:""}:v;if(group&&info.group!==group)return;if(subgroup&&(info.subgroup||"")!==subgroup)return;if(!m[info.name])m[info.name]={group:info.group||"",subgroup:info.subgroup||"",devices:[]};m[info.name].devices.push(did);});return m;}
 function getDevicesFor(name){return Object.entries(D.devices).filter(([d,v])=>(typeof v==="string"?v:v.name)===name).map(([d])=>d);}
 function totalForName(name){const dids=getDevicesFor(name);const dates=new Set();D.log.forEach(e=>{if(dids.includes(e.deviceId))dates.add(e.date);});return dates.size;}
+function recentAttendanceDates(name,max=6){const dids=getDevicesFor(name);const dates=[...new Set(D.log.filter(e=>dids.includes(e.deviceId)).map(e=>e.date))];return dates.sort().reverse().slice(0,max).map(d=>{const[,m,day]=d.split('-');return`${parseInt(m)}/${parseInt(day)}`;});}
 
 const ROLE_LABELS={"pastor":"목사님","elder":"장로님","deacon":"집사님","mentor":"멘토","visitor":"방문자"};
 const ROLE_TAG_CLS={"pastor":"tag-green","elder":"tag-blue","deacon":"tag-blue","mentor":"tag-purple","visitor":"tag-amber"};
