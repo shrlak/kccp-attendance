@@ -504,6 +504,61 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
 
 <div id="toast" class="toast" style="display:none;"></div>
 
+<!-- ── Kiosk Mode View ── -->
+<div id="kiosk-view">
+  <div class="kiosk-header">
+    <div>
+      <div style="font-size:20px;font-weight:800;letter-spacing:-.5px;"><span style="color:var(--acc);">KCCP</span> 출석</div>
+      <div style="font-size:11px;color:var(--txt-d);font-family:'IBM Plex Mono',monospace;margin-top:2px;letter-spacing:.3px;">이름을 탭하여 출석하세요</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div id="kiosk-count" style="font-size:13px;font-weight:700;color:var(--acc);font-family:'IBM Plex Mono',monospace;"></div>
+      <button onclick="openKioskExit()" style="background:none;border:1px solid var(--bdr);color:var(--txt-d);font-size:11px;font-family:'IBM Plex Mono',monospace;padding:8px 14px;border-radius:10px;cursor:pointer;letter-spacing:.5px;">EXIT ×</button>
+    </div>
+  </div>
+  <div style="padding:12px 14px;flex-shrink:0;">
+    <input id="kiosk-search" style="width:100%;padding:14px 18px;border-radius:16px;background:var(--card);border:1.5px solid var(--bdr);color:var(--txt);font-family:'Sora',sans-serif;font-size:16px;outline:none;" placeholder="🔍 이름 검색..." oninput="renderKioskMembers(this.value)" autocomplete="off" autocorrect="off" spellcheck="false" onfocus="this.style.borderColor='var(--acc)'" onblur="this.style.borderColor='var(--bdr)'">
+  </div>
+  <div class="kiosk-members" id="kiosk-members"></div>
+  <div class="kiosk-footer">
+    <button onclick="openKioskGuest()" style="flex:1;padding:14px;border-radius:14px;background:var(--card);border:1.5px solid var(--bdr);color:var(--txt-m);font-family:'Sora',sans-serif;font-size:13px;font-weight:700;cursor:pointer;touch-action:manipulation;">👋 방문자 체크인</button>
+  </div>
+</div>
+
+<!-- Kiosk success overlay -->
+<div id="kiosk-success-overlay" style="position:fixed;inset:0;background:var(--bg);z-index:1000;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:32px;">
+  <div id="kiosk-success-content"></div>
+</div>
+
+<!-- Kiosk exit modal -->
+<div id="kiosk-exit-modal" class="overlay" style="display:none;z-index:1001;">
+  <div class="modal fi" style="max-width:320px;">
+    <div style="font-size:28px;text-align:center;margin-bottom:10px;">🔒</div>
+    <div style="font-size:18px;font-weight:800;text-align:center;margin-bottom:6px;">키오스크 종료</div>
+    <div style="font-size:13px;color:var(--txt-m);text-align:center;margin-bottom:18px;line-height:1.5;">관리자 비밀번호를 입력하세요</div>
+    <input id="kiosk-exit-pw" type="password" class="inp" placeholder="Admin password" style="margin-bottom:12px;" onkeydown="if(event.key==='Enter')submitKioskExit()">
+    <button class="btn btn-primary btn-full" style="margin-bottom:8px;" onclick="submitKioskExit()">종료 / Exit Kiosk</button>
+    <button class="btn btn-secondary btn-full" onclick="document.getElementById('kiosk-exit-modal').style.display='none'">취소</button>
+  </div>
+</div>
+
+<!-- Kiosk guest check-in overlay -->
+<div id="kiosk-guest-overlay" class="overlay" style="display:none;z-index:1001;">
+  <div class="modal fi" style="max-width:380px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div style="font-size:18px;font-weight:800;">👋 방문자 출석</div>
+      <button onclick="document.getElementById('kiosk-guest-overlay').style.display='none'" style="background:none;border:none;color:var(--txt-d);font-size:20px;cursor:pointer;line-height:1;">✕</button>
+    </div>
+    <div style="font-size:12px;color:var(--txt-m);margin-bottom:14px;line-height:1.6;">장치 등록 없이 이름만 입력하여 출석합니다.</div>
+    <input id="kiosk-guest-name" class="inp" placeholder="이름을 입력해주세요" style="margin-bottom:14px;" onkeydown="if(event.key==='Enter')submitKioskGuest()">
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-primary" style="flex:1;" onclick="submitKioskGuest()">출석</button>
+      <button class="btn btn-secondary" style="flex:1;" onclick="document.getElementById('kiosk-guest-overlay').style.display='none'">취소</button>
+    </div>
+    <div id="kiosk-guest-result" style="display:none;margin-top:12px;padding:10px 14px;border-radius:10px;font-size:13px;font-weight:600;text-align:center;"></div>
+  </div>
+</div>
+
 <!-- Share Modal -->
 <div id="share-modal" class="overlay" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
   <div class="modal fi" style="max-width:380px;width:100%;padding:24px;">
