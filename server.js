@@ -210,6 +210,9 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(404); return res.end();
     }
 
+    // Health check
+    if (req.method === "GET" && url.pathname === "/api/health") return json(200, { status: "ok", ts: Date.now() });
+
     // Data
     if (req.method === "GET" && url.pathname === "/api/data") return json(200, loadJSON(DATA_FILE, { devices: {}, log: [] }));
 
