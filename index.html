@@ -2028,7 +2028,8 @@ function openKioskExit(){
 async function submitKioskExit(){
   const pw=document.getElementById("kiosk-exit-pw").value;
   if(!pw)return;
-  const r=await api("POST","/api/admin/add",{password:pw,targetDeviceId:deviceId});
+  const r=await api("POST","/api/admin/list",{password:pw});
+  if(r._parseError||r.offline){flash("Server connection error","err");return;}
   if(r.error){flash("Wrong password","err");return;}
   document.getElementById("kiosk-exit-modal").style.display="none";
   document.getElementById("kiosk-view").style.display="none";
