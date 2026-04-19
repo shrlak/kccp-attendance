@@ -775,7 +775,7 @@ function kccpLogo(size){
 let userLat=null,userLng=null;
 const _LOC_KEY="kccp-loc";
 function _saveLocCache(lat,lng){try{localStorage.setItem(_LOC_KEY,JSON.stringify({lat,lng,ts:Date.now()}));}catch(e){}}
-function _getLocCache(){try{const c=JSON.parse(localStorage.getItem(_LOC_KEY));if(c&&c.lat&&Date.now()-c.ts<1800000)return c;}catch(e){}return null;}
+function _getLocCache(){try{const c=JSON.parse(localStorage.getItem(_LOC_KEY));if(c&&c.lat&&Date.now()-c.ts<14400000)return c;}catch(e){}return null;}
 function getLocation(){
   return new Promise((resolve)=>{
     if(!navigator.geolocation){resolve({lat:null,lng:null});return;}
@@ -790,7 +790,7 @@ function getLocation(){
       navigator.permissions.query({name:"geolocation"}).then(r=>{
         if(r.state==="granted"){if(!withCache())doGet(false);}
         else if(r.state==="denied"){const c=_getLocCache();resolve({lat:c?c.lat:null,lng:c?c.lng:null});}
-        else{doGet(false);}
+        else{if(!withCache())doGet(false);}
       }).catch(()=>{if(!withCache())doGet(false);});
     }else{if(!withCache())doGet(false);}
   });
