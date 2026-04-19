@@ -2088,7 +2088,10 @@ async function kioskCheckin(name){
         <div style="width:120px;height:120px;border-radius:50%;background:var(--amber-dim);border:2px solid rgba(251,191,36,.4);margin:0 auto 22px;display:flex;align-items:center;justify-content:center;font-size:52px;">📋</div>
         <div style="font-size:22px;font-weight:800;color:var(--amber);margin-bottom:8px;">이미 출석하셨습니다</div>
         <div style="font-size:22px;font-weight:600;">${esc(name)}</div>
-        <div style="margin-top:16px;padding:10px 24px;border-radius:12px;background:var(--acc-dim);border:1px solid rgba(52,211,153,.2);display:inline-block;"><span style="font-size:16px;font-weight:700;color:var(--acc);">총 출석: ${total}회</span></div>
+        <div style="margin-top:16px;text-align:center;">
+          <div style="font-size:16px;font-weight:700;color:var(--acc);margin-bottom:6px;">총 출석: ${total}회</div>
+          <div style="font-size:12px;color:var(--txt-m);">출석기록: ${recentAttendanceDates(name).join(' · ')||'없음'}</div>
+        </div>
         <div style="width:220px;height:3px;border-radius:2px;background:var(--bdr);margin:22px auto 0;overflow:hidden;"><div style="height:100%;background:var(--amber);border-radius:2px;animation:countdown 3s linear forwards;"></div></div>
       </div>`;
       setTimeout(()=>{so.style.display="none";renderKioskMembers(document.getElementById("kiosk-search").value);updateKioskCount();},3000);
