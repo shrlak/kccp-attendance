@@ -1,32 +1,42 @@
 #!/bin/bash
-# Auto-push watcher for kccp-attendance
-# Watches for file changes and pushes to GitHub automatically
+# Direct deploy watcher for kccp-attendance
+# Watches for file changes and SCPs directly to Oracle Cloud server
 
 REPO="/Users/shrla/downloads/kccp-attendance"
-INTERVAL=3  # check every 3 seconds
+SSH_KEY="$REPO/ssh-key-2026-04-11.key"
+SERVER="ubuntu@158.101.118.21"
+REMOTE_DIR="~/kccp-repo"
+INTERVAL=3
 
-echo "👀 Watching $REPO for changes..."
-echo "   Any file edits will auto-commit and push to GitHub."
+echo "👀 Watching for changes — deploying directly to server..."
 echo "   Press Ctrl+C to stop."
 echo ""
 
-cd "$REPO"
+LAST_HASH=""
 
 while true; do
-  # Check if there are any changes (tracked or untracked, excluding gitignored)
-  CHANGES=$(git status --porcelain 2>/dev/null | grep -v "^?? \s*$" | head -1)
+  # Hash the files we care about
+  CURRENT_HASH=$(md5 -q "$REPO/index.html" "$REPO/server.js" 2>/dev/null)
 
-  if [ -n "$CHANGES" ]; then
-    echo "📝 Change detected — pushing..."
-    git add -A
-    git commit -m "auto-update $(date '+%Y-%m-%d %H:%M:%S')"
-    git push
+  if [ "$CURRENT_HASH" != "$LAST_HASH" ] && [ -n "$LAST_HASH" ]; then
+    echo "📝 Change detected — deploying at $(date '+%H:%M:%S')..."
+
+    # SCP files to server
+    scp -o StrictHostKeyChecking=no -i "$SSH_KEY" \
+      "$REPO/index.html" \
+      "$REPO/server.js" \
+      "$SERVER:$REMOTE_DIR/"
+
     if [ $? -eq 0 ]; then
-      echo "✅ Pushed successfully at $(date '+%H:%M:%S')"
+      # Restart node
+      ssh -o StrictHostKeyChecking=no -i "$SSH_KEY" "$SERVER" \
+        "killall node 2>/dev/null || true; nohup node $REMOTE_DIR/server.js > ~/server.log 2>&1 &"
+      echo "✅ Deployed successfully at $(date '+%H:%M:%S')"
     else
-      echo "❌ Push failed — check your network or token"
+      echo "❌ Deploy failed — check your network connection"
     fi
   fi
 
+  LAST_HASH="$CURRENT_HASH"
   sleep $INTERVAL
 done
