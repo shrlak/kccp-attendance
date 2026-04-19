@@ -773,14 +773,26 @@ function kccpLogo(size){
 
 // ─── CHECK-IN ───
 let userLat=null,userLng=null;
+const _LOC_KEY="kccp-loc";
+function _saveLocCache(lat,lng){try{localStorage.setItem(_LOC_KEY,JSON.stringify({lat,lng,ts:Date.now()}));}catch(e){}}
+function _getLocCache(){try{const c=JSON.parse(localStorage.getItem(_LOC_KEY));if(c&&c.lat&&Date.now()-c.ts<1800000)return c;}catch(e){}return null;}
 function getLocation(){
   return new Promise((resolve)=>{
     if(!navigator.geolocation){resolve({lat:null,lng:null});return;}
-    navigator.geolocation.getCurrentPosition(
-      pos=>{userLat=pos.coords.latitude;userLng=pos.coords.longitude;resolve({lat:userLat,lng:userLng});},
-      err=>{console.warn("Location error:",err.message);resolve({lat:null,lng:null});},
-      {enableHighAccuracy:true,timeout:10000,maximumAge:60000}
+    // doGet(background): if true, updates cache silently without resolving the already-resolved promise
+    const doGet=(bg)=>navigator.geolocation.getCurrentPosition(
+      pos=>{userLat=pos.coords.latitude;userLng=pos.coords.longitude;_saveLocCache(userLat,userLng);if(!bg)resolve({lat:userLat,lng:userLng});},
+      err=>{if(!bg){console.warn("Location error:",err.message);const c=_getLocCache();userLat=c?c.lat:null;userLng=c?c.lng:null;resolve({lat:userLat,lng:userLng});}},
+      {enableHighAccuracy:true,timeout:10000,maximumAge:bg?0:300000}
     );
+    const withCache=()=>{const c=_getLocCache();if(c){userLat=c.lat;userLng=c.lng;resolve({lat:c.lat,lng:c.lng});doGet(true);return true;}return false;};
+    if(navigator.permissions){
+      navigator.permissions.query({name:"geolocation"}).then(r=>{
+        if(r.state==="granted"){if(!withCache())doGet(false);}
+        else if(r.state==="denied"){const c=_getLocCache();resolve({lat:c?c.lat:null,lng:c?c.lng:null});}
+        else{doGet(false);}
+      }).catch(()=>{if(!withCache())doGet(false);});
+    }else{if(!withCache())doGet(false);}
   });
 }
 async function doCheckin(){
