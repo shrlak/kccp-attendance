@@ -684,8 +684,8 @@ function getDongsanRole(name,group,subgroup){
 }
 function dongsanRoleTag(role){
   if(!role)return "";
-  if(role==="동산지기")return `<span class="tag" style="background:rgba(251,191,36,.15);color:#FBBF24;font-size:9px;">👑 동산지기</span>`;
-  if(role==="부동산지기")return `<span class="tag" style="background:rgba(167,139,250,.15);color:#A78BFA;font-size:9px;">⭐ 부동산지기</span>`;
+  if(role==="동산지기")return `<span class="tag" style="background:rgba(251,191,36,.15);color:#FBBF24;font-size:9px;">👑 ${t('dongsan_role_leader')}</span>`;
+  if(role==="부동산지기")return `<span class="tag" style="background:rgba(167,139,250,.15);color:#A78BFA;font-size:9px;">⭐ ${t('dongsan_role_subleader')}</span>`;
   return "";
 }
 async function saveOrder(){await api("POST","/api/name-order",{order:nameOrder,adminDeviceId:deviceId});}
