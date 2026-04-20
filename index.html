@@ -1471,7 +1471,7 @@ function copyKakaoSummary(){
   let entries=D.log.filter(e=>e.date===td);
   if(todayGroup)entries=entries.filter(e=>dGroup(e.deviceId)===todayGroup||(e.group||"")===todayGroup);
   if(todaySubgroup)entries=entries.filter(e=>dSubgroup(e.deviceId)===todaySubgroup||(e.subgroup||"")===todaySubgroup);
-  if(!entries.length){flash("오늘 출석 기록이 없습니다","warn");return;}
+  if(!entries.length){flash(t('no_today_records'),"warn");return;}
   const reg=entries.filter(e=>!getMemberRole(dName(e.deviceId)||e.name));
   const spec=entries.filter(e=>getMemberRole(dName(e.deviceId)||e.name));
   const grpLabel=(todayGroup&&todaySubgroup)?`${todayGroup} ${todaySubgroup}`:todayGroup||"전체";
