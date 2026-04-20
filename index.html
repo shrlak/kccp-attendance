@@ -1400,7 +1400,7 @@ async function saveNotes(){
   const dids=getDevicesFor(notesEditName);
   for(const did of dids){await api("PUT","/api/device",{deviceId:did,name:notesEditName,notes,adminDeviceId:deviceId});}
   document.getElementById("notes-modal").style.display="none";
-  flash("메모 저장됨");await load();renderAll();
+  flash(t('notes_saved'));await load();renderAll();
 }
 
 // ─── Monthly/Semester Summary ───
