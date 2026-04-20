@@ -1004,7 +1004,7 @@ async function saveDongsanName(group,index){
   const inp=document.getElementById(`ds-${group}-${index}`);
   if(!inp)return;
   const name=inp.value.trim();
-  if(!name){flash("이름을 입력해주세요","warn");return;}
+  if(!name){flash(t('warn_name'),"warn");return;}
   const r=await api("POST","/api/dongsan-names",{group,index,name,adminDeviceId:deviceId});
   if(r.error){flash(r.error,"err");return;}
   dongsanNames=r.names;
@@ -1914,7 +1914,7 @@ function openGuestCheckin(){
 }
 async function submitGuestCheckin(){
   const name=document.getElementById("guest-name").value.trim();
-  if(!name){flash("이름을 입력해주세요","warn");return;}
+  if(!name){flash(t('warn_name'),"warn");return;}
   const loc=await getLocation();
   const r=await api("POST","/api/guest-checkin",{name,lat:loc.lat,lng:loc.lng});
   const res=document.getElementById("guest-checkin-result");
@@ -2219,7 +2219,7 @@ function openKioskGuest(){
 
 async function submitKioskGuest(){
   const name=document.getElementById("kiosk-guest-name").value.trim();
-  if(!name){flash("이름을 입력해주세요","warn");return;}
+  if(!name){flash(t('warn_name'),"warn");return;}
   const r=await api("POST","/api/admin/checkin",{name,adminDeviceId:deviceId});
   const res=document.getElementById("kiosk-guest-result");
   if(r.error){res.style.cssText="display:block;background:var(--red-dim);color:var(--red);border:1px solid rgba(251,113,133,.3);padding:10px 14px;border-radius:10px;font-size:13px;font-weight:600;text-align:center;";res.textContent=r.error;return;}
