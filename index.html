@@ -108,8 +108,8 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
   <div id="checkin-content" class="fi" style="position:relative;z-index:1;"></div>
   <div style="position:absolute;bottom:max(24px,env(safe-area-inset-bottom,24px));left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:8px;">
     <div style="display:flex;gap:10px;">
-      <button onclick="openGuestCheckin()" style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);color:var(--txt-m);font-size:12px;font-family:'IBM Plex Mono',monospace;cursor:pointer;padding:10px 18px;letter-spacing:.8px;border-radius:14px;min-height:44px;">👋 방문자</button>
-      <button onclick="shareCheckinLink()" style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);color:var(--txt-m);font-size:12px;font-family:'IBM Plex Mono',monospace;cursor:pointer;padding:10px 18px;letter-spacing:.8px;border-radius:14px;min-height:44px;">📤 공유</button>
+      <button onclick="openGuestCheckin()" data-i18n="guest_btn" style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);color:var(--txt-m);font-size:12px;font-family:'IBM Plex Mono',monospace;cursor:pointer;padding:10px 18px;letter-spacing:.8px;border-radius:14px;min-height:44px;">👋 방문자</button>
+      <button onclick="shareCheckinLink()" data-i18n="share_btn" style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);color:var(--txt-m);font-size:12px;font-family:'IBM Plex Mono',monospace;cursor:pointer;padding:10px 18px;letter-spacing:.8px;border-radius:14px;min-height:44px;">📤 공유</button>
     </div>
     <button onclick="tryAdmin()" style="background:none;border:1px solid transparent;color:var(--txt-d);font-size:11px;font-family:'IBM Plex Mono',monospace;cursor:pointer;padding:8px 16px;letter-spacing:.8px;border-radius:14px;min-height:36px;">ADMIN →</button>
   </div>
