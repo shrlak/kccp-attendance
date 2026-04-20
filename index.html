@@ -2263,12 +2263,12 @@ function openAdminCheckin(){
 }
 async function submitAdminCheckin(){
   const name=document.getElementById("mc-name").value;
-  if(!name){flash("멤버를 선택해주세요","warn");return;}
+  if(!name){flash(t('select_member_required'),"warn");return;}
   const r=await api("POST","/api/admin/checkin",{name,adminDeviceId:deviceId});
   if(r.error){flash(r.error,"err");return;}
   document.getElementById("manual-checkin-modal").style.display="none";
-  if(r.status==="already"){flash(`${name} — 이미 출석하셨습니다 (${r.time})`,"warn");}
-  else{flash(`출석 등록: ${name} (총 ${r.total||"?"}회)`);await load();renderAll();}
+  if(r.status==="already"){flash(t('admin_already_fn')(name,r.time),"warn");}
+  else{flash(t('admin_registered_fn')(name,r.total||"?"));await load();renderAll();}
 }
 
 // ─── Guest check-in ───
