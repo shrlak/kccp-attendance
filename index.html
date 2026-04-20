@@ -2203,7 +2203,7 @@ function initPullToRefresh(){
     if(pulled>=THRESHOLD&&!refreshing){
       refreshing=true;
       spinner.classList.add("spinning");
-      txt.textContent="새로고침 중...";
+      txt.textContent=t('ptr_loading');
       txt.style.color="var(--acc)";
       await load();renderAll();
       spinner.classList.remove("spinning");
