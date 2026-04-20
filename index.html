@@ -2416,8 +2416,8 @@ function copyShareUrl(){
     document.body.appendChild(ta);ta.focus();ta.select();
     document.execCommand("copy");
     document.body.removeChild(ta);
-    btn.textContent="✓ 복사됨";setTimeout(()=>btn.textContent="복사",2000);
-  }catch(e){btn.textContent="실패";}
+    btn.textContent=t('share_copied_btn');setTimeout(()=>btn.textContent=t('share_copy_btn'),2000);
+  }catch(e){btn.textContent=t('share_fail_btn');}
 }
 function shareSMS(){
   const url=location.origin;
