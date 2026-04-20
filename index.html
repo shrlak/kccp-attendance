@@ -2746,7 +2746,7 @@ function downloadBackup(){
   a.href=`/api/backup?deviceId=${encodeURIComponent(deviceId)}`;
   a.download="";
   document.body.appendChild(a);a.click();document.body.removeChild(a);
-  flash("백업 다운로드 시작됨");
+  flash(t('backup_downloading'));
 }
 async function uploadRestore(input){
   const file=input.files[0];if(!file)return;
