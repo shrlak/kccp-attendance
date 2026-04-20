@@ -2426,14 +2426,14 @@ function shareSMS(){
 }
 function shareKakao(){
   const url=location.origin;
-  const msg=encodeURIComponent("KCCP 출석 체크인 링크입니다 📋\n"+url);
+  const msg=encodeURIComponent(t('sms_msg_fn')(url));
   // Try KakaoTalk deep link, fallback to generic share
   const kakaoUrl="kakaotalk://msg/send?text="+msg;
   const a=document.createElement("a");a.href=kakaoUrl;a.click();
   // Show copy fallback after short delay in case deep link fails
   setTimeout(()=>{
     copyShareUrl();
-    document.getElementById("share-copy-btn").textContent="복사됨 — 카톡에 붙여넣기";
+    document.getElementById("share-copy-btn").textContent=t('share_kakao_paste');
   },800);
 }
 
