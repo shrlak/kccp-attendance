@@ -702,7 +702,7 @@ function getDevicesFor(name){return Object.entries(D.devices).filter(([d,v])=>(t
 function totalForName(name){const dids=getDevicesFor(name);const dates=new Set();D.log.forEach(e=>{if(dids.includes(e.deviceId))dates.add(e.date);});return dates.size;}
 function recentAttendanceDates(name,max=6){const dids=getDevicesFor(name);const dates=[...new Set(D.log.filter(e=>dids.includes(e.deviceId)).map(e=>e.date))];return dates.sort().reverse().slice(0,max).map(d=>{const[,m,day]=d.split('-');return`${parseInt(m)}/${parseInt(day)}`;});}
 
-const ROLE_LABELS={"pastor":"목사님","elder":"장로님","deacon":"집사님","mentor":"멘토","visitor":"방문자"};
+function roleLabel(role){return(t('role_labels')[role])||role;}
 const ROLE_TAG_CLS={"pastor":"tag-green","elder":"tag-blue","deacon":"tag-blue","mentor":"tag-purple","visitor":"tag-amber"};
 function getMemberRole(name){const dids=getDevicesFor(name);for(const d of dids){const v=D.devices[d];if(v&&typeof v==="object"){if(v.memberRole)return v.memberRole;if(v.visitor)return "visitor";}}return "";}
 function isVisitorMember(name){return getMemberRole(name)!="";}
@@ -718,7 +718,7 @@ function attRate(name){
   return Math.round(attended.size/allDates.length*100);
 }
 function getMemberNotes(name){const dids=getDevicesFor(name);for(const d of dids){const v=D.devices[d];if(v&&typeof v==="object"&&v.notes)return v.notes;}return "";}
-function roleTag(role){if(!role)return "";return `<span class="tag ${ROLE_TAG_CLS[role]||'tag-amber'}" style="font-size:9px;">${ROLE_LABELS[role]||role}</span>`;}
+function roleTag(role){if(!role)return "";return `<span class="tag ${ROLE_TAG_CLS[role]||'tag-amber'}" style="font-size:9px;">${roleLabel(role)}</span>`;}
 function grpTag(g,sg){let t="";if(g==="대학부")t=`<span class="tag tag-amber" style="font-size:11px;">대학부</span>`;else if(g==="청년부")t=`<span class="tag tag-blue" style="font-size:11px;">청년부</span>`;if(sg)t+=` <span class="tag tag-purple" style="font-size:11px;">${esc(sg)}</span>`;return t;}
 function grpAccent(g){if(g==="대학부")return{bg:"rgba(251,191,36,.08)",bdr:"rgba(251,191,36,.2)",dot:"#FBBF24"};if(g==="청년부")return{bg:"rgba(96,165,250,.08)",bdr:"rgba(96,165,250,.2)",dot:"#60A5FA"};return{bg:"var(--card)",bdr:"var(--bdr)",dot:"var(--acc)"};}
 function grpDot(g){const c=grpAccent(g);return`background:${c.dot}`;}
