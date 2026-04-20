@@ -2205,7 +2205,7 @@ async function kioskCheckin(name){
       setTimeout(()=>{so.style.display="none";renderKioskMembers(document.getElementById("kiosk-search").value);updateKioskCount();},4000);
     }
   }catch(e){
-    sc.innerHTML=`<div class="fi"><div style="font-size:44px;margin-bottom:12px;">❌</div><div style="font-size:20px;font-weight:700;color:var(--red);margin-bottom:10px;">오류 발생</div><div style="font-size:11px;font-family:'IBM Plex Mono',monospace;color:var(--txt-m);padding:10px 14px;background:var(--bg);border-radius:8px;border:1px solid var(--bdr);word-break:break-word;max-width:300px;text-align:left;"><span style="color:var(--red);">${esc(e.name||"Error")}</span><br>${esc(e.message||"Unknown error")}</div></div>`;
+    sc.innerHTML=`<div class="fi"><div style="font-size:44px;margin-bottom:12px;">❌</div><div style="font-size:20px;font-weight:700;color:var(--red);margin-bottom:10px;">${t('kiosk_err')}</div><div style="font-size:11px;font-family:'IBM Plex Mono',monospace;color:var(--txt-m);padding:10px 14px;background:var(--bg);border-radius:8px;border:1px solid var(--bdr);word-break:break-word;max-width:300px;text-align:left;"><span style="color:var(--red);">${esc(e.name||"Error")}</span><br>${esc(e.message||"Unknown error")}</div></div>`;
     setTimeout(()=>{so.style.display="none";},6000);
   }
 }
