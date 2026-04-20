@@ -1035,14 +1035,14 @@ function renderDongsanLeadersEditor(){
       return`<div style="margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--bdr);">
         <div style="font-size:13px;font-weight:700;color:var(--acc);margin-bottom:10px;">${esc(g)} · ${esc(sg)}</div>
         <div style="margin-bottom:10px;">
-          <div style="font-size:11px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">👑 동산지기</div>
+          <div style="font-size:11px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">${t('dongsan_leader_label')}</div>
           <select id="leader-${esc(key)}" class="inp" style="font-size:12px;padding:8px 10px;">${makeLeaderOpts()}</select>
         </div>
         <div style="margin-bottom:10px;">
-          <div style="font-size:11px;font-weight:600;color:var(--txt-m);margin-bottom:6px;">⭐ 부동산지기 (복수 선택)</div>
+          <div style="font-size:11px;font-weight:600;color:var(--txt-m);margin-bottom:6px;">${t('dongsan_subleader_label')}</div>
           <div style="display:flex;flex-direction:column;gap:2px;max-height:110px;overflow-y:auto;padding:8px;background:var(--bg);border-radius:8px;border:1px solid var(--bdr);">${subLeaderCheckboxes}</div>
         </div>
-        <button class="btn btn-primary btn-sm" onclick="saveDongsanLeaders('${esc(g)}','${esc(sg)}')">저장</button>
+        <button class="btn btn-primary btn-sm" onclick="saveDongsanLeaders('${esc(g)}','${esc(sg)}')">${t('save_dongsan_btn')}</button>
       </div>`;
     }).join("");
   }).join("");
@@ -1057,7 +1057,7 @@ async function saveDongsanLeaders(group,subgroup){
   const r=await api("POST","/api/dongsan-leaders",{group,subgroup,leader,subLeaders,adminDeviceId:deviceId});
   if(r.error){flash(r.error,"err");return;}
   dongsanLeaders=r.leaders;
-  flash(`${group} ${subgroup} 리더 저장됨`);
+  flash(t('dongsan_leader_save_fn')(group,subgroup));
   renderAll();
 }
 function renderAll(){renderStats();renderGrpTabs("sheet-grp-tabs",sheetGroup,"setSheetGroup");renderSubgroupTabs("sheet-subgrp-tabs",sheetGroup,sheetSubgroup,"setSheetSubgroup");renderGrpTabs("today-grp-tabs",todayGroup,"setTodayGroup");renderSubgroupTabs("today-subgrp-tabs",todayGroup,todaySubgroup,"setTodaySubgroup");renderGrpTabs("dev-grp-tabs",devGroup,"setDevGroup");renderSubgroupTabs("dev-subgrp-tabs",devGroup,devSubgroup,"setDevSubgroup");renderSheet();renderToday();renderDevices();renderDongsanEditor();renderDongsanLeadersEditor();renderLinkDropdown();renderLeaderDashboard();if(chartsVisible)renderCharts();}
