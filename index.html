@@ -811,7 +811,7 @@ function getEasternNow(){
   const parts=n.toLocaleDateString("en-US",{timeZone:"America/New_York",month:"2-digit",day:"2-digit",year:"numeric"}).split("/");
   const d=`${parts[0]}-${parts[1]}-${parts[2]}`;
   const eastern=new Date(n.toLocaleString("en-US",{timeZone:"America/New_York"}));
-  const korDays=["(일)","(월)","(화)","(수)","(목)","(금)","(토)"];
+  const korDays=STRINGS[lang]?STRINGS[lang].days:STRINGS.ko.days;
   const dayKr=korDays[eastern.getDay()];
   return{date:d,dayKr,h:eastern.getHours(),m:eastern.getMinutes(),s:eastern.getSeconds()};
 }
