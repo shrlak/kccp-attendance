@@ -956,8 +956,8 @@ function showMyHistory(name){
 }
 async function submitSelfRegister(){
   const n=document.getElementById("self-name").value.trim(),g=document.getElementById("self-group").value,sg=document.getElementById("self-subgroup").value;
-  if(!n){flash("이름을 입력해주세요","warn");return;}
-  if(!g){flash("부서를 선택해주세요~","warn");return;}
+  if(!n){flash(t('warn_name'),"warn");return;}
+  if(!g){flash(t('warn_group'),"warn");return;}
   const r=await api("POST","/api/self-register",{deviceId,name:n,group:g,subgroup:sg});
   document.getElementById("register-modal").style.display="none";
   if(r.status==="pending"){
