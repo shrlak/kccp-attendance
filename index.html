@@ -439,17 +439,17 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
             </div>
           </div>
         </div>
-        <button class="btn btn-primary btn-full" onclick="saveCheckinWindow()">저장</button>
+        <button class="btn btn-primary btn-full" data-i18n="save_btn" onclick="saveCheckinWindow()">저장</button>
       </div>
       <div class="card" style="margin-bottom:16px;">
-        <div style="font-size:16px;font-weight:800;margin-bottom:4px;">📢 공지사항</div>
-        <div style="font-size:12px;color:var(--txt-m);margin-bottom:14px;line-height:1.6;">출석 완료 화면에 표시될 공지사항을 입력합니다.</div>
-        <textarea id="announcement-text" class="inp" rows="4" placeholder="공지사항을 입력하세요..." style="resize:vertical;line-height:1.5;margin-bottom:12px;"></textarea>
-        <button class="btn btn-primary btn-full" onclick="saveAnnouncement()">저장</button>
+        <div data-i18n="announce_admin_title" style="font-size:16px;font-weight:800;margin-bottom:4px;">📢 공지사항</div>
+        <div data-i18n="announce_admin_desc" style="font-size:12px;color:var(--txt-m);margin-bottom:14px;line-height:1.6;">출석 완료 화면에 표시될 공지사항을 입력합니다.</div>
+        <textarea id="announcement-text" class="inp" rows="4" data-i18n-ph="announce_ph" placeholder="공지사항을 입력하세요..." style="resize:vertical;line-height:1.5;margin-bottom:12px;"></textarea>
+        <button class="btn btn-primary btn-full" data-i18n="save_btn" onclick="saveAnnouncement()">저장</button>
       </div>
       <div class="card" style="margin-bottom:16px;">
-        <div style="font-size:16px;font-weight:800;margin-bottom:4px;">✏️ 동산 이름 설정</div>
-        <div style="font-size:12px;color:var(--txt-m);margin-bottom:14px;line-height:1.6;">각 그룹의 동산 이름을 변경합니다. 저장 시 기존 출석 기록도 자동으로 업데이트됩니다.</div>
+        <div data-i18n="dongsan_name_title" style="font-size:16px;font-weight:800;margin-bottom:4px;">✏️ 동산 이름 설정</div>
+        <div data-i18n="dongsan_name_desc" style="font-size:12px;color:var(--txt-m);margin-bottom:14px;line-height:1.6;">각 그룹의 동산 이름을 변경합니다. 저장 시 기존 출석 기록도 자동으로 업데이트됩니다.</div>
         <div id="dongsan-editor"></div>
       </div>
       <div class="card" style="margin-bottom:16px;">
