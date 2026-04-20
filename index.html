@@ -317,11 +317,11 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;flex-wrap:wrap;gap:8px;">
         <div class="sl" id="today-label" style="margin-bottom:0;"></div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;">
-          <button class="btn btn-secondary btn-sm" onclick="copyKakaoSummary()" style="font-size:12px;">💬 카카오 요약</button>
-          <button class="btn btn-secondary btn-sm" onclick="showWeeklyRecap()" style="font-size:12px;">📅 주간 요약</button>
-          <button class="btn btn-secondary btn-sm" onclick="openWeeklySummaryReport()" style="font-size:12px;">📊 주간 리포트</button>
-          <button class="btn btn-secondary btn-sm" onclick="openBulkCheckin()" style="font-size:12px;">📋 일괄 출석</button>
-          <button class="btn btn-primary btn-sm" onclick="openAdminCheckin()" style="font-size:12px;">🙋 수동 출석</button>
+          <button class="btn btn-secondary btn-sm" data-i18n="kakao_btn" onclick="copyKakaoSummary()" style="font-size:12px;">💬 카카오 요약</button>
+          <button class="btn btn-secondary btn-sm" data-i18n="weekly_summary_btn" onclick="showWeeklyRecap()" style="font-size:12px;">📅 주간 요약</button>
+          <button class="btn btn-secondary btn-sm" data-i18n="weekly_report_btn" onclick="openWeeklySummaryReport()" style="font-size:12px;">📊 주간 리포트</button>
+          <button class="btn btn-secondary btn-sm" data-i18n="bulk_ci_btn" onclick="openBulkCheckin()" style="font-size:12px;">📋 일괄 출석</button>
+          <button class="btn btn-primary btn-sm" data-i18n="manual_ci_short_btn" onclick="openAdminCheckin()" style="font-size:12px;">🙋 수동 출석</button>
         </div>
       </div>
       <div class="grp-tabs" id="today-grp-tabs"></div>
