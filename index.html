@@ -2661,12 +2661,12 @@ async function approvePending(pendingDeviceId,name){
   await load();renderAll();loadPendingList();renderPendingBadge();
 }
 function rejectPending(pendingDeviceId,name){
-  confirmAction(`"${name}" 등록 거부`,async()=>{
+  confirmAction(t('reject_confirm_fn')(name),async()=>{
     const r=await api("POST","/api/pending/reject",{pendingDeviceId,adminDeviceId:deviceId});
     if(r.error){flash(r.error,"err");return;}
-    flash(`거부됨: ${name}`,"warn");
+    flash(t('rejected_fn')(name),"warn");
     loadPendingList();renderPendingBadge();
-  },{icon:"🚫",desc:"이 사람의 등록 요청을 거부합니다."});
+  },{icon:"🚫",desc:t('reject_confirm_desc')});
 }
 async function saveApprovalSetting(){
   const checked=document.getElementById("approval-toggle").checked;
