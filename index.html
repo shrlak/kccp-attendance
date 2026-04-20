@@ -1368,11 +1368,11 @@ function renderAttendanceModal(){
 }
 async function addManualAttendance(){
   const date=document.getElementById("manual-date").value;
-  if(!date||!attEditName)return flash("날짜를 선택해주세요","warn");
+  if(!date||!attEditName)return flash(t('bulk_select_date'),"warn");
   const r=await api("POST","/api/log/add-manual",{name:attEditName,date,adminDeviceId:deviceId});
   if(r.error){flash(r.error,"err");return;}
-  if(r.status==="already"){flash("이미 출석 기록이 있습니다","warn");return;}
-  flash(`${attEditName} — ${date} 출석 추가됨`);
+  if(r.status==="already"){flash(t('already_record'),"warn");return;}
+  flash(t('att_added_fn')(attEditName,date));
   await load();renderAttendanceModal();renderAll();
 }
 function removeAttendanceEntry(ts){confirmAction("출석 기록 삭제",async()=>{const r=await api("POST","/api/log/remove-entry",{ts,adminDeviceId:deviceId});if(r.error){flash(r.error,"err");return;}flash("삭제됨");await load();renderAttendanceModal();renderAll();},{icon:"📋",desc:"이 날짜의 출석 기록을 삭제합니다."});}
