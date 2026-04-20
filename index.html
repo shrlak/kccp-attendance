@@ -873,7 +873,7 @@ function showRestriction(el,gl,icon,color,title,msg,type){
   }else{
     iconHtml=`<div style="width:140px;height:140px;border-radius:50%;background:${color}15;border:2px solid ${color}40;margin:0 auto 28px;display:flex;align-items:center;justify-content:center;font-size:44px;">${icon}</div>`;
   }
-  el.innerHTML=`<div class="fi">${iconHtml}<div style="font-size:22px;font-weight:800;color:${color};margin-bottom:10px;">${esc(title)}</div><div style="font-size:14px;color:var(--txt-m);line-height:1.6;max-width:300px;margin:0 auto;">${esc(msg)}</div><button class="btn btn-secondary" style="margin-top:20px;" onclick="location.reload()">다시 시도</button></div>`;
+  el.innerHTML=`<div class="fi">${iconHtml}<div style="font-size:22px;font-weight:800;color:${color};margin-bottom:10px;">${esc(title)}</div><div style="font-size:14px;color:var(--txt-m);line-height:1.6;max-width:300px;margin:0 auto;">${esc(msg)}</div><button class="btn btn-secondary" style="margin-top:20px;" onclick="location.reload()">${t('retry_btn')}</button></div>`;
 }
 function formatDigitalTime(now){
   const h12=now.h%12||12;
