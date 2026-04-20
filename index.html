@@ -2126,15 +2126,15 @@ function showWeeklyRecap(){
   }).join("\n");
   el.innerHTML=`<div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-      <div class="sl" style="margin-bottom:0;">주간 요약 (최근 ${dates.length}주)</div>
-      <button class="btn btn-secondary btn-sm" onclick="navigator.clipboard.writeText(\`${copyText.replace(/`/g,'\\`')}\`).then(()=>flash('복사됨 ✓'))">📋 복사</button>
+      <div class="sl" style="margin-bottom:0;">${t('weekly_sum_fn')(dates.length)}</div>
+      <button class="btn btn-secondary btn-sm" onclick="navigator.clipboard.writeText(\`${copyText.replace(/`/g,'\\`')}\`).then(()=>flash(t('copied_msg')))">${t('copy_btn')}</button>
     </div>
     <div style="overflow-x:auto;">
       <table style="width:100%;border-collapse:collapse;font-family:'IBM Plex Mono',monospace;">
         <thead><tr style="background:var(--card-hi);">
-          <th style="padding:8px 10px;text-align:left;font-size:10px;color:var(--txt-m);border:1px solid var(--bdr);">날짜</th>
-          <th style="padding:8px 10px;text-align:center;font-size:10px;color:var(--txt-m);border:1px solid var(--bdr);">출석</th>
-          <th style="padding:8px 10px;text-align:center;font-size:10px;color:var(--purple);border:1px solid var(--bdr);">첫출석</th>
+          <th style="padding:8px 10px;text-align:left;font-size:10px;color:var(--txt-m);border:1px solid var(--bdr);">${t('week_date_col')}</th>
+          <th style="padding:8px 10px;text-align:center;font-size:10px;color:var(--txt-m);border:1px solid var(--bdr);">${t('week_att_col')}</th>
+          <th style="padding:8px 10px;text-align:center;font-size:10px;color:var(--purple);border:1px solid var(--bdr);">${t('week_first_col')}</th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
