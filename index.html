@@ -1422,20 +1422,20 @@ function renderSummary(){
   const months=Object.keys(byMonth).sort();
   const monthRows=months.map(m=>{const d=byMonth[m];const label=new Date(m+"-15").toLocaleDateString("en-US",{month:"long",year:"numeric"});return`<tr><td style="font-weight:600;">${esc(label)}</td><td style="text-align:center;color:var(--acc);font-weight:700;">${d.dates.size}</td><td style="text-align:center;">${d.people.size}</td><td style="text-align:center;color:var(--purple);">${d.firstVisits}</td></tr>`;}).join("");
   // Semester summary
-  const bySem={};log.forEach(e=>{const yr=e.date.slice(0,4);const mo=parseInt(e.date.slice(5,7));const sem=mo<=6?`${yr} 상반기`:`${yr} 하반기`;if(!bySem[sem])bySem[sem]={dates:new Set(),people:new Set()};bySem[sem].dates.add(e.date);bySem[sem].people.add(dName(e.deviceId)||e.name);});
+  const bySem={};log.forEach(e=>{const yr=parseInt(e.date.slice(0,4));const mo=parseInt(e.date.slice(5,7));const sem=t('sem_fn')(yr,mo<=6?1:2);if(!bySem[sem])bySem[sem]={dates:new Set(),people:new Set()};bySem[sem].dates.add(e.date);bySem[sem].people.add(dName(e.deviceId)||e.name);});
   const sems=Object.keys(bySem).sort();
   const semRows=sems.map(s=>{const d=bySem[s];return`<tr><td style="font-weight:600;">${esc(s)}</td><td style="text-align:center;color:var(--acc);font-weight:700;">${d.dates.size}</td><td style="text-align:center;">${d.people.size}</td></tr>`;}).join("");
   el.innerHTML=`
     <div style="margin-bottom:16px;">
-      <div class="sl" style="margin-bottom:8px;">월별 요약</div>
+      <div class="sl" style="margin-bottom:8px;">${t('month_summary_label')}</div>
       <div style="overflow-x:auto;border-radius:10px;border:1px solid var(--bdr);">
-        <table class="summary-table"><thead><tr><th>월</th><th style="text-align:center;">주일 수</th><th style="text-align:center;">출석 인원</th><th style="text-align:center;">첫 출석</th></tr></thead><tbody>${monthRows}</tbody></table>
+        <table class="summary-table"><thead><tr><th>${t('month_col')}</th><th style="text-align:center;">${t('weeks_col')}</th><th style="text-align:center;">${t('att_count_col')}</th><th style="text-align:center;">${t('first_att_col')}</th></tr></thead><tbody>${monthRows}</tbody></table>
       </div>
     </div>
     <div>
-      <div class="sl" style="margin-bottom:8px;">학기 요약</div>
+      <div class="sl" style="margin-bottom:8px;">${t('sem_summary_label')}</div>
       <div style="overflow-x:auto;border-radius:10px;border:1px solid var(--bdr);">
-        <table class="summary-table"><thead><tr><th>학기</th><th style="text-align:center;">주일 수</th><th style="text-align:center;">출석 인원</th></tr></thead><tbody>${semRows}</tbody></table>
+        <table class="summary-table"><thead><tr><th>${t('sem_col')}</th><th style="text-align:center;">${t('weeks_col')}</th><th style="text-align:center;">${t('att_count_col')}</th></tr></thead><tbody>${semRows}</tbody></table>
       </div>
     </div>`;
 }
