@@ -1579,6 +1579,7 @@ function toggleTheme(){
 let lang=localStorage.getItem("kccp-lang")||"ko";
 const STRINGS={
   ko:{
+    // Check-in screen
     guest_btn:"👋 방문자",share_btn:"📤 공유",
     reg_welcome:"환영합니다!",reg_enter_name:"이름을 입력해주세요",
     reg_first_visit:"첫 방문이시라면 새가족팀을 찾아주세요~!",
@@ -1590,13 +1591,14 @@ const STRINGS={
     not_near_church:"교회 근처가 아닙니다",loc_needed:"위치 정보 필요",
     already_in:"이미 출석하셨습니다",first_visit:"첫 출석을 축하합니다!",
     checkin_ok:"출석 완료!",total_att:"총 출석",
-    announce_label:"📢 공지사항",history_btn:"📅 내 출석 기록 · My History",
+    announce_label:"📢 공지사항",history_btn:"📅 내 출석 기록",
     close_page:"이 페이지를 닫으셔도 됩니다",
     offline_title:"오프라인 대기 중",
     offline_msg:"인터넷 연결이 없습니다.<br>온라인 복구 시 자동으로 출석이 등록됩니다.",
     retry_btn:"다시 시도",
     pending_title:"등록 대기 중",pending_msg:"관리자 승인 후 출석이 가능합니다.",
     warn_name:"이름을 입력해주세요",warn_group:"부서를 선택해주세요~",
+    // Kiosk
     kiosk_suffix:"출석",kiosk_sub:"이름을 탭하여 출석하세요",
     kiosk_search_ph:"🔍 이름 검색...",kiosk_guest_btn:"👋 방문자 체크인",
     kiosk_no_results:"검색 결과가 없습니다",kiosk_no_members:"등록된 멤버가 없습니다",
@@ -1609,6 +1611,170 @@ const STRINGS={
     guest_title:"👋 방문자 출석",guest_instr:"장치 등록 없이 이름만 입력하여 출석합니다.",
     guest_name_ph:"이름을 입력해주세요",guest_submit:"출석",
     days:["(일)","(월)","(화)","(수)","(목)","(금)","(토)"],
+    day_names:["일","월","화","수","목","금","토"],
+    // Admin panel static
+    att_edit_title:"📋 출석 편집",add_btn:"+ 추가",
+    notes_title:"📝 메모",notes_ph:"메모를 입력하세요...",save_btn:"저장",
+    bulk_modal_title:"📋 일괄 출석 입력",select_all:"전체 선택",deselect_all:"전체 해제",register_att_btn:"출석 등록",
+    merge_title:"🔀 멤버 합치기",
+    merge_desc:"두 멤버를 하나로 합칩니다. 병합 대상의 장치들이 유지할 멤버로 이전됩니다.",
+    merge_from_label:"병합할 멤버 (사라지는 쪽)",merge_to_label:"유지할 멤버 (남는 쪽)",
+    select_ph:"선택...",merge_btn:"합치기",
+    hold_confirm_text:"길게 눌러서 확인",
+    manual_ci_title:"🙋 수동 출석 등록",
+    manual_ci_desc:"오늘 날짜로 출석을 직접 등록합니다. 시간/위치 제한이 적용되지 않습니다.",
+    select_member_label:"멤버 선택",select_member_ph:"멤버를 선택하세요...",
+    visitor_label:"방문자 (Visitor) — 출석률 통계 제외",
+    ptr_pull:"당겨서 새로고침 ↓",ptr_release:"놓으면 새로고침 ↻",ptr_loading:"새로고침 중...",
+    // Sheet tab
+    pdf_report_btn:"🖨️ PDF 리포트",bulk_att_input_btn:"📋 일괄 출석 입력",
+    summary_open:"📈 월별 / 학기 요약 보기",summary_close:"📈 월별 / 학기 요약 닫기",
+    charts_open:"📊 출석 차트 보기",charts_close:"📊 출석 차트 닫기",
+    // Today tab
+    kakao_btn:"💬 카카오 요약",weekly_summary_btn:"📅 주간 요약",
+    weekly_report_btn:"📊 주간 리포트",bulk_ci_btn:"📋 일괄 출석",manual_ci_short_btn:"🙋 수동 출석",
+    // Members tab
+    member_search_ph:"🔍 멤버 검색...",merge_short_btn:"🔀 합치기",
+    // Admins tab
+    pending_admin_title:"⏳ 등록 승인 대기",
+    pending_admin_desc:"자기 등록 후 관리자 승인을 기다리는 멤버 목록입니다.",
+    load_pending_btn:"대기 목록 불러오기",
+    audit_title:"📋 감사 로그",audit_desc:"관리자 활동 기록 (최근 100건)",load_audit_btn:"로그 불러오기",
+    approval_setting_title:"✅ 등록 승인 설정",
+    approval_setting_desc:"활성화 시 자기 등록은 관리자 승인 후 출석이 가능합니다.",
+    approval_label:"등록 승인 필요",
+    backup_title:"💾 데이터 백업 / 복원",
+    backup_desc:"모든 출석, 멤버, 이벤트 데이터를 하나의 파일로 내보내거나 복원합니다.",
+    backup_download_btn:"⬇️ 백업 다운로드",backup_restore_btn:"⬆️ 백업 복원",
+    // Settings tab
+    ci_window_title:"⏰ 출석 가능 시간 설정",
+    ci_window_desc:"출석 체크가 가능한 요일과 시간을 설정합니다.",
+    ci_days_label:"출석 가능 요일",ci_start_label:"시작 시간",ci_end_label:"종료 시간",
+    announce_admin_title:"📢 공지사항",
+    announce_admin_desc:"출석 완료 화면에 표시될 공지사항을 입력합니다.",
+    announce_ph:"공지사항을 입력하세요...",
+    dongsan_name_title:"✏️ 동산 이름 설정",
+    dongsan_name_desc:"각 그룹의 동산 이름을 변경합니다. 저장 시 기존 출석 기록도 자동으로 업데이트됩니다.",
+    dongsan_leader_title:"👑 동산지기 / 부동산지기 설정",
+    dongsan_leader_desc:"각 동산의 동산지기(👑)와 부동산지기(⭐)를 지정합니다.",
+    settings_nav:"설정",
+    offline_banner_text:"📵 오프라인 모드 — 서버에 연결할 수 없습니다. 일부 기능이 제한됩니다.",
+    // Nav
+    nav_sheet:"시트",nav_today:"오늘",nav_members:"멤버",nav_devices:"장치",nav_admins:"관리자",
+    // Dynamic JS strings
+    no_records:"출석 기록이 없습니다.",loading_msg:"불러오는 중...",no_log:"로그가 없습니다.",
+    weekly_sum_fn:n=>`주간 요약 (최근 ${n}주)`,
+    week_date_col:"날짜",week_att_col:"출석",week_first_col:"첫출석",
+    copy_btn:"📋 복사",copied_msg:"복사됨 ✓",
+    month_summary_label:"월별 요약",sem_summary_label:"학기 요약",
+    month_col:"월",weeks_col:"주일 수",att_count_col:"출석 인원",first_att_col:"첫 출석",sem_col:"학기",
+    sem_fn:(yr,h)=>h===1?`${yr} 상반기`:`${yr} 하반기`,
+    ci_open_fn:t=>`출석 가능 — ${t}까지`,ci_current_fn:(d,s,e)=>`현재: ${d} | ${s} ~ ${e}`,
+    ci_none:"없음",
+    // Leader dashboard
+    leader_dash_fn:(g,s)=>`🏠 내 동산 현황 — ${g} ${s}`,
+    today_att_label:"오늘 출석",absent_label:"미출석",avg_4wk_label:"4주 평균",total_members_label:"전체 멤버",
+    absent_today_fn:n=>`⚠️ 오늘 미출석 (${n}명)`,all_present:"✅ 전원 출석!",
+    // Confirm actions
+    clear_log_title:"모든 출석 기록 삭제",clear_log_desc:"모든 출석 기록이 삭제됩니다. 장치 등록은 유지됩니다.",
+    clear_devices_title:"모든 장치 초기화",clear_devices_desc:"모든 등록 장치가 삭제됩니다. 모든 멤버가 재등록이 필요합니다.",
+    clear_all_title:"모든 데이터 삭제",clear_all_desc:"장치 및 출석 기록이 모두 영구 삭제됩니다. 되돌릴 수 없습니다.",
+    merge_select_both:"두 멤버를 모두 선택해주세요",merge_same_error:"같은 멤버를 선택할 수 없습니다",
+    merge_done_fn:(m)=>`합치기 완료: ${m}개 장치 이전됨`,
+    merge_confirm_fn:(f,t)=>`"${f}" → "${t}" 합치기`,merge_confirm_desc_fn:(f,t)=>`"${f}"의 모든 장치를 "${t}"로 이전합니다.`,
+    // Admin checkin JS
+    select_member_required:"멤버를 선택해주세요",
+    admin_already_fn:(n,t)=>`${n} — 이미 출석하셨습니다 (${t})`,
+    admin_registered_fn:(n,total)=>`출석 등록: ${n} (총 ${total}회)`,
+    // Transfer JS
+    select_group_required:"부서를 선택해주세요",select_dongsan_required:"동산을 선택해주세요",
+    transfer_label_fn:n=>`${n} 전출`,transfer_done_fn:(n,g,s)=>`${n} → ${g} ${s} 전출 완료`,
+    dongsan_select_ph:"동산 선택...",
+    // Notes
+    notes_saved:"메모 저장됨",
+    // Share modal
+    share_copy_btn:"복사",share_copied_btn:"✓ 복사됨",share_fail_btn:"실패",
+    share_kakao_paste:"복사됨 — 카톡에 붙여넣기",
+    sms_msg_fn:url=>`KCCP 출석 체크인 링크입니다 📋\n${url}`,
+    // Bulk checkin
+    bulk_select_members:"멤버를 선택해주세요",
+    bulk_done_fn:n=>`${n}명 출석 등록 완료!`,
+    bulk_already_checked:"✓ 출석",
+    n_selected_fn:n=>`${n}명 선택`,
+    // Old bulk modal
+    bulk_select_date:"날짜를 선택해주세요",
+    bulk_registered_fn:n=>`${n}명 출석 등록됨`,
+    // Sync queue
+    synced_fn:n=>`${n}건 동기화 완료!`,still_offline:"아직 오프라인 상태입니다",
+    offline_queue_fn:n=>`📡 오프라인 ${n}건 대기 중 — 탭하여 동기화`,
+    // Announcement
+    announcement_saved:"공지사항 저장됨",announcement_deleted:"공지사항 삭제됨",
+    // Backup/Restore
+    backup_downloading:"백업 다운로드 시작됨",
+    file_reading:"파일 읽는 중...",invalid_backup:"올바르지 않은 백업 파일입니다.",
+    backup_date_fn:d=>`백업 날짜: ${d}`,backup_unknown_date:"알 수 없음",
+    restore_title:"데이터 복원",
+    restore_desc_fn:d=>`백업 (${d})을 복원합니다. 현재 데이터가 덮어씌워집니다.`,
+    restore_done:"✓ 복원 완료! 페이지를 새로고침합니다.",restore_success:"복원 완료!",
+    parse_error_fn:e=>`파일 파싱 오류: ${e}`,
+    // Pending list
+    no_pending:"대기 중인 등록이 없습니다.",
+    pending_count_fn:n=>`${n}명 대기 중`,pending_badge_fn:n=>`${n}명 대기`,
+    approve_btn:"✓ 승인",reject_btn:"✕ 거부",
+    approved_fn:n=>`승인됨: ${n}`,rejected_fn:n=>`거부됨: ${n}`,
+    reject_confirm_fn:n=>`"${n}" 등록 거부`,reject_confirm_desc:"이 사람의 등록 요청을 거부합니다.",
+    // Approval toggle
+    approval_enabled:"등록 승인 필요 활성화됨",approval_disabled:"등록 승인 필요 비활성화됨",
+    // Audit log
+    audit_count_fn:n=>`${n}건`,
+    // Checkin window
+    end_before_start:"종료 시간이 시작 시간보다 늦어야 합니다",ci_saved:"출석 시간 설정 저장됨",
+    // Kakao summary
+    no_today_records:"오늘 출석 기록이 없습니다",
+    kakao_all_label:"전체",
+    kakao_header:"📋 KCCP 출석 현황",
+    kakao_total_fn:(n)=>`총 ${n}명 출석`,
+    kakao_present_label:"✅ 출석:",kakao_special_label:"\n👥 방문 / 기타:",
+    kakao_copied:"카카오 요약 복사됨 ✓",
+    // Dongsan editor
+    dongsan_ph_fn:i=>`동산 ${i+1} 이름`,save_dongsan_btn:"저장",dongsan_saved_fn:n=>`저장됨: ${n}`,
+    dongsan_leader_save_fn:(g,s)=>`${g} ${s} 리더 저장됨`,
+    no_dongsan_members:"해당 동산 멤버 없음",dongsan_no_leader:"-- 없음 --",
+    dongsan_leader_label:"👑 동산지기",dongsan_subleader_label:"⭐ 부동산지기 (복수 선택)",
+    all_dongsan:"All 동산",
+    // Member card
+    device_info_fn:n=>`장치 정보 — ${n}`,back_tap:"← 탭하여 돌아가기",
+    transfer_short_btn:"🔀 전출",unlink_btn:"unlink",
+    // Log badges
+    badge_first:"첫출석",badge_manual:"수동",badge_visitor:"방문자",
+    // Offline health
+    offline_health:"오프라인",
+    // Connection error
+    connection_error:"연결 오류",cannot_connect:"서버에 연결할 수 없습니다",
+    // PWA install
+    pwa_step1:"Safari 하단 공유 버튼 탭",pwa_step2:"홈 화면에 추가 선택",pwa_step3:"오른쪽 상단 추가 탭",
+    pwa_installed:"앱이 설치되었습니다 🎉",
+    // Misc
+    total_days_label:"총 출석일",
+    card_att_unit:"일",
+    // History modal
+    no_history:"출석 기록이 없습니다.",
+    // Excel
+    excel_name:"이름",excel_group:"그룹",excel_dongsan:"동산",excel_total:"총 출석",
+    excel_sheet1:"출석 현황",excel_sheet2:"전체 로그",
+    excel_date:"날짜",excel_time:"시간",excel_note:"비고",
+    excel_note_first:"첫출석 ",excel_note_manual:"수동 ",excel_note_guest:"방문자 ",
+    excel_downloaded:"Excel 파일 다운로드 완료!",
+    // Role labels
+    role_labels:{"pastor":"목사님","elder":"장로님","deacon":"집사님","mentor":"멘토","visitor":"방문자"},
+    dongsan_role_leader:"동산지기",dongsan_role_subleader:"부동산지기",
+    // Group display
+    grp_univ:"대학부",grp_youth:"청년부",
+    // Weekly recap
+    weekly_copy_fn:(d,n)=>`${fmtD(d)}: ${n}명`,
+    // Batch checkin description
+    bulk_ci_desc_fn:d=>`오늘 날짜(${d})로 선택한 멤버를 일괄 출석 등록합니다.`,
+    // Already checked in kiosk with time
     kiosk_count_fn:n=>`오늘 ${n}명`,
     kiosk_checked:n=>`✓ 출석 · ${n}회`,
     kiosk_count_lbl:n=>`${n}회`,
@@ -1619,6 +1785,7 @@ const STRINGS={
     guest_success_fn:(n,t)=>`✓ 출석 완료! ${n} — ${t}`,
   },
   en:{
+    // Check-in screen
     guest_btn:"👋 Guest",share_btn:"📤 Share",
     reg_welcome:"Welcome!",reg_enter_name:"Please enter your name",
     reg_first_visit:"First-time visitors, please find the Welcome Team!",
@@ -1637,6 +1804,7 @@ const STRINGS={
     retry_btn:"Try again",
     pending_title:"Registration Pending",pending_msg:"Check-in available after admin approval.",
     warn_name:"Please enter your name",warn_group:"Please select a group",
+    // Kiosk
     kiosk_suffix:"Attendance",kiosk_sub:"Tap your name to check in",
     kiosk_search_ph:"🔍 Search name...",kiosk_guest_btn:"👋 Guest Check-In",
     kiosk_no_results:"No results found",kiosk_no_members:"No members registered",
@@ -1649,6 +1817,170 @@ const STRINGS={
     guest_title:"👋 Guest Check-In",guest_instr:"Check in without device registration.",
     guest_name_ph:"Enter your name",guest_submit:"Check In",
     days:["(Sun)","(Mon)","(Tue)","(Wed)","(Thu)","(Fri)","(Sat)"],
+    day_names:["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],
+    // Admin panel static
+    att_edit_title:"📋 Attendance Edit",add_btn:"+ Add",
+    notes_title:"📝 Notes",notes_ph:"Enter notes...",save_btn:"Save",
+    bulk_modal_title:"📋 Bulk Attendance",select_all:"Select All",deselect_all:"Deselect All",register_att_btn:"Register",
+    merge_title:"🔀 Merge Members",
+    merge_desc:"Merge two members into one. The merged member's devices will be transferred to the kept member.",
+    merge_from_label:"Member to remove (disappears)",merge_to_label:"Member to keep",
+    select_ph:"Select...",merge_btn:"Merge",
+    hold_confirm_text:"Hold to confirm",
+    manual_ci_title:"🙋 Manual Check-In",
+    manual_ci_desc:"Register attendance directly for today. Time/location restrictions do not apply.",
+    select_member_label:"Select Member",select_member_ph:"Select a member...",
+    visitor_label:"Visitor — excluded from attendance stats",
+    ptr_pull:"Pull to refresh ↓",ptr_release:"Release to refresh ↻",ptr_loading:"Refreshing...",
+    // Sheet tab
+    pdf_report_btn:"🖨️ PDF Report",bulk_att_input_btn:"📋 Bulk Attendance",
+    summary_open:"📈 View Monthly / Semester Summary",summary_close:"📈 Close Summary",
+    charts_open:"📊 View Attendance Charts",charts_close:"📊 Close Charts",
+    // Today tab
+    kakao_btn:"💬 Copy Summary",weekly_summary_btn:"📅 Weekly Summary",
+    weekly_report_btn:"📊 Weekly Report",bulk_ci_btn:"📋 Bulk Check-in",manual_ci_short_btn:"🙋 Manual Check-in",
+    // Members tab
+    member_search_ph:"🔍 Search members...",merge_short_btn:"🔀 Merge",
+    // Admins tab
+    pending_admin_title:"⏳ Pending Registrations",
+    pending_admin_desc:"Members waiting for admin approval after self-registration.",
+    load_pending_btn:"Load Pending List",
+    audit_title:"📋 Audit Log",audit_desc:"Admin activity records (last 100)",load_audit_btn:"Load Log",
+    approval_setting_title:"✅ Registration Approval",
+    approval_setting_desc:"When enabled, self-registration requires admin approval before check-in.",
+    approval_label:"Require Admin Approval",
+    backup_title:"💾 Data Backup / Restore",
+    backup_desc:"Export or restore all attendance, member, and event data as a single file.",
+    backup_download_btn:"⬇️ Download Backup",backup_restore_btn:"⬆️ Restore Backup",
+    // Settings tab
+    ci_window_title:"⏰ Check-in Window",
+    ci_window_desc:"Set the days and times when check-in is available.",
+    ci_days_label:"Allowed Days",ci_start_label:"Start Time",ci_end_label:"End Time",
+    announce_admin_title:"📢 Announcement",
+    announce_admin_desc:"Enter the announcement shown on the check-in complete screen.",
+    announce_ph:"Enter announcement...",
+    dongsan_name_title:"✏️ Dongsan Name Settings",
+    dongsan_name_desc:"Change dongsan names for each group. Existing records will be updated automatically.",
+    dongsan_leader_title:"👑 Dongsan Leader Settings",
+    dongsan_leader_desc:"Assign dongsan leaders (👑) and sub-leaders (⭐) for each dongsan.",
+    settings_nav:"Settings",
+    offline_banner_text:"📵 Offline mode — cannot connect to server. Some features are limited.",
+    // Nav
+    nav_sheet:"Sheet",nav_today:"Today",nav_members:"Members",nav_devices:"Devices",nav_admins:"Admins",
+    // Dynamic JS strings
+    no_records:"No attendance records.",loading_msg:"Loading...",no_log:"No log entries.",
+    weekly_sum_fn:n=>`Weekly Summary (Last ${n} weeks)`,
+    week_date_col:"Date",week_att_col:"Attendance",week_first_col:"First Visit",
+    copy_btn:"📋 Copy",copied_msg:"Copied ✓",
+    month_summary_label:"Monthly Summary",sem_summary_label:"Semester Summary",
+    month_col:"Month",weeks_col:"Sundays",att_count_col:"Attendees",first_att_col:"First Visit",sem_col:"Semester",
+    sem_fn:(yr,h)=>h===1?`${yr} Spring`:`${yr} Fall`,
+    ci_open_fn:t=>`Open until ${t}`,ci_current_fn:(d,s,e)=>`Current: ${d} | ${s} ~ ${e}`,
+    ci_none:"None",
+    // Leader dashboard
+    leader_dash_fn:(g,s)=>`🏠 My Dongsan — ${g} ${s}`,
+    today_att_label:"Today",absent_label:"Absent",avg_4wk_label:"4-wk Avg",total_members_label:"Members",
+    absent_today_fn:n=>`⚠️ Absent Today (${n})`,all_present:"✅ Full attendance!",
+    // Confirm actions
+    clear_log_title:"Delete All Records",clear_log_desc:"All attendance records will be deleted. Device registrations will be kept.",
+    clear_devices_title:"Reset All Devices",clear_devices_desc:"All registered devices will be deleted. All members must re-register.",
+    clear_all_title:"Delete All Data",clear_all_desc:"All devices and attendance records will be permanently deleted. This cannot be undone.",
+    merge_select_both:"Please select both members",merge_same_error:"Cannot select the same member",
+    merge_done_fn:(m)=>`Merge complete: ${m} devices transferred`,
+    merge_confirm_fn:(f,t)=>`Merge "${f}" → "${t}"`,merge_confirm_desc_fn:(f,t)=>`All devices of "${f}" will be transferred to "${t}".`,
+    // Admin checkin JS
+    select_member_required:"Please select a member",
+    admin_already_fn:(n,t)=>`${n} — already checked in (${t})`,
+    admin_registered_fn:(n,total)=>`Checked in: ${n} (total: ${total})`,
+    // Transfer JS
+    select_group_required:"Please select a group",select_dongsan_required:"Please select a dongsan",
+    transfer_label_fn:n=>`Transfer: ${n}`,transfer_done_fn:(n,g,s)=>`${n} → ${g} ${s} transferred`,
+    dongsan_select_ph:"Select dongsan...",
+    // Notes
+    notes_saved:"Notes saved",
+    // Share modal
+    share_copy_btn:"Copy",share_copied_btn:"✓ Copied",share_fail_btn:"Failed",
+    share_kakao_paste:"Copied — paste into KakaoTalk",
+    sms_msg_fn:url=>`KCCP Check-in Link 📋\n${url}`,
+    // Bulk checkin
+    bulk_select_members:"Please select members",
+    bulk_done_fn:n=>`${n} checked in!`,
+    bulk_already_checked:"✓ In",
+    n_selected_fn:n=>`${n} selected`,
+    // Old bulk modal
+    bulk_select_date:"Please select a date",
+    bulk_registered_fn:n=>`${n} attendance records added`,
+    // Sync queue
+    synced_fn:n=>`${n} synced!`,still_offline:"Still offline",
+    offline_queue_fn:n=>`📡 ${n} offline — tap to sync`,
+    // Announcement
+    announcement_saved:"Announcement saved",announcement_deleted:"Announcement cleared",
+    // Backup/Restore
+    backup_downloading:"Backup download started",
+    file_reading:"Reading file...",invalid_backup:"Invalid backup file.",
+    backup_date_fn:d=>`Backup date: ${d}`,backup_unknown_date:"Unknown",
+    restore_title:"Restore Data",
+    restore_desc_fn:d=>`Restore backup (${d}). Current data will be overwritten.`,
+    restore_done:"✓ Restore complete! Reloading page.",restore_success:"Restore complete!",
+    parse_error_fn:e=>`File parse error: ${e}`,
+    // Pending list
+    no_pending:"No pending registrations.",
+    pending_count_fn:n=>`${n} pending`,pending_badge_fn:n=>`${n} waiting`,
+    approve_btn:"✓ Approve",reject_btn:"✕ Reject",
+    approved_fn:n=>`Approved: ${n}`,rejected_fn:n=>`Rejected: ${n}`,
+    reject_confirm_fn:n=>`Reject "${n}"`,reject_confirm_desc:"This person's registration request will be rejected.",
+    // Approval toggle
+    approval_enabled:"Approval required — enabled",approval_disabled:"Approval required — disabled",
+    // Audit log
+    audit_count_fn:n=>`${n} entries`,
+    // Checkin window
+    end_before_start:"End time must be after start time",ci_saved:"Check-in window saved",
+    // Kakao summary
+    no_today_records:"No check-ins today",
+    kakao_all_label:"All",
+    kakao_header:"📋 KCCP Attendance",
+    kakao_total_fn:(n)=>`Total: ${n} people`,
+    kakao_present_label:"✅ Present:",kakao_special_label:"\n👥 Visitors / Other:",
+    kakao_copied:"Summary copied ✓",
+    // Dongsan editor
+    dongsan_ph_fn:i=>`Dongsan ${i+1} name`,save_dongsan_btn:"Save",dongsan_saved_fn:n=>`Saved: ${n}`,
+    dongsan_leader_save_fn:(g,s)=>`${g} ${s} leaders saved`,
+    no_dongsan_members:"No members in this dongsan",dongsan_no_leader:"-- None --",
+    dongsan_leader_label:"👑 Dongsan Leader",dongsan_subleader_label:"⭐ Sub-Leaders (multi-select)",
+    all_dongsan:"All Dongsan",
+    // Member card
+    device_info_fn:n=>`Devices — ${n}`,back_tap:"← tap to go back",
+    transfer_short_btn:"🔀 Transfer",unlink_btn:"unlink",
+    // Log badges
+    badge_first:"1st visit",badge_manual:"manual",badge_visitor:"visitor",
+    // Offline health
+    offline_health:"Offline",
+    // Connection error
+    connection_error:"Connection Error",cannot_connect:"Cannot connect to server",
+    // PWA install
+    pwa_step1:"Tap the Share button at the bottom of Safari",pwa_step2:'Tap "Add to Home Screen"',pwa_step3:'Tap "Add" in the top-right corner',
+    pwa_installed:"App installed 🎉",
+    // Misc
+    total_days_label:"Total Days",
+    card_att_unit:"",
+    // History modal
+    no_history:"No attendance records found.",
+    // Excel
+    excel_name:"Name",excel_group:"Group",excel_dongsan:"Dongsan",excel_total:"Total",
+    excel_sheet1:"Attendance",excel_sheet2:"Full Log",
+    excel_date:"Date",excel_time:"Time",excel_note:"Notes",
+    excel_note_first:"first-visit ",excel_note_manual:"manual ",excel_note_guest:"visitor ",
+    excel_downloaded:"Excel file downloaded!",
+    // Role labels
+    role_labels:{"pastor":"Pastor","elder":"Elder","deacon":"Deacon","mentor":"Mentor","visitor":"Visitor"},
+    dongsan_role_leader:"Dongsan Leader",dongsan_role_subleader:"Sub-Leader",
+    // Group display
+    grp_univ:"Univ Group",grp_youth:"Youth Group",
+    // Weekly recap
+    weekly_copy_fn:(d,n)=>`${fmtD(d)}: ${n}`,
+    // Batch checkin description
+    bulk_ci_desc_fn:d=>`Register bulk attendance for today (${d}).`,
+    // Already checked in kiosk with time
     kiosk_count_fn:n=>`Today: ${n}`,
     kiosk_checked:n=>`✓ In · ${n}`,
     kiosk_count_lbl:n=>`${n}`,
@@ -1666,6 +1998,26 @@ function applyLang(){
   document.querySelectorAll("[data-i18n-ph]").forEach(el=>{el.placeholder=t(el.dataset.i18nPh);});
   const lbl=lang==="ko"?"EN":"한";
   document.querySelectorAll(".lang-toggle-btn").forEach(b=>b.textContent=lbl);
+  // Re-render admin panel if visible
+  if(document.getElementById("admin-view")&&document.getElementById("admin-view").style.display!=="none"){
+    renderCheckinWindow();renderAll();
+    const sumBtn=document.getElementById("summary-toggle-btn");
+    if(sumBtn)sumBtn.textContent=summaryVisible?t('summary_close'):t('summary_open');
+    const chartBtn=document.getElementById("charts-toggle-btn");
+    if(chartBtn)chartBtn.textContent=chartsVisible?t('charts_close'):t('charts_open');
+    const ptrTxt=document.querySelector(".ptr-text");
+    if(ptrTxt)ptrTxt.textContent=t('ptr_pull');
+    // Update static admin HTML elements
+    _applyAdminI18n();
+  }
+  if(kioskActive){renderKioskMembers(document.getElementById("kiosk-search")?document.getElementById("kiosk-search").value:"");updateKioskCount();}
+  renderCheckinWindowBadge();
+}
+function _applyAdminI18n(){
+  // Offline banner
+  const ob=document.getElementById("offline-banner");if(ob)ob.textContent=t('offline_banner_text');
+  // Pull to refresh text
+  const ptr=document.querySelector(".ptr-text");if(ptr)ptr.textContent=t('ptr_pull');
 }
 function toggleLang(){
   lang=lang==="ko"?"en":"ko";
