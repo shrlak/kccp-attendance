@@ -1647,6 +1647,8 @@ const STRINGS={
     kiosk_total_fn:n=>`Total: ${n}`,
     kiosk_already_fn:t=>`Already checked in (${t})`,
     kiosk_success_fn:n=>`✓ Check-in complete! ${n}`,
+    month_days_fn:n=>`${n} days`,
+    guest_success_fn:(n,t)=>`✓ Check-in complete! ${n} — ${t}`,
   }
 };
 function t(key){return(STRINGS[lang]||STRINGS.ko)[key]??(STRINGS.ko[key]??key);}
