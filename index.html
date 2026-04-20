@@ -2163,7 +2163,7 @@ function renderKioskMembers(q){
 function updateKioskCount(){
   const td=today();
   const n=new Set(D.log.filter(e=>e.date===td&&!isVisitorMember(dName(e.deviceId)||e.name)).map(e=>dName(e.deviceId)||e.name)).size;
-  const el=document.getElementById("kiosk-count");if(el)el.textContent=`오늘 ${n}명`;
+  const el=document.getElementById("kiosk-count");if(el)el.textContent=STRINGS[lang].kiosk_count_fn(n);
 }
 
 async function kioskCheckin(name){
