@@ -537,11 +537,11 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
 <div id="kiosk-exit-modal" class="overlay" style="display:none;z-index:1001;">
   <div class="modal fi" style="max-width:320px;">
     <div style="font-size:28px;text-align:center;margin-bottom:10px;">🔒</div>
-    <div style="font-size:18px;font-weight:800;text-align:center;margin-bottom:6px;">키오스크 종료</div>
-    <div style="font-size:13px;color:var(--txt-m);text-align:center;margin-bottom:18px;line-height:1.5;">관리자 비밀번호를 입력하세요</div>
+    <div data-i18n="exit_title" style="font-size:18px;font-weight:800;text-align:center;margin-bottom:6px;">키오스크 종료</div>
+    <div data-i18n="exit_instr" style="font-size:13px;color:var(--txt-m);text-align:center;margin-bottom:18px;line-height:1.5;">관리자 비밀번호를 입력하세요</div>
     <input id="kiosk-exit-pw" type="password" class="inp" placeholder="Admin password" style="margin-bottom:12px;" onkeydown="if(event.key==='Enter')submitKioskExit()">
-    <button class="btn btn-primary btn-full" style="margin-bottom:8px;" onclick="submitKioskExit()">종료 / Exit Kiosk</button>
-    <button class="btn btn-secondary btn-full" onclick="document.getElementById('kiosk-exit-modal').style.display='none'">취소</button>
+    <button class="btn btn-primary btn-full" data-i18n="exit_btn" style="margin-bottom:8px;" onclick="submitKioskExit()">종료 / Exit Kiosk</button>
+    <button class="btn btn-secondary btn-full" data-i18n="cancel_btn" onclick="document.getElementById('kiosk-exit-modal').style.display='none'">취소</button>
   </div>
 </div>
 
