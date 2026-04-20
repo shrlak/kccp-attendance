@@ -1375,7 +1375,7 @@ async function addManualAttendance(){
   flash(t('att_added_fn')(attEditName,date));
   await load();renderAttendanceModal();renderAll();
 }
-function removeAttendanceEntry(ts){confirmAction("출석 기록 삭제",async()=>{const r=await api("POST","/api/log/remove-entry",{ts,adminDeviceId:deviceId});if(r.error){flash(r.error,"err");return;}flash("삭제됨");await load();renderAttendanceModal();renderAll();},{icon:"📋",desc:"이 날짜의 출석 기록을 삭제합니다."});}
+function removeAttendanceEntry(ts){confirmAction(t('remove_att_title'),async()=>{const r=await api("POST","/api/log/remove-entry",{ts,adminDeviceId:deviceId});if(r.error){flash(r.error,"err");return;}flash(t('att_removed'));await load();renderAttendanceModal();renderAll();},{icon:"📋",desc:t('remove_att_desc')});}
 function openEdit(name){const members=getUniqueNames("","");const m=members[name];if(!m)return;document.getElementById("edit-name").value=name;const grp=m.group||"";document.getElementById("edit-group").value=grp;const sg=m.subgroup||"";updateEditSubgroup(sg);document.getElementById("edit-subgroup").value=sg;document.getElementById("edit-visitor").checked=getMemberRole(name)==="visitor";document.getElementById("edit-original-name").value=name;document.getElementById("edit-modal").style.display="flex";}
 async function saveEdit(){
   const orig=document.getElementById("edit-original-name").value;const name=document.getElementById("edit-name").value.trim();const group=document.getElementById("edit-group").value;const subgroup=document.getElementById("edit-subgroup").value;const memberRole=document.getElementById("edit-visitor").checked?"visitor":"";
