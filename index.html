@@ -400,12 +400,12 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
         </label>
       </div>
       <div class="card" style="margin-bottom:16px;">
-        <div style="font-size:16px;font-weight:800;margin-bottom:6px;">💾 데이터 백업 / 복원</div>
-        <div style="font-size:12px;color:var(--txt-m);margin-bottom:14px;line-height:1.6;">모든 출석, 멤버, 이벤트 데이터를 하나의 파일로 내보내거나 복원합니다.</div>
+        <div data-i18n="backup_title" style="font-size:16px;font-weight:800;margin-bottom:6px;">💾 데이터 백업 / 복원</div>
+        <div data-i18n="backup_desc" style="font-size:12px;color:var(--txt-m);margin-bottom:14px;line-height:1.6;">모든 출석, 멤버, 이벤트 데이터를 하나의 파일로 내보내거나 복원합니다.</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button class="btn btn-secondary" style="flex:1;min-width:140px;" onclick="downloadBackup()">⬇️ 백업 다운로드</button>
+          <button class="btn btn-secondary" data-i18n="backup_download_btn" style="flex:1;min-width:140px;" onclick="downloadBackup()">⬇️ 백업 다운로드</button>
           <label class="btn btn-secondary" style="flex:1;min-width:140px;cursor:pointer;text-align:center;line-height:normal;display:flex;align-items:center;justify-content:center;">
-            ⬆️ 백업 복원
+            <span data-i18n="backup_restore_btn">⬆️ 백업 복원</span>
             <input type="file" id="restore-file" accept=".json" style="display:none;" onchange="uploadRestore(this)">
           </label>
         </div>
