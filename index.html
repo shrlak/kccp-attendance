@@ -2647,8 +2647,8 @@ async function loadPendingList(){
             <div style="font-size:10px;color:var(--txt-d);margin-top:2px;">${dt}</div>
           </div>
           <div style="display:flex;gap:6px;flex-shrink:0;">
-            <button class="btn btn-primary btn-sm" onclick="approvePending('${esc(p.deviceId)}','${esc(p.name)}')">✓ 승인</button>
-            <button class="btn btn-danger btn-sm" onclick="rejectPending('${esc(p.deviceId)}','${esc(p.name)}')">✕ 거부</button>
+            <button class="btn btn-primary btn-sm" onclick="approvePending('${esc(p.deviceId)}','${esc(p.name)}')">${t('approve_btn')}</button>
+            <button class="btn btn-danger btn-sm" onclick="rejectPending('${esc(p.deviceId)}','${esc(p.name)}')">${t('reject_btn')}</button>
           </div>
         </div>
       </div>`;
