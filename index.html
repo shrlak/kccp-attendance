@@ -2365,14 +2365,14 @@ function openBulkCheckin(){
   document.getElementById("bulk-checkin-modal").style.display="flex";
 }
 function bulkSelectAll(v){document.querySelectorAll(".bulk-cb:not(:disabled)").forEach(c=>c.checked=v);updateBulkCount();}
-function updateBulkCount(){const n=document.querySelectorAll(".bulk-cb:not(:disabled):checked").length;document.getElementById("bulk-selected-count").textContent=n?`${n}명 선택`:"";}
+function updateBulkCount(){const n=document.querySelectorAll(".bulk-cb:not(:disabled):checked").length;document.getElementById("bulk-selected-count").textContent=n?t('n_selected_fn')(n):"";}
 async function submitBulkCheckin(){
   const names=[...document.querySelectorAll(".bulk-cb:not(:disabled):checked")].map(c=>c.value);
-  if(!names.length){flash("멤버를 선택해주세요","warn");return;}
+  if(!names.length){flash(t('select_member_required'),"warn");return;}
   const r=await api("POST","/api/log/add-bulk",{names,date:today(),adminDeviceId:deviceId});
   if(r.error){flash(r.error,"err");return;}
   document.getElementById("bulk-checkin-modal").style.display="none";
-  flash(`${r.added}명 출석 등록 완료!`);
+  flash(t('bulk_done_fn')(r.added));
   await load();renderAll();
 }
 
