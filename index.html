@@ -2421,7 +2421,7 @@ function copyShareUrl(){
 }
 function shareSMS(){
   const url=location.origin;
-  const msg=encodeURIComponent("KCCP 출석 체크인 링크입니다 📋\n"+url);
+  const msg=encodeURIComponent(t('sms_msg_fn')(url));
   window.open("sms:?body="+msg,"_blank");
 }
 function shareKakao(){
