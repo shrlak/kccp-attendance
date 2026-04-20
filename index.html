@@ -118,23 +118,23 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
 <!-- Registration modal with group selection -->
 <div id="register-modal" class="overlay" style="display:none;"><div class="modal fi">
   <div style="font-size:28px;text-align:center;margin-bottom:12px;">👋</div>
-  <div style="font-size:20px;font-weight:800;text-align:center;margin-bottom:6px;">환영합니다!</div>
-  <div style="font-size:13px;color:var(--txt-m);text-align:center;margin-bottom:8px;line-height:1.6;">이름을 입력해주세요</div>
-  <div style="font-size:12px;color:var(--amber);text-align:center;margin-bottom:20px;line-height:1.6;">첫 방문이시라면 새가족팀을 찾아주세요~!</div>
-  <input id="self-name" class="inp" placeholder="이름" style="margin-bottom:12px;" onkeydown="if(event.key==='Enter')document.getElementById('self-group').focus()">
+  <div data-i18n="reg_welcome" style="font-size:20px;font-weight:800;text-align:center;margin-bottom:6px;">환영합니다!</div>
+  <div data-i18n="reg_enter_name" style="font-size:13px;color:var(--txt-m);text-align:center;margin-bottom:8px;line-height:1.6;">이름을 입력해주세요</div>
+  <div data-i18n="reg_first_visit" style="font-size:12px;color:var(--amber);text-align:center;margin-bottom:20px;line-height:1.6;">첫 방문이시라면 새가족팀을 찾아주세요~!</div>
+  <input id="self-name" class="inp" data-i18n-ph="reg_name_ph" placeholder="이름" style="margin-bottom:12px;" onkeydown="if(event.key==='Enter')document.getElementById('self-group').focus()">
   <select id="self-group" class="inp" style="margin-bottom:12px;" onchange="updateSelfSubgroup()">
-    <option value="" disabled selected>부서를 선택해주세요~</option>
-    <option value="대학부">대학부</option>
-    <option value="청년부">청년부</option>
+    <option value="" disabled selected data-i18n="reg_group_ph">부서를 선택해주세요~</option>
+    <option value="대학부" data-i18n="reg_group_univ">대학부</option>
+    <option value="청년부" data-i18n="reg_group_youth">청년부</option>
   </select>
   <select id="self-subgroup" class="inp" style="margin-bottom:12px;display:none;">
-    <option value="">동산 선택 안함</option>
-    <option value="동산1">동산 1</option>
-    <option value="동산2">동산 2</option>
-    <option value="동산3">동산 3</option>
-    <option value="동산4">동산 4</option>
+    <option value="" data-i18n="reg_sub_none">동산 선택 안함</option>
+    <option value="동산1" data-i18n="reg_sub_1">동산 1</option>
+    <option value="동산2" data-i18n="reg_sub_2">동산 2</option>
+    <option value="동산3" data-i18n="reg_sub_3">동산 3</option>
+    <option value="동산4" data-i18n="reg_sub_4">동산 4</option>
   </select>
-  <button class="btn btn-primary btn-full" onclick="submitSelfRegister()">저장 후 출석</button>
+  <button class="btn btn-primary btn-full" data-i18n="reg_save" onclick="submitSelfRegister()">저장 후 출석</button>
 </div></div>
 
 <!-- Password modal -->
