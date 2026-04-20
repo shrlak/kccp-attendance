@@ -2058,7 +2058,7 @@ function renderCheckinWindow(){
   const wrap=document.getElementById("checkin-days-wrap");
   if(wrap&&!wrap.dataset.init){
     wrap.dataset.init="1";
-    const DAYS=["일","월","화","수","목","금","토"];
+    const DAYS=t('day_names');
     wrap.innerHTML=DAYS.map((d,i)=>`<label style="display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:8px;border:1px solid var(--bdr);background:var(--card);cursor:pointer;font-size:12px;font-weight:600;">
       <input type="checkbox" class="ci-day-chk" value="${i}" style="accent-color:var(--acc);">${d}</label>`).join("");
   }
