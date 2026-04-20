@@ -2873,7 +2873,7 @@ function renderCheckinWindowBadge(){
   setInterval(renderCheckinWindowBadge,60000);
   try{await doCheckin();}catch(e){
     console.error("Checkin failed:",e);
-    document.getElementById("checkin-content").innerHTML=`<div style="font-size:18px;font-weight:700;color:var(--red);margin-bottom:8px;">연결 오류</div><div style="font-size:13px;color:var(--txt-m);margin-bottom:16px;">서버에 연결할 수 없습니다</div><button class="btn btn-primary" onclick="location.reload()">다시 시도</button>`;
+    document.getElementById("checkin-content").innerHTML=`<div style="font-size:18px;font-weight:700;color:var(--red);margin-bottom:8px;">${t('connection_error')}</div><div style="font-size:13px;color:var(--txt-m);margin-bottom:16px;">${t('cannot_connect')}</div><button class="btn btn-primary" onclick="location.reload()">${t('retry_btn')}</button>`;
   }
 })();
 </script>
