@@ -1484,7 +1484,7 @@ function copyKakaoSummary(){
   if(spec.length){
     lines.push("\n👥 방문 / 기타:");
     const names=[...new Set(spec.map(e=>dName(e.deviceId)||e.name))];
-    names.forEach((n,i)=>{const role=getMemberRole(n);lines.push(`${i+1}. ${n} (${ROLE_LABELS[role]||role})`);});
+    names.forEach((n,i)=>{const role=getMemberRole(n);lines.push(`${i+1}. ${n} (${roleLabel(role)})`);});
   }
   if(announcement)lines.push(`\n📢 ${announcement}`);
   const text=lines.join("\n");
