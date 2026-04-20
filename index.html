@@ -1536,15 +1536,15 @@ async function submitBulk(){
 // ─── Audit log ───
 async function loadAuditLog(){
   const el=document.getElementById("audit-log-list");if(!el)return;
-  el.innerHTML=`<div style="text-align:center;color:var(--txt-d);padding:16px;font-size:12px;">불러오는 중...</div>`;
+  el.innerHTML=`<div style="text-align:center;color:var(--txt-d);padding:16px;font-size:12px;">${t('loading_msg')}</div>`;
   const r=await api("GET","/api/audit",null,{"X-Device-Id":deviceId});
   if(r.error){el.innerHTML=`<div style="color:var(--red);font-size:12px;padding:8px;">${esc(r.error)}</div>`;return;}
   const log=r.log||[];
-  if(!log.length){el.innerHTML=`<div style="text-align:center;color:var(--txt-d);padding:16px;font-size:12px;">로그가 없습니다.</div>`;return;}
-  const ACTION_KR={"check-in":"출석","manual-add":"수동 추가","manual-remove":"기록 삭제","device-register":"기기 등록","device-edit":"기기 편집","device-unlink":"기기 해제","person-remove":"멤버 삭제","admin-add":"관리자 추가","admin-remove":"관리자 삭제","config-change":"설정 변경","bulk-add":"일괄 출석"};
-  el.innerHTML=`<div class="sl" style="margin-bottom:8px;">${log.length}건</div>`+log.slice(0,100).map(entry=>{
+  if(!log.length){el.innerHTML=`<div style="text-align:center;color:var(--txt-d);padding:16px;font-size:12px;">${t('no_log')}</div>`;return;}
+  const ACTION_LABELS=t('audit_actions');
+  el.innerHTML=`<div class="sl" style="margin-bottom:8px;">${t('audit_count_fn')(log.length)}</div>`+log.slice(0,100).map(entry=>{
     const dt=new Date(entry.ts).toLocaleString("ko-KR",{timeZone:"America/New_York",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"});
-    const actionLabel=ACTION_KR[entry.action]||entry.action;
+    const actionLabel=ACTION_LABELS[entry.action]||entry.action;
     return`<div style="padding:8px 12px;margin-bottom:4px;border-radius:8px;background:var(--bg);border:1px solid var(--bdr);">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;">
         <div style="flex:1;min-width:0;">
