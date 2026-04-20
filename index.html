@@ -1157,7 +1157,7 @@ function renderDevices(){
     const roleDot={"pastor":"#34D399","elder":"#60A5FA","deacon":"#60A5FA","mentor":"#A78BFA","visitor":"#FBBF24"};
     const gc=isVis?{bg:`rgba(${role==="pastor"?"52,211,153":role==="mentor"?"167,139,250":role==="elder"||role==="deacon"?"96,165,250":"251,191,36"},.06)`,bdr:`rgba(${role==="pastor"?"52,211,153":role==="mentor"?"167,139,250":role==="elder"||role==="deacon"?"96,165,250":"251,191,36"},.2)`,dot:roleDot[role]||"#FBBF24"}:grpAccent(m.group);
     const frontFace=`<div class="card-face" style="display:flex;align-items:center;height:48px;padding:0 6px 0 0;">
-        <div style="flex:1;min-width:0;overflow:hidden;padding:0 7px;display:flex;align-items:center;gap:3px;flex-wrap:wrap;cursor:pointer;user-select:none;-webkit-user-select:none;" onclick="flipCard(this)" title="탭하여 장치 정보 보기">
+        <div style="flex:1;min-width:0;overflow:hidden;padding:0 7px;display:flex;align-items:center;gap:3px;flex-wrap:wrap;cursor:pointer;user-select:none;-webkit-user-select:none;" onclick="flipCard(this)" title="${t('device_info_fn')(esc(name))}">
           <span style="font-size:13px;font-weight:700;white-space:nowrap;">${esc(name)}</span>
           ${dongsanRoleTag(getDongsanRole(name,m.group,m.subgroup))}
           ${grpTag(m.group,m.subgroup)}
