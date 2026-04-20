@@ -2027,6 +2027,9 @@ function _applyAdminI18n(){
   const ob=document.getElementById("offline-banner");if(ob)ob.textContent=t('offline_banner_text');
   // Pull to refresh text
   const ptr=document.querySelector(".ptr-text");if(ptr)ptr.textContent=t('ptr_pull');
+  // ACL role options
+  const rs=document.getElementById("acl-role-super");if(rs)rs.textContent=t('acl_role_super');
+  const rl=document.getElementById("acl-role-leader");if(rl)rl.textContent=t('acl_role_leader');
 }
 function toggleLang(){
   lang=lang==="ko"?"en":"ko";
