@@ -916,8 +916,8 @@ async function doCheckinFinish(){
     gl.style.background="radial-gradient(circle,rgba(251,191,36,.12),transparent 70%)";
     el.innerHTML=`<div class="fi">
       <div style="font-size:44px;margin-bottom:12px;">📡</div>
-      <div style="font-size:22px;font-weight:800;color:var(--amber);margin-bottom:6px;">오프라인 대기 중</div>
-      <div style="font-size:13px;color:var(--txt-m);margin-bottom:14px;line-height:1.6;">인터넷 연결이 없습니다.<br>온라인 복구 시 자동으로 출석이 등록됩니다.</div>
+      <div style="font-size:22px;font-weight:800;color:var(--amber);margin-bottom:6px;">${t('offline_title')}</div>
+      <div style="font-size:13px;color:var(--txt-m);margin-bottom:14px;line-height:1.6;">${t('offline_msg')}</div>
       <div style="font-size:12px;color:var(--txt-d);">Queued — will sync when back online</div>
     </div>`;
   }
