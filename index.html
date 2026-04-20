@@ -1409,7 +1409,7 @@ function toggleSummary(){
   summaryVisible=!summaryVisible;
   const el=document.getElementById("summary-section");const btn=document.getElementById("summary-toggle-btn");
   if(el)el.style.display=summaryVisible?"block":"none";
-  if(btn)btn.textContent=summaryVisible?"📈 월별 / 학기 요약 닫기":"📈 월별 / 학기 요약 보기";
+  if(btn)btn.textContent=summaryVisible?t('summary_close'):t('summary_open');
   if(summaryVisible)renderSummary();
 }
 function renderSummary(){
