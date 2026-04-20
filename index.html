@@ -2751,22 +2751,22 @@ function downloadBackup(){
 async function uploadRestore(input){
   const file=input.files[0];if(!file)return;
   const statusEl=document.getElementById("restore-status");
-  if(statusEl){statusEl.style.display="block";statusEl.style.background="var(--amber-dim)";statusEl.style.color="var(--amber)";statusEl.style.border="1px solid rgba(251,191,36,.3)";statusEl.textContent="파일 읽는 중...";}
+  if(statusEl){statusEl.style.display="block";statusEl.style.background="var(--amber-dim)";statusEl.style.color="var(--amber)";statusEl.style.border="1px solid rgba(251,191,36,.3)";statusEl.textContent=t('file_reading');}
   try{
     const text=await file.text();
     const bundle=JSON.parse(text);
-    if(!bundle.version||!bundle.attendance){if(statusEl){statusEl.style.background="var(--red-dim)";statusEl.style.color="var(--red)";statusEl.style.border="1px solid rgba(251,113,133,.3)";statusEl.textContent="올바르지 않은 백업 파일입니다.";}return;}
-    const exportDate=bundle.exportedAt?new Date(bundle.exportedAt).toLocaleString("ko-KR",{timeZone:"America/New_York"}):"알 수 없음";
-    if(statusEl)statusEl.textContent=`백업 날짜: ${exportDate}`;
-    confirmAction("데이터 복원",async()=>{
+    if(!bundle.version||!bundle.attendance){if(statusEl){statusEl.style.background="var(--red-dim)";statusEl.style.color="var(--red)";statusEl.style.border="1px solid rgba(251,113,133,.3)";statusEl.textContent=t('invalid_backup');}return;}
+    const exportDate=bundle.exportedAt?new Date(bundle.exportedAt).toLocaleString("ko-KR",{timeZone:"America/New_York"}):t('backup_unknown_date');
+    if(statusEl)statusEl.textContent=t('backup_date_fn')(exportDate);
+    confirmAction(t('restore_title'),async()=>{
       const r=await api("POST","/api/restore",bundle,{"X-Device-Id":deviceId});
       if(r.error){flash(r.error,"err");return;}
-      if(statusEl){statusEl.style.background="var(--acc-dim)";statusEl.style.color="var(--acc)";statusEl.style.border="1px solid rgba(52,211,153,.3)";statusEl.textContent="✓ 복원 완료! 페이지를 새로고침합니다.";}
-      flash("복원 완료!");
+      if(statusEl){statusEl.style.background="var(--acc-dim)";statusEl.style.color="var(--acc)";statusEl.style.border="1px solid rgba(52,211,153,.3)";statusEl.textContent=t('restore_done');}
+      flash(t('restore_success'));
       setTimeout(()=>location.reload(),1500);
-    },{icon:"💾",desc:`백업 (${exportDate})을 복원합니다. 현재 데이터가 덮어씌워집니다.`,holdMs:2000});
+    },{icon:"💾",desc:t('restore_desc_fn')(exportDate),holdMs:2000});
   }catch(e){
-    if(statusEl){statusEl.style.background="var(--red-dim)";statusEl.style.color="var(--red)";statusEl.style.border="1px solid rgba(251,113,133,.3)";statusEl.textContent="파일 파싱 오류: "+e.message;}
+    if(statusEl){statusEl.style.background="var(--red-dim)";statusEl.style.color="var(--red)";statusEl.style.border="1px solid rgba(251,113,133,.3)";statusEl.textContent=t('parse_error_fn')(e.message);}
   }
   input.value="";
 }
