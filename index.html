@@ -2072,10 +2072,10 @@ function renderCheckinWindow(){
   if(em){const mins=[0,15,30,45];const closest=mins.reduce((a,b)=>Math.abs(b-checkinEndMin%60)<Math.abs(a-checkinEndMin%60)?b:a);em.value=String(closest);}
   const el=document.getElementById("ci-current");
   if(el){
-    const DAYS=["일","월","화","수","목","금","토"];
-    const dayStr=checkinDays.map(d=>DAYS[d]).join(", ")||"없음";
+    const DAYS2=t('day_names');
+    const dayStr=checkinDays.map(d=>DAYS2[d]).join(", ")||t('ci_none');
     const fmtM=m=>{const h=Math.floor(m/60);const mn=m%60;const h12=h%12||12;return`${String(h12).padStart(2,"0")}:${String(mn).padStart(2,"0")} ${h>=12?"PM":"AM"}`;};
-    el.textContent=`현재: ${dayStr} | ${fmtM(checkinStartMin)} ~ ${fmtM(checkinEndMin)}`;
+    el.textContent=t('ci_current_fn')(dayStr,fmtM(checkinStartMin),fmtM(checkinEndMin));
   }
 }
 async function saveCheckinWindow(){
