@@ -2173,7 +2173,7 @@ async function kioskCheckin(name){
   try{
     const r=await api("POST","/api/admin/checkin",{name,adminDeviceId:deviceId});
     if(r.error&&r.error!=="Not authorized"){
-      sc.innerHTML=`<div class="fi"><div style="font-size:44px;margin-bottom:12px;">⚠️</div><div style="font-size:18px;font-weight:800;color:var(--red);margin-bottom:10px;">체크인 실패</div><div style="font-size:11px;font-family:'IBM Plex Mono',monospace;color:var(--txt-m);padding:10px 14px;background:var(--bg);border-radius:8px;border:1px solid var(--bdr);word-break:break-word;max-width:300px;text-align:left;">${esc(r.error)}</div></div>`;
+      sc.innerHTML=`<div class="fi"><div style="font-size:44px;margin-bottom:12px;">⚠️</div><div style="font-size:18px;font-weight:800;color:var(--red);margin-bottom:10px;">${t('kiosk_fail')}</div><div style="font-size:11px;font-family:'IBM Plex Mono',monospace;color:var(--txt-m);padding:10px 14px;background:var(--bg);border-radius:8px;border:1px solid var(--bdr);word-break:break-word;max-width:300px;text-align:left;">${esc(r.error)}</div></div>`;
       setTimeout(()=>{so.style.display="none";},5000);return;
     }
     await load();
