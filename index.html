@@ -963,7 +963,7 @@ async function submitSelfRegister(){
   if(r.status==="pending"){
     const el=document.getElementById("checkin-content"),gl=document.getElementById("checkin-glow");
     if(gl)gl.style.background="radial-gradient(circle,rgba(251,191,36,.12),transparent 70%)";
-    if(el)el.innerHTML=`<div class="fi"><div style="font-size:60px;margin-bottom:16px;">⏳</div><div style="font-size:22px;font-weight:800;color:var(--amber);margin-bottom:8px;">등록 대기 중</div><div style="font-size:14px;color:var(--txt-m);line-height:1.8;max-width:300px;margin:0 auto;">관리자 승인 후 출석이 가능합니다.<br><span style="font-size:12px;color:var(--txt-d);">Awaiting admin approval.</span></div></div>`;
+    if(el)el.innerHTML=`<div class="fi"><div style="font-size:60px;margin-bottom:16px;">⏳</div><div style="font-size:22px;font-weight:800;color:var(--amber);margin-bottom:8px;">${t('pending_title')}</div><div style="font-size:14px;color:var(--txt-m);line-height:1.8;max-width:300px;margin:0 auto;">${t('pending_msg')}<br><span style="font-size:12px;color:var(--txt-d);">Awaiting admin approval.</span></div></div>`;
     return;
   }
   await load();await doCheckinFinish();
