@@ -2197,9 +2197,9 @@ async function kioskCheckin(name){
         <div class="pc rp" style="width:120px;height:120px;border-radius:50%;background:var(--acc);margin:0 auto 22px;display:flex;align-items:center;justify-content:center;">
           <svg width="58" height="58" viewBox="0 0 52 52" fill="none"><path d="M14 27l8 8 16-18" stroke="var(--bg)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </div>
-        <div style="font-size:30px;font-weight:800;color:var(--acc);margin-bottom:8px;">출석 완료!</div>
+        <div style="font-size:30px;font-weight:800;color:var(--acc);margin-bottom:8px;">${t('kiosk_ok')}</div>
         <div style="font-size:24px;font-weight:600;">${esc(name)}</div>
-        <div style="margin-top:16px;padding:10px 24px;border-radius:12px;background:var(--acc-dim);border:1px solid rgba(52,211,153,.2);display:inline-block;"><span style="font-size:16px;font-weight:700;color:var(--acc);">총 출석: ${total}회</span></div>
+        <div style="margin-top:16px;padding:10px 24px;border-radius:12px;background:var(--acc-dim);border:1px solid rgba(52,211,153,.2);display:inline-block;"><span style="font-size:16px;font-weight:700;color:var(--acc);">${STRINGS[lang].kiosk_total_fn(total)}</span></div>
         <div style="width:220px;height:3px;border-radius:2px;background:var(--bdr);margin:22px auto 0;overflow:hidden;"><div style="height:100%;background:var(--acc);border-radius:2px;animation:countdown 4s linear forwards;"></div></div>
       </div>`;
       setTimeout(()=>{so.style.display="none";renderKioskMembers(document.getElementById("kiosk-search").value);updateKioskCount();},4000);
