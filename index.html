@@ -2376,9 +2376,9 @@ async function submitBulkCheckin(){
 let _transferName=null;
 function openTransfer(name){
   _transferName=name;
-  document.getElementById("transfer-member-label").textContent=`${name} 전출`;
+  document.getElementById("transfer-member-label").textContent=t('transfer_label_fn')(name);
   document.getElementById("transfer-group").value="";
-  document.getElementById("transfer-subgroup").innerHTML="<option value=''>동산 선택...</option>";
+  document.getElementById("transfer-subgroup").innerHTML=`<option value=''>${t('dongsan_select_ph')}</option>`;
   document.getElementById("transfer-modal").style.display="flex";
 }
 function renderTransferSubgroups(){
