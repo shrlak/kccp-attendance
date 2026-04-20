@@ -935,7 +935,7 @@ function showMyHistory(name){
   const content=document.getElementById("history-content");
   const entries=[...D.log].filter(e=>(dName(e.deviceId)||e.name||"").trim()===name.trim()).sort((a,b)=>b.date.localeCompare(a.date));
   if(!entries.length){
-    content.innerHTML=`<div style="text-align:center;padding:30px;color:var(--txt-d);font-size:13px;">No records found.<br>출석 기록이 없습니다.</div>`;
+    content.innerHTML=`<div style="text-align:center;padding:30px;color:var(--txt-d);font-size:13px;">${t('no_history')}</div>`;
     modal.style.display="flex";return;
   }
   const total=entries.length;
@@ -1357,7 +1357,7 @@ function renderAttendanceModal(){
   const el=document.getElementById("att-modal-list");if(!el)return;
   const dids=getDevicesFor(attEditName);
   const entries=[...D.log].filter(e=>dids.includes(e.deviceId)||(e.name===attEditName&&!dids.length)).sort((a,b)=>b.ts-a.ts);
-  if(!entries.length){el.innerHTML=`<div style="text-align:center;color:var(--txt-d);padding:20px;font-size:13px;">출석 기록 없음</div>`;return;}
+  if(!entries.length){el.innerHTML=`<div style="text-align:center;color:var(--txt-d);padding:20px;font-size:13px;">${t('att_entry_none')}</div>`;return;}
   el.innerHTML=entries.map(e=>{
     const manualTag=e.manual?`<span class="tag tag-amber" style="font-size:9px;margin-left:4px;">수동</span>`:"";
     return`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;margin-bottom:4px;border-radius:10px;background:var(--card);border:1px solid var(--bdr);">
