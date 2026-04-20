@@ -2149,15 +2149,15 @@ function openMerge(){
 function submitMerge(){
   const from=document.getElementById("merge-from").value;
   const to=document.getElementById("merge-to").value;
-  if(!from||!to){flash("두 멤버를 모두 선택해주세요","warn");return;}
-  if(from===to){flash("같은 멤버를 선택할 수 없습니다","warn");return;}
-  confirmAction(`"${from}" → "${to}" 합치기`,async()=>{
+  if(!from||!to){flash(t('merge_select_both'),"warn");return;}
+  if(from===to){flash(t('merge_same_error'),"warn");return;}
+  confirmAction(t('merge_confirm_fn')(from,to),async()=>{
     const r=await api("POST","/api/merge-members",{fromName:from,toName:to,adminDeviceId:deviceId});
     if(r.error){flash(r.error,"err");return;}
     document.getElementById("merge-modal").style.display="none";
-    flash(`합치기 완료: ${r.merged}개 장치 이전됨`);
+    flash(t('merge_done_fn')(r.merged));
     await load();renderAll();
-  },{icon:"🔀",desc:`"${from}"의 모든 장치를 "${to}"로 이전합니다.`});
+  },{icon:"🔀",desc:t('merge_confirm_desc_fn')(from,to)});
 }
 
 // ─── Admin leader fields ───
