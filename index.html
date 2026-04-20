@@ -2257,7 +2257,7 @@ function closeConfirm(){document.getElementById("confirm-modal").style.display="
 function openAdminCheckin(){
   const names=sortNames(Object.keys(getUniqueNames("","")));
   const sel=document.getElementById("mc-name");
-  sel.innerHTML='<option value="">멤버를 선택하세요...</option>'+names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");
+  sel.innerHTML=`<option value="">${t('select_member_ph')}</option>`+names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");
   document.getElementById("manual-checkin-modal").style.display="flex";
   sel.focus();
 }
