@@ -2303,13 +2303,13 @@ async function submitGuestCheckin(){
 
 // ─── Export to Excel ───
 function exportExcel(){
-  if(typeof XLSX==="undefined"){flash("Excel 라이브러리 로딩 중...","warn");return;}
+  if(typeof XLSX==="undefined"){flash(t('excel_lib_loading'),"warn");return;}
   const wb=XLSX.utils.book_new();
   // Sheet 1: Grid (members × dates)
   const members=getUniqueNames("","");
   const allNames=sortNames(Object.keys(members));
   const dates=[...new Set(D.log.map(e=>e.date))].sort();
-  const gridHeader=["이름","그룹","동산","총 출석",...dates];
+  const gridHeader=[t('excel_name'),t('excel_group'),t('excel_dongsan'),t('excel_total'),...dates];
   const gridRows=allNames.map(name=>{
     const m=members[name];
     const dids=m.devices;
@@ -2319,24 +2319,24 @@ function exportExcel(){
   });
   const ws1=XLSX.utils.aoa_to_sheet([gridHeader,...gridRows]);
   ws1["!cols"]=[{wch:16},{wch:8},{wch:8},{wch:8},...dates.map(()=>({wch:12}))];
-  XLSX.utils.book_append_sheet(wb,ws1,"출석 현황");
+  XLSX.utils.book_append_sheet(wb,ws1,t('excel_sheet1'));
   // Sheet 2: Log (all records)
-  const logHeader=["이름","그룹","동산","날짜","시간","총 출석","비고"];
+  const logHeader=[t('excel_name'),t('excel_group'),t('excel_dongsan'),t('excel_date'),t('excel_time'),t('excel_total'),t('excel_note')];
   const sorted=[...D.log].sort((a,b)=>b.ts-a.ts);
   const logRows=sorted.map(e=>{
     const name=dName(e.deviceId)||e.name;
     const group=dGroup(e.deviceId)||e.group||"";
     const subgroup=dSubgroup(e.deviceId)||e.subgroup||"";
-    const note=(e.firstVisit?"첫출석 ":"")+(e.manual?"수동 ":"")+(e.guest?"방문자 ":"");
+    const note=(e.firstVisit?t('excel_note_first'):"")+(e.manual?t('excel_note_manual'):"")+(e.guest?t('excel_note_guest'):"");
     return[name,group,subgroup,e.date,e.time,totalForName(name),note.trim()];
   });
   const ws2=XLSX.utils.aoa_to_sheet([logHeader,...logRows]);
   ws2["!cols"]=[{wch:16},{wch:8},{wch:8},{wch:12},{wch:14},{wch:8},{wch:16}];
-  XLSX.utils.book_append_sheet(wb,ws2,"전체 로그");
-  const t=today();
+  XLSX.utils.book_append_sheet(wb,ws2,t('excel_sheet2'));
+  const td=today();
   const label=sheetGroup?(sheetGroup+(sheetSubgroup?"-"+sheetSubgroup:"")):"all";
-  XLSX.writeFile(wb,`kccp-attendance-${label}-${t}.xlsx`);
-  flash("Excel 파일 다운로드 완료!");
+  XLSX.writeFile(wb,`kccp-attendance-${label}-${td}.xlsx`);
+  flash(t('excel_downloaded'));
 }
 
 // ─── Bulk Check-in ───
