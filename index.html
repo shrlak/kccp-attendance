@@ -2395,7 +2395,7 @@ async function submitTransfer(){
   const r=await api("POST","/api/transfer-member",{name:_transferName,newGroup,newSubgroup,adminDeviceId:deviceId});
   if(r.error){flash(r.error,"err");return;}
   document.getElementById("transfer-modal").style.display="none";
-  flash(`${_transferName} → ${newGroup} ${newSubgroup} 전출 완료`);
+  flash(t('transfer_done_fn')(_transferName,newGroup,newSubgroup));
   await load();renderAll();
 }
 
@@ -2403,7 +2403,7 @@ async function submitTransfer(){
 function shareCheckinLink(){
   const url=location.origin;
   document.getElementById("share-url-text").textContent=url;
-  document.getElementById("share-copy-btn").textContent="복사";
+  document.getElementById("share-copy-btn").textContent=t('share_copy_btn');
   document.getElementById("share-modal").style.display="flex";
 }
 function copyShareUrl(){
