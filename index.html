@@ -1512,7 +1512,7 @@ function renderBulkMembers(){
   const members=getUniqueNames("","");
   const names=sortNames(Object.keys(members).filter(n=>!isVisitorMember(n)));
   const el=document.getElementById("bulk-members");if(!el)return;
-  if(!names.length){el.innerHTML=`<div style="text-align:center;color:var(--txt-d);padding:20px;font-size:13px;">등록된 멤버가 없습니다.</div>`;return;}
+  if(!names.length){el.innerHTML=`<div style="text-align:center;color:var(--txt-d);padding:20px;font-size:13px;">${t('kiosk_no_members')}</div>`;return;}
   el.innerHTML=names.map(n=>`<label style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;cursor:pointer;border:1px solid var(--bdr);margin-bottom:4px;background:var(--bg);">
     <input type="checkbox" class="bulk-chk" value="${esc(n)}" style="width:16px;height:16px;accent-color:var(--acc);cursor:pointer;">
     <span style="font-size:13px;font-weight:600;flex:1;">${esc(n)}</span>
