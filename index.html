@@ -1414,7 +1414,7 @@ function toggleSummary(){
 }
 function renderSummary(){
   const el=document.getElementById("summary-section");if(!el)return;
-  if(!D.log.length){el.innerHTML=`<div style="color:var(--txt-d);text-align:center;padding:16px;font-size:13px;">출석 기록이 없습니다.</div>`;return;}
+  if(!D.log.length){el.innerHTML=`<div style="color:var(--txt-d);text-align:center;padding:16px;font-size:13px;">${t('no_records')}</div>`;return;}
   // Filter non-visitor log entries
   const log=D.log.filter(e=>{const v=D.devices[e.deviceId];return!(v&&typeof v==="object"&&v.visitor);});
   // Group by month
