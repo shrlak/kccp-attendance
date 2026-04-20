@@ -2783,7 +2783,7 @@ function updateHealthDot(online){
   }else{
     dot.style.background="var(--red)";
     dot.style.boxShadow="0 0 6px rgba(251,113,133,.5)";
-    if(label){label.textContent="오프라인";label.style.color="var(--red)";}
+    if(label){label.textContent=t('offline_label');label.style.color="var(--red)";}
   }
 }
 async function pingHealth(){
