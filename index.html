@@ -595,7 +595,7 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
 <div id="bulk-checkin-modal" class="overlay" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
   <div class="modal fi" style="max-width:460px;width:100%;max-height:82vh;display:flex;flex-direction:column;padding:24px;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-shrink:0;">
-      <div><div style="font-size:18px;font-weight:800;">📋 일괄 출석 등록</div><div style="font-size:11px;color:var(--txt-m);margin-top:2px;">Bulk Manual Check-in</div></div>
+      <div><div data-i18n="bulk_modal_title" style="font-size:18px;font-weight:800;">📋 일괄 출석 등록</div></div>
       <button onclick="document.getElementById('bulk-checkin-modal').style.display='none'" style="background:none;border:none;color:var(--txt-d);font-size:22px;cursor:pointer;padding:4px;line-height:1;">✕</button>
     </div>
     <div style="font-size:12px;color:var(--txt-m);margin-bottom:12px;flex-shrink:0;">오늘 날짜(<span id="bulk-date-label"></span>)로 선택한 멤버를 일괄 출석 등록합니다.</div>
