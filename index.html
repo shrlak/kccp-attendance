@@ -366,8 +366,8 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
     <!-- MEMBERS -->
     <div id="tab-members" class="view fi">
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
-        <input id="member-search" class="inp" placeholder="🔍 멤버 검색..." style="flex:1;font-size:13px;padding:9px 14px;" oninput="memberSearch=this.value;renderDevices()">
-        <button class="btn btn-secondary btn-sm" onclick="openMerge()" style="font-size:12px;white-space:nowrap;">🔀 합치기</button>
+        <input id="member-search" class="inp" data-i18n-ph="member_search_ph" placeholder="🔍 멤버 검색..." style="flex:1;font-size:13px;padding:9px 14px;" oninput="memberSearch=this.value;renderDevices()">
+        <button class="btn btn-secondary btn-sm" data-i18n="merge_short_btn" onclick="openMerge()" style="font-size:12px;white-space:nowrap;">🔀 합치기</button>
       </div>
       <div class="grp-tabs" id="dev-grp-tabs"></div>
       <div class="grp-tabs" id="dev-subgrp-tabs" style="display:none;padding-left:16px;border-left:2px solid var(--purple-dim);margin-left:4px;"></div>
