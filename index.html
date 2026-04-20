@@ -2152,7 +2152,7 @@ function renderKioskMembers(q){
       const done=checkedSet.has(name);const total=totalForName(name);
       html+=`<button class="kiosk-btn${done?" done":""}" onclick="kioskCheckin('${esc(name)}')">
         <span>${esc(name)}</span>
-        <span style="font-size:10px;font-weight:600;${done?"":"color:var(--txt-d);"}">${done?"✓ 출석 · "+total+"회":total+"회"}</span>
+        <span style="font-size:10px;font-weight:600;${done?"":"color:var(--txt-d);"}">${done?STRINGS[lang].kiosk_checked(total):STRINGS[lang].kiosk_count_lbl(total)}</span>
       </button>`;
     });
     html+=`</div>`;
