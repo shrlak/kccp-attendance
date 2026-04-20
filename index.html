@@ -1488,9 +1488,9 @@ function copyKakaoSummary(){
   }
   if(announcement)lines.push(`\n📢 ${announcement}`);
   const text=lines.join("\n");
-  navigator.clipboard.writeText(text).then(()=>flash("카카오 요약 복사됨 ✓")).catch(()=>{
+  navigator.clipboard.writeText(text).then(()=>flash(t('kakao_copied'))).catch(()=>{
     // Fallback for older browsers
-    const ta=document.createElement("textarea");ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand("copy");document.body.removeChild(ta);flash("카카오 요약 복사됨 ✓");
+    const ta=document.createElement("textarea");ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand("copy");document.body.removeChild(ta);flash(t('kakao_copied'));
   });
 }
 
