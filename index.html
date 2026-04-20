@@ -1170,8 +1170,8 @@ function renderDevices(){
           <button style="width:28px;height:28px;padding:0;background:none;border:1.5px solid var(--bdr);border-radius:8px;cursor:pointer;font-size:13px;color:var(--txt-m);display:flex;align-items:center;justify-content:center;" title="편집" onclick="event.stopPropagation();openEdit('${esc(name)}')">✏️</button>
           <button style="width:28px;height:28px;padding:0;background:none;border:1.5px solid rgba(251,113,133,.35);border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;color:var(--red);display:flex;align-items:center;justify-content:center;" onclick="event.stopPropagation();removePerson('${esc(name)}')">✕</button>
           <div style="display:flex;align-items:baseline;gap:2px;padding:0 6px;flex-shrink:0;">
-            <span style="font-size:16px;font-weight:800;color:var(--acc);line-height:1;">${t}</span>
-            <span class="mono" style="font-size:10px;font-weight:700;color:var(--txt-d);line-height:1;">일</span>
+            <span style="font-size:16px;font-weight:800;color:var(--acc);line-height:1;">${cnt}</span>
+            <span class="mono" style="font-size:10px;font-weight:700;color:var(--txt-d);line-height:1;">${t('card_att_unit')}</span>
           </div>
         </div>
       </div>`;
