@@ -1462,7 +1462,7 @@ async function saveAnnouncement(){
   const r=await api("POST","/api/config",{announcement:text,adminDeviceId:deviceId});
   if(r.error){flash(r.error,"err");return;}
   announcement=text;
-  flash(text?"공지사항 저장됨":"공지사항 삭제됨");
+  flash(text?t('announcement_saved'):t('announcement_deleted'));
 }
 
 // ─── KakaoTalk summary ───
@@ -2000,6 +2000,7 @@ function applyLang(){
   document.querySelectorAll(".lang-toggle-btn").forEach(b=>b.textContent=lbl);
   // Re-render admin panel if visible
   if(document.getElementById("admin-view")&&document.getElementById("admin-view").style.display!=="none"){
+    const dw=document.getElementById("checkin-days-wrap");if(dw)dw.dataset.init="";
     renderCheckinWindow();renderAll();
     const sumBtn=document.getElementById("summary-toggle-btn");
     if(sumBtn)sumBtn.textContent=summaryVisible?t('summary_close'):t('summary_open');
@@ -2085,11 +2086,11 @@ async function saveCheckinWindow(){
   const eh=parseInt(document.getElementById("ci-end-hour").value);
   const em=parseInt(document.getElementById("ci-end-min").value);
   const startMin=sh*60+sm;const endMin=eh*60+em;
-  if(endMin<=startMin){flash("종료 시간이 시작 시간보다 늦어야 합니다","warn");return;}
+  if(endMin<=startMin){flash(t('end_before_start'),"warn");return;}
   const r=await api("POST","/api/config",{checkinDays:days,checkinStartMin:startMin,checkinEndMin:endMin,adminDeviceId:deviceId});
   if(r.error){flash(r.error,"err");return;}
   checkinDays=days;checkinStartMin=startMin;checkinEndMin=endMin;
-  renderCheckinWindow();flash("출석 시간 설정 저장됨");
+  renderCheckinWindow();flash(t('ci_saved'));
 }
 
 // ─── Weekly recap ───
