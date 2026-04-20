@@ -2631,7 +2631,7 @@ async function renderPendingBadge(){
     if(pendingCount>0){
       const label=pendingCount>9?"9+":String(pendingCount);
       if(navBadge){navBadge.textContent=label;navBadge.style.display="inline-block";}
-      if(cardBadge){cardBadge.textContent=label+"명 대기";cardBadge.style.display="inline-block";}
+      if(cardBadge){cardBadge.textContent=t('pending_badge_fn')(label);cardBadge.style.display="inline-block";}
     }else{
       if(navBadge)navBadge.style.display="none";
       if(cardBadge)cardBadge.style.display="none";
@@ -2854,7 +2854,7 @@ function renderCheckinWindowBadge(){
         if(!deferredPrompt)return;
         deferredPrompt.prompt();
         const{outcome}=await deferredPrompt.userChoice;
-        if(outcome==="accepted"){localStorage.setItem("pwa-installed","1");flash("앱이 설치되었습니다 🎉");}
+        if(outcome==="accepted"){localStorage.setItem("pwa-installed","1");flash(t('pwa_installed'));}
         deferredPrompt=null;
         banner.style.display="none";
       };
