@@ -520,7 +520,7 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
     </div>
   </div>
   <div style="padding:12px 14px;flex-shrink:0;">
-    <input id="kiosk-search" style="width:100%;padding:14px 18px;border-radius:16px;background:var(--card);border:1.5px solid var(--bdr);color:var(--txt);font-family:'Sora',sans-serif;font-size:16px;outline:none;" placeholder="🔍 이름 검색..." oninput="renderKioskMembers(this.value)" autocomplete="off" autocorrect="off" spellcheck="false" onfocus="this.style.borderColor='var(--acc)'" onblur="this.style.borderColor='var(--bdr)'">
+    <input id="kiosk-search" data-i18n-ph="kiosk_search_ph" style="width:100%;padding:14px 18px;border-radius:16px;background:var(--card);border:1.5px solid var(--bdr);color:var(--txt);font-family:'Sora',sans-serif;font-size:16px;outline:none;" placeholder="🔍 이름 검색..." oninput="renderKioskMembers(this.value)" autocomplete="off" autocorrect="off" spellcheck="false" onfocus="this.style.borderColor='var(--acc)'" onblur="this.style.borderColor='var(--bdr)'">
   </div>
   <div class="kiosk-members" id="kiosk-members"></div>
   <div class="kiosk-footer">
