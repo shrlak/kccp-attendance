@@ -2168,7 +2168,7 @@ function updateKioskCount(){
 
 async function kioskCheckin(name){
   const so=document.getElementById("kiosk-success-overlay"),sc=document.getElementById("kiosk-success-content");
-  sc.innerHTML=`<div class="fi"><div style="font-size:56px;margin-bottom:16px;animation:pulse 1s ease-in-out infinite;">⏳</div><div style="font-size:20px;font-weight:700;">확인 중...</div><div style="font-size:15px;color:var(--txt-m);margin-top:8px;">${esc(name)}</div></div>`;
+  sc.innerHTML=`<div class="fi"><div style="font-size:56px;margin-bottom:16px;animation:pulse 1s ease-in-out infinite;">⏳</div><div style="font-size:20px;font-weight:700;">${t('kiosk_loading')}</div><div style="font-size:15px;color:var(--txt-m);margin-top:8px;">${esc(name)}</div></div>`;
   so.style.display="flex";
   try{
     const r=await api("POST","/api/admin/checkin",{name,adminDeviceId:deviceId});
