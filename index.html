@@ -800,7 +800,7 @@ function getLocation(){
 }
 async function doCheckin(){
   const el=document.getElementById("checkin-content");
-  el.innerHTML=`<div style="margin:0 auto 20px;animation:pulse 1.5s ease-in-out infinite;">${kccpLogo(140)}</div><div style="font-size:20px;font-weight:700;margin-bottom:8px;">출석 확인 중...</div><div style="font-size:12px;color:var(--txt-d);">위치 확인 중...</div>`;
+  el.innerHTML=`<div style="margin:0 auto 20px;animation:pulse 1.5s ease-in-out infinite;">${kccpLogo(140)}</div><div style="font-size:20px;font-weight:700;margin-bottom:8px;">${t('checking_in')}</div><div style="font-size:12px;color:var(--txt-d);">${t('checking_loc')}</div>`;
   const loc=await getLocation();
   userLat=loc.lat;userLng=loc.lng;
   if(!dName(deviceId)){document.getElementById("register-modal").style.display="flex";document.getElementById("self-name").focus();return;}
