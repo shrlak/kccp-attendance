@@ -2106,7 +2106,7 @@ function showWeeklyRecap(){
   el.style.display="block";
   // Get last 5 Sundays (or whichever days are in log)
   const dates=[...new Set(D.log.map(e=>e.date))].sort().slice(-7);
-  if(!dates.length){el.innerHTML=`<div class="card" style="text-align:center;color:var(--txt-d);padding:20px;font-size:13px;">출석 기록이 없습니다.</div>`;return;}
+  if(!dates.length){el.innerHTML=`<div class="card" style="text-align:center;color:var(--txt-d);padding:20px;font-size:13px;">${t('no_records')}</div>`;return;}
   const rows=dates.map(d=>{
     let entries=D.log.filter(e=>e.date===d);
     if(todayGroup)entries=entries.filter(e=>dGroup(e.deviceId)===todayGroup||(e.group||"")===todayGroup);
@@ -2682,7 +2682,7 @@ function toggleCharts(){
   const el=document.getElementById("charts-content");
   const btn=document.getElementById("charts-toggle-btn");
   if(el)el.style.display=chartsVisible?"block":"none";
-  if(btn)btn.textContent=chartsVisible?"📊 Charts 닫기":"📊 Attendance Charts 보기";
+  if(btn)btn.textContent=chartsVisible?t('charts_close'):t('charts_open');
   if(chartsVisible)renderCharts();
 }
 function renderCharts(){
