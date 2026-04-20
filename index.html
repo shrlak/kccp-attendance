@@ -885,8 +885,8 @@ async function doCheckinFinish(){
   try{
   const r=await api("POST","/api/checkin",{deviceId,lat:userLat,lng:userLng});
   if(r.status==="time-restricted"){const type=r.message.includes("요일")?"wrong-day":"wrong-time";showRestriction(el,gl,"","#FBBF24",r.message,r.sub||"",type);return;}
-  if(r.status==="location-restricted"){showRestriction(el,gl,"📍","#FB7185","교회 근처가 아닙니다",r.message,"location");return;}
-  if(r.status==="location-required"){showRestriction(el,gl,"📍","#FB7185","위치 정보 필요",r.message,"location");return;}
+  if(r.status==="location-restricted"){showRestriction(el,gl,"📍","#FB7185",t('not_near_church'),r.message,"location");return;}
+  if(r.status==="location-required"){showRestriction(el,gl,"📍","#FB7185",t('loc_needed'),r.message,"location");return;}
   await load();
   const name=dName(deviceId)||r.name;const total=r.totalAttendance||0;
   if(r.status==="already"){
