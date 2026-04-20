@@ -2631,12 +2631,12 @@ async function renderPendingBadge(){
 }
 async function loadPendingList(){
   const el=document.getElementById("pending-list");if(!el)return;
-  el.innerHTML=`<div style="text-align:center;color:var(--txt-d);padding:12px;font-size:12px;">불러오는 중...</div>`;
+  el.innerHTML=`<div style="text-align:center;color:var(--txt-d);padding:12px;font-size:12px;">${t('loading_msg')}</div>`;
   const r=await api("GET","/api/pending",null,{"X-Device-Id":deviceId});
   if(r.error){el.innerHTML=`<div style="color:var(--red);font-size:12px;padding:8px;">${esc(r.error)}</div>`;return;}
   const list=r.pending||[];
-  if(!list.length){el.innerHTML=`<div style="text-align:center;color:var(--txt-d);padding:16px;font-size:12px;">대기 중인 등록이 없습니다.</div>`;return;}
-  el.innerHTML=`<div class="sl" style="margin-bottom:8px;">${list.length}명 대기 중</div>`+
+  if(!list.length){el.innerHTML=`<div style="text-align:center;color:var(--txt-d);padding:16px;font-size:12px;">${t('no_pending')}</div>`;return;}
+  el.innerHTML=`<div class="sl" style="margin-bottom:8px;">${t('pending_count_fn')(list.length)}</div>`+
     list.map(p=>{
       const dt=new Date(p.requestedAt).toLocaleString("ko-KR",{timeZone:"America/New_York",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"});
       return`<div style="padding:10px 12px;margin-bottom:6px;border-radius:10px;background:var(--bg);border:1px solid var(--bdr);">
