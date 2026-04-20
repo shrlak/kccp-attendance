@@ -386,9 +386,9 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
         <div id="pending-list" style="margin-top:12px;"></div>
       </div>
       <div class="card" style="margin-bottom:16px;">
-        <div style="font-size:16px;font-weight:800;margin-bottom:4px;">📋 감사 로그</div>
-        <div style="font-size:12px;color:var(--txt-m);margin-bottom:12px;line-height:1.6;">관리자 활동 기록 (최근 100건)</div>
-        <button class="btn btn-secondary btn-full" onclick="loadAuditLog()">로그 불러오기</button>
+        <div data-i18n="audit_title" style="font-size:16px;font-weight:800;margin-bottom:4px;">📋 감사 로그</div>
+        <div data-i18n="audit_desc" style="font-size:12px;color:var(--txt-m);margin-bottom:12px;line-height:1.6;">관리자 활동 기록 (최근 100건)</div>
+        <button class="btn btn-secondary btn-full" data-i18n="load_audit_btn" onclick="loadAuditLog()">로그 불러오기</button>
         <div id="audit-log-list" style="margin-top:12px;"></div>
       </div>
       <div class="card" style="margin-bottom:16px;">
