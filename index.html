@@ -600,8 +600,8 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
     </div>
     <div style="font-size:12px;color:var(--txt-m);margin-bottom:12px;flex-shrink:0;">오늘 날짜(<span id="bulk-date-label"></span>)로 선택한 멤버를 일괄 출석 등록합니다.</div>
     <div style="display:flex;gap:6px;margin-bottom:10px;flex-shrink:0;">
-      <button class="btn btn-secondary btn-sm" onclick="bulkSelectAll(true)">전체 선택</button>
-      <button class="btn btn-secondary btn-sm" onclick="bulkSelectAll(false)">전체 해제</button>
+      <button class="btn btn-secondary btn-sm" data-i18n="select_all" onclick="bulkSelectAll(true)">전체 선택</button>
+      <button class="btn btn-secondary btn-sm" data-i18n="deselect_all" onclick="bulkSelectAll(false)">전체 해제</button>
       <span id="bulk-selected-count" style="font-size:12px;color:var(--acc);font-weight:700;display:flex;align-items:center;margin-left:4px;"></span>
     </div>
     <div id="bulk-member-list" style="overflow-y:auto;flex:1;padding-right:4px;"></div>
