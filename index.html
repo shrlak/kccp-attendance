@@ -737,9 +737,9 @@ function renderSubgroupTabs(containerId,curGroup,curSub,setter){
   if(!curGroup){el.style.display="none";return;}
   el.style.display="flex";
   const subs=dongsanNames[curGroup]||["동산1","동산2","동산3","동산4"];
-  el.innerHTML=[{l:"All 동산",v:""},...subs.map(s=>({l:s,v:s}))].map(t=>{
-    const active=t.v===curSub;const c="#A78BFA";
-    return`<button class="grp-tab${active?" active":""}" style="${active?`background:${c}22;color:${c};border-color:${c}55;`:""}" onclick="${setter}('${t.v}');renderAll();">${esc(t.l)}</button>`;
+  el.innerHTML=[{l:t('all_dongsan'),v:""},...subs.map(s=>({l:s,v:s}))].map(tab=>{
+    const active=tab.v===curSub;const c="#A78BFA";
+    return`<button class="grp-tab${active?" active":""}" style="${active?`background:${c}22;color:${c};border-color:${c}55;`:""}" onclick="${setter}('${tab.v}');renderAll();">${esc(tab.l)}</button>`;
   }).join("");
 }
 function buildSubgroupOptions(group,selectedVal){const names=dongsanNames[group]||["동산1","동산2","동산3","동산4"];return`<option value="">동산 선택 안함</option>`+names.map(n=>`<option value="${esc(n)}"${n===selectedVal?" selected":""}>${esc(n)}</option>`).join("");}
