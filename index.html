@@ -2673,7 +2673,7 @@ async function saveApprovalSetting(){
   const r=await api("POST","/api/config",{requireApproval:checked,adminDeviceId:deviceId});
   if(r.error){flash(r.error,"err");return;}
   requireApproval=checked;
-  flash(checked?"등록 승인 필요 활성화됨":"등록 승인 필요 비활성화됨");
+  flash(checked?t('approval_enabled'):t('approval_disabled'));
 }
 
 // ─── Feature 10: Attendance Trend Charts ───
