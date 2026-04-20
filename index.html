@@ -1197,7 +1197,7 @@ function renderDevices(){
   let html=`<div class="member-grid">`+regularNames.map(renderMemberCard).join("")+`</div>`;
   if(visitorNames.length){
     const roleGroups=["pastor","elder","deacon","mentor","visitor"];
-    const sectionLabel=roleGroups.filter(r=>visitorNames.some(n=>getMemberRole(n)===r)).map(r=>ROLE_LABELS[r]).join(" · ");
+    const sectionLabel=roleGroups.filter(r=>visitorNames.some(n=>getMemberRole(n)===r)).map(r=>roleLabel(r)).join(" · ");
     html+=`<div style="margin-top:14px;margin-bottom:6px;" class="sl">${sectionLabel} (${visitorNames.length})</div>`;
     html+=`<div class="member-grid">`+visitorNames.map(renderMemberCard).join("")+`</div>`;
   }
