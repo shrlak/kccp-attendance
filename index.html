@@ -185,15 +185,15 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
 
 <!-- Merge members modal -->
 <div id="merge-modal" class="overlay" style="display:none;"><div class="modal fi" style="max-width:420px;">
-  <div style="font-size:18px;font-weight:800;margin-bottom:6px;">🔀 멤버 합치기</div>
-  <div style="font-size:12px;color:var(--txt-m);margin-bottom:14px;line-height:1.6;">두 멤버를 하나로 합칩니다. <b>병합 대상</b>의 장치들이 <b>유지할 멤버</b>로 이전됩니다.</div>
-  <div style="font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">병합할 멤버 (사라지는 쪽)</div>
-  <select id="merge-from" class="inp" style="margin-bottom:10px;"><option value="">선택...</option></select>
-  <div style="font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">유지할 멤버 (남는 쪽)</div>
-  <select id="merge-to" class="inp" style="margin-bottom:14px;"><option value="">선택...</option></select>
+  <div data-i18n="merge_title" style="font-size:18px;font-weight:800;margin-bottom:6px;">🔀 멤버 합치기</div>
+  <div data-i18n="merge_desc" style="font-size:12px;color:var(--txt-m);margin-bottom:14px;line-height:1.6;">두 멤버를 하나로 합칩니다. <b>병합 대상</b>의 장치들이 <b>유지할 멤버</b>로 이전됩니다.</div>
+  <div data-i18n="merge_from_label" style="font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">병합할 멤버 (사라지는 쪽)</div>
+  <select id="merge-from" class="inp" style="margin-bottom:10px;"><option value="" data-i18n-self="select_ph">선택...</option></select>
+  <div data-i18n="merge_to_label" style="font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">유지할 멤버 (남는 쪽)</div>
+  <select id="merge-to" class="inp" style="margin-bottom:14px;"><option value="" data-i18n-self="select_ph">선택...</option></select>
   <div style="display:flex;gap:8px;">
-    <button class="btn btn-primary" style="flex:1;" onclick="submitMerge()">합치기</button>
-    <button class="btn btn-secondary" style="flex:1;" onclick="document.getElementById('merge-modal').style.display='none'">취소</button>
+    <button class="btn btn-primary" data-i18n="merge_btn" style="flex:1;" onclick="submitMerge()">합치기</button>
+    <button class="btn btn-secondary" data-i18n="cancel_btn" style="flex:1;" onclick="document.getElementById('merge-modal').style.display='none'">취소</button>
   </div>
 </div></div>
 
