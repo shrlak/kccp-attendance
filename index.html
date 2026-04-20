@@ -2141,7 +2141,7 @@ function showWeeklyRecap(){
 // ─── Merge members ───
 function openMerge(){
   const names=sortNames(Object.keys(getUniqueNames("","")));
-  const opts='<option value="">선택...</option>'+names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");
+  const opts=`<option value="">${t('select_ph')}</option>`+names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");
   document.getElementById("merge-from").innerHTML=opts;
   document.getElementById("merge-to").innerHTML=opts;
   document.getElementById("merge-modal").style.display="flex";
