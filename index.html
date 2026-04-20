@@ -2141,9 +2141,9 @@ function renderKioskMembers(q){
   const checkedSet=new Set(D.log.filter(e=>e.date===td).map(e=>dName(e.deviceId)||e.name));
   let names=sortNames(Object.keys(members)).filter(n=>!isVisitorMember(n));
   if(sq)names=names.filter(n=>n.toLowerCase().includes(sq));
-  if(!names.length){el.innerHTML=`<div style="text-align:center;padding:48px 24px;color:var(--txt-d);font-size:14px;">${sq?"검색 결과가 없습니다":"등록된 멤버가 없습니다"}</div>`;return;}
+  if(!names.length){el.innerHTML=`<div style="text-align:center;padding:48px 24px;color:var(--txt-d);font-size:14px;">${sq?t('kiosk_no_results'):t('kiosk_no_members')}</div>`;return;}
   const groups={};
-  names.forEach(n=>{const m=members[n];const k=(m.group||"기타")+(m.subgroup?" · "+m.subgroup:"");if(!groups[k])groups[k]=[];groups[k].push(n);});
+  names.forEach(n=>{const m=members[n];const k=(m.group||t('kiosk_other'))+(m.subgroup?" · "+m.subgroup:"");if(!groups[k])groups[k]=[];groups[k].push(n);});
   let html="";
   Object.keys(groups).sort().forEach(grp=>{
     if(!sq)html+=`<div class="kiosk-group-label">${esc(grp)}</div>`;
