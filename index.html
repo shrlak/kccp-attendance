@@ -161,10 +161,10 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
     <button onclick="document.getElementById('notes-modal').style.display='none'" style="background:none;border:none;color:var(--txt-d);font-size:20px;cursor:pointer;">✕</button>
   </div>
   <div id="notes-modal-name" style="font-size:13px;font-weight:700;color:var(--acc);margin-bottom:12px;"></div>
-  <textarea id="notes-textarea" class="inp" rows="5" placeholder="메모를 입력하세요..." style="resize:vertical;line-height:1.5;"></textarea>
+  <textarea id="notes-textarea" class="inp" rows="5" data-i18n-ph="notes_ph" placeholder="메모를 입력하세요..." style="resize:vertical;line-height:1.5;"></textarea>
   <div style="display:flex;gap:8px;margin-top:12px;">
-    <button class="btn btn-primary" style="flex:1;" onclick="saveNotes()">저장</button>
-    <button class="btn btn-secondary" style="flex:1;" onclick="document.getElementById('notes-modal').style.display='none'">취소</button>
+    <button class="btn btn-primary" data-i18n="save_btn" style="flex:1;" onclick="saveNotes()">저장</button>
+    <button class="btn btn-secondary" data-i18n="cancel_btn" style="flex:1;" onclick="document.getElementById('notes-modal').style.display='none'">취소</button>
   </div>
 </div></div>
 
