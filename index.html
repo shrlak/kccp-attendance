@@ -392,11 +392,11 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
         <div id="audit-log-list" style="margin-top:12px;"></div>
       </div>
       <div class="card" style="margin-bottom:16px;">
-        <div style="font-size:16px;font-weight:800;margin-bottom:6px;">✅ 등록 승인 설정</div>
-        <div style="font-size:12px;color:var(--txt-m);margin-bottom:14px;line-height:1.6;">활성화 시 자기 등록은 관리자 승인 후 출석이 가능합니다.</div>
+        <div data-i18n="approval_setting_title" style="font-size:16px;font-weight:800;margin-bottom:6px;">✅ 등록 승인 설정</div>
+        <div data-i18n="approval_setting_desc" style="font-size:12px;color:var(--txt-m);margin-bottom:14px;line-height:1.6;">활성화 시 자기 등록은 관리자 승인 후 출석이 가능합니다.</div>
         <label style="display:flex;align-items:center;gap:12px;cursor:pointer;padding:10px 14px;background:var(--bg);border-radius:10px;border:1px solid var(--bdr);">
           <input type="checkbox" id="approval-toggle" style="width:18px;height:18px;accent-color:var(--acc);" onchange="saveApprovalSetting()">
-          <span style="font-size:14px;font-weight:600;">등록 승인 필요 (Require Admin Approval)</span>
+          <span data-i18n="approval_label" style="font-size:14px;font-weight:600;">등록 승인 필요</span>
         </label>
       </div>
       <div class="card" style="margin-bottom:16px;">
