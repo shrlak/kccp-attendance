@@ -2657,7 +2657,7 @@ async function loadPendingList(){
 async function approvePending(pendingDeviceId,name){
   const r=await api("POST","/api/pending/approve",{pendingDeviceId,adminDeviceId:deviceId});
   if(r.error){flash(r.error,"err");return;}
-  flash(`승인됨: ${name}`);
+  flash(t('approved_fn')(name));
   await load();renderAll();loadPendingList();renderPendingBadge();
 }
 function rejectPending(pendingDeviceId,name){
