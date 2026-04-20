@@ -2223,9 +2223,9 @@ async function submitKioskGuest(){
   const r=await api("POST","/api/admin/checkin",{name,adminDeviceId:deviceId});
   const res=document.getElementById("kiosk-guest-result");
   if(r.error){res.style.cssText="display:block;background:var(--red-dim);color:var(--red);border:1px solid rgba(251,113,133,.3);padding:10px 14px;border-radius:10px;font-size:13px;font-weight:600;text-align:center;";res.textContent=r.error;return;}
-  if(r.status==="already"){res.style.cssText="display:block;background:var(--amber-dim);color:var(--amber);border:1px solid rgba(251,191,36,.3);padding:10px 14px;border-radius:10px;font-size:13px;font-weight:600;text-align:center;";res.textContent=`이미 출석하셨습니다 (${r.time})`;return;}
+  if(r.status==="already"){res.style.cssText="display:block;background:var(--amber-dim);color:var(--amber);border:1px solid rgba(251,191,36,.3);padding:10px 14px;border-radius:10px;font-size:13px;font-weight:600;text-align:center;";res.textContent=STRINGS[lang].kiosk_already_fn(r.time);return;}
   res.style.cssText="display:block;background:var(--acc-dim);color:var(--acc);border:1px solid rgba(52,211,153,.3);padding:10px 14px;border-radius:10px;font-size:13px;font-weight:600;text-align:center;";
-  res.textContent=`✓ 출석 완료! ${name}`;
+  res.textContent=STRINGS[lang].kiosk_success_fn(name);
   if(navigator.vibrate)navigator.vibrate([100,50,200]);
   setTimeout(async()=>{
     document.getElementById("kiosk-guest-overlay").style.display="none";
