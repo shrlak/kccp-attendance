@@ -1030,8 +1030,8 @@ function renderDongsanLeadersEditor(){
       const key=`${g}__${sg}`;
       const cur=(dongsanLeaders[g]&&dongsanLeaders[g][sg])||{leader:"",subLeaders:[]};
       const sgMembers=Object.keys(allMembers).filter(n=>{const m=allMembers[n];return m&&m.group===g&&(m.subgroup||"")===(sg||"");});
-      const makeLeaderOpts=()=>`<option value="">-- 없음 --</option>`+sgMembers.map(n=>`<option value="${esc(n)}"${cur.leader===n?" selected":""}>${esc(n)}</option>`).join("");
-      const subLeaderCheckboxes=sgMembers.length?sgMembers.map(n=>`<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:3px 0;"><input type="checkbox" value="${esc(n)}" id="sl-${esc(key)}-${esc(n)}" ${(cur.subLeaders||[]).includes(n)?"checked":""} style="accent-color:var(--acc);width:14px;height:14px;"> ${esc(n)}</label>`).join(""):`<span style="font-size:12px;color:var(--txt-d);">해당 동산 멤버 없음</span>`;
+      const makeLeaderOpts=()=>`<option value="">${t('dongsan_no_leader')}</option>`+sgMembers.map(n=>`<option value="${esc(n)}"${cur.leader===n?" selected":""}>${esc(n)}</option>`).join("");
+      const subLeaderCheckboxes=sgMembers.length?sgMembers.map(n=>`<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:3px 0;"><input type="checkbox" value="${esc(n)}" id="sl-${esc(key)}-${esc(n)}" ${(cur.subLeaders||[]).includes(n)?"checked":""} style="accent-color:var(--acc);width:14px;height:14px;"> ${esc(n)}</label>`).join(""):`<span style="font-size:12px;color:var(--txt-d);">${t('no_dongsan_members')}</span>`;
       return`<div style="margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--bdr);">
         <div style="font-size:13px;font-weight:700;color:var(--acc);margin-bottom:10px;">${esc(g)} · ${esc(sg)}</div>
         <div style="margin-bottom:10px;">
