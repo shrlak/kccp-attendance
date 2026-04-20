@@ -2384,14 +2384,14 @@ function openTransfer(name){
 function renderTransferSubgroups(){
   const g=document.getElementById("transfer-group").value;
   const subs=dongsanNames[g]||[];
-  document.getElementById("transfer-subgroup").innerHTML="<option value=''>동산 선택...</option>"+subs.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join("");
+  document.getElementById("transfer-subgroup").innerHTML=`<option value=''>${t('dongsan_select_ph')}</option>`+subs.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join("");
 }
 async function submitTransfer(){
   if(!_transferName){return;}
   const newGroup=document.getElementById("transfer-group").value;
   const newSubgroup=document.getElementById("transfer-subgroup").value;
-  if(!newGroup){flash("부서를 선택해주세요","warn");return;}
-  if(!newSubgroup){flash("동산을 선택해주세요","warn");return;}
+  if(!newGroup){flash(t('select_group_required'),"warn");return;}
+  if(!newSubgroup){flash(t('select_dongsan_required'),"warn");return;}
   const r=await api("POST","/api/transfer-member",{name:_transferName,newGroup,newSubgroup,adminDeviceId:deviceId});
   if(r.error){flash(r.error,"err");return;}
   document.getElementById("transfer-modal").style.display="none";
