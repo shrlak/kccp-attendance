@@ -1177,8 +1177,8 @@ function renderDevices(){
       </div>`;
     const backFace=`<div class="card-face card-back" style="padding:8px 10px 8px 10px;cursor:pointer;" onclick="flipCard(this)">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-          <div style="font-size:10px;font-weight:700;color:var(--acc);letter-spacing:.5px;">장치 정보 — ${esc(name)} <span style="color:var(--txt-d);font-weight:400;font-size:9px;">← 탭하여 돌아가기</span></div>
-          <button style="background:none;border:1px solid var(--bdr);border-radius:6px;color:var(--blue);font-size:9px;font-weight:700;cursor:pointer;padding:2px 7px;flex-shrink:0;font-family:'Sora',sans-serif;" onclick="event.stopPropagation();openTransfer('${esc(name)}')">🔀 전출</button>
+          <div style="font-size:10px;font-weight:700;color:var(--acc);letter-spacing:.5px;">${t('device_info_fn')(esc(name))} <span style="color:var(--txt-d);font-weight:400;font-size:9px;">${t('back_tap')}</span></div>
+          <button style="background:none;border:1px solid var(--bdr);border-radius:6px;color:var(--blue);font-size:9px;font-weight:700;cursor:pointer;padding:2px 7px;flex-shrink:0;font-family:'Sora',sans-serif;" onclick="event.stopPropagation();openTransfer('${esc(name)}')">${t('transfer_short_btn')}</button>
         </div>
         ${notes?`<div style="font-size:10px;color:var(--txt-m);margin-bottom:8px;padding:5px 7px;background:var(--bg);border-radius:6px;border:1px solid var(--bdr);line-height:1.5;">📝 ${esc(notes)}</div>`:""}
         ${dids.map(d=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 0;gap:4px;"><span class="mono" style="font-size:9px;color:var(--txt-d);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(d)}${d===deviceId?' <span style="color:var(--acc);">(you)</span>':""}</span><button style="background:none;border:none;color:var(--red);font-size:10px;cursor:pointer;padding:2px 4px;flex-shrink:0;" onclick="event.stopPropagation();removeSingleDevice('${esc(d)}')">unlink</button></div>`).join("")}
