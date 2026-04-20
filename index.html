@@ -2194,7 +2194,7 @@ function initPullToRefresh(){
     ind.style.height=pulled+"px";
     ind.style.opacity=String(Math.min(1,pulled/THRESHOLD));
     const ready=pulled>=THRESHOLD;
-    txt.textContent=ready?"놓으면 새로고침 ↻":"당겨서 새로고침 ↓";
+    txt.textContent=ready?t('ptr_release'):t('ptr_pull');
     txt.style.color=ready?"var(--acc)":"var(--txt-d)";
     spinner.style.borderTopColor=ready?"transparent":"transparent";
   },{passive:true});
