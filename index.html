@@ -2812,9 +2812,9 @@ function renderCheckinWindowBadge(){
   const timeOk=timeMin>=checkinStartMin&&timeMin<checkinEndMin;
   const isOpen=dayOk&&timeOk;
   const fmtMin=v=>{const hh=Math.floor(v/60);const mn=v%60;const h12=hh%12||12;return`${String(h12).padStart(2,"0")}:${String(mn).padStart(2,"0")} ${hh>=12?"PM":"AM"}`;};
-  const DAY_NAMES=["일","월","화","수","목","금","토"];
+  const DAY_NAMES=t('day_names');
   if(isOpen){
-    el.innerHTML=`<span style="display:inline-flex;align-items:center;gap:5px;padding:5px 14px;border-radius:20px;background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.3);font-size:11px;font-weight:700;color:var(--acc);font-family:'IBM Plex Mono',monospace;letter-spacing:.3px;"><span style="width:6px;height:6px;border-radius:50%;background:var(--acc);display:inline-block;animation:pulse 2s ease-in-out infinite;"></span>출석 가능 — ${fmtMin(checkinEndMin)}까지</span>`;
+    el.innerHTML=`<span style="display:inline-flex;align-items:center;gap:5px;padding:5px 14px;border-radius:20px;background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.3);font-size:11px;font-weight:700;color:var(--acc);font-family:'IBM Plex Mono',monospace;letter-spacing:.3px;"><span style="width:6px;height:6px;border-radius:50%;background:var(--acc);display:inline-block;animation:pulse 2s ease-in-out infinite;"></span>${t('ci_open_fn')(fmtMin(checkinEndMin))}</span>`;
   }else{
     const dayNames=checkinDays.map(d=>DAY_NAMES[d]).join(", ");
     const msg=!dayOk?`${dayNames}요일 ${fmtMin(checkinStartMin)}–${fmtMin(checkinEndMin)}`:`${fmtMin(checkinStartMin)} – ${fmtMin(checkinEndMin)}`;
