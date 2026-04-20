@@ -782,20 +782,28 @@ function _getLocCache(){try{const c=JSON.parse(localStorage.getItem(_LOC_KEY));i
 function getLocation(){
   return new Promise((resolve)=>{
     if(!navigator.geolocation){resolve({lat:null,lng:null});return;}
-    // doGet(background): if true, updates cache silently without resolving the already-resolved promise
     const doGet=(bg)=>navigator.geolocation.getCurrentPosition(
       pos=>{userLat=pos.coords.latitude;userLng=pos.coords.longitude;_saveLocCache(userLat,userLng);if(!bg)resolve({lat:userLat,lng:userLng});},
       err=>{if(!bg){console.warn("Location error:",err.message);const c=_getLocCache();userLat=c?c.lat:null;userLng=c?c.lng:null;resolve({lat:userLat,lng:userLng});}},
       {enableHighAccuracy:true,timeout:10000,maximumAge:bg?0:300000}
     );
-    const withCache=()=>{const c=_getLocCache();if(c){userLat=c.lat;userLng=c.lng;resolve({lat:c.lat,lng:c.lng});doGet(true);return true;}return false;};
+    const c=_getLocCache();
+    if(c){
+      // Use cached location immediately — avoids the daily Safari permission dialog
+      userLat=c.lat;userLng=c.lng;resolve({lat:c.lat,lng:c.lng});
+      // Background-refresh only when permission is already confirmed granted (no dialog)
+      if(navigator.permissions){
+        navigator.permissions.query({name:"geolocation"}).then(r=>{if(r.state==="granted")doGet(true);}).catch(()=>{});
+      }
+      return;
+    }
+    // No cache yet — request permission once (first visit only)
     if(navigator.permissions){
       navigator.permissions.query({name:"geolocation"}).then(r=>{
-        if(r.state==="granted"){if(!withCache())doGet(false);}
-        else if(r.state==="denied"){const c=_getLocCache();resolve({lat:c?c.lat:null,lng:c?c.lng:null});}
-        else{if(!withCache())doGet(false);}
-      }).catch(()=>{if(!withCache())doGet(false);});
-    }else{if(!withCache())doGet(false);}
+        if(r.state==="denied"){resolve({lat:null,lng:null});}
+        else{doGet(false);}
+      }).catch(()=>{doGet(false);});
+    }else{doGet(false);}
   });
 }
 async function doCheckin(){
