@@ -1928,9 +1928,9 @@ async function submitGuestCheckin(){
   }
   if(r.error){flash(r.error,"err");return;}
   if(r.status==="already"){
-    res.style.display="block";res.style.background="var(--amber-dim)";res.style.color="var(--amber)";res.style.border="1px solid rgba(251,191,36,.3)";res.textContent=`이미 출석하셨습니다 (${r.time})`;return;
+    res.style.display="block";res.style.background="var(--amber-dim)";res.style.color="var(--amber)";res.style.border="1px solid rgba(251,191,36,.3)";res.textContent=STRINGS[lang].kiosk_already_fn(r.time);return;
   }
-  res.style.display="block";res.style.background="var(--acc-dim)";res.style.color="var(--acc)";res.style.border="1px solid rgba(52,211,153,.3)";res.textContent=`✓ 출석 완료! ${name} — ${r.time}`;
+  res.style.display="block";res.style.background="var(--acc-dim)";res.style.color="var(--acc)";res.style.border="1px solid rgba(52,211,153,.3)";res.textContent=STRINGS[lang].guest_success_fn(name,r.time);
   document.getElementById("guest-name").value="";
   if(navigator.vibrate)navigator.vibrate([100,50,200]);
   setTimeout(()=>{document.getElementById("guest-checkin-modal").style.display="none";},2000);
