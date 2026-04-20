@@ -1006,7 +1006,7 @@ function renderDongsanEditor(){
   const groups=["대학부","청년부"];
   el.innerHTML=groups.map(g=>{
     const names=dongsanNames[g]||["동산1","동산2","동산3","동산4"];
-    return`<div style="margin-bottom:16px;"><div style="font-size:12px;font-weight:700;color:var(--txt-m);margin-bottom:8px;letter-spacing:.5px;">${esc(g)}</div>${names.map((n,i)=>`<div style="display:flex;gap:8px;margin-bottom:6px;align-items:center;"><span class="mono" style="font-size:10px;color:var(--txt-d);min-width:20px;">${i+1}</span><input class="inp" style="flex:1;font-size:13px;padding:8px 12px;" id="ds-${esc(g)}-${i}" value="${esc(n)}" placeholder="동산 ${i+1} 이름"><button class="btn btn-primary btn-sm" onclick="saveDongsanName('${esc(g)}',${i})">저장</button></div>`).join("")}</div>`;
+    return`<div style="margin-bottom:16px;"><div style="font-size:12px;font-weight:700;color:var(--txt-m);margin-bottom:8px;letter-spacing:.5px;">${esc(g)}</div>${names.map((n,i)=>`<div style="display:flex;gap:8px;margin-bottom:6px;align-items:center;"><span class="mono" style="font-size:10px;color:var(--txt-d);min-width:20px;">${i+1}</span><input class="inp" style="flex:1;font-size:13px;padding:8px 12px;" id="ds-${esc(g)}-${i}" value="${esc(n)}" placeholder="${t('dongsan_ph_fn')(i+1)}"><button class="btn btn-primary btn-sm" onclick="saveDongsanName('${esc(g)}',${i})">${t('save_dongsan_btn')}</button></div>`).join("")}</div>`;
   }).join("");
 }
 async function saveDongsanName(group,index){
@@ -1017,7 +1017,7 @@ async function saveDongsanName(group,index){
   const r=await api("POST","/api/dongsan-names",{group,index,name,adminDeviceId:deviceId});
   if(r.error){flash(r.error,"err");return;}
   dongsanNames=r.names;
-  flash(`저장됨: ${name}`);
+  flash(t('dongsan_saved_fn')(name));
   await load();renderAll();
 }
 function renderDongsanLeadersEditor(){
