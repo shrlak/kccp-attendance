@@ -2144,6 +2144,7 @@ function applyLang(){
     _applyAdminI18n();
   }
   if(kioskActive){renderKioskMembers(document.getElementById("kiosk-search")?document.getElementById("kiosk-search").value:"");updateKioskCount();}
+  if(activeRestriction){const rEl=document.getElementById("checkin-content"),rGl=document.getElementById("checkin-glow");if(rEl){const{type}=activeRestriction;const fmtM=v=>{const hh=Math.floor(v/60),mn=v%60,h12=hh%12||12;return`${String(h12).padStart(2,"0")}:${String(mn).padStart(2,"0")} ${hh>=12?"PM":"AM"}`;};const title=type==="wrong-day"?t('wrong_day_title'):t('wrong_time_title');const sub=type==="wrong-day"?t('wrong_day_sub_fn')(checkinDays.map(d=>t('day_names')[d]+t('day_suffix')).join(", ")):t('wrong_time_sub_fn')(fmtM(checkinStartMin),fmtM(checkinEndMin));showRestriction(rEl,rGl,"","#FBBF24",title,sub,type);}}
   renderCheckinWindowBadge();
 }
 function _applyAdminI18n(){
@@ -2158,9 +2159,7 @@ function _applyAdminI18n(){
 function toggleLang(){
   lang=lang==="ko"?"en":"ko";
   localStorage.setItem("kccp-lang",lang);
-  const adminVisible=document.getElementById("admin-view")?.style.display!=="none";
-  if(adminVisible||kioskActive){applyLang();}
-  else{location.reload();}
+  applyLang();
 }
 
 // ─── Swipe gestures ───
