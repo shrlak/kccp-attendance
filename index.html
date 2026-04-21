@@ -1378,10 +1378,10 @@ function removeAttendanceEntry(ts){confirmAction(t('remove_att_title'),async()=>
 function openEdit(name){const members=getUniqueNames("","");const m=members[name];if(!m)return;document.getElementById("edit-name").value=name;const grp=m.group||"";document.getElementById("edit-group").value=grp;const sg=m.subgroup||"";updateEditSubgroup(sg);document.getElementById("edit-subgroup").value=sg;document.getElementById("edit-visitor").checked=getMemberRole(name)==="visitor";document.getElementById("edit-original-name").value=name;document.getElementById("edit-modal").style.display="flex";}
 async function saveEdit(){
   const orig=document.getElementById("edit-original-name").value;const name=document.getElementById("edit-name").value.trim();const group=document.getElementById("edit-group").value;const subgroup=document.getElementById("edit-subgroup").value;const memberRole=document.getElementById("edit-visitor").checked?"visitor":"";
-  if(!name){flash("Name required","warn");return;}
+  if(!name){flash(t('name_required'),"warn");return;}
   const dids=getDevicesFor(orig);
   for(const did of dids){await api("PUT","/api/device",{deviceId:did,name,group,subgroup,memberRole,adminDeviceId:deviceId});}
-  document.getElementById("edit-modal").style.display="none";flash("Updated: "+name);await load();renderAll();
+  document.getElementById("edit-modal").style.display="none";flash(t('member_updated_fn')(name));await load();renderAll();
 }
 
 function clearLog(){confirmAction(t('clear_log_title'),async()=>{await api("DELETE","/api/log",null,{"X-Device-Id":deviceId});flash("Records cleared");await load();renderAll();},{icon:"📊",desc:t('clear_log_desc'),holdMs:2000});}
