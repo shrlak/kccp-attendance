@@ -1142,7 +1142,7 @@ function renderDevices(){
   if(memberSearch){const q=memberSearch.toLowerCase();names=names.filter(n=>n.toLowerCase().includes(q));}
   const regularNames=names.filter(n=>!isVisitorMember(n));
   const visitorNames=names.filter(n=>isVisitorMember(n));
-  document.getElementById("devices-count").textContent=regularNames.length+" members"+(visitorNames.length?` · ${visitorNames.length} visitors`:"");
+  document.getElementById("devices-count").textContent=t('members_count_fn')(regularNames.length,visitorNames.length);
 
   if(!names.length){document.getElementById("devices-list").innerHTML=`<div style="text-align:center;padding:20px;color:var(--txt-d);font-size:13px;">No members.</div>`;return;}
   names=sortNames(names);
