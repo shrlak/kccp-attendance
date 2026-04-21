@@ -2802,12 +2802,12 @@ function toggleCharts(){
 }
 function renderCharts(){
   const el=document.getElementById("charts-content");if(!el)return;
-  if(!D.log.length){el.innerHTML=`<div style="color:var(--txt-d);text-align:center;padding:20px;font-size:13px;">No data to chart yet.</div>`;return;}
+  if(!D.log.length){el.innerHTML=`<div style="color:var(--txt-d);text-align:center;padding:20px;font-size:13px;">${t('no_chart_data')}</div>`;return;}
   let logData=D.log;
   if(sheetGroup)logData=logData.filter(e=>(dGroup(e.deviceId)||e.group||"")===sheetGroup);
   if(sheetSubgroup)logData=logData.filter(e=>(dSubgroup(e.deviceId)||e.subgroup||"")===sheetSubgroup);
   const dates=[...new Set(logData.map(e=>e.date))].sort();
-  if(dates.length<2){el.innerHTML=`<div style="color:var(--txt-d);text-align:center;padding:20px;font-size:13px;">Need at least 2 dates to draw charts.</div>`;return;}
+  if(dates.length<2){el.innerHTML=`<div style="color:var(--txt-d);text-align:center;padding:20px;font-size:13px;">${t('chart_need_dates')}</div>`;return;}
   const trendData=dates.map(d=>{
     const p=new Set(logData.filter(e=>e.date===d&&!isVisitorMember(dName(e.deviceId)||e.name)).map(e=>dName(e.deviceId)||e.name));
     return p.size;
