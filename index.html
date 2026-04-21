@@ -1763,6 +1763,56 @@ const STRINGS={
     // Misc
     total_days_label:"총 출석일",
     card_att_unit:"일",
+    // Admin access modal
+    admin_access_title:"관리자 접속",admin_pw_ph:"관리자 비밀번호",unlock_btn:"확인",
+    admin_no_admins_msg:"등록된 관리자가 없습니다. 마스터 비밀번호를 입력하세요.",
+    admin_not_authorized_msg:"권한이 없습니다. 마스터 비밀번호를 입력하세요.",
+    wrong_pw:"비밀번호가 틀렸습니다",admin_granted:"관리자 접속 완료!",
+    // Edit member modal
+    edit_member_title:"멤버 편집",name_label:"이름",group_label:"부서",
+    no_group_option:"없음",dongsan_label:"동산",no_dongsan_option:"없음",
+    save_edit_btn:"저장",
+    // Sheet tab
+    sheet_tab_title:"출석 시트",grid_btn:"격자",log_btn:"로그",
+    excel_short_btn:"↓ Excel",
+    no_att_yet:"아직 출석 기록이 없습니다.",
+    total_row_label:"합계",
+    // Today
+    today_label_fn:d=>`오늘 — ${d}`,
+    // Members/Devices
+    members_count_fn:(m,v)=>v?`${m}명 · 방문자 ${v}명`:`${m}명 멤버`,
+    no_members_label:"멤버가 없습니다.",
+    devices_count_fn:n=>`${n}개 장치`,
+    you_tag:"나",
+    // Device registration card
+    reg_device_title:"장치 등록",
+    reg_device_desc:"새 사용자는 첫 체크인 시 자동 등록됩니다. 수동 등록 또는 이름 변경에 사용합니다.",
+    device_id_ph:"장치 ID",paste_device_btn:"↑ 이 장치의 ID 붙여넣기",
+    person_name_ph:"이름",no_group_reg:"없음",register_device_btn:"등록",
+    // Link device card
+    link_device_card_title:"🔗 기존 멤버에 장치 연결",
+    link_device_card_desc:"새 장치를 기존 멤버에 연결합니다.",
+    new_device_id_ph:"새 장치 ID",select_person_ph:"사람 선택...",link_device_btn:"장치 연결",
+    // Transfer modal
+    transfer_modal_title:"🔀 멤버 전출",transfer_group_label:"새 부서",
+    transfer_group_ph:"부서 선택...",transfer_dongsan_label:"새 동산",transfer_submit_btn:"전출 확인",
+    // History modal
+    history_modal_title:"📅 내 출석 기록",
+    // Admin mgmt
+    name_required:"이름을 입력해주세요",member_updated_fn:n=>`업데이트됨: ${n}`,
+    fill_both_fields:"두 항목 모두 입력해주세요",
+    admin_removed_msg:"관리자 삭제됨",enter_password:"비밀번호를 입력해주세요",
+    no_admins_msg:"관리자가 없습니다.",admins_count_fn:n=>`${n}명 관리자`,
+    super_admin_label:"슈퍼 관리자",leader_admin_label:"리더",admin_added:"관리자 추가됨!",
+    // Kiosk/admin nav
+    kiosk_mode_btn:"🖥️ 키오스크",back_checkin_btn:"← 체크인",
+    // Charts
+    no_chart_data:"차트 데이터가 없습니다.",
+    chart_need_dates:"차트를 그리려면 날짜가 2개 이상 필요합니다.",
+    chart_trend_title:"주간 출석 트렌드",chart_group_title:"그룹 비교 (막대 차트)",
+    chart_load_error:"Chart.js를 불러오지 못했습니다.",
+    // Tooltips
+    att_edit_tooltip:"출석 편집",notes_tooltip:"메모",edit_member_tooltip:"편집",
     // History modal
     no_history:"출석 기록이 없습니다.",
     att_entry_none:"출석 기록 없음",remove_att_title:"출석 기록 삭제",att_removed:"삭제됨",remove_att_desc:"이 날짜의 출석 기록을 삭제합니다.",
