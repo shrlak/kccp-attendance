@@ -15,8 +15,8 @@ echo ""
 LAST_HASH=""
 
 while true; do
-  # Hash the files we care about
-  CURRENT_HASH=$(md5 -q "$REPO/index.html" "$REPO/server.js" 2>/dev/null)
+  # Hash the files we care about (include vercel.json so it also triggers on config changes)
+  CURRENT_HASH=$(md5 -q "$REPO/index.html" "$REPO/server.js" "$REPO/vercel.json" 2>/dev/null)
 
   if [ "$CURRENT_HASH" != "$LAST_HASH" ] && [ -n "$LAST_HASH" ]; then
     echo "📝 Change detected — deploying at $(date '+%H:%M:%S')..."
@@ -28,10 +28,18 @@ while true; do
       "$SERVER:$REMOTE_DIR/"
 
     if [ $? -eq 0 ]; then
-      # Restart node
+      # Restart node on Oracle Cloud
       ssh -o StrictHostKeyChecking=no -i "$SSH_KEY" "$SERVER" \
         "killall node 2>/dev/null || true; nohup node $REMOTE_DIR/server.js > ~/server.log 2>&1 &"
-      echo "✅ Deployed successfully at $(date '+%H:%M:%S')"
+      echo "✅ Oracle Cloud deployed at $(date '+%H:%M:%S')"
+
+      # Also push to GitHub so Vercel picks up the changes
+      cd "$REPO"
+      if ! git diff --quiet || ! git diff --cached --quiet; then
+        git add index.html server.js vercel.json api/ 2>/dev/null
+        git commit -m "auto-update $(date '+%Y-%m-%d %H:%M:%S')" 2>/dev/null
+        git push 2>/dev/null && echo "✅ GitHub pushed — Vercel deploying..."
+      fi
     else
       echo "❌ Deploy failed — check your network connection"
     fi
