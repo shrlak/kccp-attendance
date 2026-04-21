@@ -1338,7 +1338,7 @@ function endDrag(e){
   dragEl=null;placeholder=null;
   saveOrder().then(()=>{renderSheet();renderToday();});
 }
-async function registerDevice(){const id=document.getElementById("reg-id").value.trim(),name=document.getElementById("reg-name").value.trim(),group=document.getElementById("reg-group").value,subgroup=document.getElementById("reg-subgroup").value;if(!id||!name)return flash("Fill ID and name","warn");await api("POST","/api/register",{deviceId:id,name,group,subgroup,adminDeviceId:deviceId});document.getElementById("reg-id").value="";document.getElementById("reg-name").value="";flash("Registered: "+name);await load();renderAll();}
+async function registerDevice(){const id=document.getElementById("reg-id").value.trim(),name=document.getElementById("reg-name").value.trim(),group=document.getElementById("reg-group").value,subgroup=document.getElementById("reg-subgroup").value;if(!id||!name)return flash(t('fill_id_and_name'),"warn");await api("POST","/api/register",{deviceId:id,name,group,subgroup,adminDeviceId:deviceId});document.getElementById("reg-id").value="";document.getElementById("reg-name").value="";flash(t('registered_fn')(name));await load();renderAll();}
 async function linkDevice(){const did=document.getElementById("link-device-id").value.trim(),name=document.getElementById("link-name").value;if(!did||!name)return flash("Select a person and enter device ID","warn");const r=await api("POST","/api/link-device",{newDeviceId:did,existingName:name,adminDeviceId:deviceId});if(r.error){flash(r.error,"err");return;}document.getElementById("link-device-id").value="";flash(`Linked to ${name}`);await load();renderAll();}
 function removeSingleDevice(did){confirmAction(t('unlink_device_title'),async()=>{await api("DELETE","/api/device/"+encodeURIComponent(did),null,{"X-Device-Id":deviceId});flash("Device unlinked");await load();renderAll();},{icon:"🔗",desc:t('unlink_device_desc'),holdMs:800});}
 function removePerson(name){confirmAction(t('remove_person_title_fn')(name),async()=>{const r=await api("POST","/api/remove-person",{name,deleteRecords:true,adminDeviceId:deviceId});if(r.error){flash(r.error,"err");return;}flash("Removed "+name);await load();renderAll();},{icon:"👤",desc:t('remove_person_desc')});}
@@ -2064,6 +2064,7 @@ const STRINGS={
     history_modal_title:"📅 Attendance History",
     // Admin mgmt
     name_required:"Name is required",member_updated_fn:n=>`Updated: ${n}`,
+    fill_id_and_name:"Fill in ID and name",registered_fn:n=>`Registered: ${n}`,
     fill_both_fields:"Fill both fields",
     admin_removed_msg:"Admin removed",enter_password:"Enter password",
     no_admins_msg:"No admins.",admins_count_fn:n=>`${n} admin(s)`,
