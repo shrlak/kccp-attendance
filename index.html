@@ -1083,7 +1083,7 @@ function setMode(m){viewMode=m;document.getElementById("btn-gridview").className
 function renderSheet(){
   const c=document.getElementById("sheet-content");document.getElementById("clear-area").style.display=(D.log.length>0||Object.keys(D.devices).length>0)?"block":"none";
 
-  if(!D.log.length){c.innerHTML=`<div style="padding:40px;text-align:center;color:var(--txt-d);font-size:13px;">No attendance records yet.</div>`;return;}
+  if(!D.log.length){c.innerHTML=`<div style="padding:40px;text-align:center;color:var(--txt-d);font-size:13px;">${t('no_att_yet')}</div>`;return;}
 
   if(viewMode==="grid"){
     const dates=[...new Set(D.log.map(e=>e.date))].sort();
