@@ -334,32 +334,32 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
     <!-- DEVICES -->
     <div id="tab-devices" class="view fi">
       <div class="card" style="margin-bottom:16px;">
-        <div style="font-size:16px;font-weight:800;margin-bottom:4px;">Register a Device</div>
-        <div style="font-size:12px;color:var(--txt-m);margin-bottom:14px;line-height:1.6;">New users self-register on first check-in. Use this to manually register or rename.</div>
-        <input id="reg-id" class="inp inp-mono" placeholder="Device ID" style="font-size:12px;margin-bottom:8px;">
-        <div style="margin-bottom:8px;"><button onclick="document.getElementById('reg-id').value=deviceId" style="background:none;border:none;color:var(--acc);font-size:11px;cursor:pointer;font-family:'IBM Plex Mono',monospace;padding:0;">↑ paste this device's ID</button></div>
-        <input id="reg-name" class="inp" placeholder="Person's name" style="margin-bottom:8px;">
+        <div data-i18n="reg_device_title" style="font-size:16px;font-weight:800;margin-bottom:4px;">Register a Device</div>
+        <div data-i18n="reg_device_desc" style="font-size:12px;color:var(--txt-m);margin-bottom:14px;line-height:1.6;">New users self-register on first check-in. Use this to manually register or rename.</div>
+        <input id="reg-id" class="inp inp-mono" data-i18n-ph="device_id_ph" placeholder="Device ID" style="font-size:12px;margin-bottom:8px;">
+        <div style="margin-bottom:8px;"><button data-i18n="paste_device_btn" onclick="document.getElementById('reg-id').value=deviceId" style="background:none;border:none;color:var(--acc);font-size:11px;cursor:pointer;font-family:'IBM Plex Mono',monospace;padding:0;">↑ paste this device's ID</button></div>
+        <input id="reg-name" class="inp" data-i18n-ph="person_name_ph" placeholder="Person's name" style="margin-bottom:8px;">
         <select id="reg-group" class="inp" style="margin-bottom:10px;" onchange="updateRegSubgroup()">
-          <option value="">No group</option>
-          <option value="대학부">대학부</option>
-          <option value="청년부">청년부</option>
+          <option value="" data-i18n="no_group_reg">No group</option>
+          <option value="대학부" data-i18n="reg_group_univ">대학부</option>
+          <option value="청년부" data-i18n="reg_group_youth">청년부</option>
         </select>
         <select id="reg-subgroup" class="inp" style="margin-bottom:10px;display:none;">
-          <option value="">동산 선택 안함</option>
-          <option value="동산1">동산 1</option>
-          <option value="동산2">동산 2</option>
-          <option value="동산3">동산 3</option>
-          <option value="동산4">동산 4</option>
+          <option value="" data-i18n="reg_sub_none">동산 선택 안함</option>
+          <option value="동산1" data-i18n="reg_sub_1">동산 1</option>
+          <option value="동산2" data-i18n="reg_sub_2">동산 2</option>
+          <option value="동산3" data-i18n="reg_sub_3">동산 3</option>
+          <option value="동산4" data-i18n="reg_sub_4">동산 4</option>
         </select>
-        <button class="btn btn-primary btn-full" onclick="registerDevice()">Register</button>
+        <button class="btn btn-primary btn-full" data-i18n="register_device_btn" onclick="registerDevice()">Register</button>
       </div>
       <div class="card" style="margin-bottom:16px;">
-        <div style="font-size:16px;font-weight:800;margin-bottom:4px;">🔗 Link Device to Existing Person</div>
-        <div style="font-size:12px;color:var(--txt-m);margin-bottom:14px;line-height:1.6;">Link a new device to an existing member.</div>
-        <input id="link-device-id" class="inp inp-mono" placeholder="New Device ID" style="font-size:12px;margin-bottom:8px;">
-        <div style="margin-bottom:8px;"><button onclick="document.getElementById('link-device-id').value=deviceId" style="background:none;border:none;color:var(--acc);font-size:11px;cursor:pointer;font-family:'IBM Plex Mono',monospace;padding:0;">↑ paste this device's ID</button></div>
-        <select id="link-name" class="inp" style="margin-bottom:10px;"><option value="">Select a person...</option></select>
-        <button class="btn btn-primary btn-full" onclick="linkDevice()">Link Device</button>
+        <div data-i18n="link_device_card_title" style="font-size:16px;font-weight:800;margin-bottom:4px;">🔗 Link Device to Existing Person</div>
+        <div data-i18n="link_device_card_desc" style="font-size:12px;color:var(--txt-m);margin-bottom:14px;line-height:1.6;">Link a new device to an existing member.</div>
+        <input id="link-device-id" class="inp inp-mono" data-i18n-ph="new_device_id_ph" placeholder="New Device ID" style="font-size:12px;margin-bottom:8px;">
+        <div style="margin-bottom:8px;"><button data-i18n="paste_device_btn" onclick="document.getElementById('link-device-id').value=deviceId" style="background:none;border:none;color:var(--acc);font-size:11px;cursor:pointer;font-family:'IBM Plex Mono',monospace;padding:0;">↑ paste this device's ID</button></div>
+        <select id="link-name" class="inp" style="margin-bottom:10px;"><option value="" data-i18n="select_person_ph">Select a person...</option></select>
+        <button class="btn btn-primary btn-full" data-i18n="link_device_btn" onclick="linkDevice()">Link Device</button>
       </div>
     </div>
 
