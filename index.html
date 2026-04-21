@@ -721,12 +721,13 @@ function roleTag(role){if(!role)return "";return `<span class="tag ${ROLE_TAG_CL
 function grpTag(g,sg){let out="";if(g==="대학부")out=`<span class="tag tag-amber" style="font-size:11px;">${t('grp_univ')}</span>`;else if(g==="청년부")out=`<span class="tag tag-blue" style="font-size:11px;">${t('grp_youth')}</span>`;if(sg)out+=` <span class="tag tag-purple" style="font-size:11px;">${esc(sg)}</span>`;return out;}
 function grpAccent(g){if(g==="대학부")return{bg:"rgba(251,191,36,.08)",bdr:"rgba(251,191,36,.2)",dot:"#FBBF24"};if(g==="청년부")return{bg:"rgba(96,165,250,.08)",bdr:"rgba(96,165,250,.2)",dot:"#60A5FA"};return{bg:"var(--card)",bdr:"var(--bdr)",dot:"var(--acc)"};}
 function grpDot(g){const c=grpAccent(g);return`background:${c.dot}`;}
+function grpDisplayName(g){return g==="대학부"?t('grp_univ'):g==="청년부"?t('grp_youth'):g;}
 function renderGrpTabs(containerId,current,setter){
   const groups=getGroups();const el=document.getElementById(containerId);
   const colors={"대학부":"#FBBF24","청년부":"#60A5FA"};
-  el.innerHTML=[{l:"All",v:""}, ...groups.map(g=>({l:g,v:g}))].map(t=>{
-    const active=t.v===current;const c=colors[t.v]||"var(--acc)";
-    return`<button class="grp-tab${active?" active":""}" style="${active?`background:${c}22;color:${c};border-color:${c}55;`:""}" onclick="${setter}('${t.v}');renderAll();">${esc(t.l)}</button>`;
+  el.innerHTML=[{l:t('all_groups'),v:""}, ...groups.map(g=>({l:grpDisplayName(g),v:g}))].map(tab=>{
+    const active=tab.v===current;const c=colors[tab.v]||"var(--acc)";
+    return`<button class="grp-tab${active?" active":""}" style="${active?`background:${c}22;color:${c};border-color:${c}55;`:""}" onclick="${setter}('${tab.v}');renderAll();">${esc(tab.l)}</button>`;
   }).join("");
 }
 function setSheetGroup(g){sheetGroup=g;sheetSubgroup="";}function setTodayGroup(g){todayGroup=g;todaySubgroup="";}function setDevGroup(g){devGroup=g;devSubgroup="";}
