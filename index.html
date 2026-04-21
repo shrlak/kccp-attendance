@@ -890,9 +890,10 @@ function formatDigitalTime(now){
 }
 async function doCheckinFinish(){
   const el=document.getElementById("checkin-content"),gl=document.getElementById("checkin-glow");
+  activeRestriction=null;
   try{
   const r=await api("POST","/api/checkin",{deviceId,lat:userLat,lng:userLng});
-  if(r.status==="time-restricted"){const type=r.message.includes("요일")?"wrong-day":"wrong-time";const fmtM=v=>{const hh=Math.floor(v/60),mn=v%60,h12=hh%12||12;return`${String(h12).padStart(2,"0")}:${String(mn).padStart(2,"0")} ${hh>=12?"PM":"AM"}`;};const title=type==="wrong-day"?t('wrong_day_title'):t('wrong_time_title');const sub=type==="wrong-day"?t('wrong_day_sub_fn')(checkinDays.map(d=>t('day_names')[d]+t('day_suffix')).join(", ")):t('wrong_time_sub_fn')(fmtM(checkinStartMin),fmtM(checkinEndMin));showRestriction(el,gl,"","#FBBF24",title,sub,type);return;}
+  if(r.status==="time-restricted"){const type=r.message.includes("요일")?"wrong-day":"wrong-time";const fmtM=v=>{const hh=Math.floor(v/60),mn=v%60,h12=hh%12||12;return`${String(h12).padStart(2,"0")}:${String(mn).padStart(2,"0")} ${hh>=12?"PM":"AM"}`;};const title=type==="wrong-day"?t('wrong_day_title'):t('wrong_time_title');const sub=type==="wrong-day"?t('wrong_day_sub_fn')(checkinDays.map(d=>t('day_names')[d]+t('day_suffix')).join(", ")):t('wrong_time_sub_fn')(fmtM(checkinStartMin),fmtM(checkinEndMin));activeRestriction={type};showRestriction(el,gl,"","#FBBF24",title,sub,type);return;}
   if(r.status==="location-restricted"){showRestriction(el,gl,"📍","#FB7185",t('not_near_church'),r.message,"location");return;}
   if(r.status==="location-required"){showRestriction(el,gl,"📍","#FB7185",t('loc_needed'),r.message,"location");return;}
   await load();
