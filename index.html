@@ -2027,6 +2027,56 @@ const STRINGS={
     // Misc
     total_days_label:"Total Days",
     card_att_unit:"",
+    // Admin access modal
+    admin_access_title:"Admin Access",admin_pw_ph:"Admin password",unlock_btn:"Unlock",
+    admin_no_admins_msg:"No admins yet. Enter master password.",
+    admin_not_authorized_msg:"Not authorized. Enter master password.",
+    wrong_pw:"Wrong password",admin_granted:"Admin access granted!",
+    // Edit member modal
+    edit_member_title:"Edit Member",name_label:"Name",group_label:"Group",
+    no_group_option:"None",dongsan_label:"Dongsan",no_dongsan_option:"None",
+    save_edit_btn:"Save",
+    // Sheet tab
+    sheet_tab_title:"Attendance Sheet",grid_btn:"Grid",log_btn:"Log",
+    excel_short_btn:"↓ Excel",
+    no_att_yet:"No attendance records yet.",
+    total_row_label:"TOTAL",
+    // Today
+    today_label_fn:d=>`Today — ${d}`,
+    // Members/Devices
+    members_count_fn:(m,v)=>v?`${m} members · ${v} visitors`:`${m} members`,
+    no_members_label:"No members.",
+    devices_count_fn:n=>`${n} devices`,
+    you_tag:"you",
+    // Device registration card
+    reg_device_title:"Register a Device",
+    reg_device_desc:"New users self-register on first check-in. Use this to manually register or rename.",
+    device_id_ph:"Device ID",paste_device_btn:"↑ paste this device's ID",
+    person_name_ph:"Person's name",no_group_reg:"No group",register_device_btn:"Register",
+    // Link device card
+    link_device_card_title:"🔗 Link Device to Existing Person",
+    link_device_card_desc:"Link a new device to an existing member.",
+    new_device_id_ph:"New Device ID",select_person_ph:"Select a person...",link_device_btn:"Link Device",
+    // Transfer modal
+    transfer_modal_title:"🔀 Transfer Member",transfer_group_label:"New Group",
+    transfer_group_ph:"Select group...",transfer_dongsan_label:"New Dongsan",transfer_submit_btn:"Confirm Transfer",
+    // History modal
+    history_modal_title:"📅 Attendance History",
+    // Admin mgmt
+    name_required:"Name is required",member_updated_fn:n=>`Updated: ${n}`,
+    fill_both_fields:"Fill both fields",
+    admin_removed_msg:"Admin removed",enter_password:"Enter password",
+    no_admins_msg:"No admins.",admins_count_fn:n=>`${n} admin(s)`,
+    super_admin_label:"super admin",leader_admin_label:"leader",admin_added:"Admin added!",
+    // Kiosk/admin nav
+    kiosk_mode_btn:"🖥️ Kiosk",back_checkin_btn:"← Check-in",
+    // Charts
+    no_chart_data:"No data to chart yet.",
+    chart_need_dates:"Need at least 2 dates to draw charts.",
+    chart_trend_title:"Weekly Attendance Trend",chart_group_title:"Group Comparison (Bar)",
+    chart_load_error:"Chart.js failed to load.",
+    // Tooltips
+    att_edit_tooltip:"Attendance Edit",notes_tooltip:"Notes",edit_member_tooltip:"Edit",
     // History modal
     no_history:"No attendance records found.",
     att_entry_none:"No records",remove_att_title:"Delete Record",att_removed:"Deleted",remove_att_desc:"Delete this attendance record.",
