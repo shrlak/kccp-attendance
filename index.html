@@ -2242,7 +2242,7 @@ function initPullToRefresh(){
 
 // ─── Hold-to-confirm ───
 let _confirmCb=null,_confirmIv=null;
-function confirmAction(title,onConfirm,{icon="⚠️",desc="",holdMs=1200,confirmText="길게 눌러서 확인"}={}){
+function confirmAction(title,onConfirm,{icon="⚠️",desc="",holdMs=1200,confirmText=null}={}){
   _confirmCb=onConfirm;
   document.getElementById("confirm-icon").textContent=icon;
   document.getElementById("confirm-title").textContent=title;
@@ -2251,6 +2251,7 @@ function confirmAction(title,onConfirm,{icon="⚠️",desc="",holdMs=1200,confir
   const fill=document.getElementById("confirm-hold-fill");
   const inner=document.getElementById("confirm-hold-inner");
   const spinner=document.getElementById("confirm-spinner");
+  confirmText=confirmText||t('hold_confirm_text');
   label.textContent=confirmText;
   fill.style.width="0%";fill.style.transition="none";
   // Style based on danger level
