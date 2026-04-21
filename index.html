@@ -1076,7 +1076,7 @@ function renderStats(){
   if(grp)filteredLog=filteredLog.filter(e=>(dGroup(e.deviceId)||e.group||"")===grp);
   if(sub)filteredLog=filteredLog.filter(e=>(dSubgroup(e.deviceId)||e.subgroup||"")===sub);
   const dates=[...new Set(filteredLog.map(e=>e.date))].length;
-  document.getElementById("stats-bar").innerHTML=[{l:"Today",v:todayPeople.size,c:"var(--acc)"},{l:"Members",v:mc,c:"var(--txt)"},{l:"Records",v:filteredLog.length,c:"var(--txt)"},{l:"Days",v:dates,c:"var(--txt)"}].map(s=>`<div style="flex:1;background:var(--card);border-radius:12px;padding:12px 10px;border:1px solid var(--bdr);text-align:center;min-width:70px;"><div class="mono" style="font-size:8px;color:var(--txt-d);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:3px;">${s.l}</div><div style="font-size:20px;font-weight:800;color:${s.c};">${s.v}</div></div>`).join("");
+  document.getElementById("stats-bar").innerHTML=[{l:t('stat_today'),v:todayPeople.size,c:"var(--acc)"},{l:t('stat_members'),v:mc,c:"var(--txt)"},{l:t('stat_records'),v:filteredLog.length,c:"var(--txt)"},{l:t('stat_days'),v:dates,c:"var(--txt)"}].map(s=>`<div style="flex:1;background:var(--card);border-radius:12px;padding:12px 10px;border:1px solid var(--bdr);text-align:center;min-width:70px;"><div class="mono" style="font-size:8px;color:var(--txt-d);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:3px;">${s.l}</div><div style="font-size:20px;font-weight:800;color:${s.c};">${s.v}</div></div>`).join("");
 }
 
 function setMode(m){viewMode=m;document.getElementById("btn-gridview").className="btn btn-sm "+(m==="grid"?"btn-primary":"btn-secondary");document.getElementById("btn-logview").className="btn btn-sm "+(m==="log"?"btn-primary":"btn-secondary");renderSheet();}
