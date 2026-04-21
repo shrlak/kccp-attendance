@@ -2156,7 +2156,9 @@ function _applyAdminI18n(){
 function toggleLang(){
   lang=lang==="ko"?"en":"ko";
   localStorage.setItem("kccp-lang",lang);
-  applyLang();
+  const adminVisible=document.getElementById("admin-view")?.style.display!=="none";
+  if(adminVisible||kioskActive){applyLang();}
+  else{location.reload();}
 }
 
 // ─── Swipe gestures ───
