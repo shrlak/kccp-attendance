@@ -1443,7 +1443,7 @@ function renderSummary(){
 async function addAdmin(){
   const pw=document.getElementById("acl-pw").value,did=document.getElementById("acl-device").value.trim();
   const roleEl=document.getElementById("acl-role");const role=roleEl?roleEl.value:"super";
-  if(!pw||!did){flash("Fill both fields","warn");return;}
+  if(!pw||!did){flash(t('fill_both_fields'),"warn");return;}
   const body={password:pw,targetDeviceId:did,role};
   if(role==="leader"){
     const g=document.getElementById("acl-leader-group");const sg=document.getElementById("acl-leader-subgroup");
@@ -1452,7 +1452,7 @@ async function addAdmin(){
   }
   const r=await api("POST","/api/admin/add",body);
   if(r.error){flash(r.error,"err");return;}
-  flash("Admin added!");listAdmins();
+  flash(t('admin_added'));listAdmins();
 }
 
 // ─── Announcement ───
