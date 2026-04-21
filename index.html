@@ -1144,7 +1144,7 @@ function renderDevices(){
   const visitorNames=names.filter(n=>isVisitorMember(n));
   document.getElementById("devices-count").textContent=t('members_count_fn')(regularNames.length,visitorNames.length);
 
-  if(!names.length){document.getElementById("devices-list").innerHTML=`<div style="text-align:center;padding:20px;color:var(--txt-d);font-size:13px;">No members.</div>`;return;}
+  if(!names.length){document.getElementById("devices-list").innerHTML=`<div style="text-align:center;padding:20px;color:var(--txt-d);font-size:13px;">${t('no_members_label')}</div>`;return;}
   names=sortNames(names);
   const allMemberNames=sortNames(Object.keys(getUniqueNames("","")));
   if(nameOrder.length===0||nameOrder.length!==allMemberNames.length){nameOrder=allMemberNames;}
@@ -1161,7 +1161,7 @@ function renderDevices(){
           ${dongsanRoleTag(getDongsanRole(name,m.group,m.subgroup))}
           ${grpTag(m.group,m.subgroup)}
           ${roleTag(role)}
-          ${isYou?'<span class="tag tag-green" style="font-size:9px;">you</span>':""}
+          ${isYou?`<span class="tag tag-green" style="font-size:9px;">${t('you_tag')}</span>`:""}
         </div>
         <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
           <button style="width:28px;height:28px;padding:0;background:none;border:1.5px solid var(--bdr);border-radius:8px;cursor:pointer;font-size:13px;color:var(--txt-m);display:flex;align-items:center;justify-content:center;" title="출석 편집" onclick="event.stopPropagation();openAttendanceEdit('${esc(name)}')">📋</button>
