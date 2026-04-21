@@ -244,19 +244,19 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
 
 <!-- Edit person modal -->
 <div id="edit-modal" class="overlay" style="display:none;"><div class="modal fi">
-  <div style="font-size:18px;font-weight:800;margin-bottom:14px;">Edit Member</div>
-  <div style="font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Name</div>
+  <div data-i18n="edit_member_title" style="font-size:18px;font-weight:800;margin-bottom:14px;">Edit Member</div>
+  <div data-i18n="name_label" style="font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Name</div>
   <input id="edit-name" class="inp" style="margin-bottom:12px;">
-  <div style="font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Group</div>
+  <div data-i18n="group_label" style="font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Group</div>
   <select id="edit-group" class="inp" style="margin-bottom:12px;" onchange="updateEditSubgroup()">
-    <option value="">None</option>
-    <option value="대학부">대학부</option>
-    <option value="청년부">청년부</option>
+    <option value="" data-i18n="no_group_option">None</option>
+    <option value="대학부" data-i18n="reg_group_univ">대학부</option>
+    <option value="청년부" data-i18n="reg_group_youth">청년부</option>
   </select>
   <div id="edit-subgroup-wrap" style="display:none;">
-    <div style="font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">동산</div>
+    <div data-i18n="dongsan_label" style="font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Dongsan</div>
     <select id="edit-subgroup" class="inp" style="margin-bottom:12px;">
-      <option value="">없음</option>
+      <option value="" data-i18n="no_dongsan_option">None</option>
     </select>
   </div>
   <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:10px 14px;background:var(--bg);border-radius:10px;border:1px solid var(--bdr);">
@@ -265,8 +265,8 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
   </div>
   <input type="hidden" id="edit-original-name">
   <div style="display:flex;gap:8px;">
-    <button class="btn btn-primary" style="flex:1;" onclick="saveEdit()">Save</button>
-    <button class="btn btn-secondary" style="flex:1;" onclick="document.getElementById('edit-modal').style.display='none'">Cancel</button>
+    <button class="btn btn-primary" data-i18n="save_edit_btn" style="flex:1;" onclick="saveEdit()">Save</button>
+    <button class="btn btn-secondary" data-i18n="cancel_btn" style="flex:1;" onclick="document.getElementById('edit-modal').style.display='none'">Cancel</button>
   </div>
 </div></div>
 
