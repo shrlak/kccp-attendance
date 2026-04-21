@@ -1102,7 +1102,7 @@ function renderSheet(){
       dates.forEach(d=>{const e=D.log.find(x=>dids.includes(x.deviceId)&&x.date===d);if(e){const cls="present"+(e.firstVisit?" first-visit":"");const indicator=e.firstVisit?"🌟 ":"";rows+=`<td class="${cls}">${indicator}${esc(e.time)}</td>`;}else{rows+=`<td class="absent">—</td>`;}});
       rows+=`</tr>`;
     });
-    rows+=`<tr class="total-row"><td style="background:#1a1528!important;"></td><td class="name-cell" style="background:#1a1528!important;">TOTAL</td><td style="background:#1a1528!important;"></td><td style="background:#1a1528!important;"></td>`;
+    rows+=`<tr class="total-row"><td style="background:#1a1528!important;"></td><td class="name-cell" style="background:#1a1528!important;">${t('total_row_label')}</td><td style="background:#1a1528!important;"></td><td style="background:#1a1528!important;"></td>`;
     dates.forEach(d=>{const p=new Set();D.log.filter(e=>e.date===d).forEach(e=>{const n=dName(e.deviceId)||e.name;const g=dGroup(e.deviceId)||"";const sg=dSubgroup(e.deviceId)||"";if((!sheetGroup||g===sheetGroup)&&(!sheetSubgroup||sg===sheetSubgroup))p.add(n);});rows+=`<td>${p.size}</td>`;});
     rows+=`</tr>`;
     c.innerHTML=`<div style="overflow-x:auto;"><table class="att-table"><thead>${h}</thead><tbody id="grid-tbody">${rows}</tbody></table></div>`;
