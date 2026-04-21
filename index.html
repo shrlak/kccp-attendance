@@ -1098,7 +1098,7 @@ function renderSheet(){
     let rows="";
     names.forEach(name=>{
       const dids=members[name].devices;const group=members[name].group;const total=totalForName(name);
-      rows+=`<tr class="grid-drag-row" data-name="${esc(name)}"><td style="cursor:grab;color:var(--txt-d);font-size:14px;text-align:center;user-select:none;touch-action:none;" class="grid-drag-handle">⠿</td><td class="name-cell">${esc(name)}${dids.length>1?`<div class="mono" style="font-size:8px;color:var(--txt-d);">${dids.length} devices</div>`:""}</td><td style="text-align:center;">${grpTag(group,members[name].subgroup)}</td><td class="total-cell">${total}</td>`;
+      rows+=`<tr class="grid-drag-row" data-name="${esc(name)}"><td style="cursor:grab;color:var(--txt-d);font-size:14px;text-align:center;user-select:none;touch-action:none;" class="grid-drag-handle">⠿</td><td class="name-cell">${esc(name)}${dids.length>1?`<div class="mono" style="font-size:8px;color:var(--txt-d);">${t('devices_count_fn')(dids.length)}</div>`:""}</td><td style="text-align:center;">${grpTag(group,members[name].subgroup)}</td><td class="total-cell">${total}</td>`;
       dates.forEach(d=>{const e=D.log.find(x=>dids.includes(x.deviceId)&&x.date===d);if(e){const cls="present"+(e.firstVisit?" first-visit":"");const indicator=e.firstVisit?"🌟 ":"";rows+=`<td class="${cls}">${indicator}${esc(e.time)}</td>`;}else{rows+=`<td class="absent">—</td>`;}});
       rows+=`</tr>`;
     });
