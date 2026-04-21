@@ -2936,7 +2936,7 @@ function renderCheckinWindowBadge(){
     el.innerHTML=`<span style="display:inline-flex;align-items:center;gap:5px;padding:5px 14px;border-radius:20px;background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.3);font-size:11px;font-weight:700;color:var(--acc);font-family:'IBM Plex Mono',monospace;letter-spacing:.3px;"><span style="width:6px;height:6px;border-radius:50%;background:var(--acc);display:inline-block;animation:pulse 2s ease-in-out infinite;"></span>${t('ci_open_fn')(fmtMin(checkinEndMin))}</span>`;
   }else{
     const dayNames=checkinDays.map(d=>DAY_NAMES[d]).join(", ");
-    const msg=!dayOk?`${dayNames}요일 ${fmtMin(checkinStartMin)}–${fmtMin(checkinEndMin)}`:`${fmtMin(checkinStartMin)} – ${fmtMin(checkinEndMin)}`;
+    const msg=!dayOk?`${dayNames}${t('day_suffix')} ${fmtMin(checkinStartMin)}–${fmtMin(checkinEndMin)}`:`${fmtMin(checkinStartMin)} – ${fmtMin(checkinEndMin)}`;
     el.innerHTML=`<span style="display:inline-flex;align-items:center;gap:5px;padding:5px 14px;border-radius:20px;background:rgba(128,128,128,.08);border:1px solid rgba(128,128,128,.15);font-size:11px;font-weight:600;color:var(--txt-d);font-family:'IBM Plex Mono',monospace;letter-spacing:.3px;"><span style="width:6px;height:6px;border-radius:50%;background:var(--txt-d);display:inline-block;"></span>${msg}</span>`;
   }
 }
