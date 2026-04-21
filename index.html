@@ -287,11 +287,11 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
     <!-- SHEETS with group tabs -->
     <div id="tab-sheet" class="view active fi">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
-        <div class="sl" style="margin-bottom:0;">Attendance Sheet</div>
+        <div data-i18n="sheet_tab_title" class="sl" style="margin-bottom:0;">Attendance Sheet</div>
         <div style="display:flex;gap:6px;">
-          <button class="btn btn-primary btn-sm" id="btn-gridview" onclick="setMode('grid')">Grid</button>
-          <button class="btn btn-secondary btn-sm" id="btn-logview" onclick="setMode('log')">Log</button>
-          <button class="btn btn-secondary btn-sm" onclick="exportExcel()" style="font-size:12px;">↓ Excel</button>
+          <button class="btn btn-primary btn-sm" data-i18n="grid_btn" id="btn-gridview" onclick="setMode('grid')">Grid</button>
+          <button class="btn btn-secondary btn-sm" data-i18n="log_btn" id="btn-logview" onclick="setMode('log')">Log</button>
+          <button class="btn btn-secondary btn-sm" data-i18n="excel_short_btn" onclick="exportExcel()" style="font-size:12px;">↓ Excel</button>
         </div>
       </div>
       <div class="grp-tabs" id="sheet-grp-tabs"></div>
