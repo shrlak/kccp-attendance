@@ -999,7 +999,7 @@ async function showAdmin(){
 }
 function showCheckin(){document.getElementById("admin-view").style.display="none";document.getElementById("checkin-view").style.display="flex";}
 function switchTab(t){activeTab=t;document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));document.getElementById("tab-"+t).classList.add("active");document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.tab===t));load().then(()=>renderAll());}
-function renderLinkDropdown(){const allNames=Object.keys(getUniqueNames("","")).sort();const sel=document.getElementById("link-name");if(!sel)return;const cv=sel.value;sel.innerHTML='<option value="">Select a person...</option>'+allNames.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");sel.value=cv;}
+function renderLinkDropdown(){const allNames=Object.keys(getUniqueNames("","")).sort();const sel=document.getElementById("link-name");if(!sel)return;const cv=sel.value;sel.innerHTML=`<option value="">${t('select_person_ph')}</option>`+allNames.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");sel.value=cv;}
 function renderDongsanEditor(){
   const el=document.getElementById("dongsan-editor");if(!el)return;
   const groups=["대학부","청년부"];
