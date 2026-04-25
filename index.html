@@ -651,7 +651,7 @@ function today(){return new Date().toLocaleDateString("en-CA",{timeZone:"America
 function fmtD(d){return new Date(d+"T12:00:00").toLocaleDateString("en-US",{timeZone:"America/New_York",weekday:"short",month:"short",day:"numeric"})}
 function fmtDL(d){return new Date(d+"T12:00:00").toLocaleDateString("en-US",{timeZone:"America/New_York",weekday:"long",month:"long",day:"numeric",year:"numeric"})}
 function esc(s){const d=document.createElement("div");d.textContent=s;return d.innerHTML;}
-const API_BASE=window.location.hostname.includes('github.io')?'https://kccp-attendance.vercel.app':'';
+const API_BASE=window.location.hostname.endsWith('.github.io')?'https://kccp-attendance.vercel.app':'';
 async function api(m,p,b,h={}){const o={method:m,headers:{"Content-Type":"application/json",...h}};if(b)o.body=JSON.stringify(b);const resp=await fetch(API_BASE+p,o);try{return await resp.json();}catch(e){return{error:`HTTP ${resp.status} — response was not JSON (server may be unreachable)`,_parseError:true};}}
 function setOffline(v){const b=document.getElementById("offline-banner");if(b)b.style.display=v?"block":"none";}
 async function load(){
