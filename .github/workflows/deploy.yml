@@ -1,0 +1,42 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy static files to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./
+          publish_branch: gh-pages
+          exclude_assets: |
+            .github
+            .git
+            .claude
+            .gitignore
+            .vercelignore
+            node_modules
+            server.js
+            package.json
+            package-lock.json
+            vercel.json
+            tools
+            logs
+            keys
+            data
+            docs
+            api
+            watch-deploy.log
+          force_orphan: true
