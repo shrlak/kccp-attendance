@@ -5,12 +5,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>KCCP 출석</title>
-<link rel="manifest" href="/manifest.json">
+<link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#34D399">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="KCCP 출석">
-<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -2604,7 +2604,7 @@ async function syncOfflineQueue(){
 }
 window.addEventListener("online",()=>{if(getQueue().length)syncOfflineQueue();});
 
-if("serviceWorker"in navigator){navigator.serviceWorker.register("/sw.js").catch(()=>{});}
+if("serviceWorker"in navigator){navigator.serviceWorker.register("sw.js").catch(()=>{});}
 
 // ─── Kiosk Mode ───
 let kioskActive=false,_kioskRefresh=null;
