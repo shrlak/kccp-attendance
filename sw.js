@@ -1,5 +1,12 @@
-const CACHE = "kccp-v4";
-const STATIC = ["/", "/index.html", "/manifest.json", "/icon-192.png", "/icon-512.png", "/logo.jpeg"];
+const CACHE = "kccp-v5";
+const BASE = self.location.pathname.replace(/\/sw\.js$/, '') || '';
+const STATIC = [
+  BASE + '/',
+  BASE + '/index.html',
+  BASE + '/manifest.json',
+  BASE + '/icon-192.png',
+  BASE + '/icon-512.png'
+];
 
 self.addEventListener("install", e => {
   e.waitUntil(
@@ -19,7 +26,7 @@ self.addEventListener("fetch", e => {
   const url = new URL(e.request.url);
 
   // API calls: network-first, return error JSON if offline
-  if (url.pathname.startsWith("/api/")) {
+  if (url.pathname.startsWith("/api/") || url.hostname !== self.location.hostname) {
     e.respondWith(
       fetch(e.request).catch(() =>
         new Response(JSON.stringify({ error: "offline", offline: true }), {
@@ -40,7 +47,7 @@ self.addEventListener("fetch", e => {
           caches.open(CACHE).then(c => c.put(e.request, clone));
         }
         return res;
-      }).catch(() => caches.match("/"));
+      }).catch(() => caches.match(BASE + '/'));
     })
   );
 });
