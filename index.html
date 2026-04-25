@@ -1095,7 +1095,7 @@ function renderSheet(){
     if(sheetGroup)names=names.filter(n=>members[n].group===sheetGroup);
     if(sheetSubgroup)names=names.filter(n=>(members[n].subgroup||"")===sheetSubgroup);
 
-    let h=`<tr><th style="width:30px;min-width:30px;background:#3d2570;padding:4px;"></th><th class="name-col">${t('excel_name')}</th><th style="min-width:60px;background:#3d2570;">${t('excel_group')}</th><th class="total-col">${t('excel_total')}</th>`;
+    let h=`<tr><th style="width:30px;min-width:30px;padding:4px;"></th><th class="name-col">${t('excel_name')}</th><th style="min-width:60px;">${t('excel_group')}</th><th class="total-col">${t('excel_total')}</th>`;
     dates.forEach(d=>{h+=`<th>${esc(fmtD(d))}<div style="font-size:8px;opacity:.7;margin-top:1px;">${esc(d)}</div></th>`;});
     h+=`</tr>`;
     let rows="";
@@ -1105,7 +1105,7 @@ function renderSheet(){
       dates.forEach(d=>{const e=D.log.find(x=>dids.includes(x.deviceId)&&x.date===d);if(e){const cls="present"+(e.firstVisit?" first-visit":"");const indicator=e.firstVisit?"🌟 ":"";rows+=`<td class="${cls}">${indicator}${esc(e.time)}</td>`;}else{rows+=`<td class="absent">—</td>`;}});
       rows+=`</tr>`;
     });
-    rows+=`<tr class="total-row"><td style="background:#1a1528!important;"></td><td class="name-cell" style="background:#1a1528!important;">${t('total_row_label')}</td><td style="background:#1a1528!important;"></td><td style="background:#1a1528!important;"></td>`;
+    rows+=`<tr class="total-row"><td></td><td class="name-cell">${t('total_row_label')}</td><td></td><td></td>`;
     dates.forEach(d=>{const p=new Set();D.log.filter(e=>e.date===d).forEach(e=>{const n=dName(e.deviceId)||e.name;const g=dGroup(e.deviceId)||"";const sg=dSubgroup(e.deviceId)||"";if((!sheetGroup||g===sheetGroup)&&(!sheetSubgroup||sg===sheetSubgroup))p.add(n);});rows+=`<td>${p.size}</td>`;});
     rows+=`</tr>`;
     c.innerHTML=`<div style="overflow-x:auto;"><table class="att-table"><thead>${h}</thead><tbody id="grid-tbody">${rows}</tbody></table></div>`;
