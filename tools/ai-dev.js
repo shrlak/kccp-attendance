@@ -21,7 +21,12 @@ const readline = require("readline");
 
 const MODEL_PRIMARY = "claude-sonnet-4-6";
 const MODEL_ADVISOR = "claude-opus-4-7";
-const PROJECT_FILES = ["server.js", "index.html", "config.json"];
+
+// Project root is one level up from this tools/ directory.
+const ROOT = path.join(__dirname, "..");
+
+// Paths are relative to ROOT.
+const PROJECT_FILES = ["server.js", "index.html", "data/config.json"];
 
 // Session token budget — hard limit before a confirmation gate fires.
 const SESSION_TOKEN_LIMIT = parseInt(process.env.MAX_TOKENS || "100000", 10);
@@ -51,8 +56,8 @@ function budgetBar() {
 
 function loadProjectContext() {
   return PROJECT_FILES
-    .filter((name) => fs.existsSync(path.join(__dirname, name)))
-    .map((name) => ({ name, content: fs.readFileSync(path.join(__dirname, name), "utf-8") }));
+    .filter((name) => fs.existsSync(path.join(ROOT, name)))
+    .map((name) => ({ name, content: fs.readFileSync(path.join(ROOT, name), "utf-8") }));
 }
 
 // Build system prompt blocks with a prompt-cache breakpoint on the last file.
@@ -93,12 +98,13 @@ function applyEdits(responseText) {
 
   while ((match = regex.exec(responseText)) !== null) {
     const [, name, content] = match;
-    if (name.includes("..") || name.includes("/")) {
+    // Allow only known safe relative paths (no ".." traversal, no absolute paths).
+    if (name.includes("..") || path.isAbsolute(name)) {
       console.log(`  ⚠  Skipped unsafe path: ${name}`);
       continue;
     }
     fs.writeFileSync(
-      path.join(__dirname, name),
+      path.join(ROOT, name),
       content.replace(/^\n/, "").replace(/\n$/, "\n"),
       "utf-8"
     );

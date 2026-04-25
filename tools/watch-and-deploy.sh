@@ -3,7 +3,7 @@
 # Watches for file changes and SCPs directly to Oracle Cloud server
 
 REPO="/Users/shrla/downloads/kccp-attendance"
-SSH_KEY="$REPO/ssh-key-2026-04-11.key"
+SSH_KEY="$REPO/keys/ssh-key-2026-04-11.key"
 SERVER="ubuntu@158.101.118.21"
 REMOTE_DIR="~/kccp-repo"
 INTERVAL=3

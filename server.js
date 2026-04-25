@@ -3,11 +3,11 @@ const fs = require("fs");
 const path = require("path");
 
 const PORT = 3000;
-const DATA_FILE = path.join(__dirname, "attendance-data.json");
-const CONFIG_FILE = path.join(__dirname, "config.json");
-const EVENTS_FILE = path.join(__dirname, "events-data.json");
-const AUDIT_FILE = path.join(__dirname, "audit-log.json");
-const PENDING_FILE = path.join(__dirname, "pending-registrations.json");
+const DATA_FILE = path.join(__dirname, "data", "attendance-data.json");
+const CONFIG_FILE = path.join(__dirname, "data", "config.json");
+const EVENTS_FILE = path.join(__dirname, "data", "events-data.json");
+const AUDIT_FILE = path.join(__dirname, "data", "audit-log.json");
+const PENDING_FILE = path.join(__dirname, "data", "pending-registrations.json");
 
 // ─── Change this before first run! ───
 const ADMIN_PASSWORD = "kccpwelcome";
