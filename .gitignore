@@ -1,15 +1,19 @@
 # SSH keys — never commit these
+keys/
 *.key
 *.pem
 *.key.pub
 
 # Live data files — stay on the server only
+data/
 attendance-data.json
 audit-log.json
 config.json
 events-data.json
 pending-registrations.json
 server.log
+watch-deploy.log
+logs/
 
 # Node
 node_modules/
