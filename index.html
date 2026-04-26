@@ -106,6 +106,7 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
   <!-- Check-in window status badge -->
   <div id="checkin-window-badge" style="position:absolute;top:14px;left:50%;transform:translateX(-50%);z-index:5;white-space:nowrap;"></div>
   <div id="checkin-glow" style="position:absolute;top:30%;left:50%;transform:translate(-50%,-50%);width:400px;height:400px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.02),transparent 70%);pointer-events:none;transition:all 1s;"></div>
+  <div id="checkin-today-strip" style="position:absolute;top:58px;left:50%;transform:translateX(-50%);display:none;gap:10px;z-index:5;white-space:nowrap;"></div>
   <div id="checkin-content" class="fi" style="position:relative;z-index:1;"></div>
   <div style="position:absolute;bottom:max(24px,env(safe-area-inset-bottom,24px));left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:8px;">
     <div style="display:flex;gap:10px;">
@@ -1065,6 +1066,18 @@ async function saveDongsanLeaders(group,subgroup){
 }
 function renderAll(){renderStats();renderGrpTabs("sheet-grp-tabs",sheetGroup,"setSheetGroup");renderSubgroupTabs("sheet-subgrp-tabs",sheetGroup,sheetSubgroup,"setSheetSubgroup");renderGrpTabs("today-grp-tabs",todayGroup,"setTodayGroup");renderSubgroupTabs("today-subgrp-tabs",todayGroup,todaySubgroup,"setTodaySubgroup");renderGrpTabs("dev-grp-tabs",devGroup,"setDevGroup");renderSubgroupTabs("dev-subgrp-tabs",devGroup,devSubgroup,"setDevSubgroup");renderSheet();renderToday();renderDevices();renderDongsanEditor();renderDongsanLeadersEditor();renderLinkDropdown();renderLeaderDashboard();if(chartsVisible)renderCharts();}
 
+function renderCheckinStrip(){
+  const el=document.getElementById("checkin-today-strip");
+  if(!el)return;
+  const td=today();
+  const todayNames=new Set();
+  D.log.filter(e=>e.date===td).forEach(e=>todayNames.add(dName(e.deviceId)||e.name));
+  const total=todayNames.size;
+  const mc=Object.keys(D.devices||{}).filter(id=>!isVisitorMember(dName(id))).length;
+  const pct=mc>0?Math.round(total/mc*100):0;
+  el.style.display=total>0?"flex":"none";
+  el.innerHTML=`<span class="tag tag-green" style="font-size:11px;padding:5px 12px;">${total} checked in</span><span class="tag" style="font-size:11px;padding:5px 12px;background:var(--card);border:1px solid var(--bdr);color:var(--txt-m);">${pct}%</span>`;
+}
 function renderStats(){
   const grp=activeTab==="today"?todayGroup:activeTab==="members"?devGroup:sheetGroup;
   const sub=activeTab==="today"?todaySubgroup:activeTab==="members"?devSubgroup:sheetSubgroup;
@@ -3004,6 +3017,7 @@ function renderCheckinWindowBadge(){
   setInterval(pingHealth,30000);
   // Start window badge (update every minute)
   try{await load();}catch(e){console.error("Load failed:",e);}
+  renderCheckinStrip();
   renderCheckinWindowBadge();
   setInterval(renderCheckinWindowBadge,60000);
   try{await doCheckin();}catch(e){
