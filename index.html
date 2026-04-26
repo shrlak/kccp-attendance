@@ -67,6 +67,7 @@ body.light-mode .card{box-shadow:0 1px 4px rgba(0,0,0,.07),0 4px 16px rgba(0,0,0
 .ptr-spinner{width:22px;height:22px;border:2.5px solid var(--acc);border-top-color:transparent;border-radius:50%;margin-right:8px;animation:none;}
 .ptr-spinner.spinning{animation:spin .7s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg)}}
+@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}.skeleton{background:linear-gradient(90deg,var(--card) 25%,var(--card-hi) 50%,var(--card) 75%);background-size:800px 100%;animation:shimmer 1.4s infinite;border-radius:8px;display:inline-block}
 /* ── Hold-to-confirm modal ── */
 .confirm-hold-track{position:relative;overflow:hidden;border-radius:12px;cursor:pointer;user-select:none;-webkit-user-select:none;touch-action:none;}
 .confirm-hold-fill{position:absolute;left:0;top:0;bottom:0;width:0%;pointer-events:none;transition:none;}
@@ -1066,6 +1067,7 @@ async function saveDongsanLeaders(group,subgroup){
 }
 function renderAll(){renderStats();renderGrpTabs("sheet-grp-tabs",sheetGroup,"setSheetGroup");renderSubgroupTabs("sheet-subgrp-tabs",sheetGroup,sheetSubgroup,"setSheetSubgroup");renderGrpTabs("today-grp-tabs",todayGroup,"setTodayGroup");renderSubgroupTabs("today-subgrp-tabs",todayGroup,todaySubgroup,"setTodaySubgroup");renderGrpTabs("dev-grp-tabs",devGroup,"setDevGroup");renderSubgroupTabs("dev-subgrp-tabs",devGroup,devSubgroup,"setDevSubgroup");renderSheet();renderToday();renderDevices();renderDongsanEditor();renderDongsanLeadersEditor();renderLinkDropdown();renderLeaderDashboard();if(chartsVisible)renderCharts();}
 
+function skeletonCards(n){return Array.from({length:n},()=>`<div class="card" style="margin-bottom:8px;opacity:.7;"><div class="skeleton" style="height:14px;width:60%;margin-bottom:8px;display:block;"></div><div class="skeleton" style="height:10px;width:40%;display:block;"></div></div>`).join("");}
 function renderCheckinStrip(){
   const el=document.getElementById("checkin-today-strip");
   if(!el)return;
@@ -3016,6 +3018,8 @@ function renderCheckinWindowBadge(){
   pingHealth();
   setInterval(pingHealth,30000);
   // Start window badge (update every minute)
+  const sc=document.getElementById("sheet-content");const tl=document.getElementById("today-list");const dl=document.getElementById("devices-list");
+  if(sc)sc.innerHTML=skeletonCards(5);if(tl)tl.innerHTML=skeletonCards(4);if(dl)dl.innerHTML=skeletonCards(4);
   try{await load();}catch(e){console.error("Load failed:",e);}
   renderCheckinStrip();
   renderCheckinWindowBadge();
