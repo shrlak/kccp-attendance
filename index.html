@@ -1067,6 +1067,7 @@ async function saveDongsanLeaders(group,subgroup){
 }
 function renderAll(){renderStats();renderGrpTabs("sheet-grp-tabs",sheetGroup,"setSheetGroup");renderSubgroupTabs("sheet-subgrp-tabs",sheetGroup,sheetSubgroup,"setSheetSubgroup");renderGrpTabs("today-grp-tabs",todayGroup,"setTodayGroup");renderSubgroupTabs("today-subgrp-tabs",todayGroup,todaySubgroup,"setTodaySubgroup");renderGrpTabs("dev-grp-tabs",devGroup,"setDevGroup");renderSubgroupTabs("dev-subgrp-tabs",devGroup,devSubgroup,"setDevSubgroup");renderSheet();renderToday();renderDevices();renderDongsanEditor();renderDongsanLeadersEditor();renderLinkDropdown();renderLeaderDashboard();if(chartsVisible)renderCharts();}
 
+function emptyState(icon,msg,ctaHtml){return `<div style="padding:40px 20px;text-align:center;"><div style="font-size:40px;margin-bottom:12px;">${icon}</div><div style="font-size:14px;font-weight:700;color:var(--txt-m);margin-bottom:${ctaHtml?'14px':'0'}">${msg}</div>${ctaHtml||''}</div>`;}
 function skeletonCards(n){return Array.from({length:n},()=>`<div class="card" style="margin-bottom:8px;opacity:.7;"><div class="skeleton" style="height:14px;width:60%;margin-bottom:8px;display:block;"></div><div class="skeleton" style="height:10px;width:40%;display:block;"></div></div>`).join("");}
 function renderCheckinStrip(){
   const el=document.getElementById("checkin-today-strip");
@@ -1140,14 +1141,13 @@ function renderToday(){
   let entries=D.log.filter(e=>e.date===td);
   if(todayGroup)entries=entries.filter(e=>dGroup(e.deviceId)===todayGroup||(e.group||"")===todayGroup);
   if(todaySubgroup)entries=entries.filter(e=>dSubgroup(e.deviceId)===todaySubgroup||(e.subgroup||"")===todaySubgroup);
-  if(!entries.length){document.getElementById("today-list").innerHTML=`<div class="card"><div style="text-align:center;padding:20px;color:var(--txt-d);font-size:13px;">${t('no_today_records')}</div></div>`;return;}
   const reg=entries.filter(e=>!getMemberRole(dName(e.deviceId)||e.name));
   const spec=entries.filter(e=>getMemberRole(dName(e.deviceId)||e.name));
   let html=reg.map(e=>{const name=dName(e.deviceId)||e.name;const group=dGroup(e.deviceId)||e.group||"";const subgroup=dSubgroup(e.deviceId)||e.subgroup||"";const gc=grpAccent(group);const badges=((e.firstVisit||e.manual&&totalForName(name)<=1)?`<span class="tag tag-purple" style="font-size:9px;">🌟${t('badge_first')}</span>`:"");const lrTag=dongsanRoleTag(getDongsanRole(name,group,subgroup));return`<div style="display:flex;align-items:center;justify-content:space-between;padding:11px 14px;margin-bottom:4px;border-radius:10px;background:${gc.bg};border:1px solid ${gc.bdr};"><div style="display:flex;align-items:center;gap:10px;"><div style="width:30px;height:30px;border-radius:50%;${grpDot(group)};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;">${esc((name||"?")[0])}</div><div><div style="font-size:14px;font-weight:600;">${esc(name)} ${badges}${lrTag}</div><div>${grpTag(group,subgroup)}</div></div></div><div style="display:flex;align-items:center;gap:10px;"><span style="font-size:16px;font-weight:800;color:var(--acc);">${totalForName(name)}</span><span class="mono" style="font-size:11px;color:var(--txt-m);">${esc(e.time)}</span></div></div>`;}).join("");
   if(spec.length){
     const specLabel=[...new Set(spec.map(e=>getMemberRole(dName(e.deviceId)||e.name)))].map(r=>roleLabel(r)).join(" · ");
     html+=`<div style="margin-top:12px;margin-bottom:4px;" class="sl">${specLabel} (${spec.length})</div>`+spec.map(e=>{const name=dName(e.deviceId)||e.name;const role=getMemberRole(name);const group=dGroup(e.deviceId)||e.group||"";const subgroup=dSubgroup(e.deviceId)||e.subgroup||"";const dotColor={"pastor":"#34D399","elder":"#60A5FA","deacon":"#60A5FA","mentor":"#A78BFA","visitor":"#FBBF24"}[role]||"#FBBF24";const lrTag=dongsanRoleTag(getDongsanRole(name,group,subgroup));return`<div style="display:flex;align-items:center;justify-content:space-between;padding:11px 14px;margin-bottom:4px;border-radius:10px;background:rgba(0,0,0,.15);border:1px solid var(--bdr);"><div style="display:flex;align-items:center;gap:10px;"><div style="width:30px;height:30px;border-radius:50%;background:${dotColor};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;">${esc((name||"?")[0])}</div><div><div style="font-size:14px;font-weight:600;">${esc(name)} ${roleTag(role)}${lrTag}</div><div>${grpTag(group,subgroup)}</div></div></div><span class="mono" style="font-size:11px;color:var(--txt-m);">${esc(e.time)}</span></div>`;}).join("");}
-  document.getElementById("today-list").innerHTML=html;
+  document.getElementById("today-list").innerHTML=html||emptyState("📡","아직 오늘 출석한 멤버가 없어요",`<button class="btn btn-primary btn-sm" onclick="switchTab('admins')">🙋 수동 출석 등록</button>`);
 }
 
 function flipCard(el){
@@ -1163,7 +1163,7 @@ function renderDevices(){
   const visitorNames=names.filter(n=>isVisitorMember(n));
   document.getElementById("devices-count").textContent=t('members_count_fn')(regularNames.length,visitorNames.length);
 
-  if(!names.length){document.getElementById("devices-list").innerHTML=`<div style="text-align:center;padding:20px;color:var(--txt-d);font-size:13px;">${t('no_members_label')}</div>`;return;}
+  if(!names.length){document.getElementById("devices-list").innerHTML=emptyState("👥","멤버가 없어요",`<button class="btn btn-primary btn-sm" onclick="switchTab('devices')">+ 디바이스 등록</button>`);return;}
   names=sortNames(names);
   const allMemberNames=sortNames(Object.keys(getUniqueNames("","")));
   if(nameOrder.length===0||nameOrder.length!==allMemberNames.length){nameOrder=allMemberNames;}
