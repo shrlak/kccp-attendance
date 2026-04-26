@@ -28,9 +28,10 @@ module.exports = async function handler(req, res) {
       method: req.method,
       headers: {
         "Content-Type": "application/json",
+        ...(req.headers["x-device-id"] ? { "X-Device-Id": req.headers["x-device-id"] } : {}),
         ...(body ? { "Content-Length": Buffer.byteLength(body) } : {})
       },
-      timeout: 10000
+      timeout: 25000
     };
 
     const proxyReq = http.request(options, (proxyRes) => {

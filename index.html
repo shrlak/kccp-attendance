@@ -661,7 +661,11 @@ async function api(m,p,b,h={}){const o={method:m,headers:{"Content-Type":"applic
 function setOffline(v){const b=document.getElementById("offline-banner");if(b)b.style.display=v?"block":"none";}
 async function load(){
   try{
-    const d=await api("GET","/api/data");
+    let d=await api("GET","/api/data");
+    if(d&&d.offline){
+      await new Promise(r=>setTimeout(r,2500));
+      d=await api("GET","/api/data");
+    }
     if(d&&d.offline){setOffline(true);}else{setOffline(false);D=d||D;}
   }catch(e){setOffline(true);}
   try{const o=await api("GET","/api/name-order");if(!o.offline)nameOrder=o.order||[];}catch(e){}
