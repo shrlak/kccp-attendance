@@ -444,7 +444,7 @@ module.exports = async function handler(req, res) {
 
     if(req.method==="POST"&&p==="/api/admin/add"){
       const{password,targetDeviceId,role,group,subgroup}=await readBody(req);
-      if(password!==ADMIN_PASSWORD)return json(403,{error:"Wrong password"});
+      if(password!==ADMIN_PASSWORD)return json(403,{error:"Wrong password",code:"WRONG_PASSWORD"});
       await update(FILES.config,cfg=>{
         if(!cfg.adminDevices)cfg.adminDevices=[];
         cfg.adminDevices=cfg.adminDevices.filter(d=>typeof d==="string"?d!==targetDeviceId.trim():d.deviceId!==targetDeviceId.trim());
