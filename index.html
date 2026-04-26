@@ -330,6 +330,7 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
       <div class="grp-tabs" id="today-grp-tabs"></div>
       <div class="grp-tabs" id="today-subgrp-tabs" style="display:none;padding-left:16px;border-left:2px solid var(--purple-dim);margin-left:4px;"></div>
       <div id="leader-dashboard" style="display:none;margin-top:4px;"></div>
+      <div id="weekly-comparison" style="margin-bottom:10px;"></div>
       <div id="today-list"></div>
       <div id="weekly-recap-section" style="display:none;margin-top:16px;"></div>
     </div>
@@ -1066,7 +1067,7 @@ async function saveDongsanLeaders(group,subgroup){
   flash(t('dongsan_leader_save_fn')(group,subgroup));
   renderAll();
 }
-function renderAll(){renderStats();renderGrpTabs("sheet-grp-tabs",sheetGroup,"setSheetGroup");renderSubgroupTabs("sheet-subgrp-tabs",sheetGroup,sheetSubgroup,"setSheetSubgroup");renderGrpTabs("today-grp-tabs",todayGroup,"setTodayGroup");renderSubgroupTabs("today-subgrp-tabs",todayGroup,todaySubgroup,"setTodaySubgroup");renderGrpTabs("dev-grp-tabs",devGroup,"setDevGroup");renderSubgroupTabs("dev-subgrp-tabs",devGroup,devSubgroup,"setDevSubgroup");renderSheet();renderToday();renderDevices();renderDongsanEditor();renderDongsanLeadersEditor();renderLinkDropdown();renderLeaderDashboard();if(chartsVisible)renderCharts();}
+function renderAll(){renderStats();renderGrpTabs("sheet-grp-tabs",sheetGroup,"setSheetGroup");renderSubgroupTabs("sheet-subgrp-tabs",sheetGroup,sheetSubgroup,"setSheetSubgroup");renderGrpTabs("today-grp-tabs",todayGroup,"setTodayGroup");renderSubgroupTabs("today-subgrp-tabs",todayGroup,todaySubgroup,"setTodaySubgroup");renderGrpTabs("dev-grp-tabs",devGroup,"setDevGroup");renderSubgroupTabs("dev-subgrp-tabs",devGroup,devSubgroup,"setDevSubgroup");renderSheet();renderToday();renderDevices();renderDongsanEditor();renderDongsanLeadersEditor();renderLinkDropdown();renderLeaderDashboard();renderWeeklyComparison();if(chartsVisible)renderCharts();}
 
 function emptyState(icon,msg,ctaHtml){return `<div style="padding:40px 20px;text-align:center;"><div style="font-size:40px;margin-bottom:12px;">${icon}</div><div style="font-size:14px;font-weight:700;color:var(--txt-m);margin-bottom:${ctaHtml?'14px':'0'}">${msg}</div>${ctaHtml||''}</div>`;}
 function skeletonCards(n){return Array.from({length:n},()=>`<div class="card" style="margin-bottom:8px;opacity:.7;"><div class="skeleton" style="height:14px;width:60%;margin-bottom:8px;display:block;"></div><div class="skeleton" style="height:10px;width:40%;display:block;"></div></div>`).join("");}
@@ -1081,6 +1082,39 @@ function renderCheckinStrip(){
   const pct=mc>0?Math.round(total/mc*100):0;
   el.style.display=total>0?"flex":"none";
   el.innerHTML=`<span class="tag tag-green" style="font-size:11px;padding:5px 12px;">${total} checked in</span><span class="tag" style="font-size:11px;padding:5px 12px;background:var(--card);border:1px solid var(--bdr);color:var(--txt-m);">${pct}%</span>`;
+}
+function computeWeeklyComparison(){
+  const td=today();
+  const tdDate=new Date(td+"T12:00:00");
+  const dayOfWeek=tdDate.getDay();
+  const thisSunday=new Date(tdDate);thisSunday.setDate(tdDate.getDate()-dayOfWeek);
+  const lastSunday=new Date(thisSunday);lastSunday.setDate(thisSunday.getDate()-7);
+  function fmtDate(d){return d.toLocaleDateString("en-CA",{timeZone:"America/New_York"});}
+  const thisSundayStr=fmtDate(thisSunday);
+  const lastSundayStr=fmtDate(lastSunday);
+  const thisCount=new Set(D.log.filter(e=>e.date===thisSundayStr).map(e=>dName(e.deviceId)||e.name)).size;
+  const lastCount=new Set(D.log.filter(e=>e.date===lastSundayStr).map(e=>dName(e.deviceId)||e.name)).size;
+  return{thisCount,lastCount,diff:thisCount-lastCount,thisSundayStr,lastSundayStr};
+}
+function renderWeeklyComparison(){
+  const el=document.getElementById("weekly-comparison");
+  if(!el)return;
+  const{thisCount,lastCount,diff}=computeWeeklyComparison();
+  if(thisCount===0&&lastCount===0){el.innerHTML="";return;}
+  const arrow=diff>0?`<span style="color:var(--acc);">↑ +${diff}</span>`:diff<0?`<span style="color:var(--red);">↓ ${diff}</span>`:`<span style="color:var(--txt-d);">→ 동일</span>`;
+  el.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <div style="flex:1;background:var(--card);border:1px solid var(--bdr);border-radius:12px;padding:12px 14px;min-width:110px;">
+      <div class="mono" style="font-size:8px;color:var(--txt-d);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:4px;">이번 주</div>
+      <div style="font-size:22px;font-weight:800;color:var(--acc);">${thisCount}</div>
+    </div>
+    <div style="flex:1;background:var(--card);border:1px solid var(--bdr);border-radius:12px;padding:12px 14px;min-width:110px;">
+      <div class="mono" style="font-size:8px;color:var(--txt-d);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:4px;">지난 주</div>
+      <div style="font-size:22px;font-weight:800;color:var(--txt-m);">${lastCount}</div>
+    </div>
+    <div style="flex:1;background:var(--card);border:1px solid var(--bdr);border-radius:12px;padding:12px 14px;min-width:110px;display:flex;align-items:center;justify-content:center;">
+      <div style="font-size:18px;font-weight:800;">${arrow}</div>
+    </div>
+  </div>`;
 }
 function renderStats(){
   const grp=activeTab==="today"?todayGroup:activeTab==="members"?devGroup:sheetGroup;
