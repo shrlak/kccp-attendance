@@ -44,6 +44,7 @@ select.inp option{background:var(--card);color:var(--txt)}
 .toast{position:fixed;bottom:68px;left:50%;transform:translateX(-50%);padding:10px 22px;border-radius:14px;z-index:1100;font-weight:700;font-size:13px;box-shadow:0 8px 32px rgba(0,0,0,.5);animation:fadein .25s ease-out;white-space:nowrap}.toast-ok{background:var(--acc);color:var(--bg)}.toast-warn{background:var(--amber);color:var(--bg)}.toast-err{background:var(--red);color:var(--white)}
 .view{display:none}.view.active{display:block}
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:50;display:flex;align-items:center;justify-content:center;padding:24px}.modal{background:var(--card);border:1px solid var(--bdr);border-radius:20px;padding:28px;max-width:420px;width:100%}
+.dropdown{position:relative;display:inline-block}.dropdown-menu{display:none;position:absolute;right:0;top:calc(100% + 4px);background:var(--card);border:1px solid var(--bdr);border-radius:12px;min-width:180px;z-index:30;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.3)}.dropdown-menu.open{display:block}.dropdown-item{display:block;width:100%;text-align:left;padding:10px 14px;font-size:13px;font-weight:600;font-family:'Sora',sans-serif;cursor:pointer;background:none;border:none;color:var(--txt);white-space:nowrap}.dropdown-item:hover{background:var(--card-hi)}
 .grp-tabs{display:flex;gap:4px;margin-bottom:14px;flex-wrap:wrap}.grp-tab{padding:6px 14px;border-radius:10px;border:1px solid var(--bdr);background:var(--card);color:var(--txt-m);font-size:12px;font-weight:600;cursor:pointer;font-family:'Sora',sans-serif}.grp-tab.active{background:var(--acc-dim);color:var(--acc);border-color:rgba(52,211,153,.3)}
 .tag-red{color:var(--red);background:var(--red-dim)}
 .att-table td.present.first-visit{color:#A78BFA}
@@ -294,7 +295,7 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
         <div style="display:flex;gap:6px;">
           <button class="btn btn-primary btn-sm" data-i18n="grid_btn" id="btn-gridview" onclick="setMode('grid')">Grid</button>
           <button class="btn btn-secondary btn-sm" data-i18n="log_btn" id="btn-logview" onclick="setMode('log')">Log</button>
-          <button class="btn btn-secondary btn-sm" data-i18n="excel_short_btn" onclick="exportExcel()" style="font-size:12px;">↓ Excel</button>
+          <div class="dropdown"><button class="btn btn-secondary btn-sm" onclick="this.nextElementSibling.classList.toggle('open')" style="font-size:12px;">↓ Export ▾</button><div class="dropdown-menu"><button class="dropdown-item" onclick="exportExcel();document.querySelectorAll('.dropdown-menu').forEach(m=>m.classList.remove('open'))">📊 Excel (.xlsx)</button><button class="dropdown-item" onclick="openPrintReport();document.querySelectorAll('.dropdown-menu').forEach(m=>m.classList.remove('open'))">🖨️ HTML Report</button></div></div>
         </div>
       </div>
       <div class="grp-tabs" id="sheet-grp-tabs"></div>
@@ -2658,6 +2659,7 @@ async function syncOfflineQueue(){
   else if(remaining.length){flash(t('still_offline'),"warn");}
 }
 window.addEventListener("online",()=>{if(getQueue().length)syncOfflineQueue();});
+document.addEventListener("click",e=>{if(!e.target.closest(".dropdown"))document.querySelectorAll(".dropdown-menu.open").forEach(m=>m.classList.remove("open"));});
 
 if("serviceWorker"in navigator){navigator.serviceWorker.register("sw.js").catch(()=>{});}
 
