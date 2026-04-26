@@ -658,7 +658,7 @@ function fmtDL(d){return new Date(d+"T12:00:00").toLocaleDateString("en-US",{tim
 function esc(s){const d=document.createElement("div");d.textContent=s;return d.innerHTML;}
 const API_BASE=window.location.hostname.endsWith('.github.io')?'https://kccp-attendance.vercel.app':'';
 async function api(m,p,b,h={}){const o={method:m,headers:{"Content-Type":"application/json",...h}};if(b)o.body=JSON.stringify(b);const resp=await fetch(API_BASE+p,o);try{return await resp.json();}catch(e){return{error:`HTTP ${resp.status} — response was not JSON (server may be unreachable)`,_parseError:true};}}
-function setOffline(v){const b=document.getElementById("offline-banner");if(b)b.style.display=(v&&!navigator.onLine)?"block":"none";}
+function setOffline(v){const b=document.getElementById("offline-banner");if(b)b.style.display=v?"block":"none";}
 async function load(){
   try{
     let d=await api("GET","/api/data");
@@ -666,8 +666,8 @@ async function load(){
       await new Promise(r=>setTimeout(r,2500));
       d=await api("GET","/api/data");
     }
-    if(d&&d.offline){if(!navigator.onLine)setOffline(true);}else{setOffline(false);D=d||D;}
-  }catch(e){if(!navigator.onLine)setOffline(true);}
+    if(d&&d.offline){setOffline(true);}else{setOffline(false);D=d||D;}
+  }catch(e){setOffline(true);}
   try{const o=await api("GET","/api/name-order");if(!o.offline)nameOrder=o.order||[];}catch(e){}
   try{const o=await api("GET","/api/dongsan-names");if(o.names)dongsanNames=o.names;}catch(e){}
   try{const o=await api("GET","/api/config");if(!o.offline){if(o.announcement!==undefined){announcement=o.announcement;const el=document.getElementById("announcement-text");if(el)el.value=announcement;}if(o.checkinDays!==undefined)checkinDays=o.checkinDays;if(o.checkinStartMin!==undefined)checkinStartMin=o.checkinStartMin;if(o.checkinEndMin!==undefined)checkinEndMin=o.checkinEndMin;if(o.requireApproval!==undefined){requireApproval=o.requireApproval;const at=document.getElementById("approval-toggle");if(at)at.checked=requireApproval;}renderCheckinWindow();}}catch(e){}
@@ -991,7 +991,7 @@ async function submitSelfRegister(){
 
 // ─── ADMIN ───
 async function tryAdmin(){const r=await api("POST","/api/check-admin",{deviceId});if(r.noAdminsYet){document.getElementById("admin-access-msg").textContent=t('admin_no_admins_msg');document.getElementById("password-modal").style.display="flex";document.getElementById("admin-pw").focus();return;}if(r.isAdmin){showAdmin();return;}document.getElementById("admin-access-msg").textContent=t('admin_not_authorized_msg');document.getElementById("password-modal").style.display="flex";document.getElementById("admin-pw").focus();}
-async function submitAdminPassword(){const pw=document.getElementById("admin-pw").value;const r=await api("POST","/api/admin/add",{password:pw,targetDeviceId:deviceId});if(r.error){flash(t('wrong_pw'),"err");return;}document.getElementById("password-modal").style.display="none";document.getElementById("admin-pw").value="";flash(t('admin_granted'));showAdmin();}
+async function submitAdminPassword(){const pw=document.getElementById("admin-pw").value;const r=await api("POST","/api/admin/add",{password:pw,targetDeviceId:deviceId});if(r.error){flash(r.code==="WRONG_PASSWORD"?t('wrong_pw'):"Server error — check GITHUB_DATA_TOKEN in Vercel","err");return;}document.getElementById("password-modal").style.display="none";document.getElementById("admin-pw").value="";flash(t('admin_granted'));showAdmin();}
 async function showAdmin(){
   document.getElementById("checkin-view").style.display="none";
   document.getElementById("admin-view").style.display="block";
@@ -2655,7 +2655,7 @@ async function syncOfflineQueue(){
   const q=getQueue();if(!q.length)return;
   let synced=0;const remaining=[];
   for(const item of q){
-    try{const r=await fetch("/api/checkin",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({deviceId:item.deviceId,lat:item.lat,lng:item.lng})});const d=await r.json();if(d.offline){remaining.push(item);}else{synced++;}}
+    try{const r=await fetch(API_BASE+"/api/checkin",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({deviceId:item.deviceId,lat:item.lat,lng:item.lng})});const d=await r.json();if(d.offline){remaining.push(item);}else{synced++;}}
     catch(e){remaining.push(item);}
   }
   saveQueue(remaining);updateQueueBadge();
@@ -2986,13 +2986,11 @@ async function pingHealth(){
   try{
     const ctrl=new AbortController();
     const tid=setTimeout(()=>ctrl.abort(),5000);
-    const r=await fetch("/api/health",{signal:ctrl.signal});
+    const r=await fetch(API_BASE+"/api/health",{signal:ctrl.signal});
     clearTimeout(tid);
     updateHealthDot(r.ok);
-    if(!r.ok&&!navigator.onLine)setOffline(true);
   }catch(e){
     updateHealthDot(false);
-    if(!navigator.onLine)setOffline(true);
   }
 }
 
