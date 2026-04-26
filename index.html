@@ -309,8 +309,8 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
         <div id="summary-section" style="display:none;margin-top:12px;"></div>
       </div>
       <div style="margin-top:10px;">
-        <button class="btn btn-secondary btn-sm" onclick="toggleCharts()" id="charts-toggle-btn" style="width:100%;text-align:left;padding:10px 14px;border-radius:12px;">📊 Attendance Charts 보기</button>
-        <div id="charts-content" style="display:none;margin-top:12px;"></div>
+        <div id="charts-content" style="margin-top:4px;"></div>
+        <button class="btn btn-ghost btn-sm" onclick="toggleCharts()" id="charts-toggle-btn" style="font-size:11px;color:var(--txt-d);margin-top:4px;">📊 차트 숨기기</button>
       </div>
       <div id="clear-area" style="margin-top:12px;text-align:center;display:none;"><button class="btn btn-danger btn-sm" data-i18n="clear_log_title" onclick="clearLog()" style="margin-right:8px;">Clear All Records</button><button class="btn btn-danger btn-sm" data-i18n="clear_devices_title" onclick="clearDevices()">Clear All Devices</button><button class="btn btn-danger btn-sm" data-i18n="clear_all_title" onclick="clearEverything()" style="margin-left:8px;">Clear Everything</button></div>
     </div>
@@ -648,7 +648,7 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
 </div>
 
 <script>
-let deviceId=null,D={devices:{},log:[]},viewMode="grid",sheetGroup="",sheetSubgroup="",todayGroup="",todaySubgroup="",devGroup="",devSubgroup="",nameOrder=[],dongsanNames={"대학부":["동산1","동산2","동산3","동산4"],"청년부":["동산1","동산2","동산3","동산4"]},activeTab="sheet",myAdminRole=null,announcement="",lightMode=false,myLeaderGroup="",myLeaderSubgroup="",checkinDays=[0],checkinStartMin=780,checkinEndMin=900,memberSearch="",dongsanLeaders={},requireApproval=false,pendingCount=0,chartsVisible=false,_trendChart=null,_groupChart=null;
+let deviceId=null,D={devices:{},log:[]},viewMode="grid",sheetGroup="",sheetSubgroup="",todayGroup="",todaySubgroup="",devGroup="",devSubgroup="",nameOrder=[],dongsanNames={"대학부":["동산1","동산2","동산3","동산4"],"청년부":["동산1","동산2","동산3","동산4"]},activeTab="sheet",myAdminRole=null,announcement="",lightMode=false,myLeaderGroup="",myLeaderSubgroup="",checkinDays=[0],checkinStartMin=780,checkinEndMin=900,memberSearch="",dongsanLeaders={},requireApproval=false,pendingCount=0,chartsVisible=true,_trendChart=null,_groupChart=null;
 function fp(){const n=navigator,s=screen;const r=[n.userAgent,n.language,n.hardwareConcurrency,n.maxTouchPoints,s.width,s.height,s.colorDepth,Intl.DateTimeFormat().resolvedOptions().timeZone,n.platform,n.deviceMemory||"x"].join("|");let h1=5381,h2=0;for(let i=0;i<r.length;i++){h1=((h1<<5)+h1+r.charCodeAt(i))&0xFFFFFFFF;h2=r.charCodeAt(i)+((h2<<6)+(h2<<16)-h2)&0xFFFFFFFF;}return`DEV-${(h1>>>0).toString(16).padStart(8,"0")}-${(h2>>>0).toString(16).padStart(8,"0")}`.toUpperCase();}
 function today(){return new Date().toLocaleDateString("en-CA",{timeZone:"America/New_York"})}
 function fmtD(d){return new Date(d+"T12:00:00").toLocaleDateString("en-US",{timeZone:"America/New_York",weekday:"short",month:"short",day:"numeric"})}
@@ -2155,7 +2155,7 @@ function applyLang(){
     const sumBtn=document.getElementById("summary-toggle-btn");
     if(sumBtn)sumBtn.textContent=summaryVisible?t('summary_close'):t('summary_open');
     const chartBtn=document.getElementById("charts-toggle-btn");
-    if(chartBtn)chartBtn.textContent=chartsVisible?t('charts_close'):t('charts_open');
+    if(chartBtn)chartBtn.textContent=chartsVisible?`📊 ${t('charts_close')||'차트 숨기기'}`:`📊 ${t('charts_open')||'Attendance Charts 보기'}`;
     const ptrTxt=document.querySelector(".ptr-text");
     if(ptrTxt)ptrTxt.textContent=t('ptr_pull');
     // Update static admin HTML elements
@@ -2837,7 +2837,7 @@ function toggleCharts(){
   const el=document.getElementById("charts-content");
   const btn=document.getElementById("charts-toggle-btn");
   if(el)el.style.display=chartsVisible?"block":"none";
-  if(btn)btn.textContent=chartsVisible?t('charts_close'):t('charts_open');
+  if(btn)btn.textContent=chartsVisible?`📊 ${t('charts_close')||'차트 숨기기'}`:`📊 ${t('charts_open')||'Attendance Charts 보기'}`;
   if(chartsVisible)renderCharts();
 }
 function renderCharts(){
