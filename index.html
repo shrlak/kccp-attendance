@@ -991,7 +991,7 @@ async function submitSelfRegister(){
 
 // ─── ADMIN ───
 async function tryAdmin(){const r=await api("POST","/api/check-admin",{deviceId});if(r.noAdminsYet){document.getElementById("admin-access-msg").textContent=t('admin_no_admins_msg');document.getElementById("password-modal").style.display="flex";document.getElementById("admin-pw").focus();return;}if(r.isAdmin){showAdmin();return;}document.getElementById("admin-access-msg").textContent=t('admin_not_authorized_msg');document.getElementById("password-modal").style.display="flex";document.getElementById("admin-pw").focus();}
-async function submitAdminPassword(){const pw=document.getElementById("admin-pw").value;const r=await api("POST","/api/admin/add",{password:pw,targetDeviceId:deviceId});if(r.error){flash(r.code==="WRONG_PASSWORD"?t('wrong_pw'):"Server error — check Supabase Edge Function logs","err");return;}document.getElementById("password-modal").style.display="none";document.getElementById("admin-pw").value="";flash(t('admin_granted'));showAdmin();}
+async function submitAdminPassword(){const pw=document.getElementById("admin-pw").value;const r=await api("POST","/api/admin/add",{password:pw,targetDeviceId:deviceId});if(r.error){flash(r.error==="Wrong password"?t('wrong_pw'):t('connection_error'),"err");return;}document.getElementById("password-modal").style.display="none";document.getElementById("admin-pw").value="";flash(t('admin_granted'));showAdmin();}
 async function showAdmin(){
   document.getElementById("checkin-view").style.display="none";
   document.getElementById("admin-view").style.display="block";
