@@ -658,7 +658,7 @@ function fmtDL(d){return new Date(d+"T12:00:00").toLocaleDateString("en-US",{tim
 function esc(s){const d=document.createElement("div");d.textContent=s;return d.innerHTML;}
 const API_BASE=window.location.hostname==='localhost'||window.location.hostname==='127.0.0.1'?'':'https://loovulhchmmwagtvjnhc.supabase.co/functions/v1/attendance-api';
 async function api(m,p,b,h={}){const o={method:m,headers:{"Content-Type":"application/json",...h}};if(b)o.body=JSON.stringify(b);const resp=await fetch(API_BASE+p,o);try{return await resp.json();}catch(e){return{error:`HTTP ${resp.status} — response was not JSON (server may be unreachable)`,_parseError:true};}}
-function setOffline(v){const b=document.getElementById("offline-banner");if(b)b.style.display=(v&&!navigator.onLine)?"block":"none";}
+function setOffline(v){const b=document.getElementById("offline-banner");if(b)b.style.display=v?"block":"none";}
 async function load(){
   try{
     let d=await api("GET","/api/data");
@@ -666,8 +666,8 @@ async function load(){
       await new Promise(r=>setTimeout(r,2500));
       d=await api("GET","/api/data");
     }
-    if(d&&d.offline){setOffline(true);}else{setOffline(false);if(d&&!d.error)D=d;}
-  }catch(e){setOffline(!navigator.onLine);}
+    if(d&&!d.offline&&!d.error){setOffline(false);D=d;}
+  }catch(e){}
   try{const o=await api("GET","/api/name-order");if(!o.offline)nameOrder=o.order||[];}catch(e){}
   try{const o=await api("GET","/api/dongsan-names");if(o.names)dongsanNames=o.names;}catch(e){}
   try{const o=await api("GET","/api/config");if(!o.offline){if(o.announcement!==undefined){announcement=o.announcement;const el=document.getElementById("announcement-text");if(el)el.value=announcement;}if(o.checkinDays!==undefined)checkinDays=o.checkinDays;if(o.checkinStartMin!==undefined)checkinStartMin=o.checkinStartMin;if(o.checkinEndMin!==undefined)checkinEndMin=o.checkinEndMin;if(o.requireApproval!==undefined){requireApproval=o.requireApproval;const at=document.getElementById("approval-toggle");if(at)at.checked=requireApproval;}renderCheckinWindow();}}catch(e){}
@@ -2664,6 +2664,7 @@ async function syncOfflineQueue(){
 }
 window.addEventListener("online",()=>{setOffline(false);if(getQueue().length)syncOfflineQueue();});
 window.addEventListener("offline",()=>setOffline(true));
+setOffline(!navigator.onLine);
 document.addEventListener("click",e=>{if(!e.target.closest(".dropdown"))document.querySelectorAll(".dropdown-menu.open").forEach(m=>m.classList.remove("open"));});
 
 if("serviceWorker"in navigator){navigator.serviceWorker.register("sw.js").catch(()=>{});}
