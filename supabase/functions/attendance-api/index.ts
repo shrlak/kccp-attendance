@@ -59,7 +59,8 @@ async function buildCsvLog(sb: SB, gf: string, sf: string) {
   for(const e of allLogs){const nm=dm[e.device_id]?.name||e.name||"";if(!nt[nm])nt[nm]=new Set();nt[nm].add(e.date);}
   const h=["Name","Group","Subgroup","Day","Date","Time","Total"];
   const r=(logs||[]).map((e:any)=>{ const dv=dm[e.device_id]; const nm=dv?.name||e.name||""; const day=new Date(e.date+"T12:00:00").toLocaleDateString("en-US",{timeZone:"America/New_York",weekday:"long"}); return [nm,dv?.group_name||e.group_name||"",dv?.subgroup||e.subgroup||"",day,e.date,e.time_str||"",nt[nm]?.size||0]; });
-  return [h,...r].map((row:any[])=>row.map((c:any)=>'"'+String(c).replace(/"/g,'""')+'"').join(",")).join("\n");
+  const q='"',qq='""';
+  return [h,...r].map((row:any[])=>row.map((c:any)=>q+String(c).replace(/"/g,qq)+q).join(",")).join("\n");
 }
 async function buildCsvGrid(sb: SB, gf: string, sf: string) {
   let dq: any=sb.from("devices").select("*"); if(gf) dq=dq.eq("group_name",gf); if(sf) dq=dq.eq("subgroup",sf);
@@ -72,7 +73,8 @@ async function buildCsvGrid(sb: SB, gf: string, sf: string) {
   const dates=[...new Set((logs||[]).map((e:any)=>e.date as string))].sort();
   const h=["Name","Group","Subgroup","Total",...dates.map(fmtDateWithDay)];
   const r=names.map((name:string)=>{ const dids=members[name].devices; const total=dates.filter((d:string)=>(logs||[]).find((e:any)=>dids.includes(e.device_id)&&e.date===d)).length; return [name,members[name].group,members[name].subgroup,total,...dates.map((d:string)=>{const e=(logs||[]).find((x:any)=>dids.includes(x.device_id)&&x.date===d);return e?e.time_str:"";})]; });
-  return [h,...r].map((row:any[])=>row.map((c:any)=>'"'+String(c).replace(/"/g,'""')+'"').join(",")).join("\n");
+  const q='"',qq='""';
+  return [h,...r].map((row:any[])=>row.map((c:any)=>q+String(c).replace(/"/g,qq)+q).join(",")).join("\n");
 }
 
 function buildReportHtml(names: string[], dates: string[], members: Record<string,any>, logs: any[], periodLabel: string, gf: string, sf: string): string {
