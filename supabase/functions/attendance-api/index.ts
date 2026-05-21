@@ -6,8 +6,6 @@ const CORS = {
   "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type,X-Device-Id,Authorization,apikey",
 };
-const FN_PREFIX = "/functions/v1/attendance-api";
-
 function localDate() { return new Date().toLocaleDateString("en-CA",{timeZone:"America/New_York"}); }
 function localTime() { return new Date().toLocaleTimeString("en-US",{timeZone:"America/New_York",hour:"2-digit",minute:"2-digit",second:"2-digit"}); }
 function fmtDateWithDay(d: string) { return new Date(d+"T12:00:00").toLocaleDateString("en-US",{timeZone:"America/New_York",weekday:"short",month:"short",day:"numeric",year:"numeric"}); }
@@ -105,7 +103,7 @@ Deno.serve(async (req: Request) => {
   if(req.method==="OPTIONS") return new Response(null,{status:204,headers:CORS});
   const sb=createClient(Deno.env.get("SUPABASE_URL")!,Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const url=new URL(req.url);
-  const raw=url.pathname; const p=raw.startsWith(FN_PREFIX)?raw.slice(FN_PREFIX.length)||"/":raw.startsWith("/api")?raw:"/"+raw.replace(/^\/+/,"");
+  const raw=url.pathname; const apiIdx=raw.indexOf("/api"); const p=apiIdx>=0?raw.slice(apiIdx):"/";
   const xDev=req.headers.get("x-device-id")||req.headers.get("X-Device-Id")||"";
   const ok=(obj:any)=>new Response(JSON.stringify(obj),{headers:{...CORS,"Content-Type":"application/json"}});
   const fail=(code:number,msg:string)=>new Response(JSON.stringify({error:msg}),{status:code,headers:{...CORS,"Content-Type":"application/json"}});
