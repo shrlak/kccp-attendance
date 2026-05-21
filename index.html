@@ -285,6 +285,7 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
       <button class="btn btn-sm" data-i18n="back_checkin_btn" style="background:var(--acc-dim);border:1px solid rgba(52,211,153,.2);color:var(--acc);font-weight:600;" onclick="showCheckin()">← Check-in</button>
     </div>
   </div>
+  <div id="summer-mode-banner" style="display:none;position:relative;z-index:1;margin:0 22px 4px;padding:8px 14px;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.35);border-radius:10px;font-size:12px;font-weight:700;color:#FBBF24;letter-spacing:.3px;">☀️ 여름 모드 활성화 — 대학부 · 청년부 합동</div>
   <div id="stats-bar" style="position:relative;z-index:1;display:flex;gap:8px;padding:14px 22px 16px;overflow-x:auto;"></div>
   <div style="position:relative;z-index:1;padding:0 22px 20px;">
 
@@ -420,6 +421,18 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
 
     <!-- SETTINGS -->
     <div id="tab-settings" class="view fi">
+      <div class="card" style="margin-bottom:16px;">
+        <div style="font-size:16px;font-weight:800;margin-bottom:4px;">☀️ 여름 모드</div>
+        <div style="font-size:12px;color:var(--txt-m);margin-bottom:14px;line-height:1.6;">활성화하면 대학부와 청년부가 하나의 그룹으로 합쳐지며, 동산이 부서로 구분되지 않고 함께 표시됩니다.</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+          <span style="font-size:13px;font-weight:600;">여름 모드 활성화</span>
+          <label style="position:relative;display:inline-block;width:44px;height:24px;flex-shrink:0;cursor:pointer;">
+            <input type="checkbox" id="summer-mode-toggle" style="opacity:0;position:absolute;width:0;height:0;" onchange="saveSummerMode(this.checked)">
+            <span class="summer-toggle-track" style="position:absolute;cursor:pointer;inset:0;background:var(--bdr);border-radius:24px;transition:.2s;"></span>
+          </label>
+        </div>
+        <style>.summer-toggle-track::after{content:"";position:absolute;left:3px;top:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.2s;}#summer-mode-toggle:checked+.summer-toggle-track{background:var(--acc);}#summer-mode-toggle:checked+.summer-toggle-track::after{transform:translateX(20px);}</style>
+      </div>
       <div class="card" style="margin-bottom:16px;">
         <div data-i18n="ci_window_title" style="font-size:16px;font-weight:800;margin-bottom:4px;">⏰ 출석 가능 시간 설정</div>
         <div data-i18n="ci_window_desc" style="font-size:12px;color:var(--txt-m);margin-bottom:14px;line-height:1.6;">출석 체크가 가능한 요일과 시간을 설정합니다.</div>
@@ -650,7 +663,7 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
 </div>
 
 <script>
-let deviceId=null,D={devices:{},log:[]},viewMode="grid",sheetGroup="",sheetSubgroup="",todayGroup="",todaySubgroup="",devGroup="",devSubgroup="",nameOrder=[],dongsanNames={"대학부":["동산1","동산2","동산3","동산4"],"청년부":["동산1","동산2","동산3","동산4"]},activeTab="sheet",myAdminRole=null,announcement="",lightMode=false,myLeaderGroup="",myLeaderSubgroup="",checkinDays=[0],checkinStartMin=780,checkinEndMin=900,memberSearch="",dongsanLeaders={},requireApproval=false,pendingCount=0,chartsVisible=true,_trendChart=null,_groupChart=null;
+let deviceId=null,D={devices:{},log:[]},viewMode="grid",sheetGroup="",sheetSubgroup="",todayGroup="",todaySubgroup="",devGroup="",devSubgroup="",nameOrder=[],dongsanNames={"대학부":["동산1","동산2","동산3","동산4"],"청년부":["동산1","동산2","동산3","동산4"]},activeTab="sheet",myAdminRole=null,announcement="",lightMode=false,myLeaderGroup="",myLeaderSubgroup="",checkinDays=[0],checkinStartMin=780,checkinEndMin=900,memberSearch="",dongsanLeaders={},requireApproval=false,pendingCount=0,chartsVisible=true,_trendChart=null,_groupChart=null,summerMode=false;
 function fp(){const n=navigator,s=screen;const r=[n.userAgent,n.language,n.hardwareConcurrency,n.maxTouchPoints,s.width,s.height,s.colorDepth,Intl.DateTimeFormat().resolvedOptions().timeZone,n.platform,n.deviceMemory||"x"].join("|");let h1=5381,h2=0;for(let i=0;i<r.length;i++){h1=((h1<<5)+h1+r.charCodeAt(i))&0xFFFFFFFF;h2=r.charCodeAt(i)+((h2<<6)+(h2<<16)-h2)&0xFFFFFFFF;}return`DEV-${(h1>>>0).toString(16).padStart(8,"0")}-${(h2>>>0).toString(16).padStart(8,"0")}`.toUpperCase();}
 function today(){return new Date().toLocaleDateString("en-CA",{timeZone:"America/New_York"})}
 function fmtD(d){return new Date(d+"T12:00:00").toLocaleDateString("en-US",{timeZone:"America/New_York",weekday:"short",month:"short",day:"numeric"})}
@@ -670,7 +683,7 @@ async function load(){
   }catch(e){}
   try{const o=await api("GET","/api/name-order");if(!o.offline)nameOrder=o.order||[];}catch(e){}
   try{const o=await api("GET","/api/dongsan-names");if(o.names)dongsanNames=o.names;}catch(e){}
-  try{const o=await api("GET","/api/config");if(!o.offline){if(o.announcement!==undefined){announcement=o.announcement;const el=document.getElementById("announcement-text");if(el)el.value=announcement;}if(o.checkinDays!==undefined)checkinDays=o.checkinDays;if(o.checkinStartMin!==undefined)checkinStartMin=o.checkinStartMin;if(o.checkinEndMin!==undefined)checkinEndMin=o.checkinEndMin;if(o.requireApproval!==undefined){requireApproval=o.requireApproval;const at=document.getElementById("approval-toggle");if(at)at.checked=requireApproval;}renderCheckinWindow();}}catch(e){}
+  try{const o=await api("GET","/api/config");if(!o.offline){if(o.announcement!==undefined){announcement=o.announcement;const el=document.getElementById("announcement-text");if(el)el.value=announcement;}if(o.checkinDays!==undefined)checkinDays=o.checkinDays;if(o.checkinStartMin!==undefined)checkinStartMin=o.checkinStartMin;if(o.checkinEndMin!==undefined)checkinEndMin=o.checkinEndMin;if(o.requireApproval!==undefined){requireApproval=o.requireApproval;const at=document.getElementById("approval-toggle");if(at)at.checked=requireApproval;}if(o.summerMode!==undefined){summerMode=o.summerMode;const st=document.getElementById("summer-mode-toggle");if(st)st.checked=summerMode;}renderCheckinWindow();}}catch(e){}
   try{const o=await api("GET","/api/dongsan-leaders");if(o.leaders)dongsanLeaders=o.leaders;}catch(e){}
 }
 function sortNames(names){
@@ -732,8 +745,12 @@ function grpTag(g,sg){let out="";if(g==="대학부")out=`<span class="tag tag-am
 function grpAccent(g){if(g==="대학부")return{bg:"rgba(251,191,36,.08)",bdr:"rgba(251,191,36,.2)",dot:"#FBBF24"};if(g==="청년부")return{bg:"rgba(96,165,250,.08)",bdr:"rgba(96,165,250,.2)",dot:"#60A5FA"};return{bg:"var(--card)",bdr:"var(--bdr)",dot:"var(--acc)"};}
 function grpDot(g){const c=grpAccent(g);return`background:${c.dot}`;}
 function grpDisplayName(g){return g==="대학부"?t('grp_univ'):g==="청년부"?t('grp_youth'):g;}
+function getSummerDongsanList(){const all=[];const seen=new Set();Object.values(dongsanNames).forEach(subs=>subs.forEach(s=>{if(!seen.has(s)){seen.add(s);all.push(s);}}));return all;}
 function renderGrpTabs(containerId,current,setter){
-  const groups=getGroups();const el=document.getElementById(containerId);
+  const el=document.getElementById(containerId);
+  if(summerMode){el.innerHTML="";el.style.display="none";return;}
+  el.style.display="";
+  const groups=getGroups();
   const colors={"대학부":"#FBBF24","청년부":"#60A5FA"};
   el.innerHTML=[{l:t('all_groups'),v:""}, ...groups.map(g=>({l:grpDisplayName(g),v:g}))].map(tab=>{
     const active=tab.v===current;const c=colors[tab.v]||"var(--acc)";
@@ -744,6 +761,15 @@ function setSheetGroup(g){sheetGroup=g;sheetSubgroup="";}function setTodayGroup(
 function setSheetSubgroup(g){sheetSubgroup=g;}function setTodaySubgroup(g){todaySubgroup=g;}function setDevSubgroup(g){devSubgroup=g;}
 function renderSubgroupTabs(containerId,curGroup,curSub,setter){
   const el=document.getElementById(containerId);
+  if(summerMode){
+    el.style.display="flex";
+    const subs=getSummerDongsanList();
+    el.innerHTML=[{l:t('all_dongsan'),v:""},...subs.map(s=>({l:s,v:s}))].map(tab=>{
+      const active=tab.v===curSub;const c="#A78BFA";
+      return`<button class="grp-tab${active?" active":""}" style="${active?`background:${c}22;color:${c};border-color:${c}55;`:""}" onclick="${setter}('${tab.v}');renderAll();">${esc(tab.l)}</button>`;
+    }).join("");
+    return;
+  }
   if(!curGroup){el.style.display="none";return;}
   el.style.display="flex";
   const subs=dongsanNames[curGroup]||["동산1","동산2","동산3","동산4"];
@@ -1072,7 +1098,10 @@ async function saveDongsanLeaders(group,subgroup){
   flash(t('dongsan_leader_save_fn')(group,subgroup));
   renderAll();
 }
-function renderAll(){renderStats();renderGrpTabs("sheet-grp-tabs",sheetGroup,"setSheetGroup");renderSubgroupTabs("sheet-subgrp-tabs",sheetGroup,sheetSubgroup,"setSheetSubgroup");renderGrpTabs("today-grp-tabs",todayGroup,"setTodayGroup");renderSubgroupTabs("today-subgrp-tabs",todayGroup,todaySubgroup,"setTodaySubgroup");renderGrpTabs("dev-grp-tabs",devGroup,"setDevGroup");renderSubgroupTabs("dev-subgrp-tabs",devGroup,devSubgroup,"setDevSubgroup");renderSheet();renderToday();renderDevices();renderDongsanEditor();renderDongsanLeadersEditor();renderLinkDropdown();renderLeaderDashboard();renderWeeklyComparison();if(chartsVisible)renderCharts();}
+function renderAll(){
+  const smb=document.getElementById("summer-mode-banner");if(smb)smb.style.display=summerMode?"block":"none";
+  renderStats();renderGrpTabs("sheet-grp-tabs",sheetGroup,"setSheetGroup");renderSubgroupTabs("sheet-subgrp-tabs",sheetGroup,sheetSubgroup,"setSheetSubgroup");renderGrpTabs("today-grp-tabs",todayGroup,"setTodayGroup");renderSubgroupTabs("today-subgrp-tabs",todayGroup,todaySubgroup,"setTodaySubgroup");renderGrpTabs("dev-grp-tabs",devGroup,"setDevGroup");renderSubgroupTabs("dev-subgrp-tabs",devGroup,devSubgroup,"setDevSubgroup");renderSheet();renderToday();renderDevices();renderDongsanEditor();renderDongsanLeadersEditor();renderLinkDropdown();renderLeaderDashboard();renderWeeklyComparison();if(chartsVisible)renderCharts();
+}
 
 function emptyState(icon,msg,ctaHtml){return `<div style="padding:40px 20px;text-align:center;"><div style="font-size:40px;margin-bottom:12px;">${icon}</div><div style="font-size:14px;font-weight:700;color:var(--txt-m);margin-bottom:${ctaHtml?'14px':'0'}">${msg}</div>${ctaHtml||''}</div>`;}
 function skeletonCards(n){return Array.from({length:n},()=>`<div class="card" style="margin-bottom:8px;opacity:.7;"><div class="skeleton" style="height:14px;width:60%;margin-bottom:8px;display:block;"></div><div class="skeleton" style="height:10px;width:40%;display:block;"></div></div>`).join("");}
@@ -1122,7 +1151,7 @@ function renderWeeklyComparison(){
   </div>`;
 }
 function renderStats(){
-  const grp=activeTab==="today"?todayGroup:activeTab==="members"?devGroup:sheetGroup;
+  const grp=summerMode?"":(activeTab==="today"?todayGroup:activeTab==="members"?devGroup:sheetGroup);
   const sub=activeTab==="today"?todaySubgroup:activeTab==="members"?devSubgroup:sheetSubgroup;
   const td=today();
   const todayPeople=new Set();
@@ -1145,11 +1174,12 @@ function renderSheet(){
 
   if(!D.log.length){c.innerHTML=`<div style="padding:40px;text-align:center;color:var(--txt-d);font-size:13px;">${t('no_att_yet')}</div>`;return;}
 
+  const effSheetGroup=summerMode?"":sheetGroup;
   if(viewMode==="grid"){
     const dates=[...new Set(D.log.map(e=>e.date))].sort();
     const members=getUniqueNames("","");
     let names=sortNames(Object.keys(members));
-    if(sheetGroup)names=names.filter(n=>members[n].group===sheetGroup);
+    if(effSheetGroup)names=names.filter(n=>members[n].group===effSheetGroup);
     if(sheetSubgroup)names=names.filter(n=>(members[n].subgroup||"")===sheetSubgroup);
 
     let h=`<tr><th style="width:30px;min-width:30px;padding:4px;"></th><th class="name-col">${t('excel_name')}</th><th style="min-width:60px;">${t('excel_group')}</th><th class="total-col">${t('excel_total')}</th>`;
@@ -1163,13 +1193,13 @@ function renderSheet(){
       rows+=`</tr>`;
     });
     rows+=`<tr class="total-row"><td></td><td class="name-cell">${t('total_row_label')}</td><td></td><td></td>`;
-    dates.forEach(d=>{const p=new Set();D.log.filter(e=>e.date===d).forEach(e=>{const n=dName(e.deviceId)||e.name;const g=dGroup(e.deviceId)||"";const sg=dSubgroup(e.deviceId)||"";if((!sheetGroup||g===sheetGroup)&&(!sheetSubgroup||sg===sheetSubgroup))p.add(n);});rows+=`<td>${p.size}</td>`;});
+    dates.forEach(d=>{const p=new Set();D.log.filter(e=>e.date===d).forEach(e=>{const n=dName(e.deviceId)||e.name;const g=dGroup(e.deviceId)||"";const sg=dSubgroup(e.deviceId)||"";if((!effSheetGroup||g===effSheetGroup)&&(!sheetSubgroup||sg===sheetSubgroup))p.add(n);});rows+=`<td>${p.size}</td>`;});
     rows+=`</tr>`;
     c.innerHTML=`<div style="overflow-x:auto;"><table class="att-table"><thead>${h}</thead><tbody id="grid-tbody">${rows}</tbody></table></div>`;
     initGridDrag();
   } else {
     let sorted=[...D.log].sort((a,b)=>b.ts-a.ts);
-    if(sheetGroup)sorted=sorted.filter(e=>dGroup(e.deviceId)===sheetGroup||(e.group||"")===sheetGroup);
+    if(effSheetGroup)sorted=sorted.filter(e=>dGroup(e.deviceId)===effSheetGroup||(e.group||"")===effSheetGroup);
     if(sheetSubgroup)sorted=sorted.filter(e=>dSubgroup(e.deviceId)===sheetSubgroup||(e.subgroup||"")===sheetSubgroup);
     const rows=sorted.map(e=>{const name=dName(e.deviceId)||e.name;const group=dGroup(e.deviceId)||e.group||"";const subgroup=dSubgroup(e.deviceId)||e.subgroup||"";const badges=(e.firstVisit?`<span class="tag tag-purple" style="font-size:9px;margin-left:4px;">${t('badge_first')}</span>`:"")+(e.manual?`<span class="tag tag-amber" style="font-size:9px;margin-left:4px;">${t('badge_manual')}</span>`:"")+(e.visitor?`<span class="tag tag-amber" style="font-size:9px;margin-left:4px;">${t('badge_visitor')}</span>`:"");return`<tr><td style="font-family:'Sora',sans-serif;font-weight:500;">${esc(name)}${badges}</td><td>${grpTag(group,subgroup)}</td><td style="color:var(--txt-m);">${esc(fmtD(e.date))}</td><td style="color:var(--txt-m);">${esc(e.time)}</td><td style="color:var(--acc);font-weight:700;text-align:center;">${totalForName(name)}</td></tr>`;}).join("");
     c.innerHTML=`<div style="overflow-x:auto;"><table class="log-table"><thead><tr><th>${t('excel_name')}</th><th>${t('excel_group')}</th><th>${t('excel_date')}</th><th>${t('excel_time')}</th><th>${t('excel_total')}</th></tr></thead><tbody>${rows}</tbody></table></div>`;
@@ -1179,7 +1209,8 @@ function renderSheet(){
 function renderToday(){
   const td=today();document.getElementById("today-label").textContent=t('today_label_fn')(fmtDL(td));
   let entries=D.log.filter(e=>e.date===td);
-  if(todayGroup)entries=entries.filter(e=>dGroup(e.deviceId)===todayGroup||(e.group||"")===todayGroup);
+  const effTodayGroup=summerMode?"":todayGroup;
+  if(effTodayGroup)entries=entries.filter(e=>dGroup(e.deviceId)===effTodayGroup||(e.group||"")===effTodayGroup);
   if(todaySubgroup)entries=entries.filter(e=>dSubgroup(e.deviceId)===todaySubgroup||(e.subgroup||"")===todaySubgroup);
   const reg=entries.filter(e=>!getMemberRole(dName(e.deviceId)||e.name));
   const spec=entries.filter(e=>getMemberRole(dName(e.deviceId)||e.name));
@@ -1196,7 +1227,8 @@ function flipCard(el){
 }
 function renderDevices(){
   const members=getUniqueNames("","");let names=sortNames(Object.keys(members));
-  if(devGroup)names=names.filter(n=>members[n].group===devGroup);
+  const effDevGroup=summerMode?"":devGroup;
+  if(effDevGroup)names=names.filter(n=>members[n].group===effDevGroup);
   if(devSubgroup)names=names.filter(n=>(members[n].subgroup||"")===devSubgroup);
   if(memberSearch){const q=memberSearch.toLowerCase();names=names.filter(n=>n.toLowerCase().includes(q));}
   const regularNames=names.filter(n=>!isVisitorMember(n));
@@ -1522,17 +1554,25 @@ async function saveAnnouncement(){
   announcement=text;
   flash(text?t('announcement_saved'):t('announcement_deleted'));
 }
+async function saveSummerMode(checked){
+  const r=await api("POST","/api/config",{summerMode:checked,adminDeviceId:deviceId});
+  if(r.error){flash(r.error,"err");document.getElementById("summer-mode-toggle").checked=!checked;return;}
+  summerMode=checked;
+  renderAll();
+  flash(checked?"☀️ 여름 모드 활성화":"여름 모드 비활성화");
+}
 
 // ─── KakaoTalk summary ───
 function copyKakaoSummary(){
   const td=today();
   let entries=D.log.filter(e=>e.date===td);
-  if(todayGroup)entries=entries.filter(e=>dGroup(e.deviceId)===todayGroup||(e.group||"")===todayGroup);
+  const effTGrp=summerMode?"":todayGroup;
+  if(effTGrp)entries=entries.filter(e=>dGroup(e.deviceId)===effTGrp||(e.group||"")===effTGrp);
   if(todaySubgroup)entries=entries.filter(e=>dSubgroup(e.deviceId)===todaySubgroup||(e.subgroup||"")===todaySubgroup);
   if(!entries.length){flash(t('no_today_records'),"warn");return;}
   const reg=entries.filter(e=>!getMemberRole(dName(e.deviceId)||e.name));
   const spec=entries.filter(e=>getMemberRole(dName(e.deviceId)||e.name));
-  const grpLabel=(todayGroup&&todaySubgroup)?`${todayGroup} ${todaySubgroup}`:todayGroup||"전체";
+  const grpLabel=(effTGrp&&todaySubgroup)?`${effTGrp} ${todaySubgroup}`:effTGrp||(summerMode?"합동":"전체");
   let lines=[`📋 KCCP 출석 현황`,`📅 ${fmtDL(td)}${grpLabel!=="전체"?` (${grpLabel})`:""}`,`총 ${reg.length}명 출석\n`];
   if(reg.length){
     lines.push("✅ 출석:");
@@ -2298,7 +2338,8 @@ function showWeeklyRecap(){
   if(!dates.length){el.innerHTML=`<div class="card" style="text-align:center;color:var(--txt-d);padding:20px;font-size:13px;">${t('no_records')}</div>`;return;}
   const rows=dates.map(d=>{
     let entries=D.log.filter(e=>e.date===d);
-    if(todayGroup)entries=entries.filter(e=>dGroup(e.deviceId)===todayGroup||(e.group||"")===todayGroup);
+    const effTGrpR=summerMode?"":todayGroup;
+    if(effTGrpR)entries=entries.filter(e=>dGroup(e.deviceId)===effTGrpR||(e.group||"")===effTGrpR);
     if(todaySubgroup)entries=entries.filter(e=>dSubgroup(e.deviceId)===todaySubgroup||(e.subgroup||"")===todaySubgroup);
     const names=[...new Set(entries.filter(e=>!getMemberRole(dName(e.deviceId)||e.name)).map(e=>dName(e.deviceId)||e.name))];
     const first=entries.filter(e=>e.firstVisit).length;
@@ -2886,7 +2927,8 @@ function renderCharts(){
   const el=document.getElementById("charts-content");if(!el)return;
   if(!D.log.length){el.innerHTML=`<div style="color:var(--txt-d);text-align:center;padding:20px;font-size:13px;">${t('no_chart_data')}</div>`;return;}
   let logData=D.log;
-  if(sheetGroup)logData=logData.filter(e=>(dGroup(e.deviceId)||e.group||"")===sheetGroup);
+  const effSGrpC=summerMode?"":sheetGroup;
+  if(effSGrpC)logData=logData.filter(e=>(dGroup(e.deviceId)||e.group||"")===effSGrpC);
   if(sheetSubgroup)logData=logData.filter(e=>(dSubgroup(e.deviceId)||e.subgroup||"")===sheetSubgroup);
   const dates=[...new Set(logData.map(e=>e.date))].sort();
   if(dates.length<2){el.innerHTML=`<div style="color:var(--txt-d);text-align:center;padding:20px;font-size:13px;">${t('chart_need_dates')}</div>`;return;}
@@ -2895,7 +2937,7 @@ function renderCharts(){
     return p.size;
   });
   const groups=getGroups();
-  const groupDatasets=!sheetGroup?groups.map((g,i)=>{
+  const groupDatasets=(!effSGrpC&&!summerMode)?groups.map((g,i)=>{
     const colors=["#FBBF24","#60A5FA","#34D399","#A78BFA"];
     return{label:g,data:dates.map(d=>{const p=new Set(D.log.filter(e=>e.date===d&&(dGroup(e.deviceId)||e.group||"")===g&&!isVisitorMember(dName(e.deviceId)||e.name)).map(e=>dName(e.deviceId)||e.name));return p.size;}),backgroundColor:colors[i%colors.length]+"99",borderColor:colors[i%colors.length],borderWidth:2};
   }):[];

@@ -304,15 +304,16 @@ Deno.serve(async (req: Request) => {
       return ok({adminDevices:result});
     }
 
-    if(req.method==="GET"&&p==="/api/config"){const cfg=await getCfg(sb);return ok({announcement:cfg.announcement||"",checkinDays:cfg.checkin_days||[0],checkinStartMin:cfg.checkin_start_min??780,checkinEndMin:cfg.checkin_end_min??900,requireApproval:cfg.require_approval||false});}
+    if(req.method==="GET"&&p==="/api/config"){const cfg=await getCfg(sb);return ok({announcement:cfg.announcement||"",checkinDays:cfg.checkin_days||[0],checkinStartMin:cfg.checkin_start_min??780,checkinEndMin:cfg.checkin_end_min??900,requireApproval:cfg.require_approval||false,summerMode:cfg.summer_mode||false});}
 
     if(req.method==="POST"&&p==="/api/config") {
-      const {announcement,checkinDays,checkinStartMin,checkinEndMin,requireApproval,adminDeviceId}=body;
+      const {announcement,checkinDays,checkinStartMin,checkinEndMin,requireApproval,summerMode,adminDeviceId}=body;
       if(!await isAdmin(sb,adminDeviceId)) return fail(403,"Not authorized");
       const upd: any={updated_at:new Date().toISOString()};
       if(announcement!==undefined) upd.announcement=announcement; if(checkinDays!==undefined) upd.checkin_days=checkinDays;
       if(checkinStartMin!==undefined) upd.checkin_start_min=Number(checkinStartMin); if(checkinEndMin!==undefined) upd.checkin_end_min=Number(checkinEndMin);
       if(requireApproval!==undefined) upd.require_approval=!!requireApproval;
+      if(summerMode!==undefined) upd.summer_mode=!!summerMode;
       await sb.from("config").update(upd).eq("id",1); await addAudit(sb,"config-change",adminDeviceId,"config updated");
       return ok({status:"ok"});
     }
