@@ -4,7 +4,7 @@ keys/
 *.pem
 *.key.pub
 
-# Live data files — stay on the server only
+# Live data files
 data/
 attendance-data.json
 audit-log.json
@@ -18,6 +18,11 @@ logs/
 # Node
 node_modules/
 npm-debug.log*
+package.json
+package-lock.json
+
+# Dev tools
+tools/
 
 # OS
 .DS_Store
@@ -26,3 +31,4 @@ Thumbs.db
 # Misc
 *.txt
 .claude/
+docs/

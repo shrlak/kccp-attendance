@@ -1,7 +1,0 @@
-server.js
-package.json
-package-lock.json
-node_modules
-watch-and-deploy.sh
-ssh-key-2026-04-11.key
-*.log
