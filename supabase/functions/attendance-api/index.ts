@@ -105,7 +105,7 @@ Deno.serve(async (req: Request) => {
   if(req.method==="OPTIONS") return new Response(null,{status:204,headers:CORS});
   const sb=createClient(Deno.env.get("SUPABASE_URL")!,Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const url=new URL(req.url);
-  const p=url.pathname.startsWith(FN_PREFIX)?url.pathname.slice(FN_PREFIX.length)||"/":url.pathname;
+  const raw=url.pathname; const p=raw.startsWith(FN_PREFIX)?raw.slice(FN_PREFIX.length)||"/":raw.startsWith("/api")?raw:"/"+raw.replace(/^\/+/,"");
   const xDev=req.headers.get("x-device-id")||req.headers.get("X-Device-Id")||"";
   const ok=(obj:any)=>new Response(JSON.stringify(obj),{headers:{...CORS,"Content-Type":"application/json"}});
   const fail=(code:number,msg:string)=>new Response(JSON.stringify({error:msg}),{status:code,headers:{...CORS,"Content-Type":"application/json"}});
