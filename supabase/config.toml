@@ -1,0 +1,4 @@
+project_id = "kccp-attendance"
+
+[functions.attendance-api]
+verify_jwt = false
