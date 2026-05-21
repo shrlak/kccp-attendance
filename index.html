@@ -673,18 +673,23 @@ const API_BASE=window.location.hostname==='localhost'||window.location.hostname=
 async function api(m,p,b,h={}){const o={method:m,headers:{"Content-Type":"application/json",...h}};if(b)o.body=JSON.stringify(b);const resp=await fetch(API_BASE+p,o);try{return await resp.json();}catch(e){return{error:`HTTP ${resp.status} — response was not JSON (server may be unreachable)`,_parseError:true};}}
 function setOffline(v){const b=document.getElementById("offline-banner");if(b)b.style.display=v?"block":"none";}
 async function load(){
-  try{
-    let d=await api("GET","/api/data");
-    if(d&&d.offline){
-      await new Promise(r=>setTimeout(r,2500));
-      d=await api("GET","/api/data");
-    }
-    if(d&&!d.offline&&!d.error){setOffline(false);D=d;}
-  }catch(e){}
-  try{const o=await api("GET","/api/name-order");if(!o.offline)nameOrder=o.order||[];}catch(e){}
-  try{const o=await api("GET","/api/dongsan-names");if(o.names)dongsanNames=o.names;}catch(e){}
-  try{const o=await api("GET","/api/config");if(!o.offline){if(o.announcement!==undefined){announcement=o.announcement;const el=document.getElementById("announcement-text");if(el)el.value=announcement;}if(o.checkinDays!==undefined)checkinDays=o.checkinDays;if(o.checkinStartMin!==undefined)checkinStartMin=o.checkinStartMin;if(o.checkinEndMin!==undefined)checkinEndMin=o.checkinEndMin;if(o.requireApproval!==undefined){requireApproval=o.requireApproval;const at=document.getElementById("approval-toggle");if(at)at.checked=requireApproval;}if(o.summerMode!==undefined){summerMode=o.summerMode;const st=document.getElementById("summer-mode-toggle");if(st)st.checked=summerMode;}renderCheckinWindow();}}catch(e){}
-  try{const o=await api("GET","/api/dongsan-leaders");if(o.leaders)dongsanLeaders=o.leaders;}catch(e){}
+  // Fire all config fetches in parallel with the data fetch to cut load time
+  let [d,nameOrd,dNames,cfg,ldrs]=await Promise.all([
+    api("GET","/api/data"),
+    api("GET","/api/name-order"),
+    api("GET","/api/dongsan-names"),
+    api("GET","/api/config"),
+    api("GET","/api/dongsan-leaders")
+  ]);
+  if(d&&d.offline){
+    await new Promise(r=>setTimeout(r,2500));
+    d=await api("GET","/api/data");
+  }
+  if(d&&!d.offline&&!d.error){setOffline(false);D=d;}
+  try{if(nameOrd&&!nameOrd.offline)nameOrder=nameOrd.order||[];}catch(e){}
+  try{if(dNames&&dNames.names)dongsanNames=dNames.names;}catch(e){}
+  try{if(cfg&&!cfg.offline){if(cfg.announcement!==undefined){announcement=cfg.announcement;const el=document.getElementById("announcement-text");if(el)el.value=announcement;}if(cfg.checkinDays!==undefined)checkinDays=cfg.checkinDays;if(cfg.checkinStartMin!==undefined)checkinStartMin=cfg.checkinStartMin;if(cfg.checkinEndMin!==undefined)checkinEndMin=cfg.checkinEndMin;if(cfg.requireApproval!==undefined){requireApproval=cfg.requireApproval;const at=document.getElementById("approval-toggle");if(at)at.checked=requireApproval;}if(cfg.summerMode!==undefined){summerMode=cfg.summerMode;const st=document.getElementById("summer-mode-toggle");if(st)st.checked=summerMode;}renderCheckinWindow();}}catch(e){}
+  try{if(ldrs&&ldrs.leaders)dongsanLeaders=ldrs.leaders;}catch(e){}
 }
 function sortNames(names){
   // Sort by custom order first, then alphabetically for unordered names
@@ -814,7 +819,7 @@ function kccpLogo(size){
 let userLat=null,userLng=null;
 const _LOC_KEY="kccp-loc";
 function _saveLocCache(lat,lng){try{localStorage.setItem(_LOC_KEY,JSON.stringify({lat,lng,ts:Date.now()}));}catch(e){}}
-function _getLocCache(){try{const c=JSON.parse(localStorage.getItem(_LOC_KEY));if(c&&c.lat)return c;}catch(e){}return null;}
+function _getLocCache(){try{const c=JSON.parse(localStorage.getItem(_LOC_KEY));if(c&&c.lat&&Date.now()-c.ts<30*60*1000)return c;}catch(e){}return null;}
 function getLocation(){
   return new Promise((resolve)=>{
     if(!navigator.geolocation){resolve({lat:null,lng:null});return;}

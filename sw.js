@@ -1,4 +1,4 @@
-const CACHE = "kccp-v6";
+const CACHE = "kccp-v7";
 const BASE = self.location.pathname.replace(/\/sw\.js$/, '') || '';
 const STATIC = [
   BASE + '/',
@@ -30,7 +30,10 @@ self.addEventListener("fetch", e => {
     e.respondWith(
       fetch(e.request).catch(() =>
         new Response(JSON.stringify({ error: "offline", offline: true }), {
-          headers: { "Content-Type": "application/json" }
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*"
+          }
         })
       )
     );

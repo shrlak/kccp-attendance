@@ -48,15 +48,17 @@ async function addAudit(sb: SB, action: string, adminId: string, details: any) {
 }
 
 async function buildCsvLog(sb: SB, gf: string, sf: string) {
-  let q: any=sb.from("attendance_log").select("*").order("ts",{ascending:false});
-  if(gf) q=q.eq("group_name",gf); if(sf) q=q.eq("subgroup",sf);
-  const {data:logs}=await q;
-  const {data:devs}=await sb.from("devices").select("*");
+  const [{data:logs},{data:devs}]=await Promise.all([
+    (()=>{let q:any=sb.from("attendance_log").select("*").order("ts",{ascending:false});if(gf)q=q.eq("group_name",gf);if(sf)q=q.eq("subgroup",sf);return q;})(),
+    sb.from("devices").select("*")
+  ]);
   const dm: Record<string,any>={}; (devs||[]).forEach((d:any)=>{dm[d.id]=d;});
-  const nt: Record<string,number>={};
-  for(const d of (devs||[])) { if(!(d.name in nt)) nt[d.name]=await countAtt(sb,d.name); }
+  // Compute per-name unique-date totals from all log data (no extra queries)
+  const allLogs=(await sb.from("attendance_log").select("device_id,name,date")).data||[];
+  const nt: Record<string,Set<string>>={};
+  for(const e of allLogs){const nm=dm[e.device_id]?.name||e.name||"";if(!nt[nm])nt[nm]=new Set();nt[nm].add(e.date);}
   const h=["Name","Group","Subgroup","Day","Date","Time","Total"];
-  const r=(logs||[]).map((e:any)=>{ const dv=dm[e.device_id]; const nm=dv?.name||e.name||""; const day=new Date(e.date+"T12:00:00").toLocaleDateString("en-US",{timeZone:"America/New_York",weekday:"long"}); return [nm,dv?.group_name||e.group_name||"",dv?.subgroup||e.subgroup||"",day,e.date,e.time_str||"",nt[nm]||0]; });
+  const r=(logs||[]).map((e:any)=>{ const dv=dm[e.device_id]; const nm=dv?.name||e.name||""; const day=new Date(e.date+"T12:00:00").toLocaleDateString("en-US",{timeZone:"America/New_York",weekday:"long"}); return [nm,dv?.group_name||e.group_name||"",dv?.subgroup||e.subgroup||"",day,e.date,e.time_str||"",nt[nm]?.size||0]; });
   return [h,...r].map((row:any[])=>row.map((c:any)=>'"'+String(c).replace(/"/g,'""')+'"').join(",")).join("\n");
 }
 async function buildCsvGrid(sb: SB, gf: string, sf: string) {
@@ -126,7 +128,9 @@ Deno.serve(async (req: Request) => {
     }
 
     if(req.method==="POST"&&p==="/api/checkin") {
-      const {deviceId,lat,lng}=body; const cfg=await getCfg(sb);
+      const {deviceId,lat,lng}=body;
+      // Fetch config and device in parallel to minimize round-trips
+      const [cfg,{data:device}]=await Promise.all([getCfg(sb),sb.from("devices").select("*").eq("id",deviceId).single()]);
       const allowedDays: number[]=cfg.checkin_days||[0]; const startMin: number=cfg.checkin_start_min??780; const endMin: number=cfg.checkin_end_min??900;
       const now=new Date(); const eastern=new Date(now.toLocaleString("en-US",{timeZone:"America/New_York"}));
       const day=eastern.getDay(),timeInMin=eastern.getHours()*60+eastern.getMinutes();
@@ -137,7 +141,6 @@ Deno.serve(async (req: Request) => {
       if(loc==="required") return ok({status:"location-required",message:"위치 정보가 필요합니다. 위치 접근을 허용해주세요."});
       if(loc!==null) return ok({status:"location-restricted",message:"교회 근처에서만 출석할 수 있습니다.",distance:loc});
       const today=localDate(),time=localTime(),ts=Date.now();
-      const {data:device}=await sb.from("devices").select("*").eq("id",deviceId).single();
       const name=device?.name,group=device?.group_name||"",subgroup=device?.subgroup||"",memberRole=device?.member_role||"";
       if(name){const ex=await checkedToday(sb,name,today);if(ex){const total=await countAtt(sb,name);return ok({status:"already",time:ex.time_str,name,group,subgroup,totalAttendance:total});}}
       else{const {data:ex}=await sb.from("attendance_log").select("*").eq("device_id",deviceId).eq("date",today).limit(1);if(ex&&ex.length)return ok({status:"already",time:ex[0].time_str,name:ex[0].name,group:"",subgroup:"",totalAttendance:0});}
