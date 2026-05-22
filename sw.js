@@ -1,4 +1,4 @@
-const CACHE = "kccp-v7";
+const CACHE = "kccp-v8";
 const BASE = self.location.pathname.replace(/\/sw\.js$/, '') || '';
 const STATIC = [
   BASE + '/',

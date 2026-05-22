@@ -1023,16 +1023,16 @@ async function submitSelfRegister(){
 // ─── ADMIN ───
 async function tryAdmin(){const r=await api("POST","/api/check-admin",{deviceId});if(r.noAdminsYet){document.getElementById("admin-access-msg").textContent=t('admin_no_admins_msg');document.getElementById("password-modal").style.display="flex";document.getElementById("admin-pw").focus();return;}if(r.isAdmin){showAdmin();return;}document.getElementById("admin-access-msg").textContent=t('admin_not_authorized_msg');document.getElementById("password-modal").style.display="flex";document.getElementById("admin-pw").focus();}
 async function submitAdminPassword(){const pw=document.getElementById("admin-pw").value;const r=await api("POST","/api/admin/add",{password:pw,targetDeviceId:deviceId});if(r.error){flash(r.error==="Wrong password"?t('wrong_pw'):t('connection_error'),"err");return;}document.getElementById("password-modal").style.display="none";document.getElementById("admin-pw").value="";flash(t('admin_granted'));showAdmin();}
-async function showAdmin(){
+async function showAdmin(prefetchedAdminData=null){
   document.getElementById("checkin-view").style.display="none";
   document.getElementById("admin-view").style.display="block";
-  const r=await api("POST","/api/check-admin",{deviceId});
+  const r=prefetchedAdminData||await api("POST","/api/check-admin",{deviceId});
   myAdminRole=r.role||null;
   myLeaderGroup=r.leaderGroup||"";
   myLeaderSubgroup=r.leaderSubgroup||"";
   // If leader is scoped, force their group filter
   if(myAdminRole==="leader"&&myLeaderGroup){sheetGroup=myLeaderGroup;todayGroup=myLeaderGroup;devGroup=myLeaderGroup;if(myLeaderSubgroup){sheetSubgroup=myLeaderSubgroup;todaySubgroup=myLeaderSubgroup;devSubgroup=myLeaderSubgroup;}}
-  await load();
+  if(!prefetchedAdminData)await load();
   document.getElementById("my-device-id").textContent=deviceId;
   initSwipe();
   initPullToRefresh();
@@ -3101,7 +3101,10 @@ function renderCheckinWindowBadge(){
 })();
 
 (async function(){
-  deviceId=fp();
+  // Persist device ID in localStorage so it stays stable across browser updates
+  const _DID_KEY="kccp-device-id";
+  if(!localStorage.getItem(_DID_KEY))localStorage.setItem(_DID_KEY,fp());
+  deviceId=localStorage.getItem(_DID_KEY);
   applyTheme();
   applyLang();
   updateQueueBadge();
@@ -3116,6 +3119,8 @@ function renderCheckinWindowBadge(){
   renderCheckinStrip();
   renderCheckinWindowBadge();
   setInterval(renderCheckinWindowBadge,60000);
+  // Auto-login: if this device is already registered as admin, go straight to admin panel
+  try{const ar=await api("POST","/api/check-admin",{deviceId});if(ar&&ar.isAdmin){await showAdmin(ar);return;}}catch(e){}
   try{await doCheckin();}catch(e){
     console.error("Checkin failed:",e);
     document.getElementById("checkin-content").innerHTML=`<div style="font-size:18px;font-weight:700;color:var(--red);margin-bottom:8px;">${t('connection_error')}</div><div style="font-size:13px;color:var(--txt-m);margin-bottom:16px;">${t('cannot_connect')}</div><button class="btn btn-primary" onclick="location.reload()">${t('retry_btn')}</button>`;
