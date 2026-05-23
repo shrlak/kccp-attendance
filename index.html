@@ -101,16 +101,16 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
   <button onclick="toggleLang()" class="lang-toggle-btn" style="position:absolute;top:16px;right:68px;background:rgba(128,128,128,.12);border:1px solid rgba(128,128,128,.2);color:var(--txt-m);font-size:13px;font-weight:700;padding:8px 10px;border-radius:12px;cursor:pointer;z-index:5;min-width:42px;min-height:42px;line-height:1;font-family:'IBM Plex Mono',monospace;letter-spacing:.5px;">EN</button>
   <button id="checkin-theme-toggle" onclick="toggleTheme()" style="position:absolute;top:16px;right:16px;background:rgba(128,128,128,.12);border:1px solid rgba(128,128,128,.2);color:var(--txt-m);font-size:18px;padding:8px 10px;border-radius:12px;cursor:pointer;z-index:5;min-width:42px;min-height:42px;line-height:1;">🌙</button>
   <!-- Server health & status indicators -->
-  <div id="health-indicator" style="position:absolute;top:16px;left:16px;display:flex;flex-direction:column;gap:5px;z-index:5;align-items:flex-start;">
-    <div id="connection-pill" style="display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:20px;background:rgba(128,128,128,.12);border:1px solid rgba(128,128,128,.2);transition:background .5s,border-color .5s,box-shadow .5s;">
+  <div id="health-indicator" style="position:absolute;top:16px;left:12px;display:flex;flex-direction:column;gap:4px;z-index:5;align-items:flex-start;max-width:82px;">
+    <div id="connection-pill" style="display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border-radius:20px;background:rgba(128,128,128,.12);border:1px solid rgba(128,128,128,.2);transition:background .5s,border-color .5s,box-shadow .5s;max-width:82px;overflow:hidden;">
       <div id="health-dot" style="width:9px;height:9px;border-radius:50%;background:var(--txt-d);flex-shrink:0;transition:background .5s,box-shadow .5s;"></div>
-      <span id="health-label" style="font-size:10px;font-family:'IBM Plex Mono',monospace;letter-spacing:.6px;color:var(--txt-d);font-weight:700;transition:color .5s;">--</span>
-      <span id="network-type-label" style="font-size:9px;font-family:'IBM Plex Mono',monospace;letter-spacing:.3px;color:var(--txt-d);opacity:.65;"></span>
+      <span id="health-label" style="font-size:10px;font-family:'IBM Plex Mono',monospace;letter-spacing:.4px;color:var(--txt-d);font-weight:700;transition:color .5s;white-space:nowrap;">--</span>
     </div>
-    <div id="location-pill" style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;background:rgba(128,128,128,.08);border:1px solid rgba(128,128,128,.15);transition:background .4s,border-color .4s;">
+    <div id="location-pill" style="display:inline-flex;align-items:center;gap:4px;padding:4px 9px;border-radius:20px;background:rgba(128,128,128,.08);border:1px solid rgba(128,128,128,.15);transition:background .4s,border-color .4s;max-width:82px;overflow:hidden;">
       <span style="font-size:10px;line-height:1;flex-shrink:0;">📍</span>
-      <span id="location-label" style="font-size:9px;font-family:'IBM Plex Mono',monospace;letter-spacing:.4px;color:var(--txt-d);font-weight:700;transition:color .4s;">--</span>
+      <span id="location-label" style="font-size:9px;font-family:'IBM Plex Mono',monospace;letter-spacing:.3px;color:var(--txt-d);font-weight:700;transition:color .4s;white-space:nowrap;">--</span>
     </div>
+    <span id="network-type-label" style="font-size:8px;font-family:'IBM Plex Mono',monospace;letter-spacing:.3px;color:var(--txt-d);opacity:.6;padding-left:4px;white-space:nowrap;"></span>
   </div>
   <!-- Check-in window status badge -->
   <div id="checkin-window-badge" style="position:absolute;top:14px;left:50%;transform:translateX(-50%);z-index:5;white-space:nowrap;"></div>
@@ -1871,7 +1871,7 @@ const STRINGS={
     offline_health:"오프라인",
     // Connection error
     connection_error:"연결 오류",cannot_connect:"서버에 연결할 수 없습니다",offline_label:"오프라인",online_label:"온라인",
-    loc_active:"위치 확인",loc_denied:"위치 거부",loc_checking:"위치 확인 중",
+    loc_active:"위치 OK",loc_denied:"위치 ✗",loc_checking:"위치 탐색",
     // PWA install
     pwa_step1:"Safari 하단 공유 버튼 탭",pwa_step2:"홈 화면에 추가 선택",pwa_step3:"오른쪽 상단 추가 탭",
     pwa_installed:"앱이 설치되었습니다 🎉",
@@ -2143,7 +2143,7 @@ const STRINGS={
     offline_health:"Offline",
     // Connection error
     connection_error:"Connection Error",cannot_connect:"Cannot connect to server",offline_label:"OFFLINE",online_label:"ONLINE",
-    loc_active:"GPS OK",loc_denied:"NO GPS",loc_checking:"LOCATING",
+    loc_active:"GPS OK",loc_denied:"NO GPS",loc_checking:"GPS...",
     // PWA install
     pwa_step1:"Tap the Share button at the bottom of Safari",pwa_step2:'Tap "Add to Home Screen"',pwa_step3:'Tap "Add" in the top-right corner',
     pwa_installed:"App installed 🎉",
