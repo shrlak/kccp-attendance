@@ -100,10 +100,17 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
 <div id="checkin-view" style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 24px 24px;text-align:center;position:relative;overflow-y:auto;">
   <button onclick="toggleLang()" class="lang-toggle-btn" style="position:absolute;top:16px;right:68px;background:rgba(128,128,128,.12);border:1px solid rgba(128,128,128,.2);color:var(--txt-m);font-size:13px;font-weight:700;padding:8px 10px;border-radius:12px;cursor:pointer;z-index:5;min-width:42px;min-height:42px;line-height:1;font-family:'IBM Plex Mono',monospace;letter-spacing:.5px;">EN</button>
   <button id="checkin-theme-toggle" onclick="toggleTheme()" style="position:absolute;top:16px;right:16px;background:rgba(128,128,128,.12);border:1px solid rgba(128,128,128,.2);color:var(--txt-m);font-size:18px;padding:8px 10px;border-radius:12px;cursor:pointer;z-index:5;min-width:42px;min-height:42px;line-height:1;">🌙</button>
-  <!-- Server health indicator -->
-  <div id="health-indicator" style="position:absolute;top:20px;left:16px;display:flex;align-items:center;gap:6px;z-index:5;">
-    <div id="health-dot" style="width:8px;height:8px;border-radius:50%;background:var(--txt-d);transition:background .5s,box-shadow .5s;"></div>
-    <span id="health-label" style="font-size:10px;font-family:'IBM Plex Mono',monospace;letter-spacing:.3px;color:var(--txt-d);"></span>
+  <!-- Server health & status indicators -->
+  <div id="health-indicator" style="position:absolute;top:16px;left:16px;display:flex;flex-direction:column;gap:5px;z-index:5;align-items:flex-start;">
+    <div id="connection-pill" style="display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:20px;background:rgba(128,128,128,.12);border:1px solid rgba(128,128,128,.2);transition:background .5s,border-color .5s,box-shadow .5s;">
+      <div id="health-dot" style="width:9px;height:9px;border-radius:50%;background:var(--txt-d);flex-shrink:0;transition:background .5s,box-shadow .5s;"></div>
+      <span id="health-label" style="font-size:10px;font-family:'IBM Plex Mono',monospace;letter-spacing:.6px;color:var(--txt-d);font-weight:700;transition:color .5s;">--</span>
+      <span id="network-type-label" style="font-size:9px;font-family:'IBM Plex Mono',monospace;letter-spacing:.3px;color:var(--txt-d);opacity:.65;"></span>
+    </div>
+    <div id="location-pill" style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;background:rgba(128,128,128,.08);border:1px solid rgba(128,128,128,.15);transition:background .4s,border-color .4s;">
+      <span style="font-size:10px;line-height:1;flex-shrink:0;">📍</span>
+      <span id="location-label" style="font-size:9px;font-family:'IBM Plex Mono',monospace;letter-spacing:.4px;color:var(--txt-d);font-weight:700;transition:color .4s;">--</span>
+    </div>
   </div>
   <!-- Check-in window status badge -->
   <div id="checkin-window-badge" style="position:absolute;top:14px;left:50%;transform:translateX(-50%);z-index:5;white-space:nowrap;"></div>
@@ -671,7 +678,7 @@ function fmtDL(d){return new Date(d+"T12:00:00").toLocaleDateString("en-US",{tim
 function esc(s){const d=document.createElement("div");d.textContent=s;return d.innerHTML;}
 const API_BASE=window.location.hostname==='localhost'||window.location.hostname==='127.0.0.1'?'':'https://loovulhchmmwagtvjnhc.supabase.co/functions/v1/attendance-api';
 async function api(m,p,b,h={}){const o={method:m,headers:{"Content-Type":"application/json",...h}};if(b)o.body=JSON.stringify(b);const resp=await fetch(API_BASE+p,o);try{return await resp.json();}catch(e){return{error:`HTTP ${resp.status} — response was not JSON (server may be unreachable)`,_parseError:true};}}
-function setOffline(v){const b=document.getElementById("offline-banner");if(b)b.style.display=v?"block":"none";}
+function setOffline(v){const b=document.getElementById("offline-banner");if(b)b.style.display=v?"block":"none";if(typeof updateHealthDot==="function")updateHealthDot(!v);}
 async function load(){
   // Fire all config fetches in parallel with the data fetch to cut load time
   let [d,nameOrd,dNames,cfg,ldrs]=await Promise.all([
@@ -850,8 +857,10 @@ function getLocation(){
 async function doCheckin(){
   const el=document.getElementById("checkin-content");
   el.innerHTML=`<div style="margin:0 auto 20px;animation:pulse 1.5s ease-in-out infinite;">${kccpLogo(140)}</div><div style="font-size:20px;font-weight:700;margin-bottom:8px;">${t('checking_in')}</div><div style="font-size:12px;color:var(--txt-d);">${t('checking_loc')}</div>`;
+  updateLocationStatus('checking');
   const loc=await getLocation();
   userLat=loc.lat;userLng=loc.lng;
+  updateLocationStatus(userLat&&userLng?'located':'denied');
   if(!dName(deviceId)){document.getElementById("register-modal").style.display="flex";document.getElementById("self-name").focus();return;}
   await doCheckinFinish();
 }
@@ -1861,7 +1870,8 @@ const STRINGS={
     // Offline health
     offline_health:"오프라인",
     // Connection error
-    connection_error:"연결 오류",cannot_connect:"서버에 연결할 수 없습니다",offline_label:"오프라인",
+    connection_error:"연결 오류",cannot_connect:"서버에 연결할 수 없습니다",offline_label:"오프라인",online_label:"온라인",
+    loc_active:"위치 확인",loc_denied:"위치 거부",loc_checking:"위치 확인 중",
     // PWA install
     pwa_step1:"Safari 하단 공유 버튼 탭",pwa_step2:"홈 화면에 추가 선택",pwa_step3:"오른쪽 상단 추가 탭",
     pwa_installed:"앱이 설치되었습니다 🎉",
@@ -2132,7 +2142,8 @@ const STRINGS={
     // Offline health
     offline_health:"Offline",
     // Connection error
-    connection_error:"Connection Error",cannot_connect:"Cannot connect to server",offline_label:"Offline",
+    connection_error:"Connection Error",cannot_connect:"Cannot connect to server",offline_label:"OFFLINE",online_label:"ONLINE",
+    loc_active:"GPS OK",loc_denied:"NO GPS",loc_checking:"LOCATING",
     // PWA install
     pwa_step1:"Tap the Share button at the bottom of Safari",pwa_step2:'Tap "Add to Home Screen"',pwa_step3:'Tap "Add" in the top-right corner',
     pwa_installed:"App installed 🎉",
@@ -2711,6 +2722,24 @@ async function syncOfflineQueue(){
 window.addEventListener("online",()=>{setOffline(false);if(getQueue().length)syncOfflineQueue();});
 window.addEventListener("offline",()=>setOffline(true));
 setOffline(!navigator.onLine);
+// Initialize location permission status indicator
+(function(){
+  if(navigator.permissions){
+    navigator.permissions.query({name:"geolocation"}).then(r=>{
+      if(r.state==="granted")updateLocationStatus('located');
+      else if(r.state==="denied")updateLocationStatus('denied');
+      r.onchange=()=>{
+        if(r.state==="granted")updateLocationStatus('located');
+        else if(r.state==="denied")updateLocationStatus('denied');
+        else updateLocationStatus('unknown');
+      };
+    }).catch(()=>{});
+  }else if(!navigator.geolocation){updateLocationStatus('denied');}
+  // Listen for network change events
+  const conn=navigator.connection||navigator.mozConnection||navigator.webkitConnection;
+  if(conn)conn.addEventListener("change",updateNetworkInfo);
+  updateNetworkInfo();
+})();
 document.addEventListener("click",e=>{if(!e.target.closest(".dropdown"))document.querySelectorAll(".dropdown-menu.open").forEach(m=>m.classList.remove("open"));});
 
 if("serviceWorker"in navigator){navigator.serviceWorker.register("sw.js").catch(()=>{});}
@@ -3019,16 +3048,45 @@ async function uploadRestore(input){
 function updateHealthDot(online){
   const dot=document.getElementById("health-dot");
   const label=document.getElementById("health-label");
+  const pill=document.getElementById("connection-pill");
   if(!dot)return;
   if(online){
     dot.style.background="var(--acc)";
-    dot.style.boxShadow="0 0 6px rgba(52,211,153,.6)";
-    if(label){label.textContent="";label.style.color="";}
+    dot.style.boxShadow="0 0 8px rgba(52,211,153,.75)";
+    if(label){label.textContent=t('online_label')||"ONLINE";label.style.color="var(--acc)";}
+    if(pill){pill.style.background="rgba(52,211,153,.1)";pill.style.borderColor="rgba(52,211,153,.35)";pill.style.boxShadow="0 0 14px rgba(52,211,153,.18)";}
   }else{
     dot.style.background="var(--red)";
-    dot.style.boxShadow="0 0 6px rgba(251,113,133,.5)";
+    dot.style.boxShadow="0 0 8px rgba(251,113,133,.75)";
     if(label){label.textContent=t('offline_label');label.style.color="var(--red)";}
+    if(pill){pill.style.background="rgba(251,113,133,.1)";pill.style.borderColor="rgba(251,113,133,.35)";pill.style.boxShadow="0 0 14px rgba(251,113,133,.18)";}
   }
+  updateNetworkInfo();
+}
+function updateNetworkInfo(){
+  const el=document.getElementById("network-type-label");
+  if(!el)return;
+  const conn=navigator.connection||navigator.mozConnection||navigator.webkitConnection;
+  if(!conn){el.textContent="";return;}
+  const eff=conn.effectiveType||"";
+  const type=conn.type||"";
+  const bars={"slow-2g":"▂___","2g":"▂▄__","3g":"▂▄▆_","4g":"▂▄▆█"}[eff]||"";
+  const typeStr=type==="wifi"?"WiFi":type==="cellular"?"Cell":type==="ethernet"?"LAN":eff?eff.toUpperCase():"";
+  el.textContent=typeStr+(bars?` ${bars}`:"");
+}
+function updateLocationStatus(state){
+  const pill=document.getElementById("location-pill");
+  const label=document.getElementById("location-label");
+  if(!label)return;
+  const states={
+    unknown:{text:"--",color:"var(--txt-d)",bg:"rgba(128,128,128,.08)",border:"rgba(128,128,128,.15)"},
+    located:{text:t('loc_active')||"GPS OK",color:"var(--acc)",bg:"rgba(52,211,153,.08)",border:"rgba(52,211,153,.28)"},
+    denied:{text:t('loc_denied')||"NO GPS",color:"var(--red)",bg:"rgba(251,113,133,.08)",border:"rgba(251,113,133,.28)"},
+    checking:{text:t('loc_checking')||"...",color:"var(--amber)",bg:"rgba(251,191,36,.08)",border:"rgba(251,191,36,.28)"},
+  };
+  const s=states[state]||states.unknown;
+  label.textContent=s.text;label.style.color=s.color;
+  if(pill){pill.style.background=s.bg;pill.style.borderColor=s.border;}
 }
 async function pingHealth(){
   try{
