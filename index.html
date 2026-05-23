@@ -3177,8 +3177,6 @@ function renderCheckinWindowBadge(){
   renderCheckinStrip();
   renderCheckinWindowBadge();
   setInterval(renderCheckinWindowBadge,60000);
-  // Auto-login: if this device is already registered as admin, go straight to admin panel
-  try{const ar=await api("POST","/api/check-admin",{deviceId});if(ar&&ar.isAdmin){await showAdmin(ar);return;}}catch(e){}
   try{await doCheckin();}catch(e){
     console.error("Checkin failed:",e);
     document.getElementById("checkin-content").innerHTML=`<div style="font-size:18px;font-weight:700;color:var(--red);margin-bottom:8px;">${t('connection_error')}</div><div style="font-size:13px;color:var(--txt-m);margin-bottom:16px;">${t('cannot_connect')}</div><button class="btn btn-primary" onclick="location.reload()">${t('retry_btn')}</button>`;
