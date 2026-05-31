@@ -293,6 +293,7 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
     </div>
   </div>
   <div id="summer-mode-banner" style="display:none;position:relative;z-index:1;margin:0 22px 4px;padding:8px 14px;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.35);border-radius:10px;font-size:12px;font-weight:700;color:#FBBF24;letter-spacing:.3px;">☀️ 여름 모드 활성화 — 대학부 · 청년부 합동</div>
+  <div id="demo-mode-banner" style="display:none;position:relative;z-index:1;margin:0 22px 4px;padding:8px 14px;background:rgba(168,85,247,.12);border:1px solid rgba(168,85,247,.35);border-radius:10px;font-size:12px;font-weight:700;color:#a855f7;letter-spacing:.3px;">🎭 Demo Mode — 시간 · 위치 제한 해제됨</div>
   <div id="stats-bar" style="position:relative;z-index:1;display:flex;gap:8px;padding:14px 22px 16px;overflow-x:auto;"></div>
   <div style="position:relative;z-index:1;padding:0 22px 20px;">
 
@@ -390,7 +391,7 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
 
     <!-- ADMINS -->
     <div id="tab-admins" class="view fi">
-      <div class="card" style="margin-bottom:16px;"><div style="font-size:18px;font-weight:800;margin-bottom:6px;">🔐 Admin Access</div><div style="font-size:13px;color:var(--txt-m);line-height:1.7;margin-bottom:16px;">Master password required.</div><div style="margin-bottom:10px;"><label style="display:block;font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Master Password</label><input id="acl-pw" type="password" class="inp" placeholder="Enter master password"></div><div style="margin-bottom:10px;"><label style="display:block;font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Device ID</label><input id="acl-device" class="inp inp-mono" style="font-size:12px;" placeholder="DEV-..."></div><div style="margin-bottom:10px;"><button onclick="document.getElementById('acl-device').value=deviceId" style="background:none;border:none;color:var(--acc);font-size:11px;cursor:pointer;font-family:'IBM Plex Mono',monospace;padding:0;">↑ use this device</button></div><div style="margin-bottom:12px;"><label style="display:block;font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Role</label><select id="acl-role" class="inp" onchange="updateAclLeaderFields()"><option value="super" id="acl-role-super">Super Admin — 모든 권한 (수정, 삭제, 설정)</option><option value="leader" id="acl-role-leader">Leader — 조회 및 출석 편집만 가능</option></select></div><div style="display:flex;gap:8px;margin-bottom:12px;"><button class="btn btn-primary" style="flex:1;" onclick="addAdmin()">Add Admin</button><button class="btn btn-danger" style="flex:1;" onclick="removeAdmin()">Remove Admin</button></div><button class="btn btn-secondary btn-full" onclick="listAdmins()">View Admins</button><div id="admin-list" style="margin-top:12px;"></div></div>
+      <div class="card" style="margin-bottom:16px;"><div style="font-size:18px;font-weight:800;margin-bottom:6px;">🔐 Admin Access</div><div style="font-size:13px;color:var(--txt-m);line-height:1.7;margin-bottom:16px;">Master password required.</div><div style="margin-bottom:10px;"><label style="display:block;font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Master Password</label><input id="acl-pw" type="password" class="inp" placeholder="Enter master password"></div><div style="margin-bottom:10px;"><label style="display:block;font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Device ID</label><input id="acl-device" class="inp inp-mono" style="font-size:12px;" placeholder="DEV-..."></div><div style="margin-bottom:10px;"><button onclick="document.getElementById('acl-device').value=deviceId" style="background:none;border:none;color:var(--acc);font-size:11px;cursor:pointer;font-family:'IBM Plex Mono',monospace;padding:0;">↑ use this device</button></div><div style="margin-bottom:12px;"><label style="display:block;font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Role</label><select id="acl-role" class="inp" onchange="updateAclLeaderFields()"><option value="super" id="acl-role-super">Super Admin — 모든 권한 (수정, 삭제, 설정)</option><option value="welcoming">Welcoming — 전체 조회 및 출석 체크</option><option value="leader" id="acl-role-leader">Leader — 그룹 조회 및 출석 편집만 가능</option></select></div><div id="acl-leader-fields" style="display:none;margin-bottom:12px;"><div style="margin-bottom:8px;"><label style="display:block;font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Group</label><select id="acl-leader-group" class="inp" onchange="updateAclLeaderSubgroup()"><option value="">All (no restriction)</option><option value="대학부">대학부</option><option value="청년부">청년부</option></select></div><div><label style="display:block;font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Dongsan</label><select id="acl-leader-subgroup" class="inp" style="display:none;"></select></div></div><div style="display:flex;gap:8px;margin-bottom:12px;"><button class="btn btn-primary" style="flex:1;" onclick="addAdmin()">Add Admin</button><button class="btn btn-danger" style="flex:1;" onclick="removeAdmin()">Remove Admin</button></div><button class="btn btn-secondary btn-full" onclick="listAdmins()">View Admins</button><div id="admin-list" style="margin-top:12px;"></div></div>
       <div class="card" style="margin-bottom:16px;"><div style="font-size:14px;font-weight:700;margin-bottom:8px;">Your Device ID</div><div class="mono" style="font-size:12px;color:var(--acc);word-break:break-all;padding:10px;background:var(--bg);border-radius:10px;border:1px solid var(--bdr);" id="my-device-id"></div></div>
       <div class="card" style="margin-bottom:16px;">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;"><div data-i18n="pending_admin_title" style="font-size:16px;font-weight:800;">⏳ 등록 승인 대기</div><span id="pending-badge-card" style="display:none;background:var(--red);color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px;"></span></div>
@@ -439,6 +440,18 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
           </label>
         </div>
         <style>.summer-toggle-track::after{content:"";position:absolute;left:3px;top:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.2s;}#summer-mode-toggle:checked+.summer-toggle-track{background:var(--acc);}#summer-mode-toggle:checked+.summer-toggle-track::after{transform:translateX(20px);}</style>
+      </div>
+      <div class="card" id="demo-mode-card" style="margin-bottom:16px;display:none;">
+        <div style="font-size:16px;font-weight:800;margin-bottom:4px;">🎭 Demo Mode</div>
+        <div style="font-size:12px;color:var(--txt-m);margin-bottom:14px;line-height:1.6;">When enabled, check-in bypasses day, time, and location restrictions — useful for demonstrating the app to others. <b>Super admins only.</b></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;background:var(--bg);border-radius:10px;border:1px solid var(--bdr);">
+          <span style="font-size:13px;font-weight:600;">Enable Demo Mode</span>
+          <label style="position:relative;display:inline-block;width:44px;height:24px;flex-shrink:0;cursor:pointer;">
+            <input type="checkbox" id="demo-mode-toggle" style="opacity:0;position:absolute;width:0;height:0;" onchange="saveDemoMode(this.checked)">
+            <span class="demo-toggle-track" style="position:absolute;cursor:pointer;inset:0;background:var(--bdr);border-radius:24px;transition:.2s;"></span>
+          </label>
+        </div>
+        <style>.demo-toggle-track::after{content:"";position:absolute;left:3px;top:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.2s;}#demo-mode-toggle:checked+.demo-toggle-track{background:#a855f7;}#demo-mode-toggle:checked+.demo-toggle-track::after{transform:translateX(20px);}</style>
       </div>
       <div class="card" style="margin-bottom:16px;">
         <div data-i18n="ci_window_title" style="font-size:16px;font-weight:800;margin-bottom:4px;">⏰ 출석 가능 시간 설정</div>
@@ -670,7 +683,7 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
 </div>
 
 <script>
-let deviceId=null,D={devices:{},log:[]},viewMode="grid",sheetGroup="",sheetSubgroup="",todayGroup="",todaySubgroup="",devGroup="",devSubgroup="",nameOrder=[],dongsanNames={"대학부":["동산1","동산2","동산3","동산4"],"청년부":["동산1","동산2","동산3","동산4"]},activeTab="sheet",myAdminRole=null,announcement="",lightMode=false,myLeaderGroup="",myLeaderSubgroup="",checkinDays=[0],checkinStartMin=780,checkinEndMin=900,memberSearch="",dongsanLeaders={},requireApproval=false,pendingCount=0,chartsVisible=true,_trendChart=null,_groupChart=null,summerMode=false;
+let deviceId=null,D={devices:{},log:[]},viewMode="grid",sheetGroup="",sheetSubgroup="",todayGroup="",todaySubgroup="",devGroup="",devSubgroup="",nameOrder=[],dongsanNames={"대학부":["동산1","동산2","동산3","동산4"],"청년부":["동산1","동산2","동산3","동산4"]},activeTab="sheet",myAdminRole=null,announcement="",lightMode=false,myLeaderGroup="",myLeaderSubgroup="",checkinDays=[0],checkinStartMin=780,checkinEndMin=900,memberSearch="",dongsanLeaders={},requireApproval=false,pendingCount=0,chartsVisible=true,_trendChart=null,_groupChart=null,summerMode=false,demoMode=false;
 function fp(){const n=navigator,s=screen;const r=[n.userAgent,n.language,n.hardwareConcurrency,n.maxTouchPoints,s.width,s.height,s.colorDepth,Intl.DateTimeFormat().resolvedOptions().timeZone,n.platform,n.deviceMemory||"x"].join("|");let h1=5381,h2=0;for(let i=0;i<r.length;i++){h1=((h1<<5)+h1+r.charCodeAt(i))&0xFFFFFFFF;h2=r.charCodeAt(i)+((h2<<6)+(h2<<16)-h2)&0xFFFFFFFF;}return`DEV-${(h1>>>0).toString(16).padStart(8,"0")}-${(h2>>>0).toString(16).padStart(8,"0")}`.toUpperCase();}
 function today(){return new Date().toLocaleDateString("en-CA",{timeZone:"America/New_York"})}
 function fmtD(d){return new Date(d+"T12:00:00").toLocaleDateString("en-US",{timeZone:"America/New_York",weekday:"short",month:"short",day:"numeric"})}
@@ -695,7 +708,7 @@ async function load(){
   if(d&&!d.offline&&!d.error){setOffline(false);D=d;}
   try{if(nameOrd&&!nameOrd.offline)nameOrder=nameOrd.order||[];}catch(e){}
   try{if(dNames&&dNames.names)dongsanNames=dNames.names;}catch(e){}
-  try{if(cfg&&!cfg.offline){if(cfg.announcement!==undefined){announcement=cfg.announcement;const el=document.getElementById("announcement-text");if(el)el.value=announcement;}if(cfg.checkinDays!==undefined)checkinDays=cfg.checkinDays;if(cfg.checkinStartMin!==undefined)checkinStartMin=cfg.checkinStartMin;if(cfg.checkinEndMin!==undefined)checkinEndMin=cfg.checkinEndMin;if(cfg.requireApproval!==undefined){requireApproval=cfg.requireApproval;const at=document.getElementById("approval-toggle");if(at)at.checked=requireApproval;}if(cfg.summerMode!==undefined){summerMode=cfg.summerMode;const st=document.getElementById("summer-mode-toggle");if(st)st.checked=summerMode;}renderCheckinWindow();}}catch(e){}
+  try{if(cfg&&!cfg.offline){if(cfg.announcement!==undefined){announcement=cfg.announcement;const el=document.getElementById("announcement-text");if(el)el.value=announcement;}if(cfg.checkinDays!==undefined)checkinDays=cfg.checkinDays;if(cfg.checkinStartMin!==undefined)checkinStartMin=cfg.checkinStartMin;if(cfg.checkinEndMin!==undefined)checkinEndMin=cfg.checkinEndMin;if(cfg.requireApproval!==undefined){requireApproval=cfg.requireApproval;const at=document.getElementById("approval-toggle");if(at)at.checked=requireApproval;}if(cfg.summerMode!==undefined){summerMode=cfg.summerMode;const st=document.getElementById("summer-mode-toggle");if(st)st.checked=summerMode;}if(cfg.demoMode!==undefined){demoMode=cfg.demoMode;const dt=document.getElementById("demo-mode-toggle");if(dt)dt.checked=demoMode;renderCheckinWindowBadge();}renderCheckinWindow();}}catch(e){}
   try{if(ldrs&&ldrs.leaders)dongsanLeaders=ldrs.leaders;}catch(e){}
 }
 function sortNames(names){
@@ -1041,6 +1054,12 @@ async function showAdmin(prefetchedAdminData=null){
   myLeaderSubgroup=r.leaderSubgroup||"";
   // If leader is scoped, force their group filter
   if(myAdminRole==="leader"&&myLeaderGroup){sheetGroup=myLeaderGroup;todayGroup=myLeaderGroup;devGroup=myLeaderGroup;if(myLeaderSubgroup){sheetSubgroup=myLeaderSubgroup;todaySubgroup=myLeaderSubgroup;devSubgroup=myLeaderSubgroup;}}
+  // Role-based UI: welcoming hides admins tab; super shows demo mode controls
+  const isSuper=myAdminRole==="super"||myAdminRole===null;
+  const isWelcoming=myAdminRole==="welcoming";
+  document.querySelectorAll(".nav-btn[data-tab='admins']").forEach(b=>(b as HTMLElement).style.display=isWelcoming?"none":"");
+  const demoCard=document.getElementById("demo-mode-card");if(demoCard)demoCard.style.display=isSuper?"block":"none";
+  const dmBanner=document.getElementById("demo-mode-banner");if(dmBanner)dmBanner.style.display=demoMode?"block":"none";
   if(!prefetchedAdminData)await load();
   document.getElementById("my-device-id").textContent=deviceId;
   initSwipe();
@@ -1114,6 +1133,7 @@ async function saveDongsanLeaders(group,subgroup){
 }
 function renderAll(){
   const smb=document.getElementById("summer-mode-banner");if(smb)smb.style.display=summerMode?"block":"none";
+  const dmb=document.getElementById("demo-mode-banner");if(dmb)dmb.style.display=demoMode?"block":"none";
   renderStats();renderGrpTabs("sheet-grp-tabs",sheetGroup,"setSheetGroup");renderSubgroupTabs("sheet-subgrp-tabs",sheetGroup,sheetSubgroup,"setSheetSubgroup");renderGrpTabs("today-grp-tabs",todayGroup,"setTodayGroup");renderSubgroupTabs("today-subgrp-tabs",todayGroup,todaySubgroup,"setTodaySubgroup");renderGrpTabs("dev-grp-tabs",devGroup,"setDevGroup");renderSubgroupTabs("dev-subgrp-tabs",devGroup,devSubgroup,"setDevSubgroup");renderSheet();renderToday();renderDevices();renderDongsanEditor();renderDongsanLeadersEditor();renderLinkDropdown();renderLeaderDashboard();renderWeeklyComparison();if(chartsVisible)renderCharts();
 }
 
@@ -1493,7 +1513,7 @@ function clearLog(){confirmAction(t('clear_log_title'),async()=>{await api("DELE
 function clearDevices(){confirmAction(t('clear_devices_title'),async()=>{await api("DELETE","/api/devices",null,{"X-Device-Id":deviceId});flash("All devices cleared");await load();renderAll();},{icon:"📱",desc:t('clear_devices_desc'),holdMs:2000});}
 function clearEverything(){confirmAction(t('clear_all_title'),async()=>{await api("DELETE","/api/all",null,{"X-Device-Id":deviceId});flash("Everything cleared");await load();renderAll();},{icon:"💣",desc:t('clear_all_desc'),holdMs:2500});}
 async function removeAdmin(){const pw=document.getElementById("acl-pw").value,did=document.getElementById("acl-device").value.trim();if(!pw||!did){flash(t('fill_both_fields'),"warn");return;}const r=await api("POST","/api/admin/remove",{password:pw,targetDeviceId:did});if(r.error){flash(r.error,"err");return;}flash(t('admin_removed_msg'));listAdmins();}
-async function listAdmins(){const pw=document.getElementById("acl-pw").value;if(!pw){flash(t('enter_password'),"warn");return;}const r=await api("POST","/api/admin/list",{password:pw});if(r.error){flash(r.error,"err");return;}const el=document.getElementById("admin-list");if(!r.adminDevices.length){el.innerHTML=`<div style="color:var(--txt-d);font-size:12px;text-align:center;padding:12px;">${t('no_admins_msg')}</div>`;return;}el.innerHTML=`<div class="sl" style="margin-top:8px;">${t('admins_count_fn')(r.adminDevices.length)}</div>`+r.adminDevices.map(a=>{const roleCls=a.role==="super"?"tag-green":"tag-purple";const roleLbl=a.role==="super"?t('super_admin_label'):t('leader_admin_label');return`<div style="padding:8px 12px;margin-bottom:4px;border-radius:8px;background:var(--card);border:1px solid var(--bdr);display:flex;justify-content:space-between;align-items:center;"><div><div style="font-size:13px;font-weight:600;">${esc(a.name)}</div><div class="mono" style="font-size:10px;color:var(--txt-d);">${esc(a.deviceId)}</div></div><span class="tag ${roleCls}">${esc(roleLbl)}</span></div>`;}).join("");}
+async function listAdmins(){const pw=document.getElementById("acl-pw").value;if(!pw){flash(t('enter_password'),"warn");return;}const r=await api("POST","/api/admin/list",{password:pw});if(r.error){flash(r.error,"err");return;}const el=document.getElementById("admin-list");if(!r.adminDevices.length){el.innerHTML=`<div style="color:var(--txt-d);font-size:12px;text-align:center;padding:12px;">${t('no_admins_msg')}</div>`;return;}el.innerHTML=`<div class="sl" style="margin-top:8px;">${t('admins_count_fn')(r.adminDevices.length)}</div>`+r.adminDevices.map(a=>{const roleCls=a.role==="super"?"tag-green":a.role==="welcoming"?"tag-amber":"tag-purple";const roleLbl=a.role==="super"?t('super_admin_label'):a.role==="welcoming"?"Welcoming":t('leader_admin_label');return`<div style="padding:8px 12px;margin-bottom:4px;border-radius:8px;background:var(--card);border:1px solid var(--bdr);display:flex;justify-content:space-between;align-items:center;"><div><div style="font-size:13px;font-weight:600;">${esc(a.name)}</div><div class="mono" style="font-size:10px;color:var(--txt-d);">${esc(a.deviceId)}</div></div><span class="tag ${roleCls}">${esc(roleLbl)}</span></div>`;}).join("");}
 
 // ─── Notes ───
 let notesEditName=null;
@@ -1574,6 +1594,14 @@ async function saveSummerMode(checked){
   summerMode=checked;
   renderAll();
   flash(checked?"☀️ 여름 모드 활성화":"여름 모드 비활성화");
+}
+async function saveDemoMode(checked){
+  const r=await api("POST","/api/config",{demoMode:checked,adminDeviceId:deviceId});
+  if(r.error){flash(r.error,"err");document.getElementById("demo-mode-toggle").checked=!checked;return;}
+  demoMode=checked;
+  const dmBanner=document.getElementById("demo-mode-banner");if(dmBanner)dmBanner.style.display=checked?"block":"none";
+  renderCheckinWindowBadge();
+  flash(checked?"🎭 Demo Mode 활성화 — 시간/위치 제한 해제":"🎭 Demo Mode 비활성화");
 }
 
 // ─── KakaoTalk summary ───
@@ -2415,6 +2443,7 @@ function updateAclLeaderFields(){
   const role=document.getElementById("acl-role").value;
   const wrap=document.getElementById("acl-leader-fields");
   if(wrap)wrap.style.display=role==="leader"?"block":"none";
+  if(role!=="leader"){const sg=document.getElementById("acl-leader-subgroup");if(sg)sg.style.display="none";}
 }
 function updateAclLeaderSubgroup(){
   const g=document.getElementById("acl-leader-group").value;
@@ -3104,6 +3133,7 @@ async function pingHealth(){
 function renderCheckinWindowBadge(){
   const el=document.getElementById("checkin-window-badge");
   if(!el)return;
+  if(demoMode){el.innerHTML=`<span style="display:inline-flex;align-items:center;gap:5px;padding:5px 14px;border-radius:20px;background:rgba(168,85,247,.15);border:1px solid rgba(168,85,247,.4);font-size:11px;font-weight:700;color:#a855f7;font-family:'IBM Plex Mono',monospace;letter-spacing:.3px;"><span style="width:6px;height:6px;border-radius:50%;background:#a855f7;display:inline-block;animation:pulse 2s ease-in-out infinite;"></span>DEMO MODE</span>`;return;}
   const eastern=new Date(new Date().toLocaleString("en-US",{timeZone:"America/New_York"}));
   const day=eastern.getDay();
   const h=eastern.getHours(),m=eastern.getMinutes();
