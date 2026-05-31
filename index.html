@@ -11,6 +11,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="KCCP 출석">
 <link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://loovulhchmmwagtvjnhc.supabase.co">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
@@ -690,7 +691,7 @@ function fmtD(d){return new Date(d+"T12:00:00").toLocaleDateString("en-US",{time
 function fmtDL(d){return new Date(d+"T12:00:00").toLocaleDateString("en-US",{timeZone:"America/New_York",weekday:"long",month:"long",day:"numeric",year:"numeric"})}
 function esc(s){const d=document.createElement("div");d.textContent=s;return d.innerHTML;}
 const API_BASE=window.location.hostname==='localhost'||window.location.hostname==='127.0.0.1'?'':'https://loovulhchmmwagtvjnhc.supabase.co/functions/v1/attendance-api';
-async function api(m,p,b,h={}){const o={method:m,headers:{"Content-Type":"application/json",...h}};if(b)o.body=JSON.stringify(b);const resp=await fetch(API_BASE+p,o);try{return await resp.json();}catch(e){return{error:`HTTP ${resp.status} — response was not JSON (server may be unreachable)`,_parseError:true};}}
+async function api(m,p,b,h={}){const ctrl=new AbortController();const _t=setTimeout(()=>ctrl.abort(),12000);const o={method:m,headers:{"Content-Type":"application/json",...h},signal:ctrl.signal};if(b)o.body=JSON.stringify(b);try{const resp=await fetch(API_BASE+p,o);clearTimeout(_t);try{return await resp.json();}catch(e){return{error:`HTTP ${resp.status} — response was not JSON (server may be unreachable)`,_parseError:true};}}catch(e){clearTimeout(_t);throw e;}}
 function setOffline(v){const b=document.getElementById("offline-banner");if(b)b.style.display=v?"block":"none";if(typeof updateHealthDot==="function")updateHealthDot(!v);}
 async function load(){
   // Fire all config fetches in parallel with the data fetch to cut load time
@@ -846,7 +847,7 @@ function getLocation(){
     const doGet=(bg)=>navigator.geolocation.getCurrentPosition(
       pos=>{userLat=pos.coords.latitude;userLng=pos.coords.longitude;_saveLocCache(userLat,userLng);if(!bg)resolve({lat:userLat,lng:userLng});},
       err=>{if(!bg){console.warn("Location error:",err.message);const c=_getLocCache();userLat=c?c.lat:null;userLng=c?c.lng:null;resolve({lat:userLat,lng:userLng});}},
-      {enableHighAccuracy:true,timeout:10000,maximumAge:bg?0:300000}
+      {enableHighAccuracy:true,timeout:5000,maximumAge:bg?0:300000}
     );
     const c=_getLocCache();
     if(c){
@@ -867,14 +868,22 @@ function getLocation(){
     }else{doGet(false);}
   });
 }
+function isInCheckinWindow(){
+  if(demoMode)return false;
+  const e=new Date(new Date().toLocaleString("en-US",{timeZone:"America/New_York"}));
+  const mins=e.getHours()*60+e.getMinutes();
+  return checkinDays.includes(e.getDay())&&mins>=checkinStartMin&&mins<=checkinEndMin;
+}
 async function doCheckin(){
   const el=document.getElementById("checkin-content");
   el.innerHTML=`<div style="margin:0 auto 20px;animation:pulse 1.5s ease-in-out infinite;">${kccpLogo(140)}</div><div style="font-size:20px;font-weight:700;margin-bottom:8px;">${t('checking_in')}</div><div style="font-size:12px;color:var(--txt-d);">${t('checking_loc')}</div>`;
-  updateLocationStatus('checking');
-  const loc=await getLocation();
-  userLat=loc.lat;userLng=loc.lng;
-  updateLocationStatus(userLat&&userLng?'located':'denied');
-  if(!dName(deviceId)){document.getElementById("register-modal").style.display="flex";document.getElementById("self-name").focus();return;}
+  if(isInCheckinWindow()){
+    updateLocationStatus('checking');
+    const loc=await getLocation();
+    userLat=loc.lat;userLng=loc.lng;
+    updateLocationStatus(userLat&&userLng?'located':'denied');
+  }
+  if(!dName(deviceId)&&Object.keys(D.devices).length>0){document.getElementById("register-modal").style.display="flex";document.getElementById("self-name").focus();return;}
   await doCheckinFinish();
 }
 function getEasternNow(){
