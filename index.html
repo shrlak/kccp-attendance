@@ -3159,6 +3159,9 @@ function renderCheckinWindowBadge(){
 })();
 
 (async function(){
+  // Always land on check-in screen
+  document.getElementById("checkin-view").style.display="flex";
+  document.getElementById("admin-view").style.display="none";
   // Persist device ID in localStorage so it stays stable across browser updates
   const _DID_KEY="kccp-device-id";
   if(!localStorage.getItem(_DID_KEY))localStorage.setItem(_DID_KEY,fp());
@@ -3167,16 +3170,20 @@ function renderCheckinWindowBadge(){
   applyLang();
   updateQueueBadge();
   syncOfflineQueue();
+  // Show logo immediately so the check-in screen is never blank while loading
+  const ciEl=document.getElementById("checkin-content");
+  if(ciEl)ciEl.innerHTML=`<div style="margin:0 auto 20px;animation:pulse 1.5s ease-in-out infinite;">${kccpLogo(140)}</div><div style="font-size:20px;font-weight:700;margin-bottom:8px;">KCCP 출석</div><div style="font-size:12px;color:var(--txt-d);">로딩 중...</div>`;
   // Start health polling
   pingHealth();
   setInterval(pingHealth,30000);
   // Start window badge (update every minute)
+  renderCheckinWindowBadge();
+  setInterval(renderCheckinWindowBadge,60000);
   const sc=document.getElementById("sheet-content");const tl=document.getElementById("today-list");const dl=document.getElementById("devices-list");
   if(sc)sc.innerHTML=skeletonCards(5);if(tl)tl.innerHTML=skeletonCards(4);if(dl)dl.innerHTML=skeletonCards(4);
   try{await load();}catch(e){console.error("Load failed:",e);}
   renderCheckinStrip();
   renderCheckinWindowBadge();
-  setInterval(renderCheckinWindowBadge,60000);
   try{await doCheckin();}catch(e){
     console.error("Checkin failed:",e);
     document.getElementById("checkin-content").innerHTML=`<div style="font-size:18px;font-weight:700;color:var(--red);margin-bottom:8px;">${t('connection_error')}</div><div style="font-size:13px;color:var(--txt-m);margin-bottom:16px;">${t('cannot_connect')}</div><button class="btn btn-primary" onclick="location.reload()">${t('retry_btn')}</button>`;
