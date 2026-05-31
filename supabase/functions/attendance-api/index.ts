@@ -27,6 +27,13 @@ async function isAdmin(sb: SB, did: string) {
   if(!ads.length) return true;
   return ads.some((d:any)=>typeof d==="string"?d===did:d.deviceId===did);
 }
+async function isSuperAdmin(sb: SB, did: string) {
+  const cfg=await getCfg(sb); const ads: any[]=cfg.admin_devices||[];
+  if(!ads.length) return true;
+  const entry=ads.find((d:any)=>typeof d==="string"?d===did:d.deviceId===did);
+  if(!entry) return false;
+  return typeof entry==="string"||(entry.role||"super")==="super";
+}
 function rowToDev(d: any) { return {name:d.name,group:d.group_name||"",subgroup:d.subgroup||"",notes:d.notes||"",memberRole:d.member_role||""}; }
 function rowToLog(e: any) { return {deviceId:e.device_id,name:e.name,group:e.group_name||"",subgroup:e.subgroup||"",date:e.date,time:e.time_str,ts:e.ts,locationVerified:e.location_verified,adminAdded:e.admin_added,manual:e.is_manual,bulk:e.is_bulk,guest:e.is_guest,firstVisit:e.first_visit,memberRole:e.member_role}; }
 async function getDevsByName(sb: SB, name: string): Promise<string[]> { const {data}=await sb.from("devices").select("id").eq("name",name); return (data||[]).map((d:any)=>d.id); }
@@ -134,14 +141,16 @@ Deno.serve(async (req: Request) => {
       // Fetch config and device in parallel to minimize round-trips
       const [cfg,{data:device}]=await Promise.all([getCfg(sb),sb.from("devices").select("*").eq("id",deviceId).single()]);
       const allowedDays: number[]=cfg.checkin_days||[0]; const startMin: number=cfg.checkin_start_min??780; const endMin: number=cfg.checkin_end_min??900;
-      const now=new Date(); const eastern=new Date(now.toLocaleString("en-US",{timeZone:"America/New_York"}));
-      const day=eastern.getDay(),timeInMin=eastern.getHours()*60+eastern.getMinutes();
-      const DAY=["일요일","월요일","화요일","수요일","목요일","금요일","토요일"];
-      if(!allowedDays.includes(day)) return ok({status:"time-restricted",message:"출석 가능한 요일이 아닙니다",sub:"출석 가능 요일: "+allowedDays.map((d:number)=>DAY[d]).join(", ")});
-      if(timeInMin<startMin||timeInMin>=endMin) return ok({status:"time-restricted",message:"출석 시간이 아닙니다",sub:"출석 가능 시간: "+fmtMin(startMin)+" ~ "+fmtMin(endMin)});
-      const loc=checkLocation(lat,lng);
-      if(loc==="required") return ok({status:"location-required",message:"위치 정보가 필요합니다. 위치 접근을 허용해주세요."});
-      if(loc!==null) return ok({status:"location-restricted",message:"교회 근처에서만 출석할 수 있습니다.",distance:loc});
+      if(!cfg.demo_mode){
+        const now=new Date(); const eastern=new Date(now.toLocaleString("en-US",{timeZone:"America/New_York"}));
+        const day=eastern.getDay(),timeInMin=eastern.getHours()*60+eastern.getMinutes();
+        const DAY=["일요일","월요일","화요일","수요일","목요일","금요일","토요일"];
+        if(!allowedDays.includes(day)) return ok({status:"time-restricted",message:"출석 가능한 요일이 아닙니다",sub:"출석 가능 요일: "+allowedDays.map((d:number)=>DAY[d]).join(", ")});
+        if(timeInMin<startMin||timeInMin>=endMin) return ok({status:"time-restricted",message:"출석 시간이 아닙니다",sub:"출석 가능 시간: "+fmtMin(startMin)+" ~ "+fmtMin(endMin)});
+        const loc=checkLocation(lat,lng);
+        if(loc==="required") return ok({status:"location-required",message:"위치 정보가 필요합니다. 위치 접근을 허용해주세요."});
+        if(loc!==null) return ok({status:"location-restricted",message:"교회 근처에서만 출석할 수 있습니다.",distance:loc});
+      }
       const today=localDate(),time=localTime(),ts=Date.now();
       const name=device?.name,group=device?.group_name||"",subgroup=device?.subgroup||"",memberRole=device?.member_role||"";
       if(name){const ex=await checkedToday(sb,name,today);if(ex){const total=await countAtt(sb,name);return ok({status:"already",time:ex.time_str,name,group,subgroup,totalAttendance:total});}}
@@ -236,13 +245,15 @@ Deno.serve(async (req: Request) => {
     if(req.method==="POST"&&p==="/api/guest-checkin") {
       const {name,lat,lng}=body; if(!name?.trim()) return fail(400,"name required");
       const cfg=await getCfg(sb); const allowedDays: number[]=cfg.checkin_days||[0]; const startMin: number=cfg.checkin_start_min??780,endMin: number=cfg.checkin_end_min??900;
-      const now=new Date(),eastern=new Date(now.toLocaleString("en-US",{timeZone:"America/New_York"}));
-      const day=eastern.getDay(),timeInMin=eastern.getHours()*60+eastern.getMinutes();
-      const DAY=["일요일","월요일","화요일","수요일","목요일","금요일","토요일"];
-      if(!allowedDays.includes(day)) return ok({status:"time-restricted",message:"출석 가능한 요일이 아닙니다",sub:"출석 가능 요일: "+allowedDays.map((d:number)=>DAY[d]).join(", ")});
-      if(timeInMin<startMin||timeInMin>=endMin) return ok({status:"time-restricted",message:"출석 시간이 아닙니다",sub:"출석 가능 시간: "+fmtMin(startMin)+" ~ "+fmtMin(endMin)});
-      const loc=checkLocation(lat,lng); if(loc==="required") return ok({status:"location-required",message:"위치 정보가 필요합니다. 위치 접근을 허용해주세요."});
-      if(loc!==null) return ok({status:"location-restricted",message:"교회 근처에서만 출석할 수 있습니다.",distance:loc});
+      if(!cfg.demo_mode){
+        const now=new Date(),eastern=new Date(now.toLocaleString("en-US",{timeZone:"America/New_York"}));
+        const day=eastern.getDay(),timeInMin=eastern.getHours()*60+eastern.getMinutes();
+        const DAY=["일요일","월요일","화요일","수요일","목요일","금요일","토요일"];
+        if(!allowedDays.includes(day)) return ok({status:"time-restricted",message:"출석 가능한 요일이 아닙니다",sub:"출석 가능 요일: "+allowedDays.map((d:number)=>DAY[d]).join(", ")});
+        if(timeInMin<startMin||timeInMin>=endMin) return ok({status:"time-restricted",message:"출석 시간이 아닙니다",sub:"출석 가능 시간: "+fmtMin(startMin)+" ~ "+fmtMin(endMin)});
+        const loc=checkLocation(lat,lng); if(loc==="required") return ok({status:"location-required",message:"위치 정보가 필요합니다. 위치 접근을 허용해주세요."});
+        if(loc!==null) return ok({status:"location-restricted",message:"교회 근처에서만 출석할 수 있습니다.",distance:loc});
+      }
       const today=localDate(),time=localTime();
       const {data:ex}=await sb.from("attendance_log").select("id").eq("name",name.trim()).eq("date",today).eq("is_guest",true).limit(1);
       if(!ex||!ex.length) await sb.from("attendance_log").insert({device_id:"GUEST-"+Date.now(),name:name.trim(),group_name:"",subgroup:"",date:today,time_str:time,ts:Date.now(),is_guest:true,member_role:"visitor"});
@@ -309,16 +320,17 @@ Deno.serve(async (req: Request) => {
       return ok({adminDevices:result});
     }
 
-    if(req.method==="GET"&&p==="/api/config"){const cfg=await getCfg(sb);return ok({announcement:cfg.announcement||"",checkinDays:cfg.checkin_days||[0],checkinStartMin:cfg.checkin_start_min??780,checkinEndMin:cfg.checkin_end_min??900,requireApproval:cfg.require_approval||false,summerMode:cfg.summer_mode||false});}
+    if(req.method==="GET"&&p==="/api/config"){const cfg=await getCfg(sb);return ok({announcement:cfg.announcement||"",checkinDays:cfg.checkin_days||[0],checkinStartMin:cfg.checkin_start_min??780,checkinEndMin:cfg.checkin_end_min??900,requireApproval:cfg.require_approval||false,summerMode:cfg.summer_mode||false,demoMode:cfg.demo_mode||false});}
 
     if(req.method==="POST"&&p==="/api/config") {
-      const {announcement,checkinDays,checkinStartMin,checkinEndMin,requireApproval,summerMode,adminDeviceId}=body;
+      const {announcement,checkinDays,checkinStartMin,checkinEndMin,requireApproval,summerMode,demoMode,adminDeviceId}=body;
       if(!await isAdmin(sb,adminDeviceId)) return fail(403,"Not authorized");
       const upd: any={updated_at:new Date().toISOString()};
       if(announcement!==undefined) upd.announcement=announcement; if(checkinDays!==undefined) upd.checkin_days=checkinDays;
       if(checkinStartMin!==undefined) upd.checkin_start_min=Number(checkinStartMin); if(checkinEndMin!==undefined) upd.checkin_end_min=Number(checkinEndMin);
       if(requireApproval!==undefined) upd.require_approval=!!requireApproval;
       if(summerMode!==undefined) upd.summer_mode=!!summerMode;
+      if(demoMode!==undefined){if(!await isSuperAdmin(sb,adminDeviceId))return fail(403,"Demo mode requires super admin");upd.demo_mode=!!demoMode;}
       await sb.from("config").update(upd).eq("id",1); await addAudit(sb,"config-change",adminDeviceId,"config updated");
       return ok({status:"ok"});
     }
