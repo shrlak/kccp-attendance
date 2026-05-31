@@ -12,8 +12,8 @@ function fmtDateWithDay(d: string) { return new Date(d+"T12:00:00").toLocaleDate
 function fmtMin(m: number) { const h=Math.floor(m/60),mn=m%60,h12=h%12||12; return String(h12).padStart(2,"0")+":"+String(mn).padStart(2,"0")+" "+(h>=12?"PM":"AM"); }
 
 const CHURCH_LAT=40.450218535488325, CHURCH_LNG=-79.93480148825721;
-function checkLocation(lat?: number, lng?: number) {
-  if(lat===undefined||lng===undefined) return "required";
+function checkLocation(lat?: number | null, lng?: number | null) {
+  if(lat==null||lng==null) return "required";
   const R=6371000,dLat=(lat-CHURCH_LAT)*Math.PI/180,dLng=(lng-CHURCH_LNG)*Math.PI/180;
   const a=Math.sin(dLat/2)**2+Math.cos(CHURCH_LAT*Math.PI/180)*Math.cos(lat*Math.PI/180)*Math.sin(dLng/2)**2;
   const dist=R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
