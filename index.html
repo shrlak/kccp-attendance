@@ -691,8 +691,11 @@ function fmtD(d){return new Date(d+"T12:00:00").toLocaleDateString("en-US",{time
 function fmtDL(d){return new Date(d+"T12:00:00").toLocaleDateString("en-US",{timeZone:"America/New_York",weekday:"long",month:"long",day:"numeric",year:"numeric"})}
 function esc(s){const d=document.createElement("div");d.textContent=s;return d.innerHTML;}
 const API_BASE=window.location.hostname==='localhost'||window.location.hostname==='127.0.0.1'?'':'https://loovulhchmmwagtvjnhc.supabase.co/functions/v1/attendance-api';
-async function api(m,p,b,h={}){const ctrl=new AbortController();const _t=setTimeout(()=>ctrl.abort(),12000);const o={method:m,headers:{"Content-Type":"application/json",...h},signal:ctrl.signal};if(b)o.body=JSON.stringify(b);try{const resp=await fetch(API_BASE+p,o);clearTimeout(_t);try{return await resp.json();}catch(e){return{error:`HTTP ${resp.status} — response was not JSON (server may be unreachable)`,_parseError:true};}}catch(e){clearTimeout(_t);throw e;}}
+async function api(m,p,b,h={}){const ctrl=new AbortController();const _t=setTimeout(()=>ctrl.abort(),12000);const hdrs={...h};if(b)hdrs["Content-Type"]="application/json";const o={method:m,headers:hdrs,signal:ctrl.signal};if(b)o.body=JSON.stringify(b);try{const resp=await fetch(API_BASE+p,o);clearTimeout(_t);try{return await resp.json();}catch(e){return{error:`HTTP ${resp.status} — response was not JSON (server may be unreachable)`,_parseError:true};}}catch(e){clearTimeout(_t);throw e;}}
 function setOffline(v){const b=document.getElementById("offline-banner");if(b)b.style.display=v?"block":"none";if(typeof updateHealthDot==="function")updateHealthDot(!v);}
+const _DEV_CACHE="kccp-dev-v1";
+function _restoreDevCache(){try{const c=JSON.parse(localStorage.getItem(_DEV_CACHE));if(c&&c.ts&&Date.now()-c.ts<3600000&&c.d&&Object.keys(c.d).length>0){D.devices=c.d;return true;}}catch(e){}return false;}
+function _saveDevCache(){try{localStorage.setItem(_DEV_CACHE,JSON.stringify({d:D.devices,ts:Date.now()}));}catch(e){}}
 async function load(){
   // Fire all config fetches in parallel with the data fetch to cut load time
   let [d,nameOrd,dNames,cfg,ldrs]=await Promise.all([
@@ -706,7 +709,7 @@ async function load(){
     await new Promise(r=>setTimeout(r,2500));
     d=await api("GET","/api/data");
   }
-  if(d&&!d.offline&&!d.error){setOffline(false);D=d;}
+  if(d&&!d.offline&&!d.error){setOffline(false);D=d;_saveDevCache();}
   try{if(nameOrd&&!nameOrd.offline)nameOrder=nameOrd.order||[];}catch(e){}
   try{if(dNames&&dNames.names)dongsanNames=dNames.names;}catch(e){}
   try{if(cfg&&!cfg.offline){if(cfg.announcement!==undefined){announcement=cfg.announcement;const el=document.getElementById("announcement-text");if(el)el.value=announcement;}if(cfg.checkinDays!==undefined)checkinDays=cfg.checkinDays;if(cfg.checkinStartMin!==undefined)checkinStartMin=cfg.checkinStartMin;if(cfg.checkinEndMin!==undefined)checkinEndMin=cfg.checkinEndMin;if(cfg.requireApproval!==undefined){requireApproval=cfg.requireApproval;const at=document.getElementById("approval-toggle");if(at)at.checked=requireApproval;}if(cfg.summerMode!==undefined){summerMode=cfg.summerMode;const st=document.getElementById("summer-mode-toggle");if(st)st.checked=summerMode;}if(cfg.demoMode!==undefined){demoMode=cfg.demoMode;const dt=document.getElementById("demo-mode-toggle");if(dt)dt.checked=demoMode;renderCheckinWindowBadge();}renderCheckinWindow();}}catch(e){}
@@ -968,8 +971,8 @@ async function doCheckinFinish(){
   if(r.status==="time-restricted"){const type=r.message.includes("요일")?"wrong-day":"wrong-time";const fmtM=v=>{const hh=Math.floor(v/60),mn=v%60,h12=hh%12||12;return`${String(h12).padStart(2,"0")}:${String(mn).padStart(2,"0")} ${hh>=12?"PM":"AM"}`;};const title=type==="wrong-day"?t('wrong_day_title'):t('wrong_time_title');const sub=type==="wrong-day"?t('wrong_day_sub_fn')(checkinDays.map(d=>t('day_names')[d]+t('day_suffix')).join(", ")):t('wrong_time_sub_fn')(fmtM(checkinStartMin),fmtM(checkinEndMin));activeRestriction={type};showRestriction(el,gl,"","#FBBF24",title,sub,type);return;}
   if(r.status==="location-restricted"){showRestriction(el,gl,"📍","#FB7185",t('not_near_church'),r.message,"location");return;}
   if(r.status==="location-required"){showRestriction(el,gl,"📍","#FB7185",t('loc_needed'),r.message,"location");return;}
-  await load();
   const name=dName(deviceId)||r.name;const total=r.totalAttendance||0;
+  api("GET","/api/data").then(d=>{if(d&&!d.offline&&!d.error){D=d;_saveDevCache();}}).catch(()=>{});
   if(r.status==="already"){
     gl.style.background="radial-gradient(circle,rgba(251,191,36,.12),transparent 70%)";
     el.innerHTML=`<div class="fi"><div style="width:140px;height:140px;border-radius:50%;background:var(--amber-dim);border:2px solid rgba(251,191,36,.3);margin:0 auto 28px;display:flex;align-items:center;justify-content:center;font-size:44px;">📋</div><div style="font-size:24px;font-weight:800;color:var(--amber);margin-bottom:6px;">${t('already_in')}</div><div style="font-size:15px;font-weight:500;">${esc(name)}</div><div class="mono" style="font-size:14px;color:var(--txt-m);margin-top:4px;">${esc(r.time)}</div><div style="margin-top:14px;display:block;text-align:center;"><span style="padding:8px 20px;border-radius:10px;background:var(--acc-dim);border:1px solid rgba(52,211,153,.2);display:inline-block;font-size:15px;font-weight:700;color:var(--acc);">${t('total_att')}: ${total}</span></div>${announcement?`<div style="margin-top:16px;padding:10px 16px;border-radius:10px;background:var(--amber-dim);border:1px solid rgba(251,191,36,.3);max-width:320px;margin-left:auto;margin-right:auto;"><div style="font-size:10px;font-weight:700;color:var(--amber);margin-bottom:3px;letter-spacing:.5px;">${t('announce_label')}</div><div style="font-size:12px;color:var(--txt);line-height:1.5;">${esc(announcement)}</div></div>`:""}<div style="margin-top:14px;display:block;text-align:center;"><button onclick="showMyHistory('${esc(name)}')" style="background:rgba(255,255,255,.06);border:1px solid var(--bdr);color:var(--txt-m);font-size:12px;font-family:'IBM Plex Mono',monospace;cursor:pointer;padding:10px 20px;border-radius:14px;letter-spacing:.5px;">${t('history_btn')}</button></div><div style="width:200px;height:3px;border-radius:2px;background:var(--bdr);margin:20px auto 0;overflow:hidden;"><div style="height:100%;background:var(--amber);border-radius:2px;animation:countdown 4s linear forwards;"></div></div><div style="font-size:11px;color:var(--txt-d);margin-top:8px;">${t('close_page')}</div></div>`;
@@ -3220,6 +3223,7 @@ function renderCheckinWindowBadge(){
   setInterval(renderCheckinWindowBadge,60000);
   const sc=document.getElementById("sheet-content");const tl=document.getElementById("today-list");const dl=document.getElementById("devices-list");
   if(sc)sc.innerHTML=skeletonCards(5);if(tl)tl.innerHTML=skeletonCards(4);if(dl)dl.innerHTML=skeletonCards(4);
+  _restoreDevCache();
   try{await load();}catch(e){console.error("Load failed:",e);}
   renderCheckinStrip();
   renderCheckinWindowBadge();
