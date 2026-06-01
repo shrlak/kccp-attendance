@@ -399,7 +399,7 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
 
     <!-- ADMINS -->
     <div id="tab-admins" class="view fi">
-      <div class="card" style="margin-bottom:16px;"><div style="font-size:18px;font-weight:800;margin-bottom:6px;">🔐 Admin Access</div><div style="font-size:13px;color:var(--txt-m);line-height:1.7;margin-bottom:16px;">Master password required.</div><div style="margin-bottom:10px;"><label style="display:block;font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Master Password</label><input id="acl-pw" type="password" class="inp" placeholder="Enter master password"></div><div style="margin-bottom:10px;"><label style="display:block;font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Device ID</label><input id="acl-device" class="inp inp-mono" style="font-size:12px;" placeholder="DEV-..."></div><div style="margin-bottom:10px;"><button onclick="document.getElementById('acl-device').value=deviceId" style="background:none;border:none;color:var(--acc);font-size:11px;cursor:pointer;font-family:'IBM Plex Mono',monospace;padding:0;">↑ use this device</button></div><div style="margin-bottom:12px;"><label style="display:block;font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Role</label><select id="acl-role" class="inp" onchange="updateAclLeaderFields()"><option value="super" id="acl-role-super">Super Admin — 모든 권한 (수정, 삭제, 설정)</option><option value="pastor">목사님 (Pastor) — 전체 조회 전용 (수정 불가)</option><option value="welcoming">Welcoming — 전체 조회 및 출석 체크</option><option value="leader" id="acl-role-leader">Leader — 그룹 조회 및 출석 편집만 가능</option></select></div><div id="acl-leader-fields" style="display:none;margin-bottom:12px;"><div style="margin-bottom:8px;"><label style="display:block;font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Ministry</label><select id="acl-ministry" class="inp" style="margin-bottom:8px;"><option value="">All (no restriction)</option><option value="KM">KM (Korean Ministry)</option><option value="EM">EM (English Ministry)</option><option value="Adult">Adult Ministry (장년부)</option></select></div><div id="acl-leader-group-wrap" style="margin-bottom:8px;"><label style="display:block;font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Group</label><select id="acl-leader-group" class="inp" onchange="updateAclLeaderSubgroup()"><option value="">All (no restriction)</option><option value="대학부">대학부</option><option value="청년부">청년부</option><option value="EM">EM</option><option value="Adult Ministry">Adult Ministry (장년부)</option></select></div><div><label style="display:block;font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Dongsan</label><select id="acl-leader-subgroup" class="inp" style="display:none;"></select></div></div><div style="display:flex;gap:8px;margin-bottom:12px;"><button class="btn btn-primary" style="flex:1;" onclick="addAdmin()">Add Admin</button><button class="btn btn-danger" style="flex:1;" onclick="removeAdmin()">Remove Admin</button></div><button class="btn btn-secondary btn-full" onclick="listAdmins()">View Admins</button><div id="admin-list" style="margin-top:12px;"></div></div>
+      <div class="card" style="margin-bottom:16px;"><div style="font-size:18px;font-weight:800;margin-bottom:6px;">🔐 Admin Access</div><div style="font-size:13px;color:var(--txt-m);line-height:1.7;margin-bottom:16px;">Master password required.</div><div style="margin-bottom:10px;"><label style="display:block;font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Master Password</label><input id="acl-pw" type="password" class="inp" placeholder="Enter master password"></div><div style="margin-bottom:10px;"><label style="display:block;font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Device ID</label><input id="acl-device" class="inp inp-mono" style="font-size:12px;" placeholder="DEV-..."></div><div style="margin-bottom:10px;"><button onclick="document.getElementById('acl-device').value=deviceId" style="background:none;border:none;color:var(--acc);font-size:11px;cursor:pointer;font-family:'IBM Plex Mono',monospace;padding:0;">↑ use this device</button></div><div style="margin-bottom:12px;"><label style="display:block;font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Role</label><select id="acl-role" class="inp" onchange="updateAclLeaderFields()"><option value="super" id="acl-role-super">Super Admin — 모든 권한 (수정, 삭제, 설정)</option><option value="pastor">목사님 (Pastor) — 전체 조회 전용 (수정 불가)</option><optgroup label="KM (Korean Ministry)"><option value="km-welcoming">KM Welcoming — KM 조회 및 출석 체크</option><option value="km-leader">KM Leader — KM 그룹 조회 및 출석 편집</option></optgroup><optgroup label="EM (English Ministry)"><option value="em-welcoming">EM Welcoming — EM 조회 및 출석 체크</option><option value="em-leader">EM Leader — EM 조회 및 출석 편집</option></optgroup><optgroup label="Adult Ministry (장년부)"><option value="adult-welcoming">Adult Ministry Welcoming — 장년부 조회 및 출석 체크</option><option value="adult-leader">Adult Ministry Leader — 장년부 조회 및 출석 편집</option></optgroup></select></div><div id="acl-leader-fields" style="display:none;margin-bottom:12px;"><div id="acl-leader-group-wrap" style="margin-bottom:8px;"><label style="display:block;font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Group</label><select id="acl-leader-group" class="inp" onchange="updateAclLeaderSubgroup()"><option value="">All (no restriction)</option><option value="대학부">대학부</option><option value="청년부">청년부</option></select></div><div><label style="display:block;font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Dongsan</label><select id="acl-leader-subgroup" class="inp" style="display:none;"></select></div></div><div style="display:flex;gap:8px;margin-bottom:12px;"><button class="btn btn-primary" style="flex:1;" onclick="addAdmin()">Add Admin</button><button class="btn btn-danger" style="flex:1;" onclick="removeAdmin()">Remove Admin</button></div><button class="btn btn-secondary btn-full" onclick="listAdmins()">View Admins</button><div id="admin-list" style="margin-top:12px;"></div></div>
       <div class="card" style="margin-bottom:16px;"><div style="font-size:14px;font-weight:700;margin-bottom:8px;">Your Device ID</div><div class="mono" style="font-size:12px;color:var(--acc);word-break:break-all;padding:10px;background:var(--bg);border-radius:10px;border:1px solid var(--bdr);" id="my-device-id"></div></div>
       <div class="card" style="margin-bottom:16px;">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;"><div data-i18n="pending_admin_title" style="font-size:16px;font-weight:800;">⏳ 등록 승인 대기</div><span id="pending-badge-card" style="display:none;background:var(--red);color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px;"></span></div>
@@ -1599,7 +1599,13 @@ function clearLog(){confirmAction(t('clear_log_title'),async()=>{await api("DELE
 function clearDevices(){confirmAction(t('clear_devices_title'),async()=>{await api("DELETE","/api/devices",null,{"X-Device-Id":deviceId});flash("All devices cleared");await load();renderAll();},{icon:"📱",desc:t('clear_devices_desc'),holdMs:2000});}
 function clearEverything(){confirmAction(t('clear_all_title'),async()=>{await api("DELETE","/api/all",null,{"X-Device-Id":deviceId});flash("Everything cleared");await load();renderAll();},{icon:"💣",desc:t('clear_all_desc'),holdMs:2500});}
 async function removeAdmin(){const pw=document.getElementById("acl-pw").value,did=document.getElementById("acl-device").value.trim();if(!pw||!did){flash(t('fill_both_fields'),"warn");return;}const r=await api("POST","/api/admin/remove",{password:pw,targetDeviceId:did});if(r.error){flash(r.error,"err");return;}flash(t('admin_removed_msg'));listAdmins();}
-async function listAdmins(){const pw=document.getElementById("acl-pw").value;if(!pw){flash(t('enter_password'),"warn");return;}const r=await api("POST","/api/admin/list",{password:pw});if(r.error){flash(r.error,"err");return;}const el=document.getElementById("admin-list");if(!r.adminDevices.length){el.innerHTML=`<div style="color:var(--txt-d);font-size:12px;text-align:center;padding:12px;">${t('no_admins_msg')}</div>`;return;}el.innerHTML=`<div class="sl" style="margin-top:8px;">${t('admins_count_fn')(r.adminDevices.length)}</div>`+r.adminDevices.map(a=>{const roleCls=a.role==="super"?"tag-green":a.role==="pastor"?"tag-blue":a.role==="welcoming"?"tag-amber":"tag-purple";const roleLbl=a.role==="super"?t('super_admin_label'):a.role==="pastor"?"목사님":a.role==="welcoming"?"Welcoming":t('leader_admin_label');const sub=[a.ministry,a.group,a.subgroup].filter(Boolean).join(" › ");const devInfo=a.deviceCount>1?`${esc(a.deviceId)} <span style="color:var(--acc);font-weight:600;">(${a.deviceCount} devices)</span>`:esc(a.deviceId);return`<div style="padding:8px 12px;margin-bottom:4px;border-radius:8px;background:var(--card);border:1px solid var(--bdr);display:flex;justify-content:space-between;align-items:center;"><div><div style="font-size:13px;font-weight:600;">${esc(a.name)}</div><div class="mono" style="font-size:10px;color:var(--txt-d);">${devInfo}${sub?` · ${esc(sub)}`:""}</div></div><span class="tag ${roleCls}">${esc(roleLbl)}</span></div>`;}).join("");}
+async function listAdmins(){const pw=document.getElementById("acl-pw").value;if(!pw){flash(t('enter_password'),"warn");return;}const r=await api("POST","/api/admin/list",{password:pw});if(r.error){flash(r.error,"err");return;}const el=document.getElementById("admin-list");if(!r.adminDevices.length){el.innerHTML=`<div style="color:var(--txt-d);font-size:12px;text-align:center;padding:12px;">${t('no_admins_msg')}</div>`;return;}el.innerHTML=`<div class="sl" style="margin-top:8px;">${t('admins_count_fn')(r.adminDevices.length)}</div>`+r.adminDevices.map(a=>{
+  const mPfx=a.ministry==="KM"?"KM":a.ministry==="EM"?"EM":a.ministry==="Adult"?"Adult Ministry":"";
+  const roleCls=a.role==="super"?"tag-green":a.role==="pastor"?"tag-blue":a.ministry==="KM"?(a.role==="welcoming"?"tag-amber":"tag-purple"):a.ministry==="EM"?"tag-green":"tag-purple";
+  const roleLbl=a.role==="super"?t('super_admin_label'):a.role==="pastor"?"목사님":mPfx?`${mPfx} ${a.role==="welcoming"?"Welcoming":"Leader"}`:a.role==="welcoming"?"Welcoming":"Leader";
+  const sub=[a.group,a.subgroup].filter(Boolean).join(" › ");
+  const devInfo=a.deviceCount>1?`${esc(a.deviceId)} <span style="color:var(--acc);font-weight:600;">(${a.deviceCount} devices)</span>`:esc(a.deviceId);
+  return`<div style="padding:8px 12px;margin-bottom:4px;border-radius:8px;background:var(--card);border:1px solid var(--bdr);display:flex;justify-content:space-between;align-items:center;"><div><div style="font-size:13px;font-weight:600;">${esc(a.name)}</div><div class="mono" style="font-size:10px;color:var(--txt-d);">${devInfo}${sub?` · ${esc(sub)}`:""}</div></div><span class="tag ${roleCls}">${esc(roleLbl)}</span></div>`;}).join("");}
 
 // ─── Notes ───
 let notesEditName=null;
@@ -1653,14 +1659,15 @@ function renderSummary(){
 // ─── Admin roles ───
 async function addAdmin(){
   const pw=document.getElementById("acl-pw").value,did=document.getElementById("acl-device").value.trim();
-  const roleEl=document.getElementById("acl-role");const role=roleEl?roleEl.value:"super";
+  const roleVal=document.getElementById("acl-role").value;
   if(!pw||!did){flash(t('fill_both_fields'),"warn");return;}
+  let role=roleVal,ministry="";
+  if(roleVal.startsWith("km-")){role=roleVal.slice(3);ministry="KM";}
+  else if(roleVal.startsWith("em-")){role=roleVal.slice(3);ministry="EM";}
+  else if(roleVal.startsWith("adult-")){role=roleVal.slice(6);ministry="Adult";}
   const body={password:pw,targetDeviceId:did,role};
-  if(role==="leader"||role==="welcoming"){
-    const m=document.getElementById("acl-ministry");
-    if(m&&m.value)body.ministry=m.value;
-  }
-  if(role==="leader"){
+  if(ministry)body.ministry=ministry;
+  if(roleVal==="km-leader"){
     const g=document.getElementById("acl-leader-group");const sg=document.getElementById("acl-leader-subgroup");
     if(g&&g.value)body.group=g.value;
     if(sg&&sg.value)body.subgroup=sg.value;
@@ -2385,7 +2392,6 @@ function _applyAdminI18n(){
   const ptr=document.querySelector(".ptr-text");if(ptr)ptr.textContent=t('ptr_pull');
   // ACL role options
   const rs=document.getElementById("acl-role-super");if(rs)rs.textContent=t('acl_role_super');
-  const rl=document.getElementById("acl-role-leader");if(rl)rl.textContent=t('acl_role_leader');
 }
 function toggleLang(){
   lang=lang==="ko"?"en":"ko";
@@ -2530,13 +2536,11 @@ function submitMerge(){
 
 // ─── Admin leader fields ───
 function updateAclLeaderFields(){
-  const role=document.getElementById("acl-role").value;
+  const roleVal=document.getElementById("acl-role").value;
+  const isKmLeader=roleVal==="km-leader";
   const wrap=document.getElementById("acl-leader-fields");
-  const showFields=role==="leader"||role==="welcoming";
-  if(wrap)wrap.style.display=showFields?"block":"none";
-  const groupWrap=document.getElementById("acl-leader-group-wrap");
-  if(groupWrap)groupWrap.style.display=role==="leader"?"block":"none";
-  if(!showFields){const sg=document.getElementById("acl-leader-subgroup");if(sg)sg.style.display="none";}
+  if(wrap)wrap.style.display=isKmLeader?"block":"none";
+  if(!isKmLeader){const sg=document.getElementById("acl-leader-subgroup");if(sg)sg.style.display="none";}
 }
 function updateAclLeaderSubgroup(){
   const g=document.getElementById("acl-leader-group").value;
