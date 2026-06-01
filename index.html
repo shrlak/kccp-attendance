@@ -138,6 +138,8 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
     <option value="" disabled selected data-i18n="reg_group_ph">부서를 선택해주세요~</option>
     <option value="대학부" data-i18n="reg_group_univ">대학부</option>
     <option value="청년부" data-i18n="reg_group_youth">청년부</option>
+    <option value="EM">EM</option>
+    <option value="Adult Ministry">Adult Ministry (장년부)</option>
   </select>
   <select id="self-subgroup" class="inp" style="margin-bottom:12px;display:none;">
     <option value="" data-i18n="reg_sub_none">동산 선택 안함</option>
@@ -264,6 +266,8 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
     <option value="" data-i18n="no_group_option">None</option>
     <option value="대학부" data-i18n="reg_group_univ">대학부</option>
     <option value="청년부" data-i18n="reg_group_youth">청년부</option>
+    <option value="EM">EM</option>
+    <option value="Adult Ministry">Adult Ministry (장년부)</option>
   </select>
   <div id="edit-subgroup-wrap" style="display:none;">
     <div data-i18n="dongsan_label" style="font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Dongsan</div>
@@ -293,6 +297,7 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
       <button class="btn btn-sm" data-i18n="back_checkin_btn" style="background:var(--acc-dim);border:1px solid rgba(52,211,153,.2);color:var(--acc);font-weight:600;" onclick="showCheckin()">← Check-in</button>
     </div>
   </div>
+  <div id="ministry-banner" style="display:none;position:relative;z-index:1;margin:0 22px 4px;padding:8px 14px;background:rgba(96,165,250,.12);border:1px solid rgba(96,165,250,.35);border-radius:10px;font-size:12px;font-weight:700;color:var(--blue);letter-spacing:.3px;"></div>
   <div id="summer-mode-banner" style="display:none;position:relative;z-index:1;margin:0 22px 4px;padding:8px 14px;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.35);border-radius:10px;font-size:12px;font-weight:700;color:#FBBF24;letter-spacing:.3px;">☀️ 여름 모드 활성화 — 대학부 · 청년부 합동</div>
   <div id="demo-mode-banner" style="display:none;position:relative;z-index:1;margin:0 22px 4px;padding:8px 14px;background:rgba(168,85,247,.12);border:1px solid rgba(168,85,247,.35);border-radius:10px;font-size:12px;font-weight:700;color:#a855f7;letter-spacing:.3px;">🎭 Demo Mode — 시간 · 위치 제한 해제됨</div>
   <div id="stats-bar" style="position:relative;z-index:1;display:flex;gap:8px;padding:14px 22px 16px;overflow-x:auto;"></div>
@@ -313,7 +318,7 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
       <div id="sheet-content" style="border-radius:14px;border:1px solid var(--bdr);overflow:hidden;"></div>
       <div style="margin-top:10px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
         <button class="btn btn-secondary btn-sm" data-i18n="pdf_report_btn" onclick="openPrintReport()" style="font-size:12px;">🖨️ PDF 리포트</button>
-        <button class="btn btn-secondary btn-sm" data-i18n="bulk_att_input_btn" onclick="openBulk()" style="font-size:12px;">📋 일괄 출석 입력</button>
+        <button id="btn-bulk-att" class="btn btn-secondary btn-sm" data-i18n="bulk_att_input_btn" onclick="openBulk()" style="font-size:12px;">📋 일괄 출석 입력</button>
       </div>
       <div style="margin-top:16px;">
         <button class="btn btn-secondary btn-sm" onclick="toggleSummary()" id="summary-toggle-btn" style="width:100%;text-align:left;padding:10px 14px;border-radius:12px;">📈 월별 / 학기 요약 보기</button>
@@ -334,8 +339,8 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
           <button class="btn btn-secondary btn-sm" data-i18n="kakao_btn" onclick="copyKakaoSummary()" style="font-size:12px;">💬 카카오 요약</button>
           <button class="btn btn-secondary btn-sm" data-i18n="weekly_summary_btn" onclick="showWeeklyRecap()" style="font-size:12px;">📅 주간 요약</button>
           <button class="btn btn-secondary btn-sm" data-i18n="weekly_report_btn" onclick="openWeeklySummaryReport()" style="font-size:12px;">📊 주간 리포트</button>
-          <button class="btn btn-secondary btn-sm" data-i18n="bulk_ci_btn" onclick="openBulkCheckin()" style="font-size:12px;">📋 일괄 출석</button>
-          <button class="btn btn-primary btn-sm" data-i18n="manual_ci_short_btn" onclick="openAdminCheckin()" style="font-size:12px;">🙋 수동 출석</button>
+          <button id="btn-bulk-checkin" class="btn btn-secondary btn-sm" data-i18n="bulk_ci_btn" onclick="openBulkCheckin()" style="font-size:12px;">📋 일괄 출석</button>
+          <button id="btn-manual-checkin" class="btn btn-primary btn-sm" data-i18n="manual_ci_short_btn" onclick="openAdminCheckin()" style="font-size:12px;">🙋 수동 출석</button>
         </div>
       </div>
       <div class="grp-tabs" id="today-grp-tabs"></div>
@@ -358,6 +363,8 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
           <option value="" data-i18n="no_group_reg">No group</option>
           <option value="대학부" data-i18n="reg_group_univ">대학부</option>
           <option value="청년부" data-i18n="reg_group_youth">청년부</option>
+          <option value="EM">EM</option>
+          <option value="Adult Ministry">Adult Ministry (장년부)</option>
         </select>
         <select id="reg-subgroup" class="inp" style="margin-bottom:10px;display:none;">
           <option value="" data-i18n="reg_sub_none">동산 선택 안함</option>
@@ -392,7 +399,7 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
 
     <!-- ADMINS -->
     <div id="tab-admins" class="view fi">
-      <div class="card" style="margin-bottom:16px;"><div style="font-size:18px;font-weight:800;margin-bottom:6px;">🔐 Admin Access</div><div style="font-size:13px;color:var(--txt-m);line-height:1.7;margin-bottom:16px;">Master password required.</div><div style="margin-bottom:10px;"><label style="display:block;font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Master Password</label><input id="acl-pw" type="password" class="inp" placeholder="Enter master password"></div><div style="margin-bottom:10px;"><label style="display:block;font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Device ID</label><input id="acl-device" class="inp inp-mono" style="font-size:12px;" placeholder="DEV-..."></div><div style="margin-bottom:10px;"><button onclick="document.getElementById('acl-device').value=deviceId" style="background:none;border:none;color:var(--acc);font-size:11px;cursor:pointer;font-family:'IBM Plex Mono',monospace;padding:0;">↑ use this device</button></div><div style="margin-bottom:12px;"><label style="display:block;font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Role</label><select id="acl-role" class="inp" onchange="updateAclLeaderFields()"><option value="super" id="acl-role-super">Super Admin — 모든 권한 (수정, 삭제, 설정)</option><option value="welcoming">Welcoming — 전체 조회 및 출석 체크</option><option value="leader" id="acl-role-leader">Leader — 그룹 조회 및 출석 편집만 가능</option></select></div><div id="acl-leader-fields" style="display:none;margin-bottom:12px;"><div style="margin-bottom:8px;"><label style="display:block;font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Group</label><select id="acl-leader-group" class="inp" onchange="updateAclLeaderSubgroup()"><option value="">All (no restriction)</option><option value="대학부">대학부</option><option value="청년부">청년부</option></select></div><div><label style="display:block;font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Dongsan</label><select id="acl-leader-subgroup" class="inp" style="display:none;"></select></div></div><div style="display:flex;gap:8px;margin-bottom:12px;"><button class="btn btn-primary" style="flex:1;" onclick="addAdmin()">Add Admin</button><button class="btn btn-danger" style="flex:1;" onclick="removeAdmin()">Remove Admin</button></div><button class="btn btn-secondary btn-full" onclick="listAdmins()">View Admins</button><div id="admin-list" style="margin-top:12px;"></div></div>
+      <div class="card" style="margin-bottom:16px;"><div style="font-size:18px;font-weight:800;margin-bottom:6px;">🔐 Admin Access</div><div style="font-size:13px;color:var(--txt-m);line-height:1.7;margin-bottom:16px;">Master password required.</div><div style="margin-bottom:10px;"><label style="display:block;font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Master Password</label><input id="acl-pw" type="password" class="inp" placeholder="Enter master password"></div><div style="margin-bottom:10px;"><label style="display:block;font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Device ID</label><input id="acl-device" class="inp inp-mono" style="font-size:12px;" placeholder="DEV-..."></div><div style="margin-bottom:10px;"><button onclick="document.getElementById('acl-device').value=deviceId" style="background:none;border:none;color:var(--acc);font-size:11px;cursor:pointer;font-family:'IBM Plex Mono',monospace;padding:0;">↑ use this device</button></div><div style="margin-bottom:12px;"><label style="display:block;font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Role</label><select id="acl-role" class="inp" onchange="updateAclLeaderFields()"><option value="super" id="acl-role-super">Super Admin — 모든 권한 (수정, 삭제, 설정)</option><option value="pastor">목사님 (Pastor) — 전체 조회 전용 (수정 불가)</option><option value="welcoming">Welcoming — 전체 조회 및 출석 체크</option><option value="leader" id="acl-role-leader">Leader — 그룹 조회 및 출석 편집만 가능</option></select></div><div id="acl-leader-fields" style="display:none;margin-bottom:12px;"><div style="margin-bottom:8px;"><label style="display:block;font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Ministry</label><select id="acl-ministry" class="inp" style="margin-bottom:8px;"><option value="">All (no restriction)</option><option value="KM">KM (Korean Ministry)</option><option value="EM">EM (English Ministry)</option><option value="Adult">Adult Ministry (장년부)</option></select></div><div id="acl-leader-group-wrap" style="margin-bottom:8px;"><label style="display:block;font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Group</label><select id="acl-leader-group" class="inp" onchange="updateAclLeaderSubgroup()"><option value="">All (no restriction)</option><option value="대학부">대학부</option><option value="청년부">청년부</option><option value="EM">EM</option><option value="Adult Ministry">Adult Ministry (장년부)</option></select></div><div><label style="display:block;font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">Dongsan</label><select id="acl-leader-subgroup" class="inp" style="display:none;"></select></div></div><div style="display:flex;gap:8px;margin-bottom:12px;"><button class="btn btn-primary" style="flex:1;" onclick="addAdmin()">Add Admin</button><button class="btn btn-danger" style="flex:1;" onclick="removeAdmin()">Remove Admin</button></div><button class="btn btn-secondary btn-full" onclick="listAdmins()">View Admins</button><div id="admin-list" style="margin-top:12px;"></div></div>
       <div class="card" style="margin-bottom:16px;"><div style="font-size:14px;font-weight:700;margin-bottom:8px;">Your Device ID</div><div class="mono" style="font-size:12px;color:var(--acc);word-break:break-all;padding:10px;background:var(--bg);border-radius:10px;border:1px solid var(--bdr);" id="my-device-id"></div></div>
       <div class="card" style="margin-bottom:16px;">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;"><div data-i18n="pending_admin_title" style="font-size:16px;font-weight:800;">⏳ 등록 승인 대기</div><span id="pending-badge-card" style="display:none;background:var(--red);color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px;"></span></div>
@@ -663,6 +670,8 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
       <option value="" data-i18n="transfer_group_ph">부서 선택...</option>
       <option value="대학부" data-i18n="reg_group_univ">대학부</option>
       <option value="청년부" data-i18n="reg_group_youth">청년부</option>
+      <option value="EM">EM</option>
+      <option value="Adult Ministry">Adult Ministry (장년부)</option>
     </select>
     <div data-i18n="transfer_dongsan_label" style="font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">새 동산</div>
     <select id="transfer-subgroup" class="inp" style="margin-bottom:16px;font-size:13px;"></select>
@@ -684,7 +693,11 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
 </div>
 
 <script>
-let deviceId=null,D={devices:{},log:[]},viewMode="grid",sheetGroup="",sheetSubgroup="",todayGroup="",todaySubgroup="",devGroup="",devSubgroup="",nameOrder=[],dongsanNames={"대학부":["동산1","동산2","동산3","동산4"],"청년부":["동산1","동산2","동산3","동산4"]},activeTab="sheet",myAdminRole=null,announcement="",lightMode=false,myLeaderGroup="",myLeaderSubgroup="",checkinDays=[0],checkinStartMin=780,checkinEndMin=900,memberSearch="",dongsanLeaders={},requireApproval=false,pendingCount=0,chartsVisible=true,_trendChart=null,_groupChart=null,summerMode=false,demoMode=false;
+let deviceId=null,D={devices:{},log:[]},viewMode="grid",sheetGroup="",sheetSubgroup="",todayGroup="",todaySubgroup="",devGroup="",devSubgroup="",nameOrder=[],dongsanNames={"대학부":["동산1","동산2","동산3","동산4"],"청년부":["동산1","동산2","동산3","동산4"],"EM":[],"Adult Ministry":[]},activeTab="sheet",myAdminRole=null,announcement="",lightMode=false,myLeaderGroup="",myLeaderSubgroup="",checkinDays=[0],checkinStartMin=780,checkinEndMin=900,memberSearch="",dongsanLeaders={},requireApproval=false,pendingCount=0,chartsVisible=true,_trendChart=null,_groupChart=null,summerMode=false,demoMode=false,myAllowedGroups=[],myReadOnly=false,myMinistry="";
+const KM_GROUPS=["대학부","청년부"];
+function getGroupsForMinistry(m){if(m==="KM")return KM_GROUPS;if(m==="EM")return["EM"];if(m==="Adult")return["Adult Ministry"];return[];}
+function filterByMinistry(arr,getGroupFn){if(!myAllowedGroups.length)return arr;return arr.filter(x=>myAllowedGroups.includes(getGroupFn(x)));}
+function isGroupAllowed(g){return!myAllowedGroups.length||myAllowedGroups.includes(g);}
 function fp(){const n=navigator,s=screen;const r=[n.userAgent,n.language,n.hardwareConcurrency,n.maxTouchPoints,s.width,s.height,s.colorDepth,Intl.DateTimeFormat().resolvedOptions().timeZone,n.platform,n.deviceMemory||"x"].join("|");let h1=5381,h2=0;for(let i=0;i<r.length;i++){h1=((h1<<5)+h1+r.charCodeAt(i))&0xFFFFFFFF;h2=r.charCodeAt(i)+((h2<<6)+(h2<<16)-h2)&0xFFFFFFFF;}return`DEV-${(h1>>>0).toString(16).padStart(8,"0")}-${(h2>>>0).toString(16).padStart(8,"0")}`.toUpperCase();}
 function today(){return new Date().toLocaleDateString("en-CA",{timeZone:"America/New_York"})}
 function fmtD(d){return new Date(d+"T12:00:00").toLocaleDateString("en-US",{timeZone:"America/New_York",weekday:"short",month:"short",day:"numeric"})}
@@ -773,18 +786,20 @@ function attRate(name){
 }
 function getMemberNotes(name){const dids=getDevicesFor(name);for(const d of dids){const v=D.devices[d];if(v&&typeof v==="object"&&v.notes)return v.notes;}return "";}
 function roleTag(role){if(!role)return "";return `<span class="tag ${ROLE_TAG_CLS[role]||'tag-amber'}" style="font-size:9px;">${roleLabel(role)}</span>`;}
-function grpTag(g,sg){let out="";if(g==="대학부")out=`<span class="tag tag-amber" style="font-size:11px;">${t('grp_univ')}</span>`;else if(g==="청년부")out=`<span class="tag tag-blue" style="font-size:11px;">${t('grp_youth')}</span>`;if(sg)out+=` <span class="tag tag-purple" style="font-size:11px;">${esc(sg)}</span>`;return out;}
-function grpAccent(g){if(g==="대학부")return{bg:"rgba(251,191,36,.08)",bdr:"rgba(251,191,36,.2)",dot:"#FBBF24"};if(g==="청년부")return{bg:"rgba(96,165,250,.08)",bdr:"rgba(96,165,250,.2)",dot:"#60A5FA"};return{bg:"var(--card)",bdr:"var(--bdr)",dot:"var(--acc)"};}
+function grpTag(g,sg){let out="";if(g==="대학부")out=`<span class="tag tag-amber" style="font-size:11px;">${t('grp_univ')}</span>`;else if(g==="청년부")out=`<span class="tag tag-blue" style="font-size:11px;">${t('grp_youth')}</span>`;else if(g==="EM")out=`<span class="tag tag-green" style="font-size:11px;">EM</span>`;else if(g==="Adult Ministry")out=`<span class="tag tag-purple" style="font-size:11px;">Adult</span>`;else if(g)out=`<span class="tag" style="font-size:11px;">${esc(g)}</span>`;if(sg)out+=` <span class="tag tag-purple" style="font-size:11px;">${esc(sg)}</span>`;return out;}
+function grpAccent(g){if(g==="대학부")return{bg:"rgba(251,191,36,.08)",bdr:"rgba(251,191,36,.2)",dot:"#FBBF24"};if(g==="청년부")return{bg:"rgba(96,165,250,.08)",bdr:"rgba(96,165,250,.2)",dot:"#60A5FA"};if(g==="EM")return{bg:"rgba(52,211,153,.08)",bdr:"rgba(52,211,153,.2)",dot:"#34D399"};if(g==="Adult Ministry")return{bg:"rgba(167,139,250,.08)",bdr:"rgba(167,139,250,.2)",dot:"#A78BFA"};return{bg:"var(--card)",bdr:"var(--bdr)",dot:"var(--acc)"};}
 function grpDot(g){const c=grpAccent(g);return`background:${c.dot}`;}
-function grpDisplayName(g){return g==="대학부"?t('grp_univ'):g==="청년부"?t('grp_youth'):g;}
+function grpDisplayName(g){return g==="대학부"?t('grp_univ'):g==="청년부"?t('grp_youth'):g==="EM"?"EM":g==="Adult Ministry"?"Adult Ministry (장년부)":g;}
 function getSummerDongsanList(){const all=[];const seen=new Set();Object.values(dongsanNames).forEach(subs=>subs.forEach(s=>{if(!seen.has(s)){seen.add(s);all.push(s);}}));return all;}
 function renderGrpTabs(containerId,current,setter){
   const el=document.getElementById(containerId);
   if(summerMode){el.innerHTML="";el.style.display="none";return;}
   el.style.display="";
-  const groups=getGroups();
-  const colors={"대학부":"#FBBF24","청년부":"#60A5FA"};
-  el.innerHTML=[{l:t('all_groups'),v:""}, ...groups.map(g=>({l:grpDisplayName(g),v:g}))].map(tab=>{
+  let groups=getGroups();
+  if(myAllowedGroups.length)groups=groups.filter(g=>myAllowedGroups.includes(g));
+  const colors={"대학부":"#FBBF24","청년부":"#60A5FA","EM":"#34D399","Adult Ministry":"#A78BFA"};
+  const tabs=myAllowedGroups.length===1?groups.map(g=>({l:grpDisplayName(g),v:g})):[{l:t('all_groups'),v:""},...groups.map(g=>({l:grpDisplayName(g),v:g}))];
+  el.innerHTML=tabs.map(tab=>{
     const active=tab.v===current;const c=colors[tab.v]||"var(--acc)";
     return`<button class="grp-tab${active?" active":""}" style="${active?`background:${c}22;color:${c};border-color:${c}55;`:""}" onclick="${setter}('${tab.v}');renderAll();">${esc(tab.l)}</button>`;
   }).join("");
@@ -811,9 +826,10 @@ function renderSubgroupTabs(containerId,curGroup,curSub,setter){
   }).join("");
 }
 function buildSubgroupOptions(group,selectedVal){const names=dongsanNames[group]||["동산1","동산2","동산3","동산4"];return`<option value="">${t('reg_sub_none')}</option>`+names.map(n=>`<option value="${esc(n)}"${n===selectedVal?" selected":""}>${esc(n)}</option>`).join("");}
-function updateSelfSubgroup(){const g=document.getElementById("self-group").value;const el=document.getElementById("self-subgroup");if(g==="대학부"||g==="청년부"){el.innerHTML=buildSubgroupOptions(g,"");el.style.display="block";}else{el.style.display="none";}el.value="";}
-function updateEditSubgroup(keepVal){const g=document.getElementById("edit-group").value;const wrap=document.getElementById("edit-subgroup-wrap");const sel=document.getElementById("edit-subgroup");if(g==="대학부"||g==="청년부"){sel.innerHTML=buildSubgroupOptions(g,keepVal||"");wrap.style.display="block";}else{wrap.style.display="none";sel.value="";}}
-function updateRegSubgroup(){const g=document.getElementById("reg-group").value;const el=document.getElementById("reg-subgroup");if(g==="대학부"||g==="청년부"){el.innerHTML=buildSubgroupOptions(g,"");el.style.display="block";}else{el.style.display="none";}el.value="";}
+function _hasSubgroups(g){return(dongsanNames[g]||[]).length>0;}
+function updateSelfSubgroup(){const g=document.getElementById("self-group").value;const el=document.getElementById("self-subgroup");if(_hasSubgroups(g)){el.innerHTML=buildSubgroupOptions(g,"");el.style.display="block";}else{el.style.display="none";}el.value="";}
+function updateEditSubgroup(keepVal){const g=document.getElementById("edit-group").value;const wrap=document.getElementById("edit-subgroup-wrap");const sel=document.getElementById("edit-subgroup");if(_hasSubgroups(g)){sel.innerHTML=buildSubgroupOptions(g,keepVal||"");wrap.style.display="block";}else{wrap.style.display="none";sel.value="";}}
+function updateRegSubgroup(){const g=document.getElementById("reg-group").value;const el=document.getElementById("reg-subgroup");if(_hasSubgroups(g)){el.innerHTML=buildSubgroupOptions(g,"");el.style.display="block";}else{el.style.display="none";}el.value="";}
 
 // ─── LOGO ───
 function kccpLogo(size){
@@ -978,7 +994,7 @@ async function doCheckinFinish(){
   api("GET","/api/data").then(d=>{if(d&&!d.offline&&!d.error){D=d;_saveDevCache();}}).catch(()=>{});
   if(r.status==="already"){
     gl.style.background="radial-gradient(circle,rgba(251,191,36,.12),transparent 70%)";
-    el.innerHTML=`<div class="fi"><div style="width:140px;height:140px;border-radius:50%;background:var(--amber-dim);border:2px solid rgba(251,191,36,.3);margin:0 auto 28px;display:flex;align-items:center;justify-content:center;font-size:44px;">📋</div><div style="font-size:24px;font-weight:800;color:var(--amber);margin-bottom:6px;">${t('already_in')}</div><div style="font-size:15px;font-weight:500;">${esc(name)}</div><div class="mono" style="font-size:14px;color:var(--txt-m);margin-top:4px;">${esc(r.time)}</div><div style="margin-top:14px;display:block;text-align:center;"><span style="padding:8px 20px;border-radius:10px;background:var(--acc-dim);border:1px solid rgba(52,211,153,.2);display:inline-block;font-size:15px;font-weight:700;color:var(--acc);">${t('total_att')}: ${total}</span></div>${announcement?`<div style="margin-top:16px;padding:10px 16px;border-radius:10px;background:var(--amber-dim);border:1px solid rgba(251,191,36,.3);max-width:320px;margin-left:auto;margin-right:auto;"><div style="font-size:10px;font-weight:700;color:var(--amber);margin-bottom:3px;letter-spacing:.5px;">${t('announce_label')}</div><div style="font-size:12px;color:var(--txt);line-height:1.5;">${esc(announcement)}</div></div>`:""}<div style="margin-top:14px;display:block;text-align:center;"><button onclick="showMyHistory('${esc(name)}')" style="background:rgba(255,255,255,.06);border:1px solid var(--bdr);color:var(--txt-m);font-size:12px;font-family:'IBM Plex Mono',monospace;cursor:pointer;padding:10px 20px;border-radius:14px;letter-spacing:.5px;">${t('history_btn')}</button></div><div style="width:200px;height:3px;border-radius:2px;background:var(--bdr);margin:20px auto 0;overflow:hidden;"><div style="height:100%;background:var(--amber);border-radius:2px;animation:countdown 4s linear forwards;"></div></div><div style="font-size:11px;color:var(--txt-d);margin-top:8px;">${t('close_page')}</div></div>`;
+    el.innerHTML=`<div class="fi"><div style="width:140px;height:140px;border-radius:50%;background:var(--amber-dim);border:2px solid rgba(251,191,36,.3);margin:0 auto 28px;display:flex;align-items:center;justify-content:center;font-size:44px;">📋</div><div style="font-size:24px;font-weight:800;color:var(--amber);margin-bottom:6px;">${t('already_in')}</div><div style="font-size:15px;font-weight:500;">${esc(name)}</div><div class="mono" style="font-size:14px;color:var(--txt-m);margin-top:4px;">${esc(r.time)}</div>${announcement?`<div style="margin-top:16px;padding:10px 16px;border-radius:10px;background:var(--amber-dim);border:1px solid rgba(251,191,36,.3);max-width:320px;margin-left:auto;margin-right:auto;"><div style="font-size:10px;font-weight:700;color:var(--amber);margin-bottom:3px;letter-spacing:.5px;">${t('announce_label')}</div><div style="font-size:12px;color:var(--txt);line-height:1.5;">${esc(announcement)}</div></div>`:""}<div style="margin-top:14px;display:block;text-align:center;"><button onclick="showMyHistory('${esc(name)}')" style="background:rgba(255,255,255,.06);border:1px solid var(--bdr);color:var(--txt-m);font-size:12px;font-family:'IBM Plex Mono',monospace;cursor:pointer;padding:10px 20px;border-radius:14px;letter-spacing:.5px;">${t('history_btn')}</button></div><div style="width:200px;height:3px;border-radius:2px;background:var(--bdr);margin:20px auto 0;overflow:hidden;"><div style="height:100%;background:var(--amber);border-radius:2px;animation:countdown 4s linear forwards;"></div></div><div style="font-size:11px;color:var(--txt-d);margin-top:8px;">${t('close_page')}</div></div>`;
   }else{
     const isFirst=r.firstVisit||total===1;
     if(navigator.vibrate)navigator.vibrate(isFirst?[100,50,100,50,200]:[100,50,200]);
@@ -990,7 +1006,6 @@ async function doCheckinFinish(){
       <div style="font-size:${isFirst?"18":"26"}px;font-weight:800;color:${checkColor};margin-bottom:6px;">${t('checkin_ok')}</div>
       <div style="font-size:16px;font-weight:500;margin-bottom:4px;">${esc(name)}</div>
       <div class="mono" style="font-size:14px;color:var(--txt-m);">${esc(r.time)}</div>
-      <div style="margin-top:14px;padding:8px 20px;border-radius:10px;background:var(--acc-dim);border:1px solid rgba(52,211,153,.2);display:inline-block;"><span style="font-size:15px;font-weight:700;color:var(--acc);">${t('total_att')}: ${total}</span></div>
       ${announcement?`<div style="margin-top:16px;padding:10px 16px;border-radius:10px;background:var(--amber-dim);border:1px solid rgba(251,191,36,.3);max-width:320px;margin-left:auto;margin-right:auto;"><div style="font-size:10px;font-weight:700;color:var(--amber);margin-bottom:3px;letter-spacing:.5px;">${t('announce_label')}</div><div style="font-size:12px;color:var(--txt);line-height:1.5;">${esc(announcement)}</div></div>`:""}
       <div style="width:200px;height:3px;border-radius:2px;background:var(--bdr);margin:20px auto 0;overflow:hidden;"><div style="height:100%;background:${checkColor};border-radius:2px;animation:countdown 5s linear forwards;"></div></div>
       <div style="font-size:11px;color:var(--txt-d);margin-top:8px;">${t('close_page')}</div>
@@ -1067,14 +1082,43 @@ async function showAdmin(prefetchedAdminData=null){
   myAdminRole=r.role||null;
   myLeaderGroup=r.leaderGroup||"";
   myLeaderSubgroup=r.leaderSubgroup||"";
+  myMinistry=r.ministry||"";
+  myReadOnly=(myAdminRole==="pastor");
+
+  // Compute allowed groups
+  const isSuper=myAdminRole==="super"||myAdminRole===null;
+  const isPastor=myAdminRole==="pastor";
+  if(isSuper||isPastor){
+    myAllowedGroups=[];
+  }else if(myAdminRole==="leader"&&myLeaderGroup){
+    myAllowedGroups=[myLeaderGroup];
+  }else{
+    myAllowedGroups=getGroupsForMinistry(myMinistry);
+  }
+
   // If leader is scoped, force their group filter
   if(myAdminRole==="leader"&&myLeaderGroup){sheetGroup=myLeaderGroup;todayGroup=myLeaderGroup;devGroup=myLeaderGroup;if(myLeaderSubgroup){sheetSubgroup=myLeaderSubgroup;todaySubgroup=myLeaderSubgroup;devSubgroup=myLeaderSubgroup;}}
-  // Role-based UI: welcoming hides admins tab; super shows demo mode controls
-  const isSuper=myAdminRole==="super"||myAdminRole===null;
+  else if(myAllowedGroups.length===1){sheetGroup=myAllowedGroups[0];todayGroup=myAllowedGroups[0];devGroup=myAllowedGroups[0];}
+
+  // Role-based UI: welcoming and pastor hide admins tab; super shows demo mode controls
   const isWelcoming=myAdminRole==="welcoming";
-  document.querySelectorAll(".nav-btn[data-tab='admins']").forEach(b=>b.style.display=isWelcoming?"none":"");
+  document.querySelectorAll(".nav-btn[data-tab='admins']").forEach(b=>b.style.display=(isWelcoming||isPastor)?"none":"");
+  // Pastor and non-super hide settings tab
+  document.querySelectorAll(".nav-btn[data-tab='settings']").forEach(b=>b.style.display=(isSuper)?"":"none");
+  // Pastor hides devices tab
+  document.querySelectorAll(".nav-btn[data-tab='devices']").forEach(b=>b.style.display=(isPastor)?"none":"");
   const demoCard=document.getElementById("demo-mode-card");if(demoCard)demoCard.style.display=isSuper?"block":"none";
   const dmBanner=document.getElementById("demo-mode-banner");if(dmBanner)dmBanner.style.display=demoMode?"block":"none";
+  // Show ministry banner for restricted roles
+  const ministryBanner=document.getElementById("ministry-banner");
+  if(ministryBanner){
+    const label=myMinistry==="KM"?"KM (Korean Ministry)":myMinistry==="EM"?"EM (English Ministry)":myMinistry==="Adult"?"Adult Ministry (장년부)":"";
+    if(label&&!isSuper&&!isPastor){ministryBanner.textContent=`📌 ${label}`;ministryBanner.style.display="block";}
+    else if(isPastor){ministryBanner.textContent="👁️ 목사님 — 전체 조회 (읽기 전용)";ministryBanner.style.display="block";}
+    else{ministryBanner.style.display="none";}
+  }
+  // Hide action buttons for read-only pastor role
+  ["btn-bulk-checkin","btn-manual-checkin","btn-bulk-att"].forEach(id=>{const b=document.getElementById(id);if(b)b.style.display=myReadOnly?"none":"";});
   if(!prefetchedAdminData)await load();
   document.getElementById("my-device-id").textContent=deviceId;
   initSwipe();
@@ -1185,15 +1229,7 @@ function emptyState(icon,msg,ctaHtml){return `<div style="padding:40px 20px;text
 function skeletonCards(n){return Array.from({length:n},()=>`<div class="card" style="margin-bottom:8px;opacity:.7;"><div class="skeleton" style="height:14px;width:60%;margin-bottom:8px;display:block;"></div><div class="skeleton" style="height:10px;width:40%;display:block;"></div></div>`).join("");}
 function renderCheckinStrip(){
   const el=document.getElementById("checkin-today-strip");
-  if(!el)return;
-  const td=today();
-  const todayNames=new Set();
-  D.log.filter(e=>e.date===td).forEach(e=>todayNames.add(dName(e.deviceId)||e.name));
-  const total=todayNames.size;
-  const mc=Object.keys(D.devices||{}).filter(id=>!isVisitorMember(dName(id))).length;
-  const pct=mc>0?Math.round(total/mc*100):0;
-  el.style.display=total>0?"flex":"none";
-  el.innerHTML=`<span class="tag tag-green" style="font-size:11px;padding:5px 12px;">${total} checked in</span><span class="tag" style="font-size:11px;padding:5px 12px;background:var(--card);border:1px solid var(--bdr);color:var(--txt-m);">${pct}%</span>`;
+  if(el)el.style.display="none";
 }
 function computeWeeklyComparison(){
   const td=today();
@@ -1235,10 +1271,11 @@ function renderStats(){
   const todayPeople=new Set();
   D.log.filter(e=>e.date===td).forEach(e=>{
     const g=dGroup(e.deviceId)||e.group||"";const sg=dSubgroup(e.deviceId)||e.subgroup||"";
-    if((!grp||g===grp)&&(!sub||sg===sub))todayPeople.add(dName(e.deviceId)||e.name);
+    if((!grp||g===grp)&&(!sub||sg===sub)&&isGroupAllowed(g))todayPeople.add(dName(e.deviceId)||e.name);
   });
-  const mc=Object.keys(getUniqueNames(grp,sub)).length;
+  const mc=Object.keys(getUniqueNames(grp,sub)).filter(n=>{const dids=getDevicesFor(n);return dids.some(d=>isGroupAllowed(dGroup(d)||""));}).length;
   let filteredLog=D.log;
+  if(myAllowedGroups.length)filteredLog=filteredLog.filter(e=>isGroupAllowed(dGroup(e.deviceId)||e.group||""));
   if(grp)filteredLog=filteredLog.filter(e=>(dGroup(e.deviceId)||e.group||"")===grp);
   if(sub)filteredLog=filteredLog.filter(e=>(dSubgroup(e.deviceId)||e.subgroup||"")===sub);
   const dates=[...new Set(filteredLog.map(e=>e.date))].length;
@@ -1257,6 +1294,7 @@ function renderSheet(){
     const dates=[...new Set(D.log.map(e=>e.date))].sort();
     const members=getUniqueNames("","");
     let names=sortNames(Object.keys(members));
+    if(myAllowedGroups.length)names=names.filter(n=>isGroupAllowed(members[n].group||""));
     if(effSheetGroup)names=names.filter(n=>members[n].group===effSheetGroup);
     if(sheetSubgroup)names=names.filter(n=>(members[n].subgroup||"")===sheetSubgroup);
 
@@ -1277,6 +1315,7 @@ function renderSheet(){
     initGridDrag();
   } else {
     let sorted=[...D.log].sort((a,b)=>b.ts-a.ts);
+    if(myAllowedGroups.length)sorted=sorted.filter(e=>isGroupAllowed(dGroup(e.deviceId)||e.group||""));
     if(effSheetGroup)sorted=sorted.filter(e=>dGroup(e.deviceId)===effSheetGroup||(e.group||"")===effSheetGroup);
     if(sheetSubgroup)sorted=sorted.filter(e=>dSubgroup(e.deviceId)===sheetSubgroup||(e.subgroup||"")===sheetSubgroup);
     const rows=sorted.map(e=>{const name=dName(e.deviceId)||e.name;const group=dGroup(e.deviceId)||e.group||"";const subgroup=dSubgroup(e.deviceId)||e.subgroup||"";const badges=(e.firstVisit?`<span class="tag tag-purple" style="font-size:9px;margin-left:4px;">${t('badge_first')}</span>`:"")+(e.manual?`<span class="tag tag-amber" style="font-size:9px;margin-left:4px;">${t('badge_manual')}</span>`:"")+(e.visitor?`<span class="tag tag-amber" style="font-size:9px;margin-left:4px;">${t('badge_visitor')}</span>`:"");return`<tr><td style="font-family:'Sora',sans-serif;font-weight:500;">${esc(name)}${badges}</td><td>${grpTag(group,subgroup)}</td><td style="color:var(--txt-m);">${esc(fmtD(e.date))}</td><td style="color:var(--txt-m);">${esc(e.time)}</td><td style="color:var(--acc);font-weight:700;text-align:center;">${totalForName(name)}</td></tr>`;}).join("");
@@ -1288,6 +1327,7 @@ function renderToday(){
   const td=today();document.getElementById("today-label").textContent=t('today_label_fn')(fmtDL(td));
   let entries=D.log.filter(e=>e.date===td);
   const effTodayGroup=summerMode?"":todayGroup;
+  if(myAllowedGroups.length)entries=entries.filter(e=>isGroupAllowed(dGroup(e.deviceId)||e.group||""));
   if(effTodayGroup)entries=entries.filter(e=>dGroup(e.deviceId)===effTodayGroup||(e.group||"")===effTodayGroup);
   if(todaySubgroup)entries=entries.filter(e=>dSubgroup(e.deviceId)===todaySubgroup||(e.subgroup||"")===todaySubgroup);
   const reg=entries.filter(e=>!getMemberRole(dName(e.deviceId)||e.name));
@@ -1308,6 +1348,7 @@ function renderDevices(){
   const effDevGroup=summerMode?"":devGroup;
   if(effDevGroup)names=names.filter(n=>members[n].group===effDevGroup);
   if(devSubgroup)names=names.filter(n=>(members[n].subgroup||"")===devSubgroup);
+  if(myAllowedGroups.length)names=names.filter(n=>isGroupAllowed(members[n].group||""));
   if(memberSearch){const q=memberSearch.toLowerCase();names=names.filter(n=>n.toLowerCase().includes(q));}
   const regularNames=names.filter(n=>!isVisitorMember(n));
   const visitorNames=names.filter(n=>isVisitorMember(n));
@@ -1333,10 +1374,11 @@ function renderDevices(){
           ${isYou?`<span class="tag tag-green" style="font-size:9px;">${t('you_tag')}</span>`:""}
         </div>
         <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
-          <button style="width:28px;height:28px;padding:0;background:none;border:1.5px solid var(--bdr);border-radius:8px;cursor:pointer;font-size:13px;color:var(--txt-m);display:flex;align-items:center;justify-content:center;" title="${t('att_edit_tooltip')}" onclick="event.stopPropagation();openAttendanceEdit('${esc(name)}')">📋</button>
+          ${myReadOnly?"":
+          `<button style="width:28px;height:28px;padding:0;background:none;border:1.5px solid var(--bdr);border-radius:8px;cursor:pointer;font-size:13px;color:var(--txt-m);display:flex;align-items:center;justify-content:center;" title="${t('att_edit_tooltip')}" onclick="event.stopPropagation();openAttendanceEdit('${esc(name)}')">📋</button>
           <button style="width:28px;height:28px;padding:0;background:none;border:1.5px solid var(--bdr);border-radius:8px;cursor:pointer;font-size:13px;color:var(--txt-m);display:flex;align-items:center;justify-content:center;" title="${t('notes_tooltip')}" onclick="event.stopPropagation();openNotes('${esc(name)}')">📝</button>
           <button style="width:28px;height:28px;padding:0;background:none;border:1.5px solid var(--bdr);border-radius:8px;cursor:pointer;font-size:13px;color:var(--txt-m);display:flex;align-items:center;justify-content:center;" title="${t('edit_member_tooltip')}" onclick="event.stopPropagation();openEdit('${esc(name)}')">✏️</button>
-          <button style="width:28px;height:28px;padding:0;background:none;border:1.5px solid rgba(251,113,133,.35);border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;color:var(--red);display:flex;align-items:center;justify-content:center;" onclick="event.stopPropagation();removePerson('${esc(name)}')">✕</button>
+          <button style="width:28px;height:28px;padding:0;background:none;border:1.5px solid rgba(251,113,133,.35);border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;color:var(--red);display:flex;align-items:center;justify-content:center;" onclick="event.stopPropagation();removePerson('${esc(name)}')">✕</button>`}
           <div style="display:flex;align-items:baseline;gap:2px;padding:0 6px;flex-shrink:0;">
             <span style="font-size:16px;font-weight:800;color:var(--acc);line-height:1;">${cnt}</span>
             <span class="mono" style="font-size:10px;font-weight:700;color:var(--txt-d);line-height:1;">${t('card_att_unit')}</span>
@@ -1557,7 +1599,7 @@ function clearLog(){confirmAction(t('clear_log_title'),async()=>{await api("DELE
 function clearDevices(){confirmAction(t('clear_devices_title'),async()=>{await api("DELETE","/api/devices",null,{"X-Device-Id":deviceId});flash("All devices cleared");await load();renderAll();},{icon:"📱",desc:t('clear_devices_desc'),holdMs:2000});}
 function clearEverything(){confirmAction(t('clear_all_title'),async()=>{await api("DELETE","/api/all",null,{"X-Device-Id":deviceId});flash("Everything cleared");await load();renderAll();},{icon:"💣",desc:t('clear_all_desc'),holdMs:2500});}
 async function removeAdmin(){const pw=document.getElementById("acl-pw").value,did=document.getElementById("acl-device").value.trim();if(!pw||!did){flash(t('fill_both_fields'),"warn");return;}const r=await api("POST","/api/admin/remove",{password:pw,targetDeviceId:did});if(r.error){flash(r.error,"err");return;}flash(t('admin_removed_msg'));listAdmins();}
-async function listAdmins(){const pw=document.getElementById("acl-pw").value;if(!pw){flash(t('enter_password'),"warn");return;}const r=await api("POST","/api/admin/list",{password:pw});if(r.error){flash(r.error,"err");return;}const el=document.getElementById("admin-list");if(!r.adminDevices.length){el.innerHTML=`<div style="color:var(--txt-d);font-size:12px;text-align:center;padding:12px;">${t('no_admins_msg')}</div>`;return;}el.innerHTML=`<div class="sl" style="margin-top:8px;">${t('admins_count_fn')(r.adminDevices.length)}</div>`+r.adminDevices.map(a=>{const roleCls=a.role==="super"?"tag-green":a.role==="welcoming"?"tag-amber":"tag-purple";const roleLbl=a.role==="super"?t('super_admin_label'):a.role==="welcoming"?"Welcoming":t('leader_admin_label');const devInfo=a.deviceCount>1?`${esc(a.deviceId)} <span style="color:var(--acc);font-weight:600;">(${a.deviceCount} devices)</span>`:esc(a.deviceId);return`<div style="padding:8px 12px;margin-bottom:4px;border-radius:8px;background:var(--card);border:1px solid var(--bdr);display:flex;justify-content:space-between;align-items:center;"><div><div style="font-size:13px;font-weight:600;">${esc(a.name)}</div><div class="mono" style="font-size:10px;color:var(--txt-d);">${devInfo}</div></div><span class="tag ${roleCls}">${esc(roleLbl)}</span></div>`;}).join("");}
+async function listAdmins(){const pw=document.getElementById("acl-pw").value;if(!pw){flash(t('enter_password'),"warn");return;}const r=await api("POST","/api/admin/list",{password:pw});if(r.error){flash(r.error,"err");return;}const el=document.getElementById("admin-list");if(!r.adminDevices.length){el.innerHTML=`<div style="color:var(--txt-d);font-size:12px;text-align:center;padding:12px;">${t('no_admins_msg')}</div>`;return;}el.innerHTML=`<div class="sl" style="margin-top:8px;">${t('admins_count_fn')(r.adminDevices.length)}</div>`+r.adminDevices.map(a=>{const roleCls=a.role==="super"?"tag-green":a.role==="pastor"?"tag-blue":a.role==="welcoming"?"tag-amber":"tag-purple";const roleLbl=a.role==="super"?t('super_admin_label'):a.role==="pastor"?"목사님":a.role==="welcoming"?"Welcoming":t('leader_admin_label');const sub=[a.ministry,a.group,a.subgroup].filter(Boolean).join(" › ");const devInfo=a.deviceCount>1?`${esc(a.deviceId)} <span style="color:var(--acc);font-weight:600;">(${a.deviceCount} devices)</span>`:esc(a.deviceId);return`<div style="padding:8px 12px;margin-bottom:4px;border-radius:8px;background:var(--card);border:1px solid var(--bdr);display:flex;justify-content:space-between;align-items:center;"><div><div style="font-size:13px;font-weight:600;">${esc(a.name)}</div><div class="mono" style="font-size:10px;color:var(--txt-d);">${devInfo}${sub?` · ${esc(sub)}`:""}</div></div><span class="tag ${roleCls}">${esc(roleLbl)}</span></div>`;}).join("");}
 
 // ─── Notes ───
 let notesEditName=null;
@@ -1614,6 +1656,10 @@ async function addAdmin(){
   const roleEl=document.getElementById("acl-role");const role=roleEl?roleEl.value:"super";
   if(!pw||!did){flash(t('fill_both_fields'),"warn");return;}
   const body={password:pw,targetDeviceId:did,role};
+  if(role==="leader"||role==="welcoming"){
+    const m=document.getElementById("acl-ministry");
+    if(m&&m.value)body.ministry=m.value;
+  }
   if(role==="leader"){
     const g=document.getElementById("acl-leader-group");const sg=document.getElementById("acl-leader-subgroup");
     if(g&&g.value)body.group=g.value;
@@ -2486,8 +2532,11 @@ function submitMerge(){
 function updateAclLeaderFields(){
   const role=document.getElementById("acl-role").value;
   const wrap=document.getElementById("acl-leader-fields");
-  if(wrap)wrap.style.display=role==="leader"?"block":"none";
-  if(role!=="leader"){const sg=document.getElementById("acl-leader-subgroup");if(sg)sg.style.display="none";}
+  const showFields=role==="leader"||role==="welcoming";
+  if(wrap)wrap.style.display=showFields?"block":"none";
+  const groupWrap=document.getElementById("acl-leader-group-wrap");
+  if(groupWrap)groupWrap.style.display=role==="leader"?"block":"none";
+  if(!showFields){const sg=document.getElementById("acl-leader-subgroup");if(sg)sg.style.display="none";}
 }
 function updateAclLeaderSubgroup(){
   const g=document.getElementById("acl-leader-group").value;

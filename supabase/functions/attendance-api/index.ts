@@ -143,7 +143,7 @@ Deno.serve(async (req: Request) => {
     if(req.method==="POST"&&p==="/api/check-admin") {
       const {deviceId}=body; const cfg=await getCfg(sb); const ads: any[]=cfg.admin_devices||[];
       const noAdminsYet=!ads.length;
-      let entry=noAdminsYet?{role:"super",group:"",subgroup:""}:ads.find((d:any)=>typeof d==="string"?d===deviceId:d.deviceId===deviceId);
+      let entry=noAdminsYet?{role:"super",group:"",subgroup:"",ministry:""}:ads.find((d:any)=>typeof d==="string"?d===deviceId:d.deviceId===deviceId);
       if(!noAdminsYet&&!entry) {
         const {data:dev}=await sb.from("devices").select("name").eq("id",deviceId).single();
         if(dev?.name) {
@@ -151,7 +151,7 @@ Deno.serve(async (req: Request) => {
           entry=ads.find((d:any)=>peers.includes(typeof d==="string"?d:d.deviceId));
         }
       }
-      return ok({isAdmin:noAdminsYet||!!entry,noAdminsYet,role:entry?(typeof entry==="string"?"super":entry.role||"super"):null,leaderGroup:entry&&typeof entry!=="string"?entry.group||"":"",leaderSubgroup:entry&&typeof entry!=="string"?entry.subgroup||"":""});
+      return ok({isAdmin:noAdminsYet||!!entry,noAdminsYet,role:entry?(typeof entry==="string"?"super":entry.role||"super"):null,leaderGroup:entry&&typeof entry!=="string"?entry.group||"":"",leaderSubgroup:entry&&typeof entry!=="string"?entry.subgroup||"":"",ministry:entry&&typeof entry!=="string"?entry.ministry||"":""});
     }
 
     if(req.method==="POST"&&p==="/api/checkin") {
@@ -317,12 +317,12 @@ Deno.serve(async (req: Request) => {
     }
 
     if(req.method==="POST"&&p==="/api/admin/add") {
-      const {password,targetDeviceId,role,group,subgroup}=body; const cfg=await getCfg(sb);
+      const {password,targetDeviceId,role,group,subgroup,ministry}=body; const cfg=await getCfg(sb);
       if(password!==cfg.admin_password) return fail(403,"Wrong password");
       const {data:dev}=await sb.from("devices").select("name").eq("id",targetDeviceId.trim()).single();
       const deviceIdsToAdd: string[]=dev?.name?await getDevsByName(sb,dev.name):[targetDeviceId.trim()];
       let ads: any[]=[...(cfg.admin_devices||[])].filter((d:any)=>!deviceIdsToAdd.includes(typeof d==="string"?d:d.deviceId));
-      for(const did of deviceIdsToAdd){const entry: any={deviceId:did,role:role||"super"};if(group) entry.group=group;if(subgroup) entry.subgroup=subgroup;ads.push(entry);}
+      for(const did of deviceIdsToAdd){const entry: any={deviceId:did,role:role||"super"};if(group) entry.group=group;if(subgroup) entry.subgroup=subgroup;if(ministry) entry.ministry=ministry;ads.push(entry);}
       await sb.from("config").update({admin_devices:ads}).eq("id",1);
       return ok({status:"ok",devicesAdded:deviceIdsToAdd.length});
     }
@@ -338,9 +338,9 @@ Deno.serve(async (req: Request) => {
     if(req.method==="POST"&&p==="/api/admin/list") {
       const {password}=body; const cfg=await getCfg(sb); if(password!==cfg.admin_password) return fail(403,"Wrong password");
       const ads: any[]=cfg.admin_devices||[];
-      const allEntries=await Promise.all(ads.map(async(d:any)=>{const did=typeof d==="string"?d:d.deviceId;const r=typeof d==="string"?"super":d.role||"super";const {data:dv}=await sb.from("devices").select("name").eq("id",did).single();return {deviceId:did,name:dv?.name||"Unknown",role:r};}));
-      const byName: Record<string,{name:string,role:string,deviceId:string,deviceCount:number}>={};
-      for(const e of allEntries){if(!byName[e.name])byName[e.name]={name:e.name,role:e.role,deviceId:e.deviceId,deviceCount:0};byName[e.name].deviceCount++;}
+      const allEntries=await Promise.all(ads.map(async(d:any)=>{const did=typeof d==="string"?d:d.deviceId;const r=typeof d==="string"?"super":d.role||"super";const ministry=typeof d==="string"?"":d.ministry||"";const group=typeof d==="string"?"":d.group||"";const subgroup=typeof d==="string"?"":d.subgroup||"";const {data:dv}=await sb.from("devices").select("name").eq("id",did).single();return {deviceId:did,name:dv?.name||"Unknown",role:r,ministry,group,subgroup};}));
+      const byName: Record<string,{name:string,role:string,deviceId:string,deviceCount:number,ministry:string,group:string,subgroup:string}>={};
+      for(const e of allEntries){if(!byName[e.name])byName[e.name]={name:e.name,role:e.role,deviceId:e.deviceId,deviceCount:0,ministry:e.ministry,group:e.group,subgroup:e.subgroup};byName[e.name].deviceCount++;}
       return ok({adminDevices:Object.values(byName)});
     }
 
