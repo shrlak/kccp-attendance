@@ -727,7 +727,9 @@ function sortNames(names){
   });
 }
 function getDongsanRole(name,group,subgroup){
-  if(!dongsanLeaders||!group||!subgroup)return null;
+  if(!dongsanLeaders||!subgroup)return null;
+  if(summerMode){const sg=dongsanLeaders["합동"]&&dongsanLeaders["합동"][subgroup];if(sg){if(sg.leader===name)return "동산지기";if((sg.subLeaders||[]).includes(name))return "부동산지기";return null;}}
+  if(!group)return null;
   const sg=dongsanLeaders[group]&&dongsanLeaders[group][subgroup];
   if(!sg)return null;
   if(sg.leader===name)return "동산지기";
@@ -1087,6 +1089,11 @@ function switchTab(t){activeTab=t;document.querySelectorAll(".view").forEach(v=>
 function renderLinkDropdown(){const allNames=Object.keys(getUniqueNames("","")).sort();const sel=document.getElementById("link-name");if(!sel)return;const cv=sel.value;sel.innerHTML=`<option value="">${t('select_person_ph')}</option>`+allNames.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");sel.value=cv;}
 function renderDongsanEditor(){
   const el=document.getElementById("dongsan-editor");if(!el)return;
+  if(summerMode){
+    const summerList=getSummerDongsanList();
+    el.innerHTML=`<div style="font-size:11px;color:var(--amber);font-weight:600;margin-bottom:12px;padding:6px 10px;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);border-radius:8px;">☀️ 여름 모드 — 합동 동산 이름 (대학부·청년부 동시 적용)</div>`+summerList.map((n,i)=>`<div style="display:flex;gap:8px;margin-bottom:6px;align-items:center;"><span class="mono" style="font-size:10px;color:var(--txt-d);min-width:20px;">${i+1}</span><input class="inp" style="flex:1;font-size:13px;padding:8px 12px;" id="ds-summer-${i}" value="${esc(n)}" placeholder="${t('dongsan_ph_fn')(i+1)}"><button class="btn btn-primary btn-sm" onclick="saveDongsanNameSummer(${i})">${t('save_dongsan_btn')}</button></div>`).join("");
+    return;
+  }
   const groups=["대학부","청년부"];
   el.innerHTML=groups.map(g=>{
     const names=dongsanNames[g]||["동산1","동산2","동산3","동산4"];
@@ -1104,30 +1111,53 @@ async function saveDongsanName(group,index){
   flash(t('dongsan_saved_fn')(name));
   await load();renderAll();
 }
+async function saveDongsanNameSummer(index){
+  const inp=document.getElementById(`ds-summer-${index}`);
+  if(!inp)return;
+  const name=inp.value.trim();
+  if(!name){flash(t('warn_name'),"warn");return;}
+  for(const g of Object.keys(dongsanNames)){
+    if(index<(dongsanNames[g]||[]).length){
+      const r=await api("POST","/api/dongsan-names",{group:g,index,name,adminDeviceId:deviceId});
+      if(r.error){flash(r.error,"err");return;}
+      dongsanNames=r.names;
+    }
+  }
+  flash(t('dongsan_saved_fn')(name));
+  await load();renderAll();
+}
 function renderDongsanLeadersEditor(){
   const el=document.getElementById("dongsan-leaders-editor");if(!el)return;
-  const groups=["대학부","청년부"];
   const allMembers=getUniqueNames("","");
+  function buildLeaderBlock(key,headerHtml,cur,sgMembers){
+    const makeLeaderOpts=()=>`<option value="">${t('dongsan_no_leader')}</option>`+sgMembers.map(n=>`<option value="${esc(n)}"${cur.leader===n?" selected":""}>${esc(n)}</option>`).join("");
+    const subLeaderCheckboxes=sgMembers.length?sgMembers.map(n=>`<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:3px 0;"><input type="checkbox" value="${esc(n)}" id="sl-${esc(key)}-${esc(n)}" ${(cur.subLeaders||[]).includes(n)?"checked":""} style="accent-color:var(--acc);width:14px;height:14px;"> ${esc(n)}</label>`).join(""):`<span style="font-size:12px;color:var(--txt-d);">${t('no_dongsan_members')}</span>`;
+    return`<div style="margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--bdr);">
+      <div style="font-size:13px;font-weight:700;color:var(--acc);margin-bottom:10px;">${headerHtml}</div>
+      <div style="margin-bottom:10px;"><div style="font-size:11px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">${t('dongsan_leader_label')}</div><select id="leader-${esc(key)}" class="inp" style="font-size:12px;padding:8px 10px;">${makeLeaderOpts()}</select></div>
+      <div style="margin-bottom:10px;"><div style="font-size:11px;font-weight:600;color:var(--txt-m);margin-bottom:6px;">${t('dongsan_subleader_label')}</div><div style="display:flex;flex-direction:column;gap:2px;max-height:110px;overflow-y:auto;padding:8px;background:var(--bg);border-radius:8px;border:1px solid var(--bdr);">${subLeaderCheckboxes}</div></div>
+      <button class="btn btn-primary btn-sm" onclick="saveDongsanLeaders('${esc(key.split('__')[0])}','${esc(key.split('__')[1])}')">${t('save_dongsan_btn')}</button>
+    </div>`;
+  }
+  if(summerMode){
+    const summerList=getSummerDongsanList();
+    el.innerHTML=`<div style="font-size:11px;color:var(--amber);font-weight:600;margin-bottom:12px;padding:6px 10px;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);border-radius:8px;">☀️ 여름 모드 — 합동 동산지기 (대학부·청년부 통합)</div>`+
+      summerList.map(sg=>{
+        const key=`합동__${sg}`;
+        const cur=(dongsanLeaders&&dongsanLeaders["합동"]&&dongsanLeaders["합동"][sg])||{leader:"",subLeaders:[]};
+        const sgMembers=Object.keys(allMembers).filter(n=>{const m=allMembers[n];return m&&(m.subgroup||"")===(sg||"");});
+        return buildLeaderBlock(key,esc(sg),cur,sgMembers);
+      }).join("");
+    return;
+  }
+  const groups=["대학부","청년부"];
   el.innerHTML=groups.map(g=>{
     const subgroups=dongsanNames[g]||["동산1","동산2","동산3","동산4"];
     return subgroups.map(sg=>{
       const key=`${g}__${sg}`;
-      const cur=(dongsanLeaders[g]&&dongsanLeaders[g][sg])||{leader:"",subLeaders:[]};
+      const cur=(dongsanLeaders&&dongsanLeaders[g]&&dongsanLeaders[g][sg])||{leader:"",subLeaders:[]};
       const sgMembers=Object.keys(allMembers).filter(n=>{const m=allMembers[n];return m&&m.group===g&&(m.subgroup||"")===(sg||"");});
-      const makeLeaderOpts=()=>`<option value="">${t('dongsan_no_leader')}</option>`+sgMembers.map(n=>`<option value="${esc(n)}"${cur.leader===n?" selected":""}>${esc(n)}</option>`).join("");
-      const subLeaderCheckboxes=sgMembers.length?sgMembers.map(n=>`<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:3px 0;"><input type="checkbox" value="${esc(n)}" id="sl-${esc(key)}-${esc(n)}" ${(cur.subLeaders||[]).includes(n)?"checked":""} style="accent-color:var(--acc);width:14px;height:14px;"> ${esc(n)}</label>`).join(""):`<span style="font-size:12px;color:var(--txt-d);">${t('no_dongsan_members')}</span>`;
-      return`<div style="margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--bdr);">
-        <div style="font-size:13px;font-weight:700;color:var(--acc);margin-bottom:10px;">${esc(g)} · ${esc(sg)}</div>
-        <div style="margin-bottom:10px;">
-          <div style="font-size:11px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">${t('dongsan_leader_label')}</div>
-          <select id="leader-${esc(key)}" class="inp" style="font-size:12px;padding:8px 10px;">${makeLeaderOpts()}</select>
-        </div>
-        <div style="margin-bottom:10px;">
-          <div style="font-size:11px;font-weight:600;color:var(--txt-m);margin-bottom:6px;">${t('dongsan_subleader_label')}</div>
-          <div style="display:flex;flex-direction:column;gap:2px;max-height:110px;overflow-y:auto;padding:8px;background:var(--bg);border-radius:8px;border:1px solid var(--bdr);">${subLeaderCheckboxes}</div>
-        </div>
-        <button class="btn btn-primary btn-sm" onclick="saveDongsanLeaders('${esc(g)}','${esc(sg)}')">${t('save_dongsan_btn')}</button>
-      </div>`;
+      return buildLeaderBlock(key,`${esc(g)} · ${esc(sg)}`,cur,sgMembers);
     }).join("");
   }).join("");
 }
@@ -1136,13 +1166,14 @@ async function saveDongsanLeaders(group,subgroup){
   const leaderEl=document.getElementById(`leader-${key}`);
   const leader=leaderEl?leaderEl.value:"";
   const allMembers=getUniqueNames("","");
-  const sgMembers=Object.keys(allMembers).filter(n=>{const m=allMembers[n];return m&&m.group===group&&(m.subgroup||"")===(subgroup||"");});
+  const sgMembers=summerMode
+    ?Object.keys(allMembers).filter(n=>{const m=allMembers[n];return m&&(m.subgroup||"")===(subgroup||"");})
+    :Object.keys(allMembers).filter(n=>{const m=allMembers[n];return m&&m.group===group&&(m.subgroup||"")===(subgroup||"");});
   const subLeaders=sgMembers.filter(n=>{const el=document.getElementById(`sl-${key}-${n}`);return el&&el.checked;});
   const r=await api("POST","/api/dongsan-leaders",{group,subgroup,leader,subLeaders,adminDeviceId:deviceId});
   if(r.error){flash(r.error,"err");return;}
-  dongsanLeaders=r.leaders;
   flash(t('dongsan_leader_save_fn')(group,subgroup));
-  renderAll();
+  await load();renderAll();
 }
 function renderAll(){
   const smb=document.getElementById("summer-mode-banner");if(smb)smb.style.display=summerMode?"block":"none";
