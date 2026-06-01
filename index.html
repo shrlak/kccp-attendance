@@ -697,17 +697,18 @@ const _DEV_CACHE="kccp-dev-v1";
 function _restoreDevCache(){try{const c=JSON.parse(localStorage.getItem(_DEV_CACHE));if(c&&c.ts&&Date.now()-c.ts<3600000&&c.d&&Object.keys(c.d).length>0){D.devices=c.d;return true;}}catch(e){}return false;}
 function _saveDevCache(){try{localStorage.setItem(_DEV_CACHE,JSON.stringify({d:D.devices,ts:Date.now()}));}catch(e){}}
 async function load(){
-  // Fire all config fetches in parallel with the data fetch to cut load time
-  let [d,nameOrd,dNames,cfg,ldrs]=await Promise.all([
+  // Use allSettled so one failing endpoint never blocks the others
+  const results=await Promise.allSettled([
     api("GET","/api/data"),
     api("GET","/api/name-order"),
     api("GET","/api/dongsan-names"),
     api("GET","/api/config"),
     api("GET","/api/dongsan-leaders")
   ]);
+  let [d,nameOrd,dNames,cfg,ldrs]=results.map(r=>r.status==="fulfilled"?r.value:null);
   if(d&&d.offline){
     await new Promise(r=>setTimeout(r,2500));
-    d=await api("GET","/api/data");
+    try{d=await api("GET","/api/data");}catch(e){d=null;}
   }
   if(d&&!d.offline&&!d.error){setOffline(false);D=d;_saveDevCache();}
   try{if(nameOrd&&!nameOrd.offline)nameOrder=nameOrd.order||[];}catch(e){}
@@ -1055,7 +1056,7 @@ async function submitSelfRegister(){
 }
 
 // ─── ADMIN ───
-async function tryAdmin(){const r=await api("POST","/api/check-admin",{deviceId});if(r.noAdminsYet){document.getElementById("admin-access-msg").textContent=t('admin_no_admins_msg');document.getElementById("password-modal").style.display="flex";document.getElementById("admin-pw").focus();return;}if(r.isAdmin){showAdmin();return;}document.getElementById("admin-access-msg").textContent=t('admin_not_authorized_msg');document.getElementById("password-modal").style.display="flex";document.getElementById("admin-pw").focus();}
+async function tryAdmin(){try{const r=await api("POST","/api/check-admin",{deviceId});if(r.noAdminsYet){document.getElementById("admin-access-msg").textContent=t('admin_no_admins_msg');document.getElementById("password-modal").style.display="flex";document.getElementById("admin-pw").focus();return;}if(r.isAdmin){showAdmin();return;}document.getElementById("admin-access-msg").textContent=t('admin_not_authorized_msg');document.getElementById("password-modal").style.display="flex";document.getElementById("admin-pw").focus();}catch(e){flash(t('connection_error'),"err");}}
 async function submitAdminPassword(){const pw=document.getElementById("admin-pw").value;const r=await api("POST","/api/admin/add",{password:pw,targetDeviceId:deviceId});if(r.error){flash(r.error==="Wrong password"?t('wrong_pw'):t('connection_error'),"err");return;}document.getElementById("password-modal").style.display="none";document.getElementById("admin-pw").value="";flash(t('admin_granted'));showAdmin();}
 async function showAdmin(prefetchedAdminData=null){
   document.getElementById("checkin-view").style.display="none";
@@ -1082,7 +1083,7 @@ async function showAdmin(prefetchedAdminData=null){
   renderPendingBadge();
 }
 function showCheckin(){document.getElementById("admin-view").style.display="none";document.getElementById("checkin-view").style.display="flex";}
-function switchTab(t){activeTab=t;document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));document.getElementById("tab-"+t).classList.add("active");document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.tab===t));load().then(()=>renderAll());}
+function switchTab(t){activeTab=t;document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));document.getElementById("tab-"+t).classList.add("active");document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.tab===t));load().then(()=>renderAll()).catch(()=>renderAll());}
 function renderLinkDropdown(){const allNames=Object.keys(getUniqueNames("","")).sort();const sel=document.getElementById("link-name");if(!sel)return;const cv=sel.value;sel.innerHTML=`<option value="">${t('select_person_ph')}</option>`+allNames.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");sel.value=cv;}
 function renderDongsanEditor(){
   const el=document.getElementById("dongsan-editor");if(!el)return;
