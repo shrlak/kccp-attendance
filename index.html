@@ -1069,7 +1069,7 @@ async function showAdmin(prefetchedAdminData=null){
   // Role-based UI: welcoming hides admins tab; super shows demo mode controls
   const isSuper=myAdminRole==="super"||myAdminRole===null;
   const isWelcoming=myAdminRole==="welcoming";
-  document.querySelectorAll(".nav-btn[data-tab='admins']").forEach(b=>(b as HTMLElement).style.display=isWelcoming?"none":"");
+  document.querySelectorAll(".nav-btn[data-tab='admins']").forEach(b=>b.style.display=isWelcoming?"none":"");
   const demoCard=document.getElementById("demo-mode-card");if(demoCard)demoCard.style.display=isSuper?"block":"none";
   const dmBanner=document.getElementById("demo-mode-banner");if(dmBanner)dmBanner.style.display=demoMode?"block":"none";
   if(!prefetchedAdminData)await load();
