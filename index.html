@@ -1100,9 +1100,9 @@ async function showAdmin(prefetchedAdminData=null){
   if(myAdminRole==="leader"&&myLeaderGroup){sheetGroup=myLeaderGroup;todayGroup=myLeaderGroup;devGroup=myLeaderGroup;if(myLeaderSubgroup){sheetSubgroup=myLeaderSubgroup;todaySubgroup=myLeaderSubgroup;devSubgroup=myLeaderSubgroup;}}
   else if(myAllowedGroups.length===1){sheetGroup=myAllowedGroups[0];todayGroup=myAllowedGroups[0];devGroup=myAllowedGroups[0];}
 
-  // Role-based UI: welcoming and pastor hide admins tab; super shows demo mode controls
+  // Role-based UI: only super admin can access admins tab
   const isWelcoming=myAdminRole==="welcoming";
-  document.querySelectorAll(".nav-btn[data-tab='admins']").forEach(b=>b.style.display=(isWelcoming||isPastor)?"none":"");
+  document.querySelectorAll(".nav-btn[data-tab='admins']").forEach(b=>b.style.display=(isSuper)?"":"none");
   // Pastor and non-super hide settings tab
   document.querySelectorAll(".nav-btn[data-tab='settings']").forEach(b=>b.style.display=(isSuper)?"":"none");
   // Pastor hides devices tab
@@ -1598,8 +1598,8 @@ async function saveEdit(){
 function clearLog(){confirmAction(t('clear_log_title'),async()=>{await api("DELETE","/api/log",null,{"X-Device-Id":deviceId});flash("Records cleared");await load();renderAll();},{icon:"📊",desc:t('clear_log_desc'),holdMs:2000});}
 function clearDevices(){confirmAction(t('clear_devices_title'),async()=>{await api("DELETE","/api/devices",null,{"X-Device-Id":deviceId});flash("All devices cleared");await load();renderAll();},{icon:"📱",desc:t('clear_devices_desc'),holdMs:2000});}
 function clearEverything(){confirmAction(t('clear_all_title'),async()=>{await api("DELETE","/api/all",null,{"X-Device-Id":deviceId});flash("Everything cleared");await load();renderAll();},{icon:"💣",desc:t('clear_all_desc'),holdMs:2500});}
-async function removeAdmin(){const pw=document.getElementById("acl-pw").value,did=document.getElementById("acl-device").value.trim();if(!pw||!did){flash(t('fill_both_fields'),"warn");return;}const r=await api("POST","/api/admin/remove",{password:pw,targetDeviceId:did});if(r.error){flash(r.error,"err");return;}flash(t('admin_removed_msg'));listAdmins();}
-async function listAdmins(){const pw=document.getElementById("acl-pw").value;if(!pw){flash(t('enter_password'),"warn");return;}const r=await api("POST","/api/admin/list",{password:pw});if(r.error){flash(r.error,"err");return;}const el=document.getElementById("admin-list");if(!r.adminDevices.length){el.innerHTML=`<div style="color:var(--txt-d);font-size:12px;text-align:center;padding:12px;">${t('no_admins_msg')}</div>`;return;}el.innerHTML=`<div class="sl" style="margin-top:8px;">${t('admins_count_fn')(r.adminDevices.length)}</div>`+r.adminDevices.map(a=>{
+async function removeAdmin(){const pw=document.getElementById("acl-pw").value,did=document.getElementById("acl-device").value.trim();if(!pw||!did){flash(t('fill_both_fields'),"warn");return;}const r=await api("POST","/api/admin/remove",{password:pw,targetDeviceId:did,adminDeviceId:deviceId});if(r.error){flash(r.error,"err");return;}flash(t('admin_removed_msg'));listAdmins();}
+async function listAdmins(){const pw=document.getElementById("acl-pw").value;if(!pw){flash(t('enter_password'),"warn");return;}const r=await api("POST","/api/admin/list",{password:pw,adminDeviceId:deviceId});if(r.error){flash(r.error,"err");return;}const el=document.getElementById("admin-list");if(!r.adminDevices.length){el.innerHTML=`<div style="color:var(--txt-d);font-size:12px;text-align:center;padding:12px;">${t('no_admins_msg')}</div>`;return;}el.innerHTML=`<div class="sl" style="margin-top:8px;">${t('admins_count_fn')(r.adminDevices.length)}</div>`+r.adminDevices.map(a=>{
   const mPfx=a.ministry==="KM"?"KM":a.ministry==="EM"?"EM":a.ministry==="Adult"?"Adult Ministry":"";
   const roleCls=a.role==="super"?"tag-green":a.role==="pastor"?"tag-blue":a.ministry==="KM"?(a.role==="welcoming"?"tag-amber":"tag-purple"):a.ministry==="EM"?"tag-green":"tag-purple";
   const roleLbl=a.role==="super"?t('super_admin_label'):a.role==="pastor"?"목사님":mPfx?`${mPfx} ${a.role==="welcoming"?"Welcoming":"Leader"}`:a.role==="welcoming"?"Welcoming":"Leader";
@@ -1665,7 +1665,7 @@ async function addAdmin(){
   if(roleVal.startsWith("km-")){role=roleVal.slice(3);ministry="KM";}
   else if(roleVal.startsWith("em-")){role=roleVal.slice(3);ministry="EM";}
   else if(roleVal.startsWith("adult-")){role=roleVal.slice(6);ministry="Adult";}
-  const body={password:pw,targetDeviceId:did,role};
+  const body={password:pw,targetDeviceId:did,role,adminDeviceId:deviceId};
   if(ministry)body.ministry=ministry;
   if(roleVal==="km-leader"){
     const g=document.getElementById("acl-leader-group");const sg=document.getElementById("acl-leader-subgroup");

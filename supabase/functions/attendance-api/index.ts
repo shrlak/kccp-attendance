@@ -317,8 +317,9 @@ Deno.serve(async (req: Request) => {
     }
 
     if(req.method==="POST"&&p==="/api/admin/add") {
-      const {password,targetDeviceId,role,group,subgroup,ministry}=body; const cfg=await getCfg(sb);
+      const {password,targetDeviceId,role,group,subgroup,ministry,adminDeviceId}=body; const cfg=await getCfg(sb);
       if(password!==cfg.admin_password) return fail(403,"Wrong password");
+      if(adminDeviceId&&!await isSuperAdmin(sb,adminDeviceId)) return fail(403,"Super admin required");
       const {data:dev}=await sb.from("devices").select("name").eq("id",targetDeviceId.trim()).single();
       const deviceIdsToAdd: string[]=dev?.name?await getDevsByName(sb,dev.name):[targetDeviceId.trim()];
       let ads: any[]=[...(cfg.admin_devices||[])].filter((d:any)=>!deviceIdsToAdd.includes(typeof d==="string"?d:d.deviceId));
@@ -328,7 +329,8 @@ Deno.serve(async (req: Request) => {
     }
 
     if(req.method==="POST"&&p==="/api/admin/remove") {
-      const {password,targetDeviceId}=body; const cfg=await getCfg(sb); if(password!==cfg.admin_password) return fail(403,"Wrong password");
+      const {password,targetDeviceId,adminDeviceId}=body; const cfg=await getCfg(sb); if(password!==cfg.admin_password) return fail(403,"Wrong password");
+      if(adminDeviceId&&!await isSuperAdmin(sb,adminDeviceId)) return fail(403,"Super admin required");
       const {data:dev}=await sb.from("devices").select("name").eq("id",targetDeviceId.trim()).single();
       const deviceIdsToRemove: string[]=dev?.name?await getDevsByName(sb,dev.name):[targetDeviceId.trim()];
       await sb.from("config").update({admin_devices:(cfg.admin_devices||[]).filter((d:any)=>!deviceIdsToRemove.includes(typeof d==="string"?d:d.deviceId))}).eq("id",1);
@@ -336,7 +338,8 @@ Deno.serve(async (req: Request) => {
     }
 
     if(req.method==="POST"&&p==="/api/admin/list") {
-      const {password}=body; const cfg=await getCfg(sb); if(password!==cfg.admin_password) return fail(403,"Wrong password");
+      const {password,adminDeviceId}=body; const cfg=await getCfg(sb); if(password!==cfg.admin_password) return fail(403,"Wrong password");
+      if(adminDeviceId&&!await isSuperAdmin(sb,adminDeviceId)) return fail(403,"Super admin required");
       const ads: any[]=cfg.admin_devices||[];
       const allEntries=await Promise.all(ads.map(async(d:any)=>{const did=typeof d==="string"?d:d.deviceId;const r=typeof d==="string"?"super":d.role||"super";const ministry=typeof d==="string"?"":d.ministry||"";const group=typeof d==="string"?"":d.group||"";const subgroup=typeof d==="string"?"":d.subgroup||"";const {data:dv}=await sb.from("devices").select("name").eq("id",did).single();return {deviceId:did,name:dv?.name||"Unknown",role:r,ministry,group,subgroup};}));
       const byName: Record<string,{name:string,role:string,deviceId:string,deviceCount:number,ministry:string,group:string,subgroup:string}>={};
