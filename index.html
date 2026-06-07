@@ -86,7 +86,7 @@ body.light-mode .card{box-shadow:0 1px 4px rgba(0,0,0,.07),0 4px 16px rgba(0,0,0
 /* ── Kiosk Mode ── */
 #kiosk-view{position:fixed;inset:0;background:var(--bg);z-index:999;display:none;flex-direction:column;overflow:hidden;}
 .kiosk-header{padding:18px 20px 14px;padding-top:calc(18px + env(safe-area-inset-top,0px));display:flex;align-items:center;justify-content:space-between;flex-shrink:0;border-bottom:1px solid var(--bdr);}
-.kiosk-members{flex:1;overflow-y:auto;padding:10px 14px calc(90px + env(safe-area-inset-bottom,0px));-webkit-overflow-scrolling:touch;}
+.kiosk-members{flex:1;overflow-y:auto;padding:10px 14px 14px;-webkit-overflow-scrolling:touch;}
 .kiosk-group-label{font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--txt-d);font-family:'IBM Plex Mono',monospace;padding:12px 2px 6px;margin-top:2px;}
 .kiosk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-bottom:8px;}
 .kiosk-cols{display:flex;gap:10px;align-items:flex-start;}
@@ -96,7 +96,7 @@ body.light-mode .card{box-shadow:0 1px 4px rgba(0,0,0,.07),0 4px 16px rgba(0,0,0
 .kiosk-btn{padding:16px 10px;border-radius:14px;border:1.5px solid var(--bdr);background:var(--card);color:var(--txt);font-family:'Sora',sans-serif;font-size:14px;font-weight:700;cursor:pointer;text-align:center;transition:background .12s,border-color .12s;min-height:62px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
 .kiosk-btn:active{opacity:.75;transform:scale(.97);}
 .kiosk-btn.done{background:var(--acc-dim);border-color:rgba(52,211,153,.35);color:var(--acc);}
-.kiosk-footer{position:absolute;bottom:0;left:0;right:0;padding:12px 14px;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px));background:rgba(8,9,13,.95);backdrop-filter:blur(16px);border-top:1px solid var(--bdr);display:flex;gap:10px;}
+.kiosk-footer{flex-shrink:0;padding:12px 14px;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px));background:rgba(8,9,13,.95);backdrop-filter:blur(16px);border-top:1px solid var(--bdr);display:flex;gap:10px;z-index:2;}
 body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
 </style>
 </head>
@@ -283,6 +283,18 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
     </select>
   </div>
 
+  <!-- 새가족 status — prominent at top so it's always visible without scrolling -->
+  <div style="display:flex;gap:10px;margin-bottom:12px;">
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;padding:10px 12px;background:rgba(52,211,153,.06);border-radius:10px;border:1.5px solid rgba(52,211,153,.3);">
+      <input type="checkbox" id="edit-is-new-member" style="width:16px;height:16px;accent-color:var(--acc);">
+      <span style="font-size:12px;font-weight:700;color:var(--acc);">✝️ 새가족</span>
+    </label>
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;padding:10px 12px;background:var(--bg);border-radius:10px;border:1px solid var(--bdr);">
+      <input type="checkbox" id="edit-visitor" style="width:16px;height:16px;accent-color:var(--amber);cursor:pointer;">
+      <label for="edit-visitor" style="font-size:12px;font-weight:600;color:var(--txt);cursor:pointer;">👋 방문자</label>
+    </label>
+  </div>
+
   <!-- Extended profile fields -->
   <div style="border-top:1px solid var(--bdr);margin:4px 0 12px;padding-top:12px;">
     <div style="font-size:11px;font-weight:700;color:var(--txt-d);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;font-family:'IBM Plex Mono',monospace;">멤버 정보</div>
@@ -326,22 +338,12 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
         <input id="edit-regdate" type="date" class="inp">
       </div>
     </div>
-    <div style="display:flex;gap:12px;margin-bottom:10px;">
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;padding:10px 12px;background:var(--bg);border-radius:10px;border:1px solid var(--bdr);">
-        <input type="checkbox" id="edit-pastoral" style="width:16px;height:16px;accent-color:var(--acc);">
-        <span style="font-size:12px;font-weight:600;">목사님 심방 요청</span>
-      </label>
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;padding:10px 12px;background:var(--bg);border-radius:10px;border:1px solid var(--bdr);">
-        <input type="checkbox" id="edit-is-new-member" style="width:16px;height:16px;accent-color:var(--acc);">
-        <span style="font-size:12px;font-weight:600;">새가족</span>
-      </label>
-    </div>
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:10px 12px;background:var(--bg);border-radius:10px;border:1px solid var(--bdr);margin-bottom:10px;">
+      <input type="checkbox" id="edit-pastoral" style="width:16px;height:16px;accent-color:var(--acc);">
+      <span style="font-size:12px;font-weight:600;">🙏 목사님 심방 요청</span>
+    </label>
   </div>
 
-  <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:10px 14px;background:var(--bg);border-radius:10px;border:1px solid var(--bdr);">
-    <input type="checkbox" id="edit-visitor" style="width:16px;height:16px;accent-color:var(--amber);cursor:pointer;">
-    <label for="edit-visitor" data-i18n="visitor_label" style="font-size:13px;font-weight:600;color:var(--txt);cursor:pointer;">방문자 (Visitor) — 출석률 통계 제외</label>
-  </div>
   <input type="hidden" id="edit-original-name">
   <div style="display:flex;gap:8px;">
     <button class="btn btn-primary" data-i18n="save_edit_btn" style="flex:1;" onclick="saveEdit()">저장</button>
@@ -929,7 +931,8 @@ async function load(){
   if(d&&!d.offline&&!d.error){setOffline(false);D=d;_saveDevCache();}
   try{if(nameOrd&&!nameOrd.offline)nameOrder=nameOrd.order||[];}catch(e){}
   try{if(dNames&&dNames.names)dongsanNames=dNames.names;}catch(e){}
-  try{if(cfg&&!cfg.offline){if(cfg.announcement!==undefined){announcement=cfg.announcement;const el=document.getElementById("announcement-text");if(el)el.value=announcement;}if(cfg.checkinDays!==undefined)checkinDays=cfg.checkinDays;if(cfg.checkinStartMin!==undefined)checkinStartMin=cfg.checkinStartMin;if(cfg.checkinEndMin!==undefined)checkinEndMin=cfg.checkinEndMin;if(cfg.requireApproval!==undefined){requireApproval=cfg.requireApproval;const at=document.getElementById("approval-toggle");if(at)at.checked=requireApproval;}if(cfg.summerMode!==undefined){summerMode=cfg.summerMode;const st=document.getElementById("summer-mode-toggle");if(st)st.checked=summerMode;}if(cfg.demoMode!==undefined){demoMode=cfg.demoMode;const dt=document.getElementById("demo-mode-toggle");if(dt)dt.checked=demoMode;renderCheckinWindowBadge();}if(cfg.individualCheckinEnabled!==undefined){individualCheckinEnabled=cfg.individualCheckinEnabled;const ict=document.getElementById("individual-checkin-toggle");if(ict)ict.checked=individualCheckinEnabled;}renderCheckinWindow();}}catch(e){}
+  try{if(cfg&&!cfg.offline){if(cfg.announcement!==undefined){announcement=cfg.announcement;const el=document.getElementById("announcement-text");if(el)el.value=announcement;}if(cfg.checkinDays!==undefined)checkinDays=cfg.checkinDays;if(cfg.checkinStartMin!==undefined)checkinStartMin=cfg.checkinStartMin;if(cfg.checkinEndMin!==undefined)checkinEndMin=cfg.checkinEndMin;if(cfg.requireApproval!==undefined){requireApproval=cfg.requireApproval;const at=document.getElementById("approval-toggle");if(at)at.checked=requireApproval;}// Auto-detect from current semester date; admin toggle overrides for the session
+summerMode=!!(currentSemester()?.season==='summer');const st=document.getElementById("summer-mode-toggle");if(st)st.checked=summerMode;if(cfg.demoMode!==undefined){demoMode=cfg.demoMode;const dt=document.getElementById("demo-mode-toggle");if(dt)dt.checked=demoMode;renderCheckinWindowBadge();}if(cfg.individualCheckinEnabled!==undefined){individualCheckinEnabled=cfg.individualCheckinEnabled;const ict=document.getElementById("individual-checkin-toggle");if(ict)ict.checked=individualCheckinEnabled;}renderCheckinWindow();}}catch(e){}
   try{if(ldrs&&ldrs.leaders)dongsanLeaders=ldrs.leaders;}catch(e){}
 }
 function sortNames(names){
@@ -1303,13 +1306,14 @@ async function showAdmin(prefetchedAdminData=null){
   if(myAdminRole==="leader"&&myLeaderGroup){sheetGroup=myLeaderGroup;todayGroup=myLeaderGroup;devGroup=myLeaderGroup;if(myLeaderSubgroup){sheetSubgroup=myLeaderSubgroup;todaySubgroup=myLeaderSubgroup;devSubgroup=myLeaderSubgroup;}}
   else if(myAllowedGroups.length===1){sheetGroup=myAllowedGroups[0];todayGroup=myAllowedGroups[0];devGroup=myAllowedGroups[0];}
 
-  // Role-based UI: only super admin can access admins tab
+  // Role-based UI: only super admin can access admins/settings tabs
   const isWelcoming=myAdminRole==="welcoming";
   document.querySelectorAll(".nav-btn[data-tab='admins']").forEach(b=>b.style.display=(isSuper)?"":"none");
-  // Pastor and non-super hide settings tab
   document.querySelectorAll(".nav-btn[data-tab='settings']").forEach(b=>b.style.display=(isSuper)?"":"none");
   // Pastor hides devices tab
   document.querySelectorAll(".nav-btn[data-tab='devices']").forEach(b=>b.style.display=(isPastor)?"none":"");
+  // 새가족 tab is ALWAYS visible for every admin role
+  document.querySelectorAll(".nav-btn[data-tab='newcomers']").forEach(b=>b.style.display="");
   const demoCard=document.getElementById("demo-mode-card");if(demoCard)demoCard.style.display=isSuper?"block":"none";
   const dmBanner=document.getElementById("demo-mode-banner");if(dmBanner)dmBanner.style.display=demoMode?"block":"none";
   // Show ministry banner for restricted roles
@@ -1426,6 +1430,8 @@ function renderAll(){
   const smb=document.getElementById("summer-mode-banner");if(smb)smb.style.display=summerMode?"block":"none";
   const dmb=document.getElementById("demo-mode-banner");if(dmb)dmb.style.display=demoMode?"block":"none";
   renderStats();renderGrpTabs("sheet-grp-tabs",sheetGroup,"setSheetGroup");renderSubgroupTabs("sheet-subgrp-tabs",sheetGroup,sheetSubgroup,"setSheetSubgroup");renderGrpTabs("today-grp-tabs",todayGroup,"setTodayGroup");renderSubgroupTabs("today-subgrp-tabs",todayGroup,todaySubgroup,"setTodaySubgroup");renderGrpTabs("dev-grp-tabs",devGroup,"setDevGroup");renderSubgroupTabs("dev-subgrp-tabs",devGroup,devSubgroup,"setDevSubgroup");renderSheet();renderToday();renderDevices();renderDongsanEditor();renderDongsanLeadersEditor();renderLinkDropdown();renderLeaderDashboard();renderWeeklyComparison();if(chartsVisible)renderCharts();
+  // Always render 새가족 tab so it's never blank on first click
+  renderNewMembers();renderMonthlyRegistrations();
 }
 
 function emptyState(icon,msg,ctaHtml){return `<div style="padding:40px 20px;text-align:center;"><div style="font-size:40px;margin-bottom:12px;">${icon}</div><div style="font-size:14px;font-weight:700;color:var(--txt-m);margin-bottom:${ctaHtml?'14px':'0'}">${msg}</div>${ctaHtml||''}</div>`;}
@@ -1566,6 +1572,8 @@ function renderDevices(){
   function renderMemberCard(name){
     const m=members[name];const dids=m.devices;const cnt=totalForName(name);const isYou=dids.includes(deviceId);
     const role=getMemberRole(name);const isVis=role!=="";const rate=isVis?null:attRate(name);const notes=getMemberNotes(name);
+    let prof={};for(const d of dids){const v=D.devices[d];if(v&&typeof v==="object"){prof=v;break;}}
+    const isNewMem=!!prof.isNewMember;
     const roleDot={"pastor":"#34D399","elder":"#60A5FA","deacon":"#60A5FA","mentor":"#A78BFA","visitor":"#FBBF24"};
     const gc=isVis?{bg:`rgba(${role==="pastor"?"52,211,153":role==="mentor"?"167,139,250":role==="elder"||role==="deacon"?"96,165,250":"251,191,36"},.06)`,bdr:`rgba(${role==="pastor"?"52,211,153":role==="mentor"?"167,139,250":role==="elder"||role==="deacon"?"96,165,250":"251,191,36"},.2)`,dot:roleDot[role]||"#FBBF24"}:grpAccent(m.group);
     const frontFace=`<div class="card-face" style="display:flex;align-items:center;height:48px;padding:0 6px 0 0;">
@@ -1578,7 +1586,8 @@ function renderDevices(){
         </div>
         <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
           ${myReadOnly?"":
-          `<button style="width:28px;height:28px;padding:0;background:none;border:1.5px solid var(--bdr);border-radius:8px;cursor:pointer;font-size:13px;color:var(--txt-m);display:flex;align-items:center;justify-content:center;" title="${t('att_edit_tooltip')}" onclick="event.stopPropagation();openAttendanceEdit('${esc(name)}')">📋</button>
+          `<button style="width:28px;height:28px;padding:0;background:none;border:1.5px solid ${isNewMem?"rgba(52,211,153,.4)":"var(--bdr)"};border-radius:8px;cursor:pointer;font-size:13px;color:${isNewMem?"var(--acc)":"var(--txt-m)"};display:flex;align-items:center;justify-content:center;" title="새가족 토글" onclick="event.stopPropagation();toggleNewMemberStatus('${esc(name)}')">✝️</button>
+          <button style="width:28px;height:28px;padding:0;background:none;border:1.5px solid var(--bdr);border-radius:8px;cursor:pointer;font-size:13px;color:var(--txt-m);display:flex;align-items:center;justify-content:center;" title="${t('att_edit_tooltip')}" onclick="event.stopPropagation();openAttendanceEdit('${esc(name)}')">📋</button>
           <button style="width:28px;height:28px;padding:0;background:none;border:1.5px solid var(--bdr);border-radius:8px;cursor:pointer;font-size:13px;color:var(--txt-m);display:flex;align-items:center;justify-content:center;" title="${t('notes_tooltip')}" onclick="event.stopPropagation();openNotes('${esc(name)}')">📝</button>
           <button style="width:28px;height:28px;padding:0;background:none;border:1.5px solid var(--bdr);border-radius:8px;cursor:pointer;font-size:13px;color:var(--txt-m);display:flex;align-items:center;justify-content:center;" title="${t('edit_member_tooltip')}" onclick="event.stopPropagation();openEdit('${esc(name)}')">✏️</button>
           <button style="width:28px;height:28px;padding:0;background:none;border:1.5px solid rgba(251,113,133,.35);border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;color:var(--red);display:flex;align-items:center;justify-content:center;" onclick="event.stopPropagation();removePerson('${esc(name)}')">✕</button>`}
@@ -1588,12 +1597,14 @@ function renderDevices(){
           </div>
         </div>
       </div>`;
-    const backFace=`<div class="card-face card-back" style="padding:8px 10px 8px 10px;cursor:pointer;" onclick="flipCard(this)">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+    const profRows=[prof.gender?`성별: ${prof.gender}`:null,prof.phone?`📞 ${prof.phone}`:null,prof.birthDate?`🎂 ${prof.birthDate}`:null,prof.baptismStatus&&prof.baptismStatus!=="해당없음"?`세례: ${prof.baptismStatus}`:null,prof.schoolOrWork?`🏫 ${prof.schoolOrWork}`:null,prof.faithDuration?`신앙: ${prof.faithDuration}`:null,prof.registrationDate?`등록: ${prof.registrationDate}`:null,prof.pastoralVisitRequested?`🙏 심방 요청`:null,isNewMem?`✝️ 새가족`:null].filter(Boolean);
+    const backFace=`<div class="card-face card-back" style="padding:8px 10px;cursor:pointer;" onclick="flipCard(this)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
           <div style="font-size:10px;font-weight:700;color:var(--acc);letter-spacing:.5px;">${t('device_info_fn')(esc(name))} <span style="color:var(--txt-d);font-weight:400;font-size:9px;">${t('back_tap')}</span></div>
           <button style="background:none;border:1px solid var(--bdr);border-radius:6px;color:var(--blue);font-size:9px;font-weight:700;cursor:pointer;padding:2px 7px;flex-shrink:0;font-family:'Sora',sans-serif;" onclick="event.stopPropagation();openTransfer('${esc(name)}')">${t('transfer_short_btn')}</button>
         </div>
-        ${notes?`<div style="font-size:10px;color:var(--txt-m);margin-bottom:8px;padding:5px 7px;background:var(--bg);border-radius:6px;border:1px solid var(--bdr);line-height:1.5;">📝 ${esc(notes)}</div>`:""}
+        ${profRows.length?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;">${profRows.map(r=>`<span style="font-size:9px;padding:2px 6px;border-radius:6px;background:var(--bg);border:1px solid var(--bdr);color:var(--txt-m);">${esc(r)}</span>`).join("")}</div>`:``}
+        ${notes?`<div style="font-size:10px;color:var(--txt-m);margin-bottom:6px;padding:5px 7px;background:var(--bg);border-radius:6px;border:1px solid var(--bdr);line-height:1.5;">📝 ${esc(notes)}</div>`:""}
         ${dids.map(d=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 0;gap:4px;"><span class="mono" style="font-size:9px;color:var(--txt-d);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(d)}${d===deviceId?` <span style="color:var(--acc);">(${t('you_tag')})</span>`:""}</span><button style="background:none;border:none;color:var(--red);font-size:10px;cursor:pointer;padding:2px 4px;flex-shrink:0;" onclick="event.stopPropagation();removeSingleDevice('${esc(d)}')">${t('unlink_btn')}</button></div>`).join("")}
       </div>`;
     return`<div class="drag-item" data-name="${esc(name)}" style="display:flex;gap:0;border-radius:10px;overflow:hidden;background:${isYou?"var(--acc-dim)":gc.bg};border:1px solid ${isYou?"rgba(52,211,153,.2)":gc.bdr};border-left:3px solid ${gc.dot};">
@@ -1759,6 +1770,16 @@ function removePerson(name){confirmAction(t('remove_person_title_fn')(name),asyn
 function removePersonFull(name){confirmAction(t('remove_person_full_title_fn')(name),async()=>{await api("POST","/api/remove-person",{name,deleteRecords:true,adminDeviceId:deviceId});flash("Deleted "+name+" and all records");await load();renderAll();},{icon:"🗑️",desc:t('remove_person_full_desc'),holdMs:2000});}
 
 let attEditName=null;
+async function toggleNewMemberStatus(name){
+  const dids=getDevicesFor(name);
+  let cur=false;for(const d of dids){const v=D.devices[d];if(v&&typeof v==="object"){cur=!!v.isNewMember;break;}}
+  const newVal=!cur;
+  for(const d of dids){await api("PUT","/api/device",{deviceId:d,isNewMember:newVal,adminDeviceId:deviceId});}
+  dids.forEach(d=>{const v=D.devices[d];if(v&&typeof v==="object")v.isNewMember=newVal;});
+  _saveDevCache();
+  flash(newVal?`✝️ ${name} → 새가족으로 등록됨`:`${name} → 새가족 해제됨`);
+  renderAll();
+}
 function openAttendanceEdit(name){
   attEditName=name;
   document.getElementById("att-modal-name").textContent=name;
@@ -1833,10 +1854,9 @@ function clearDevices(){confirmAction(t('clear_devices_title'),async()=>{await a
 function clearEverything(){confirmAction(t('clear_all_title'),async()=>{await api("DELETE","/api/all",null,{"X-Device-Id":deviceId});flash("Everything cleared");await load();renderAll();},{icon:"💣",desc:t('clear_all_desc'),holdMs:2500});}
 async function removeAdmin(){const pw=document.getElementById("acl-pw").value,did=document.getElementById("acl-device").value.trim();if(!pw||!did){flash(t('fill_both_fields'),"warn");return;}const r=await api("POST","/api/admin/remove",{password:pw,targetDeviceId:did,adminDeviceId:deviceId});if(r.error){flash(r.error,"err");return;}flash(t('admin_removed_msg'));listAdmins();}
 async function listAdmins(){const pw=document.getElementById("acl-pw").value;if(!pw){flash(t('enter_password'),"warn");return;}const r=await api("POST","/api/admin/list",{password:pw,adminDeviceId:deviceId});if(r.error){flash(r.error,"err");return;}const el=document.getElementById("admin-list");if(!r.adminDevices.length){el.innerHTML=`<div style="color:var(--txt-d);font-size:12px;text-align:center;padding:12px;">${t('no_admins_msg')}</div>`;return;}el.innerHTML=`<div class="sl" style="margin-top:8px;">${t('admins_count_fn')(r.adminDevices.length)}</div>`+r.adminDevices.map(a=>{
-  const mPfx=a.ministry==="KM"?"KM":a.ministry==="EM"?"EM":a.ministry==="Adult"?"Adult Ministry":"";
-  const roleCls=a.role==="super"?"tag-green":a.role==="pastor"?"tag-blue":a.ministry==="KM"?(a.role==="welcoming"?"tag-amber":"tag-purple"):a.ministry==="EM"?"tag-green":"tag-purple";
-  const roleLbl=a.role==="super"?t('super_admin_label'):a.role==="pastor"?"목사님":mPfx?`${mPfx} ${a.role==="welcoming"?"Welcoming":"Leader"}`:a.role==="welcoming"?"Welcoming":"Leader";
+  const roleCls=a.role==="super"?"tag-green":a.role==="pastor"?"tag-blue":a.role==="welcoming"?"tag-amber":"tag-purple";
   const sub=[a.group,a.subgroup].filter(Boolean).join(" › ");
+  const roleLbl=a.role==="super"?"Super Admin":a.role==="pastor"?"목사님/멘토님":a.role==="welcoming"?"새가족팀":(sub?`리더 · ${sub}`:"리더");
   const devInfo=a.deviceCount>1?`${esc(a.deviceId)} <span style="color:var(--acc);font-weight:600;">(${a.deviceCount} devices)</span>`:esc(a.deviceId);
   return`<div style="padding:8px 12px;margin-bottom:4px;border-radius:8px;background:var(--card);border:1px solid var(--bdr);display:flex;justify-content:space-between;align-items:center;"><div><div style="font-size:13px;font-weight:600;">${esc(a.name)}</div><div class="mono" style="font-size:10px;color:var(--txt-d);">${devInfo}${sub?` · ${esc(sub)}`:""}</div></div><span class="tag ${roleCls}">${esc(roleLbl)}</span></div>`;}).join("");}
 
