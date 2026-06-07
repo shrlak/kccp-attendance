@@ -344,6 +344,8 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
       <input type="checkbox" id="edit-pastoral" style="width:16px;height:16px;accent-color:var(--acc);">
       <span style="font-size:12px;font-weight:600;">🙏 목사님 심방 요청</span>
     </label>
+    <div style="font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">📝 메모</div>
+    <textarea id="edit-notes" class="inp" placeholder="메모 입력..." style="height:80px;resize:vertical;margin-bottom:10px;"></textarea>
   </div>
 
   <input type="hidden" id="edit-original-name">
@@ -528,10 +530,11 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
 
     <!-- NEW MEMBERS tab -->
     <div id="tab-newcomers" class="view fi">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
         <div class="sl" style="margin-bottom:0;">새가족 목록</div>
         <button class="btn btn-secondary btn-sm" onclick="renderNewMembers()">새로고침</button>
       </div>
+      <div class="grp-tabs" id="newcomer-grp-tabs"></div>
       <div id="newcomers-list"></div>
       <div style="margin-top:20px;margin-bottom:8px;">
         <div class="sl">월별 등록자</div>
@@ -900,7 +903,7 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
 </div>
 
 <script>
-let deviceId=null,D={devices:{},log:[]},viewMode="grid",sheetGroup="",sheetSubgroup="",todayGroup="",todaySubgroup="",devGroup="",devSubgroup="",nameOrder=[],dongsanNames={"대학부":["동산1","동산2","동산3","동산4"],"청년부":["동산1","동산2","동산3","동산4"],"EM":[],"Adult Ministry":[]},activeTab="sheet",myAdminRole=null,announcement="",lightMode=false,myLeaderGroup="",myLeaderSubgroup="",checkinDays=[0],checkinStartMin=780,checkinEndMin=900,memberSearch="",dongsanLeaders={},requireApproval=false,pendingCount=0,chartsVisible=true,_trendChart=null,_groupChart=null,summerMode=false,demoMode=false,myAllowedGroups=[],myReadOnly=false,myMinistry="",individualCheckinEnabled=false;
+let deviceId=null,D={devices:{},log:[]},viewMode="grid",sheetGroup="",sheetSubgroup="",todayGroup="",todaySubgroup="",devGroup="",devSubgroup="",newcomerGroup="",nameOrder=[],dongsanNames={"대학부":["동산1","동산2","동산3","동산4"],"청년부":["동산1","동산2","동산3","동산4"],"EM":[],"Adult Ministry":[]},activeTab="sheet",myAdminRole=null,announcement="",lightMode=false,myLeaderGroup="",myLeaderSubgroup="",checkinDays=[0],checkinStartMin=780,checkinEndMin=900,memberSearch="",dongsanLeaders={},requireApproval=false,pendingCount=0,chartsVisible=true,_trendChart=null,_groupChart=null,summerMode=false,demoMode=false,myAllowedGroups=[],myReadOnly=false,myMinistry="",individualCheckinEnabled=false;
 const KM_GROUPS=["대학부","청년부"];
 function getGroupsForMinistry(m){if(m==="KM")return KM_GROUPS;if(m==="EM")return["EM"];if(m==="Adult")return["Adult Ministry"];return[];}
 function filterByMinistry(arr,getGroupFn){if(!myAllowedGroups.length)return arr;return arr.filter(x=>myAllowedGroups.includes(getGroupFn(x)));}
@@ -1014,7 +1017,7 @@ function renderGrpTabs(containerId,current,setter,showInSummer){
     return`<button class="grp-tab${active?" active":""}" style="${active?`background:${c}22;color:${c};border-color:${c}55;`:""}" onclick="${setter}('${tab.v}');renderAll();">${esc(tab.l)}</button>`;
   }).join("");
 }
-function setSheetGroup(g){sheetGroup=g;sheetSubgroup="";}function setTodayGroup(g){todayGroup=g;todaySubgroup="";}function setDevGroup(g){devGroup=g;devSubgroup="";}
+function setSheetGroup(g){sheetGroup=g;sheetSubgroup="";}function setTodayGroup(g){todayGroup=g;todaySubgroup="";}function setDevGroup(g){devGroup=g;devSubgroup="";}function setNewcomerGroup(g){newcomerGroup=g;}
 function setSheetSubgroup(g){sheetSubgroup=g;}function setTodaySubgroup(g){todaySubgroup=g;}function setDevSubgroup(g){devSubgroup=g;}
 function renderSubgroupTabs(containerId,curGroup,curSub,setter){
   const el=document.getElementById(containerId);
@@ -1434,7 +1437,7 @@ function renderAll(){
   const smb=document.getElementById("summer-mode-banner");if(smb)smb.style.display=summerMode?"block":"none";
   const dmb=document.getElementById("demo-mode-banner");if(dmb)dmb.style.display=demoMode?"block":"none";
   updateCheckinBtnVisibility();
-  renderStats();renderGrpTabs("sheet-grp-tabs",sheetGroup,"setSheetGroup",true);renderSubgroupTabs("sheet-subgrp-tabs",sheetGroup,sheetSubgroup,"setSheetSubgroup");renderGrpTabs("today-grp-tabs",todayGroup,"setTodayGroup",false);renderSubgroupTabs("today-subgrp-tabs",todayGroup,todaySubgroup,"setTodaySubgroup");renderGrpTabs("dev-grp-tabs",devGroup,"setDevGroup",true);renderSubgroupTabs("dev-subgrp-tabs",devGroup,devSubgroup,"setDevSubgroup");renderSheet();renderToday();renderDevices();renderDongsanEditor();renderDongsanLeadersEditor();renderLinkDropdown();renderLeaderDashboard();renderWeeklyComparison();if(chartsVisible)renderCharts();
+  renderStats();renderGrpTabs("sheet-grp-tabs",sheetGroup,"setSheetGroup",true);renderSubgroupTabs("sheet-subgrp-tabs",sheetGroup,sheetSubgroup,"setSheetSubgroup");renderGrpTabs("today-grp-tabs",todayGroup,"setTodayGroup",false);renderSubgroupTabs("today-subgrp-tabs",todayGroup,todaySubgroup,"setTodaySubgroup");renderGrpTabs("dev-grp-tabs",devGroup,"setDevGroup",true);renderSubgroupTabs("dev-subgrp-tabs",devGroup,devSubgroup,"setDevSubgroup");renderGrpTabs("newcomer-grp-tabs",newcomerGroup,"setNewcomerGroup",true);renderSheet();renderToday();renderDevices();renderDongsanEditor();renderDongsanLeadersEditor();renderLinkDropdown();renderLeaderDashboard();renderWeeklyComparison();if(chartsVisible)renderCharts();
   renderNewMembers();renderMonthlyRegistrations();
 }
 
@@ -1590,9 +1593,7 @@ function renderDevices(){
         </div>
         <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
           ${myReadOnly?"":
-          `<button style="width:28px;height:28px;padding:0;background:none;border:1.5px solid ${isNewMem?"rgba(52,211,153,.4)":"var(--bdr)"};border-radius:8px;cursor:pointer;font-size:13px;color:${isNewMem?"var(--acc)":"var(--txt-m)"};display:flex;align-items:center;justify-content:center;" title="새가족 토글" onclick="event.stopPropagation();toggleNewMemberStatus('${esc(name)}')">✝️</button>
-          <button style="width:28px;height:28px;padding:0;background:none;border:1.5px solid var(--bdr);border-radius:8px;cursor:pointer;font-size:13px;color:var(--txt-m);display:flex;align-items:center;justify-content:center;" title="${t('att_edit_tooltip')}" onclick="event.stopPropagation();openAttendanceEdit('${esc(name)}')">📋</button>
-          <button style="width:28px;height:28px;padding:0;background:none;border:1.5px solid var(--bdr);border-radius:8px;cursor:pointer;font-size:13px;color:var(--txt-m);display:flex;align-items:center;justify-content:center;" title="${t('notes_tooltip')}" onclick="event.stopPropagation();openNotes('${esc(name)}')">📝</button>
+          `<button style="width:28px;height:28px;padding:0;background:none;border:1.5px solid var(--bdr);border-radius:8px;cursor:pointer;font-size:13px;color:var(--txt-m);display:flex;align-items:center;justify-content:center;" title="${t('att_edit_tooltip')}" onclick="event.stopPropagation();openAttendanceEdit('${esc(name)}')">📋</button>
           <button style="width:28px;height:28px;padding:0;background:none;border:1.5px solid var(--bdr);border-radius:8px;cursor:pointer;font-size:13px;color:var(--txt-m);display:flex;align-items:center;justify-content:center;" title="${t('edit_member_tooltip')}" onclick="event.stopPropagation();openEdit('${esc(name)}')">✏️</button>
           <button style="width:28px;height:28px;padding:0;background:none;border:1.5px solid rgba(251,113,133,.35);border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;color:var(--red);display:flex;align-items:center;justify-content:center;" onclick="event.stopPropagation();removePerson('${esc(name)}')">✕</button>`}
           <div style="display:flex;align-items:baseline;gap:2px;padding:0 6px;flex-shrink:0;">
@@ -1834,6 +1835,7 @@ function openEdit(name){
   const re=document.getElementById("edit-regdate");if(re)re.value=prof.registrationDate||"";
   const pv=document.getElementById("edit-pastoral");if(pv)pv.checked=!!(prof.pastoralVisitRequested);
   const nm=document.getElementById("edit-is-new-member");if(nm)nm.checked=!!(prof.isNewMember);
+  const nte=document.getElementById("edit-notes");if(nte)nte.value=getMemberNotes(name)||"";
   document.getElementById("edit-modal").style.display="flex";
 }
 async function saveEdit(){
@@ -1848,8 +1850,9 @@ async function saveEdit(){
   const registrationDate=(document.getElementById("edit-regdate")||{}).value||"";
   const pastoralVisitRequested=!!(document.getElementById("edit-pastoral")||{}).checked;
   const isNewMember=!!(document.getElementById("edit-is-new-member")||{}).checked;
+  const notes=(document.getElementById("edit-notes")||{}).value||"";
   const dids=getDevicesFor(orig);
-  for(const did of dids){await api("PUT","/api/device",{deviceId:did,name,group,subgroup,memberRole,gender,phone,birthDate,baptismStatus,schoolOrWork,faithDuration,registrationDate,pastoralVisitRequested,isNewMember,adminDeviceId:deviceId});}
+  for(const did of dids){await api("PUT","/api/device",{deviceId:did,name,group,subgroup,memberRole,gender,phone,birthDate,baptismStatus,schoolOrWork,faithDuration,registrationDate,pastoralVisitRequested,isNewMember,notes,adminDeviceId:deviceId});}
   document.getElementById("edit-modal").style.display="none";flash(t('member_updated_fn')(name));await load();renderAll();
 }
 
@@ -2071,6 +2074,7 @@ function renderNewMembers(){
     if(!v||typeof v!=="object")return;
     if(!v.isNewMember)return;
     const name=v.name;if(!name)return;
+    if(newcomerGroup&&(v.group||"")!==newcomerGroup)return;
     const regDate=v.registrationDate||"";
     const sem=getSemester(regDate);
     // Only current-semester newcomers. Those without a registration date are kept
