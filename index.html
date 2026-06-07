@@ -1996,32 +1996,65 @@ async function submitNewMemberReg(){
   },2000);
 }
 
-// ─── New Members tab ───
+// ─── 새가족 학기 (semester) helpers ───
+// Semester windows decide which 새가족 still appear on the tab.
+// Boundaries are [month, day] — 'early May' = 05-10, 'mid August' = 08-15.
+// Edit these two values to shift the semester windows.
+const SEMESTER_BOUNDS={springEnd:[5,10],summerEnd:[8,15]};
+function _semBeforeMD(m,d,bm,bd){return m<bm||(m===bm&&d<bd);}
+function getSemester(dateStr){
+  if(!dateStr||!/^\d{4}-\d{2}-\d{2}/.test(dateStr))return null;
+  const year=parseInt(dateStr.slice(0,4),10),m=parseInt(dateStr.slice(5,7),10),d=parseInt(dateStr.slice(8,10),10);
+  const[sm,sd]=SEMESTER_BOUNDS.springEnd,[um,ud]=SEMESTER_BOUNDS.summerEnd;
+  let season,kor,eng;
+  if(_semBeforeMD(m,d,sm,sd)){season="spring";kor="봄학기";eng="Spring";}
+  else if(_semBeforeMD(m,d,um,ud)){season="summer";kor="여름학기";eng="Summer";}
+  else{season="fall";kor="가을학기";eng="Fall";}
+  return{key:`${year}-${season}`,season,year,kor,eng,label:`${year}년 ${kor}`};
+}
+function currentSemester(){return getSemester(today());}
+
+// ─── New Members tab (새가족) ───
+// Shows 새가족 (isNewMember) registered in the CURRENT semester, grouped under the
+// semester heading. When a semester ends they drop off automatically (no data is
+// mutated). 동산 assignment does NOT remove them — only the semester rolling over does.
 function renderNewMembers(){
   const el=document.getElementById("newcomers-list");if(!el)return;
-  const allDevices=Object.entries(D.devices);
+  const cur=currentSemester();
   const newMembers={};
-  allDevices.forEach(([did,v])=>{
+  Object.entries(D.devices).forEach(([did,v])=>{
     if(!v||typeof v!=="object")return;
     if(!v.isNewMember)return;
     const name=v.name;if(!name)return;
+    const regDate=v.registrationDate||"";
+    const sem=getSemester(regDate);
+    // Only current-semester newcomers. Those without a registration date are kept
+    // visible (so nobody is silently lost) and flagged for the admin to fix.
+    if(regDate&&sem&&cur&&sem.key!==cur.key)return;
     if(!newMembers[name]){
-      newMembers[name]={group:v.group||"",subgroup:v.subgroup||"",registrationDate:v.registrationDate||"",gender:v.gender||"",phone:v.phone||"",baptismStatus:v.baptismStatus||"",pastoralVisitRequested:!!v.pastoralVisitRequested};
+      newMembers[name]={group:v.group||"",subgroup:v.subgroup||"",registrationDate:regDate,gender:v.gender||"",phone:v.phone||"",baptismStatus:v.baptismStatus||"",pastoralVisitRequested:!!v.pastoralVisitRequested,eduWeek1:!!v.newMemberEduWeek1,eduWeek2:!!v.newMemberEduWeek2};
     }
   });
-  const names=Object.keys(newMembers).sort((a,b)=>{
-    const da=newMembers[a].registrationDate,db=newMembers[b].registrationDate;
-    return db.localeCompare(da);
-  });
-  if(!names.length){el.innerHTML=`<div style="color:var(--txt-d);text-align:center;padding:24px;font-size:13px;">새가족이 없습니다.</div>`;return;}
-  el.innerHTML=names.map(name=>{
+  const names=Object.keys(newMembers).sort((a,b)=>newMembers[b].registrationDate.localeCompare(newMembers[a].registrationDate));
+  const header=`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;padding:9px 13px;border-radius:10px;background:var(--acc-dim);border:1px solid rgba(52,211,153,.25);">
+    <span style="font-size:13px;font-weight:800;color:var(--acc);">${esc(cur?cur.label:"")}</span>
+    <span style="font-size:11px;color:var(--txt-m);">${cur?esc(cur.eng):""} · ${names.length}명</span>
+    <span style="margin-left:auto;font-size:10px;color:var(--txt-d);">학기 종료 시 자동으로 목록에서 제외됩니다</span>
+  </div>`;
+  if(!names.length){el.innerHTML=header+`<div style="color:var(--txt-d);text-align:center;padding:24px;font-size:13px;">이번 학기 새가족이 없습니다.</div>`;return;}
+  el.innerHTML=header+names.map(name=>{
     const m=newMembers[name];
     const grpTag_=m.group?`<span class="tag ${m.group==="대학부"?"tag-amber":m.group==="청년부"?"tag-blue":"tag-green"}" style="font-size:10px;">${esc(m.group)}</span>`:"";
     const sgTag_=m.subgroup?` <span class="tag tag-purple" style="font-size:10px;">${esc(m.subgroup)}</span>`:"";
     const pastoral=m.pastoralVisitRequested?`<span class="tag tag-amber" style="font-size:9px;">심방</span>`:"";
-    const regDate=m.registrationDate?`<span style="font-size:11px;color:var(--txt-d);font-family:'IBM Plex Mono',monospace;">${esc(m.registrationDate)}</span>`:"";
+    const regDate=m.registrationDate?`<span style="font-size:11px;color:var(--txt-d);font-family:'IBM Plex Mono',monospace;">${esc(m.registrationDate)}</span>`:`<span style="font-size:10px;color:var(--amber);">등록일 미입력</span>`;
+    const nm=esc(name);
+    const eduChip=(week,checked)=>`<label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;padding:4px 9px;border-radius:8px;background:var(--bg);border:1px solid ${checked?"rgba(52,211,153,.45)":"var(--bdr)"};">
+        <input type="checkbox" ${checked?"checked":""} onchange="toggleNewMemberEdu('${nm}',${week},this)" style="width:14px;height:14px;accent-color:var(--acc);cursor:pointer;">
+        <span style="font-size:11px;font-weight:600;color:${checked?"var(--acc)":"var(--txt-m)"};">새가족교육 ${week}주차</span>
+      </label>`;
     return`<div style="padding:12px 14px;margin-bottom:8px;border-radius:12px;background:var(--card);border:1px solid var(--bdr);">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
         <div>
           <div style="font-size:15px;font-weight:700;margin-bottom:4px;">${esc(name)}</div>
           <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">${grpTag_}${sgTag_}${pastoral}</div>
@@ -2031,8 +2064,32 @@ function renderNewMembers(){
           ${m.phone?`<div style="font-size:11px;color:var(--txt-m);font-family:'IBM Plex Mono',monospace;">${esc(m.phone)}</div>`:""}
         </div>
       </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px dashed var(--bdr);">
+        ${eduChip(1,m.eduWeek1)}${eduChip(2,m.eduWeek2)}
+      </div>
     </div>`;
   }).join("");
+}
+
+// Toggle a 새가족교육 week for every device linked to this person, then persist.
+async function toggleNewMemberEdu(name,week,cb){
+  const checked=cb.checked;
+  const dids=getDevicesFor(name);
+  if(!dids.length){flash("멤버를 찾을 수 없습니다","err");cb.checked=!checked;return;}
+  let err=null;
+  try{
+    for(const did of dids){
+      const body={deviceId:did,adminDeviceId:deviceId};
+      if(week===1)body.newMemberEduWeek1=checked;else body.newMemberEduWeek2=checked;
+      const r=await api("PUT","/api/device",body);
+      if(r&&r.error){err=r.error;break;}
+    }
+  }catch(e){err=e.message||"네트워크 오류";}
+  if(err){cb.checked=!checked;flash(err,"err");return;}
+  dids.forEach(did=>{const v=D.devices[did];if(v&&typeof v==="object"){if(week===1)v.newMemberEduWeek1=checked;else v.newMemberEduWeek2=checked;}});
+  _saveDevCache();
+  renderNewMembers(); // refresh chip styling (border/label color) to reflect new state
+  flash(checked?`✓ ${name} · 새가족교육 ${week}주차 완료`:`${name} · 새가족교육 ${week}주차 해제`);
 }
 
 function renderMonthlyRegistrations(){
