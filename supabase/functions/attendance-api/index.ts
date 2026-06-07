@@ -67,6 +67,40 @@ function rowToDev(d: any) {
 }
 function rowToLog(e: any) { return {deviceId:e.device_id,name:e.name,group:e.group_name||"",subgroup:e.subgroup||"",date:e.date,time:e.time_str,ts:e.ts,locationVerified:e.location_verified,adminAdded:e.admin_added,manual:e.is_manual,bulk:e.is_bulk,guest:e.is_guest,firstVisit:e.first_visit,memberRole:e.member_role}; }
 async function getDevsByName(sb: SB, name: string): Promise<string[]> { const {data}=await sb.from("devices").select("id").eq("name",name); return (data||[]).map((d:any)=>d.id); }
+// When a real device (DEV-…) is added for a member, it supersedes any ROSTER-…
+// placeholder rows for that same name (those are seeded roster stubs with no real
+// device). Their attendance history and any admin-role grant are migrated onto the
+// new DEV device, then the placeholders are deleted so the member has a single
+// canonical device record. No-op unless devId is a DEV- id and ROSTER- stubs exist.
+async function supersedeRosterPlaceholders(sb: SB, name: string, devId: string) {
+  if(!name||!devId||!devId.startsWith("DEV-")) return;
+  const {data:rows}=await sb.from("devices").select("id").eq("name",name).like("id","ROSTER-%");
+  const rosterIds=(rows||[]).map((r:any)=>r.id).filter((id:string)=>id!==devId);
+  if(!rosterIds.length) return;
+  // Move any attendance logged under the placeholders onto the real device.
+  await sb.from("attendance_log").update({device_id:devId}).in("device_id",rosterIds);
+  // Transfer any admin-role grant from a placeholder to the DEV device (keeping the
+  // DEV entry if it already has one), then drop the placeholder admin entries.
+  const cfg=await getCfg(sb); const ads: any[]=cfg.admin_devices||[];
+  if(ads.length){
+    const devHasEntry=ads.some((d:any)=>(typeof d==="string"?d:d.deviceId)===devId);
+    let changed=false;
+    const next: any[]=[];
+    for(const d of ads){
+      const did=typeof d==="string"?d:d.deviceId;
+      if(rosterIds.includes(did)){
+        changed=true;
+        if(!devHasEntry && !next.some((e:any)=>(typeof e==="string"?e:e.deviceId)===devId)){
+          next.push(typeof d==="string"?devId:{...d,deviceId:devId});
+        }
+        continue; // drop the placeholder entry
+      }
+      next.push(d);
+    }
+    if(changed) await sb.from("config").update({admin_devices:next}).eq("id",1);
+  }
+  await sb.from("devices").delete().in("id",rosterIds);
+}
 async function countAtt(sb: SB, name: string): Promise<number> {
   const dids=await getDevsByName(sb,name); if(!dids.length) return 0;
   const {data}=await sb.from("attendance_log").select("date").in("device_id",dids);
@@ -216,6 +250,7 @@ Deno.serve(async (req: Request) => {
       }
       await sb.from("devices").upsert({id:deviceId,name:cleanName,group_name:finalGroup,subgroup:finalSub,is_new_member:false});
       await sb.from("attendance_log").update({name:cleanName,group_name:finalGroup,subgroup:finalSub}).eq("device_id",deviceId);
+      await supersedeRosterPlaceholders(sb,cleanName,deviceId);
       return ok({status:"ok",name:cleanName,combined:!!match});
     }
 
@@ -252,6 +287,7 @@ Deno.serve(async (req: Request) => {
       const {deviceId,name,group,subgroup,adminDeviceId}=body; if(!await isAdmin(sb,adminDeviceId)) return fail(403,"Not authorized");
       await sb.from("devices").upsert({id:deviceId,name:name.trim(),group_name:group||"",subgroup:subgroup||""});
       await sb.from("attendance_log").update({name:name.trim(),group_name:group||"",subgroup:subgroup||""}).eq("device_id",deviceId);
+      await supersedeRosterPlaceholders(sb,name.trim(),deviceId);
       await addAudit(sb,"device-register",adminDeviceId,name+" ("+deviceId+")");
       return ok({status:"ok"});
     }
@@ -287,6 +323,7 @@ Deno.serve(async (req: Request) => {
       const ed=eds&&eds.length?eds[0]:{group_name:"",subgroup:""};
       await sb.from("devices").upsert({id:newDeviceId.trim(),name:existingName.trim(),group_name:ed.group_name||"",subgroup:ed.subgroup||""});
       await sb.from("attendance_log").update({name:existingName.trim(),group_name:ed.group_name||"",subgroup:ed.subgroup||""}).eq("device_id",newDeviceId.trim());
+      await supersedeRosterPlaceholders(sb,existingName.trim(),newDeviceId.trim());
       return ok({status:"ok",devices:await getDevsByName(sb,existingName.trim())});
     }
 
@@ -387,7 +424,8 @@ Deno.serve(async (req: Request) => {
     if(req.method==="POST"&&p==="/api/admin/add") {
       const {password,targetDeviceId,role,group,subgroup,ministry,adminDeviceId}=body; const cfg=await getCfg(sb);
       if(password!==cfg.admin_password) return fail(403,"Wrong password");
-      if(adminDeviceId&&!await isSuperAdmin(sb,adminDeviceId)) return fail(403,"Super admin required");
+      // Only a super admin may add admins / assign roles. isSuperAdmin returns true when no admins exist yet, so first-time bootstrap still works.
+      if(!await isSuperAdmin(sb,adminDeviceId)) return fail(403,"Super admin required");
       const {data:dev}=await sb.from("devices").select("name").eq("id",targetDeviceId.trim()).single();
       const deviceIdsToAdd: string[]=dev?.name?await getDevsByName(sb,dev.name):[targetDeviceId.trim()];
       let ads: any[]=[...(cfg.admin_devices||[])].filter((d:any)=>!deviceIdsToAdd.includes(typeof d==="string"?d:d.deviceId));
@@ -398,7 +436,8 @@ Deno.serve(async (req: Request) => {
 
     if(req.method==="POST"&&p==="/api/admin/remove") {
       const {password,targetDeviceId,adminDeviceId}=body; const cfg=await getCfg(sb); if(password!==cfg.admin_password) return fail(403,"Wrong password");
-      if(adminDeviceId&&!await isSuperAdmin(sb,adminDeviceId)) return fail(403,"Super admin required");
+      // Only a super admin may remove admins.
+      if(!await isSuperAdmin(sb,adminDeviceId)) return fail(403,"Super admin required");
       const {data:dev}=await sb.from("devices").select("name").eq("id",targetDeviceId.trim()).single();
       const deviceIdsToRemove: string[]=dev?.name?await getDevsByName(sb,dev.name):[targetDeviceId.trim()];
       await sb.from("config").update({admin_devices:(cfg.admin_devices||[]).filter((d:any)=>!deviceIdsToRemove.includes(typeof d==="string"?d:d.deviceId))}).eq("id",1);
@@ -516,6 +555,7 @@ Deno.serve(async (req: Request) => {
       const {data:pr}=await sb.from("pending_registrations").select("*").eq("device_id",pendingDeviceId).single(); if(!pr) return fail(404,"Not found in pending list");
       await sb.from("pending_registrations").delete().eq("device_id",pendingDeviceId);
       await sb.from("devices").upsert({id:pr.device_id,name:pr.name,group_name:pr.group_name||"",subgroup:pr.subgroup||""});
+      await supersedeRosterPlaceholders(sb,pr.name,pr.device_id);
       await addAudit(sb,"pending-approve",adminDeviceId,pr.name+" ("+pr.device_id+")");
       return ok({status:"ok",name:pr.name});
     }
