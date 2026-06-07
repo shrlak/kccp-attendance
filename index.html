@@ -90,7 +90,7 @@ body.light-mode .card{box-shadow:0 1px 4px rgba(0,0,0,.07),0 4px 16px rgba(0,0,0
 .kiosk-members{flex:1;overflow-y:auto;padding:10px 14px 14px;-webkit-overflow-scrolling:touch;}
 .kiosk-group-label{font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--txt-d);font-family:'IBM Plex Mono',monospace;padding:12px 2px 6px;margin-top:2px;}
 .kiosk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-bottom:8px;}
-.kiosk-cols{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+.kiosk-cols{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;}
 .kiosk-col{min-width:0;display:flex;flex-direction:column;gap:8px;}
 .kiosk-col-head{position:sticky;top:0;z-index:2;background:var(--bg);font-size:14px;font-weight:800;letter-spacing:.5px;padding:8px 4px 9px;border-bottom:2px solid var(--bdr);text-align:center;}
 .kiosk-col .kiosk-btn{width:100%;}
@@ -317,6 +317,8 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
     </div>
     <div style="font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">전화번호</div>
     <input id="edit-phone" class="inp" placeholder="010-0000-0000" style="margin-bottom:10px;" type="tel">
+    <div style="font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">카톡ID</div>
+    <input id="edit-kakaoid" class="inp" placeholder="카카오톡 ID" style="margin-bottom:10px;">
     <div style="font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">세례 여부</div>
     <select id="edit-baptism" class="inp" style="margin-bottom:10px;">
       <option value="해당없음">해당없음</option>
@@ -776,6 +778,9 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
 
     <div style="font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">전화번호</div>
     <input id="nm-phone" class="inp" placeholder="010-0000-0000" style="margin-bottom:12px;" type="tel">
+
+    <div style="font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">카톡ID</div>
+    <input id="nm-kakaoid" class="inp" placeholder="카카오톡 ID" style="margin-bottom:12px;">
 
     <div style="font-size:12px;font-weight:600;color:var(--txt-m);margin-bottom:5px;">세례 여부</div>
     <select id="nm-baptism" class="inp" style="margin-bottom:12px;">
@@ -1619,7 +1624,7 @@ function renderDevices(){
           </div>
         </div>
       </div>`;
-    const profRows=[prof.gender?`성별: ${prof.gender}`:null,prof.phone?`📞 ${prof.phone}`:null,prof.birthDate?`🎂 ${prof.birthDate}`:null,prof.baptismStatus&&prof.baptismStatus!=="해당없음"?`세례: ${prof.baptismStatus}`:null,prof.schoolOrWork?`🏫 ${prof.schoolOrWork}`:null,prof.faithDuration?`신앙: ${prof.faithDuration}`:null,prof.registrationDate?`등록: ${prof.registrationDate}`:null,prof.pastoralVisitRequested?`🙏 심방 요청`:null,isNewMem?`✝️ 새가족`:null].filter(Boolean);
+    const profRows=[prof.gender?`성별: ${prof.gender}`:null,prof.phone?`📞 ${prof.phone}`:null,prof.kakaoId?`💬 ${prof.kakaoId}`:null,prof.birthDate?`🎂 ${prof.birthDate}`:null,prof.baptismStatus&&prof.baptismStatus!=="해당없음"?`세례: ${prof.baptismStatus}`:null,prof.schoolOrWork?`🏫 ${prof.schoolOrWork}`:null,prof.faithDuration?`신앙: ${prof.faithDuration}`:null,prof.registrationDate?`등록: ${prof.registrationDate}`:null,prof.pastoralVisitRequested?`🙏 심방 요청`:null,isNewMem?`✝️ 새가족`:null].filter(Boolean);
     const backFace=`<div class="card-face card-back" style="padding:8px 10px;cursor:pointer;" onclick="flipCard(this)">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
           <div style="font-size:10px;font-weight:700;color:var(--acc);letter-spacing:.5px;">${t('device_info_fn')(esc(name))} <span style="color:var(--txt-d);font-weight:400;font-size:9px;">${t('back_tap')}</span></div>
@@ -1845,6 +1850,7 @@ function openEdit(name){
   for(const did of dids){const v=D.devices[did];if(v&&typeof v==="object"){prof=v;break;}}
   const ge=document.getElementById("edit-gender");if(ge)ge.value=prof.gender||"";
   const pe=document.getElementById("edit-phone");if(pe)pe.value=prof.phone||"";
+  const ke=document.getElementById("edit-kakaoid");if(ke)ke.value=prof.kakaoId||"";
   const be=document.getElementById("edit-birthdate");if(be)be.value=prof.birthDate||"";
   const bae=document.getElementById("edit-baptism");if(bae)bae.value=prof.baptismStatus||"해당없음";
   const se=document.getElementById("edit-school");if(se)se.value=prof.schoolOrWork||"";
@@ -1868,8 +1874,9 @@ async function saveEdit(){
   const pastoralVisitRequested=!!(document.getElementById("edit-pastoral")||{}).checked;
   const isNewMember=!!(document.getElementById("edit-is-new-member")||{}).checked;
   const notes=(document.getElementById("edit-notes")||{}).value||"";
+  const kakaoId=(document.getElementById("edit-kakaoid")||{}).value||"";
   const dids=getDevicesFor(orig);
-  for(const did of dids){await api("PUT","/api/device",{deviceId:did,name,group,subgroup,memberRole,gender,phone,birthDate,baptismStatus,schoolOrWork,faithDuration,registrationDate,pastoralVisitRequested,isNewMember,notes,adminDeviceId:deviceId});}
+  for(const did of dids){await api("PUT","/api/device",{deviceId:did,name,group,subgroup,memberRole,gender,phone,birthDate,baptismStatus,schoolOrWork,faithDuration,registrationDate,pastoralVisitRequested,isNewMember,notes,kakaoId,adminDeviceId:deviceId});}
   document.getElementById("edit-modal").style.display="none";flash(t('member_updated_fn')(name));await load();renderAll();
 }
 
@@ -2021,6 +2028,7 @@ function openNewMemberReg(){
   document.getElementById("nm-subgroup").innerHTML=`<option value="">동산 선택 안함</option>`;
   document.getElementById("nm-gender").value="";
   document.getElementById("nm-phone").value="";
+  document.getElementById("nm-kakaoid").value="";
   document.getElementById("nm-birthdate").value="";
   document.getElementById("nm-baptism").value="해당없음";
   document.getElementById("nm-school").value="";
@@ -2040,6 +2048,7 @@ async function submitNewMemberReg(){
   const subgroup=document.getElementById("nm-subgroup").value;
   const gender=document.getElementById("nm-gender").value;
   const phone=document.getElementById("nm-phone").value.trim();
+  const kakaoId=document.getElementById("nm-kakaoid").value.trim();
   const birthDate=document.getElementById("nm-birthdate").value;
   const baptismStatus=document.getElementById("nm-baptism").value;
   const schoolOrWork=document.getElementById("nm-school").value.trim();
@@ -2049,7 +2058,7 @@ async function submitNewMemberReg(){
   const res=document.getElementById("nm-result");
   res.style.cssText="display:block;background:var(--acc-dim);color:var(--acc);border:1px solid rgba(52,211,153,.3);padding:10px 14px;border-radius:10px;font-size:13px;font-weight:600;text-align:center;";
   res.textContent="등록 중...";
-  const r=await api("POST","/api/kiosk-new-member",{name,group,subgroup,gender,phone,birthDate,baptismStatus,schoolOrWork,faithDuration,registrationDate,pastoralVisitRequested});
+  const r=await api("POST","/api/kiosk-new-member",{name,group,subgroup,gender,phone,kakaoId,birthDate,baptismStatus,schoolOrWork,faithDuration,registrationDate,pastoralVisitRequested});
   if(r.error){res.style.cssText="display:block;background:var(--red-dim);color:var(--red);border:1px solid rgba(251,113,133,.3);padding:10px 14px;border-radius:10px;font-size:13px;font-weight:600;text-align:center;";res.textContent=r.error;return;}
   if(navigator.vibrate)navigator.vibrate([100,50,200]);
   res.textContent=`✓ 등록 완료! ${name}`;
@@ -3405,22 +3414,21 @@ function renderKioskMembers(q){
   let names=sortNames(Object.keys(members)).filter(n=>!isVisitorMember(n));
   if(sq)names=names.filter(n=>n.toLowerCase().includes(sq));
   if(!names.length){el.innerHTML=`<div style="text-align:center;padding:48px 24px;color:var(--txt-d);font-size:14px;">${sq?t('kiosk_no_results'):t('kiosk_no_members')}</div>`;return;}
-  // Four flat columns: two for 대학부 (yellow) and two for 청년부 (blue).
+  // Six flat columns: three for 대학부 (yellow) and three for 청년부 (blue).
   const depts=[{key:"대학부",color:"#FBBF24",cls:"univ"},{key:"청년부",color:"#60A5FA",cls:"youth"}];
   const buckets={"대학부":[],"청년부":[]};const others=[];
   names.forEach(n=>{const g=members[n].group;if(g==="대학부"||g==="청년부")buckets[g].push(n);else others.push(n);});
-  const btn=(name,cls)=>{const done=checkedSet.has(name);const total=totalForName(name);
+  const btn=(name,cls)=>{const done=checkedSet.has(name);
     return`<button class="kiosk-btn ${cls}${done?" done":""}" onclick="kioskCheckin('${esc(name)}')">
       <span>${esc(name)}</span>
-      <span style="font-size:10px;font-weight:600;${done?"":"color:var(--txt-d);"}">${done?STRINGS[lang].kiosk_checked(total):STRINGS[lang].kiosk_count_lbl(total)}</span>
     </button>`;};
-  // Build four columns using CSS classes: two halves per department.
+  // Build six columns: three thirds per department.
   let html=`<div class="kiosk-cols">`;
   depts.forEach(c=>{
     const list=buckets[c.key];
-    const half=Math.ceil(list.length/2);
-    const halves=[list.slice(0,half),list.slice(half)];
-    halves.forEach((part,i)=>{
+    const t1=Math.ceil(list.length/3),t2=Math.ceil((list.length-t1)/2);
+    const thirds=[list.slice(0,t1),list.slice(t1,t1+t2),list.slice(t1+t2)];
+    thirds.forEach((part,i)=>{
       const head=i===0?`<div class="kiosk-col-head" style="color:${c.color};border-color:${c.color}55;">${esc(c.key)} <span style="color:var(--txt-d);font-weight:700;font-size:11px;">${list.length}</span></div>`
                       :`<div class="kiosk-col-head" style="color:${c.color};border-color:${c.color}55;">&nbsp;</div>`;
       html+=`<div class="kiosk-col">${head}`;
