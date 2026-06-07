@@ -903,11 +903,13 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
 </div>
 
 <script>
-let deviceId=null,D={devices:{},log:[]},viewMode="grid",sheetGroup="",sheetSubgroup="",todayGroup="",todaySubgroup="",devGroup="",devSubgroup="",newcomerGroup="",nameOrder=[],dongsanNames={"대학부":["동산1","동산2","동산3","동산4"],"청년부":["동산1","동산2","동산3","동산4"],"EM":[],"Adult Ministry":[]},activeTab="sheet",myAdminRole=null,announcement="",lightMode=false,myLeaderGroup="",myLeaderSubgroup="",checkinDays=[0],checkinStartMin=780,checkinEndMin=900,memberSearch="",dongsanLeaders={},requireApproval=false,pendingCount=0,chartsVisible=true,_trendChart=null,_groupChart=null,summerMode=false,demoMode=false,myAllowedGroups=[],myReadOnly=false,myMinistry="",individualCheckinEnabled=false;
+let deviceId=null,D={devices:{},log:[]},viewMode="grid",sheetGroup="",sheetSubgroup="",todayGroup="",todaySubgroup="",devGroup="",devSubgroup="",newcomerGroup="",nameOrder=[],dongsanNames={"대학부":["동산1","동산2","동산3","동산4"],"청년부":["동산1","동산2","동산3","동산4"],"EM":[],"Adult Ministry":[]},activeTab="sheet",myAdminRole=null,announcement="",lightMode=false,myLeaderGroup="",myLeaderSubgroup="",checkinDays=[0],checkinStartMin=780,checkinEndMin=900,memberSearch="",dongsanLeaders={},requireApproval=false,pendingCount=0,chartsVisible=true,_trendChart=null,_groupChart=null,summerMode=false,demoMode=false,myAllowedGroups=[],myAllowedSubgroup="",myReadOnly=false,myMinistry="",individualCheckinEnabled=false;
 const KM_GROUPS=["대학부","청년부"];
 function getGroupsForMinistry(m){if(m==="KM")return KM_GROUPS;if(m==="EM")return["EM"];if(m==="Adult")return["Adult Ministry"];return[];}
 function filterByMinistry(arr,getGroupFn){if(!myAllowedGroups.length)return arr;return arr.filter(x=>myAllowedGroups.includes(getGroupFn(x)));}
 function isGroupAllowed(g){return!myAllowedGroups.length||myAllowedGroups.includes(g);}
+// 동산지기/부동산지기 are scoped to a single 동산 (subgroup). Empty = no subgroup restriction.
+function isSubgroupAllowed(sg){return!myAllowedSubgroup||(sg||"")===myAllowedSubgroup;}
 function fp(){const n=navigator,s=screen;const r=[n.userAgent,n.language,n.hardwareConcurrency,n.maxTouchPoints,s.width,s.height,s.colorDepth,Intl.DateTimeFormat().resolvedOptions().timeZone,n.platform,n.deviceMemory||"x"].join("|");let h1=5381,h2=0;for(let i=0;i<r.length;i++){h1=((h1<<5)+h1+r.charCodeAt(i))&0xFFFFFFFF;h2=r.charCodeAt(i)+((h2<<6)+(h2<<16)-h2)&0xFFFFFFFF;}return`DEV-${(h1>>>0).toString(16).padStart(8,"0")}-${(h2>>>0).toString(16).padStart(8,"0")}`.toUpperCase();}
 function today(){return new Date().toLocaleDateString("en-CA",{timeZone:"America/New_York"})}
 function fmtD(d){return new Date(d+"T12:00:00").toLocaleDateString("en-US",{timeZone:"America/New_York",weekday:"short",month:"short",day:"numeric"})}
@@ -1023,8 +1025,10 @@ function renderSubgroupTabs(containerId,curGroup,curSub,setter){
   const el=document.getElementById(containerId);
   if(summerMode){
     el.style.display="flex";
-    const subs=getSummerDongsanList();
-    el.innerHTML=[{l:t('all_dongsan'),v:""},...subs.map(s=>({l:s,v:s}))].map(tab=>{
+    let subs=getSummerDongsanList();
+    if(myAllowedSubgroup)subs=subs.filter(s=>s===myAllowedSubgroup);
+    const tabList=myAllowedSubgroup?subs.map(s=>({l:s,v:s})):[{l:t('all_dongsan'),v:""},...subs.map(s=>({l:s,v:s}))];
+    el.innerHTML=tabList.map(tab=>{
       const active=tab.v===curSub;const c="#A78BFA";
       return`<button class="grp-tab${active?" active":""}" style="${active?`background:${c}22;color:${c};border-color:${c}55;`:""}" onclick="${setter}('${tab.v}');renderAll();">${esc(tab.l)}</button>`;
     }).join("");
@@ -1032,8 +1036,10 @@ function renderSubgroupTabs(containerId,curGroup,curSub,setter){
   }
   if(!curGroup){el.style.display="none";return;}
   el.style.display="flex";
-  const subs=dongsanNames[curGroup]||["동산1","동산2","동산3","동산4"];
-  el.innerHTML=[{l:t('all_dongsan'),v:""},...subs.map(s=>({l:s,v:s}))].map(tab=>{
+  let subs=dongsanNames[curGroup]||["동산1","동산2","동산3","동산4"];
+  if(myAllowedSubgroup)subs=subs.filter(s=>s===myAllowedSubgroup);
+  const tabList=myAllowedSubgroup?subs.map(s=>({l:s,v:s})):[{l:t('all_dongsan'),v:""},...subs.map(s=>({l:s,v:s}))];
+  el.innerHTML=tabList.map(tab=>{
     const active=tab.v===curSub;const c="#A78BFA";
     return`<button class="grp-tab${active?" active":""}" style="${active?`background:${c}22;color:${c};border-color:${c}55;`:""}" onclick="${setter}('${tab.v}');renderAll();">${esc(tab.l)}</button>`;
   }).join("");
@@ -1304,13 +1310,21 @@ async function showAdmin(prefetchedAdminData=null){
   if(isSuper||isPastor){
     myAllowedGroups=[];
   }else if(myAdminRole==="leader"&&myLeaderGroup){
-    myAllowedGroups=[myLeaderGroup];
+    // 여름(합동): a 동산지기/부동산지기 oversees their 동산 across BOTH 대학부·청년부.
+    // 봄·가을(학기): scoped to their own 부서 only.
+    myAllowedGroups=(summerMode&&KM_GROUPS.includes(myLeaderGroup))?KM_GROUPS.slice():[myLeaderGroup];
   }else{
     myAllowedGroups=getGroupsForMinistry(myMinistry);
   }
+  // 동산지기/부동산지기 only ever see their OWN 동산 (subgroup) — never other 동산s.
+  myAllowedSubgroup=(myAdminRole==="leader")?(myLeaderSubgroup||""):"";
 
-  // If leader is scoped, force their group filter
-  if(myAdminRole==="leader"&&myLeaderGroup){sheetGroup=myLeaderGroup;todayGroup=myLeaderGroup;devGroup=myLeaderGroup;if(myLeaderSubgroup){sheetSubgroup=myLeaderSubgroup;todaySubgroup=myLeaderSubgroup;devSubgroup=myLeaderSubgroup;}}
+  // If leader is scoped, force their group/subgroup filter.
+  if(myAdminRole==="leader"&&myLeaderGroup){
+    // In summer (부서 합동) leave the 부서 filter open so both 대학부·청년부 of the 동산 show.
+    if(!summerMode){sheetGroup=myLeaderGroup;todayGroup=myLeaderGroup;devGroup=myLeaderGroup;}
+    if(myLeaderSubgroup){sheetSubgroup=myLeaderSubgroup;todaySubgroup=myLeaderSubgroup;devSubgroup=myLeaderSubgroup;newcomerGroup=summerMode?newcomerGroup:myLeaderGroup;}
+  }
   else if(myAllowedGroups.length===1){sheetGroup=myAllowedGroups[0];todayGroup=myAllowedGroups[0];devGroup=myAllowedGroups[0];}
 
   // Role-based UI: only super admin can access admins/settings tabs
@@ -1344,7 +1358,7 @@ async function showAdmin(prefetchedAdminData=null){
 }
 function showCheckin(){document.getElementById("admin-view").style.display="none";if(!individualCheckinEnabled){openKioskMode();}else{document.getElementById("checkin-view").style.display="flex";}}
 function switchTab(t){activeTab=t;document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));document.getElementById("tab-"+t).classList.add("active");document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.tab===t));load().then(()=>renderAll()).catch(()=>renderAll());}
-function renderLinkDropdown(){const allNames=Object.keys(getUniqueNames("","")).sort();const sel=document.getElementById("link-name");if(!sel)return;const cv=sel.value;sel.innerHTML=`<option value="">${t('select_person_ph')}</option>`+allNames.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");sel.value=cv;}
+function renderLinkDropdown(){const mem=getUniqueNames("","");const allNames=Object.keys(mem).filter(n=>isGroupAllowed(mem[n].group||"")&&isSubgroupAllowed(mem[n].subgroup||"")).sort();const sel=document.getElementById("link-name");if(!sel)return;const cv=sel.value;sel.innerHTML=`<option value="">${t('select_person_ph')}</option>`+allNames.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");sel.value=cv;}
 function renderDongsanEditor(){
   const el=document.getElementById("dongsan-editor");if(!el)return;
   if(summerMode){
@@ -1456,8 +1470,10 @@ function computeWeeklyComparison(){
   function fmtDate(d){return d.toLocaleDateString("en-CA",{timeZone:"America/New_York"});}
   const thisSundayStr=fmtDate(thisSunday);
   const lastSundayStr=fmtDate(lastSunday);
-  const thisCount=new Set(D.log.filter(e=>e.date===thisSundayStr).map(e=>dName(e.deviceId)||e.name)).size;
-  const lastCount=new Set(D.log.filter(e=>e.date===lastSundayStr).map(e=>dName(e.deviceId)||e.name)).size;
+  // Scope to the admin's allowed 부서/동산 so 동산지기 see only their 동산's weekly totals.
+  const visLog=D.log.filter(e=>isGroupAllowed(dGroup(e.deviceId)||e.group||"")&&isSubgroupAllowed(dSubgroup(e.deviceId)||e.subgroup||""));
+  const thisCount=new Set(visLog.filter(e=>e.date===thisSundayStr).map(e=>dName(e.deviceId)||e.name)).size;
+  const lastCount=new Set(visLog.filter(e=>e.date===lastSundayStr).map(e=>dName(e.deviceId)||e.name)).size;
   return{thisCount,lastCount,diff:thisCount-lastCount,thisSundayStr,lastSundayStr};
 }
 function renderWeeklyComparison(){
@@ -1487,11 +1503,11 @@ function renderStats(){
   const todayPeople=new Set();
   D.log.filter(e=>e.date===td).forEach(e=>{
     const g=dGroup(e.deviceId)||e.group||"";const sg=dSubgroup(e.deviceId)||e.subgroup||"";
-    if((!grp||g===grp)&&(!sub||sg===sub)&&isGroupAllowed(g))todayPeople.add(dName(e.deviceId)||e.name);
+    if((!grp||g===grp)&&(!sub||sg===sub)&&isGroupAllowed(g)&&isSubgroupAllowed(sg))todayPeople.add(dName(e.deviceId)||e.name);
   });
-  const mc=Object.keys(getUniqueNames(grp,sub)).filter(n=>{const dids=getDevicesFor(n);return dids.some(d=>isGroupAllowed(dGroup(d)||""));}).length;
+  const mc=Object.keys(getUniqueNames(grp,sub)).filter(n=>{const dids=getDevicesFor(n);return dids.some(d=>isGroupAllowed(dGroup(d)||"")&&isSubgroupAllowed(dSubgroup(d)||""));}).length;
   let filteredLog=D.log;
-  if(myAllowedGroups.length)filteredLog=filteredLog.filter(e=>isGroupAllowed(dGroup(e.deviceId)||e.group||""));
+  if(myAllowedGroups.length||myAllowedSubgroup)filteredLog=filteredLog.filter(e=>isGroupAllowed(dGroup(e.deviceId)||e.group||"")&&isSubgroupAllowed(dSubgroup(e.deviceId)||e.subgroup||""));
   if(grp)filteredLog=filteredLog.filter(e=>(dGroup(e.deviceId)||e.group||"")===grp);
   if(sub)filteredLog=filteredLog.filter(e=>(dSubgroup(e.deviceId)||e.subgroup||"")===sub);
   const dates=[...new Set(filteredLog.map(e=>e.date))].length;
@@ -1510,7 +1526,7 @@ function renderSheet(){
     const dates=[...new Set(D.log.map(e=>e.date))].sort();
     const members=getUniqueNames("","");
     let names=sortNames(Object.keys(members));
-    if(myAllowedGroups.length)names=names.filter(n=>isGroupAllowed(members[n].group||""));
+    if(myAllowedGroups.length||myAllowedSubgroup)names=names.filter(n=>isGroupAllowed(members[n].group||"")&&isSubgroupAllowed(members[n].subgroup||""));
     if(effSheetGroup)names=names.filter(n=>members[n].group===effSheetGroup);
     if(sheetSubgroup)names=names.filter(n=>(members[n].subgroup||"")===sheetSubgroup);
 
@@ -1525,13 +1541,13 @@ function renderSheet(){
       rows+=`</tr>`;
     });
     rows+=`<tr class="total-row"><td></td><td class="name-cell">${t('total_row_label')}</td><td></td><td></td>`;
-    dates.forEach(d=>{const p=new Set();D.log.filter(e=>e.date===d).forEach(e=>{const n=dName(e.deviceId)||e.name;const g=dGroup(e.deviceId)||"";const sg=dSubgroup(e.deviceId)||"";if((!effSheetGroup||g===effSheetGroup)&&(!sheetSubgroup||sg===sheetSubgroup))p.add(n);});rows+=`<td>${p.size}</td>`;});
+    dates.forEach(d=>{const p=new Set();D.log.filter(e=>e.date===d).forEach(e=>{const n=dName(e.deviceId)||e.name;const g=dGroup(e.deviceId)||"";const sg=dSubgroup(e.deviceId)||"";if((!effSheetGroup||g===effSheetGroup)&&(!sheetSubgroup||sg===sheetSubgroup)&&isGroupAllowed(g)&&isSubgroupAllowed(sg))p.add(n);});rows+=`<td>${p.size}</td>`;});
     rows+=`</tr>`;
     c.innerHTML=`<div style="overflow-x:auto;"><table class="att-table"><thead>${h}</thead><tbody id="grid-tbody">${rows}</tbody></table></div>`;
     initGridDrag();
   } else {
     let sorted=[...D.log].sort((a,b)=>b.ts-a.ts);
-    if(myAllowedGroups.length)sorted=sorted.filter(e=>isGroupAllowed(dGroup(e.deviceId)||e.group||""));
+    if(myAllowedGroups.length||myAllowedSubgroup)sorted=sorted.filter(e=>isGroupAllowed(dGroup(e.deviceId)||e.group||"")&&isSubgroupAllowed(dSubgroup(e.deviceId)||e.subgroup||""));
     if(effSheetGroup)sorted=sorted.filter(e=>dGroup(e.deviceId)===effSheetGroup||(e.group||"")===effSheetGroup);
     if(sheetSubgroup)sorted=sorted.filter(e=>dSubgroup(e.deviceId)===sheetSubgroup||(e.subgroup||"")===sheetSubgroup);
     const rows=sorted.map(e=>{const name=dName(e.deviceId)||e.name;const group=dGroup(e.deviceId)||e.group||"";const subgroup=dSubgroup(e.deviceId)||e.subgroup||"";const badges=(e.firstVisit?`<span class="tag tag-purple" style="font-size:9px;margin-left:4px;">${t('badge_first')}</span>`:"")+(e.manual?`<span class="tag tag-amber" style="font-size:9px;margin-left:4px;">${t('badge_manual')}</span>`:"")+(e.visitor?`<span class="tag tag-amber" style="font-size:9px;margin-left:4px;">${t('badge_visitor')}</span>`:"");return`<tr><td style="font-family:'Sora',sans-serif;font-weight:500;">${esc(name)}${badges}</td><td>${grpTag(group,subgroup)}</td><td style="color:var(--txt-m);">${esc(fmtD(e.date))}</td><td style="color:var(--txt-m);">${esc(e.time)}</td><td style="color:var(--acc);font-weight:700;text-align:center;">${totalForName(name)}</td></tr>`;}).join("");
@@ -1543,7 +1559,7 @@ function renderToday(){
   const td=today();document.getElementById("today-label").textContent=t('today_label_fn')(fmtDL(td));
   let entries=D.log.filter(e=>e.date===td);
   const effTodayGroup=todayGroup;
-  if(myAllowedGroups.length)entries=entries.filter(e=>isGroupAllowed(dGroup(e.deviceId)||e.group||""));
+  if(myAllowedGroups.length||myAllowedSubgroup)entries=entries.filter(e=>isGroupAllowed(dGroup(e.deviceId)||e.group||"")&&isSubgroupAllowed(dSubgroup(e.deviceId)||e.subgroup||""));
   if(effTodayGroup)entries=entries.filter(e=>dGroup(e.deviceId)===effTodayGroup||(e.group||"")===effTodayGroup);
   if(todaySubgroup)entries=entries.filter(e=>dSubgroup(e.deviceId)===todaySubgroup||(e.subgroup||"")===todaySubgroup);
   const reg=entries.filter(e=>!getMemberRole(dName(e.deviceId)||e.name));
@@ -1564,7 +1580,7 @@ function renderDevices(){
   const effDevGroup=devGroup;
   if(effDevGroup)names=names.filter(n=>members[n].group===effDevGroup);
   if(devSubgroup)names=names.filter(n=>(members[n].subgroup||"")===devSubgroup);
-  if(myAllowedGroups.length)names=names.filter(n=>isGroupAllowed(members[n].group||""));
+  if(myAllowedGroups.length||myAllowedSubgroup)names=names.filter(n=>isGroupAllowed(members[n].group||"")&&isSubgroupAllowed(members[n].subgroup||""));
   if(memberSearch){const q=memberSearch.toLowerCase();names=names.filter(n=>n.toLowerCase().includes(q));}
   const regularNames=names.filter(n=>!isVisitorMember(n));
   const visitorNames=names.filter(n=>isVisitorMember(n));
@@ -2073,6 +2089,7 @@ function renderNewMembers(){
     if(!v.isNewMember)return;
     const name=v.name;if(!name)return;
     if(newcomerGroup&&(v.group||"")!==newcomerGroup)return;
+    if(!isGroupAllowed(v.group||"")||!isSubgroupAllowed(v.subgroup||""))return;
     const regDate=v.registrationDate||"";
     const sem=getSemester(regDate);
     // Only current-semester newcomers. Those without a registration date are kept
@@ -2146,6 +2163,7 @@ function renderMonthlyRegistrations(){
   allDevices.forEach(([did,v])=>{
     if(!v||typeof v!=="object")return;
     const name=v.name;if(!name)return;
+    if(!isGroupAllowed(v.group||"")||!isSubgroupAllowed(v.subgroup||""))return;
     const regDate=v.registrationDate||"";
     if(!regDate)return;
     const month=regDate.slice(0,7);
@@ -2178,6 +2196,7 @@ function renderMonthlyRegistrations(){
 function copyKakaoSummary(){
   const td=today();
   let entries=D.log.filter(e=>e.date===td);
+  if(myAllowedGroups.length||myAllowedSubgroup)entries=entries.filter(e=>isGroupAllowed(dGroup(e.deviceId)||e.group||"")&&isSubgroupAllowed(dSubgroup(e.deviceId)||e.subgroup||""));
   const effTGrp=todayGroup;
   if(effTGrp)entries=entries.filter(e=>dGroup(e.deviceId)===effTGrp||(e.group||"")===effTGrp);
   if(todaySubgroup)entries=entries.filter(e=>dSubgroup(e.deviceId)===todaySubgroup||(e.subgroup||"")===todaySubgroup);
@@ -3572,6 +3591,8 @@ function renderCharts(){
   const el=document.getElementById("charts-content");if(!el)return;
   if(!D.log.length){el.innerHTML=`<div style="color:var(--txt-d);text-align:center;padding:20px;font-size:13px;">${t('no_chart_data')}</div>`;return;}
   let logData=D.log;
+  // Restrict charts to the admin's allowed 부서/동산 (동산지기 see only their own 동산).
+  if(myAllowedGroups.length||myAllowedSubgroup)logData=logData.filter(e=>isGroupAllowed(dGroup(e.deviceId)||e.group||"")&&isSubgroupAllowed(dSubgroup(e.deviceId)||e.subgroup||""));
   const effSGrpC=sheetGroup;
   if(effSGrpC)logData=logData.filter(e=>(dGroup(e.deviceId)||e.group||"")===effSGrpC);
   if(sheetSubgroup)logData=logData.filter(e=>(dSubgroup(e.deviceId)||e.subgroup||"")===sheetSubgroup);
@@ -3606,14 +3627,18 @@ function renderLeaderDashboard(){
   el.style.display=showDashboard?"block":"none";
   if(!showDashboard)return;
   const td=today();
-  const dongsanMembers=Object.keys(getUniqueNames(group,subgroup)).filter(n=>!isVisitorMember(n));
-  const checkedSet=new Set(D.log.filter(e=>e.date===td&&(dGroup(e.deviceId)||e.group||"")===group&&(dSubgroup(e.deviceId)||e.subgroup||"")===subgroup).map(e=>dName(e.deviceId)||e.name));
+  // 여름(합동)에는 한 동산을 대학부·청년부 통합으로 집계하고, 학기 중에는 해당 부서만 집계한다.
+  const matchGS=e=>{const g=dGroup(e.deviceId)||e.group||"";const sg=dSubgroup(e.deviceId)||e.subgroup||"";return sg===subgroup&&(summerMode?isGroupAllowed(g):g===group);};
+  const memberPool=getUniqueNames(summerMode?"":group,subgroup);
+  const dongsanMembers=Object.keys(memberPool).filter(n=>!isVisitorMember(n)&&(summerMode?isGroupAllowed(memberPool[n].group||""):true));
+  const checkedSet=new Set(D.log.filter(e=>e.date===td&&matchGS(e)).map(e=>dName(e.deviceId)||e.name));
   const absentToday=dongsanMembers.filter(n=>!checkedSet.has(n));
-  const recentDates=[...new Set(D.log.filter(e=>(dGroup(e.deviceId)||e.group||"")===group&&(dSubgroup(e.deviceId)||e.subgroup||"")===subgroup).map(e=>e.date))].sort().slice(-4);
-  const avgRate=recentDates.length&&dongsanMembers.length?Math.round(recentDates.reduce((s,d)=>{const c=new Set(D.log.filter(e=>e.date===d&&(dGroup(e.deviceId)||e.group||"")===group&&(dSubgroup(e.deviceId)||e.subgroup||"")===subgroup).map(e=>dName(e.deviceId)||e.name)).size;return s+c/dongsanMembers.length*100;},0)/recentDates.length):0;
+  const recentDates=[...new Set(D.log.filter(matchGS).map(e=>e.date))].sort().slice(-4);
+  const avgRate=recentDates.length&&dongsanMembers.length?Math.round(recentDates.reduce((s,d)=>{const c=new Set(D.log.filter(e=>e.date===d&&matchGS(e)).map(e=>dName(e.deviceId)||e.name)).size;return s+c/dongsanMembers.length*100;},0)/recentDates.length):0;
   const rateColor=avgRate>=80?"var(--acc)":avgRate>=60?"var(--amber)":"var(--red)";
+  const dashGroupLabel=summerMode?"합동":group;
   el.innerHTML=`<div class="card" style="border-left:3px solid var(--purple);margin-bottom:12px;">
-    <div style="font-size:13px;font-weight:800;color:var(--purple);margin-bottom:10px;">${t('leader_dash_fn')(esc(group),esc(subgroup))}</div>
+    <div style="font-size:13px;font-weight:800;color:var(--purple);margin-bottom:10px;">${t('leader_dash_fn')(esc(dashGroupLabel),esc(subgroup))}</div>
     <div style="display:flex;gap:8px;margin-bottom:12px;">
       <div style="flex:1;text-align:center;background:var(--acc-dim);border-radius:10px;padding:10px 4px;"><div style="font-size:20px;font-weight:800;color:var(--acc);">${checkedSet.size}</div><div style="font-size:8px;color:var(--txt-m);text-transform:uppercase;letter-spacing:.6px;margin-top:2px;">${t('today_att_label')}</div></div>
       <div style="flex:1;text-align:center;background:var(--red-dim);border-radius:10px;padding:10px 4px;"><div style="font-size:20px;font-weight:800;color:var(--red);">${absentToday.length}</div><div style="font-size:8px;color:var(--txt-m);text-transform:uppercase;letter-spacing:.6px;margin-top:2px;">${t('absent_label')}</div></div>
