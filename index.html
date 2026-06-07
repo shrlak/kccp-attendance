@@ -89,6 +89,10 @@ body.light-mode .card{box-shadow:0 1px 4px rgba(0,0,0,.07),0 4px 16px rgba(0,0,0
 .kiosk-members{flex:1;overflow-y:auto;padding:10px 14px calc(90px + env(safe-area-inset-bottom,0px));-webkit-overflow-scrolling:touch;}
 .kiosk-group-label{font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--txt-d);font-family:'IBM Plex Mono',monospace;padding:12px 2px 6px;margin-top:2px;}
 .kiosk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-bottom:8px;}
+.kiosk-cols{display:flex;gap:10px;align-items:flex-start;}
+.kiosk-col{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;}
+.kiosk-col-head{position:sticky;top:0;z-index:2;background:var(--bg);font-size:14px;font-weight:800;letter-spacing:.5px;padding:8px 4px 9px;border-bottom:2px solid var(--bdr);text-align:center;}
+.kiosk-col .kiosk-btn{width:100%;}
 .kiosk-btn{padding:16px 10px;border-radius:14px;border:1.5px solid var(--bdr);background:var(--card);color:var(--txt);font-family:'Sora',sans-serif;font-size:14px;font-weight:700;cursor:pointer;text-align:center;transition:background .12s,border-color .12s;min-height:62px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
 .kiosk-btn:active{opacity:.75;transform:scale(.97);}
 .kiosk-btn.done{background:var(--acc-dim);border-color:rgba(52,211,153,.35);color:var(--acc);}
@@ -3336,29 +3340,26 @@ function renderKioskMembers(q){
   let names=sortNames(Object.keys(members)).filter(n=>!isVisitorMember(n));
   if(sq)names=names.filter(n=>n.toLowerCase().includes(sq));
   if(!names.length){el.innerHTML=`<div style="text-align:center;padding:48px 24px;color:var(--txt-d);font-size:14px;">${sq?t('kiosk_no_results'):t('kiosk_no_members')}</div>`;return;}
-  const groups={};
-  names.forEach(n=>{const m=members[n];
-    let k;
-    if(summerMode&&(m.group==="대학부"||m.group==="청년부")){
-      k=m.subgroup||t('kiosk_other');
-    }else{
-      k=(m.group||t('kiosk_other'))+(m.subgroup?" · "+m.subgroup:"");
-    }
-    if(!groups[k])groups[k]=[];groups[k].push(n);
-  });
-  let html="";
-  Object.keys(groups).sort().forEach(grp=>{
-    if(!sq)html+=`<div class="kiosk-group-label">${esc(grp)}</div>`;
-    html+=`<div class="kiosk-grid">`;
-    groups[grp].forEach(name=>{
-      const done=checkedSet.has(name);const total=totalForName(name);
-      html+=`<button class="kiosk-btn${done?" done":""}" onclick="kioskCheckin('${esc(name)}')">
-        <span>${esc(name)}</span>
-        <span style="font-size:10px;font-weight:600;${done?"":"color:var(--txt-d);"}">${done?STRINGS[lang].kiosk_checked(total):STRINGS[lang].kiosk_count_lbl(total)}</span>
-      </button>`;
-    });
+  // Two fixed columns side by side: 대학부 / 청년부 — no 동산 subdivision.
+  const cols=[{key:"대학부",color:"#FBBF24"},{key:"청년부",color:"#60A5FA"}];
+  const buckets={"대학부":[],"청년부":[]};const others=[];
+  names.forEach(n=>{const g=members[n].group;if(g==="대학부"||g==="청년부")buckets[g].push(n);else others.push(n);});
+  const btn=name=>{const done=checkedSet.has(name);const total=totalForName(name);
+    return`<button class="kiosk-btn${done?" done":""}" onclick="kioskCheckin('${esc(name)}')">
+      <span>${esc(name)}</span>
+      <span style="font-size:10px;font-weight:600;${done?"":"color:var(--txt-d);"}">${done?STRINGS[lang].kiosk_checked(total):STRINGS[lang].kiosk_count_lbl(total)}</span>
+    </button>`;};
+  let html=`<div class="kiosk-cols">`;
+  cols.forEach(c=>{
+    const list=buckets[c.key];
+    html+=`<div class="kiosk-col"><div class="kiosk-col-head" style="color:${c.color};border-color:${c.color}55;">${esc(c.key)} <span style="color:var(--txt-d);font-weight:700;font-size:11px;">${list.length}</span></div>`;
+    html+=list.length?list.map(btn).join(""):`<div style="text-align:center;padding:20px 8px;color:var(--txt-d);font-size:12px;">${sq?t('kiosk_no_results'):"—"}</div>`;
     html+=`</div>`;
   });
+  html+=`</div>`;
+  if(others.length){
+    html+=`<div class="kiosk-group-label" style="margin-top:14px;">${t('kiosk_other')}</div><div class="kiosk-grid">`+others.map(btn).join("")+`</div>`;
+  }
   el.innerHTML=html;
 }
 
@@ -3746,8 +3747,16 @@ function renderCheckinWindowBadge(){
   try{await load();}catch(e){console.error("Load failed:",e);}
   renderCheckinStrip();
   renderCheckinWindowBadge();
-  if(!individualCheckinEnabled){
-    // Default: kiosk mode
+  // Admin panel is the landing page: only admins get the full website. Admins
+  // turn kiosk mode on/off from there. Non-admin devices stay on the kiosk
+  // (or individual check-in if an admin has switched kiosk mode off).
+  let _adminData=null;
+  try{_adminData=await api("POST","/api/check-admin",{deviceId});}catch(e){}
+  if(_adminData&&_adminData.isAdmin){
+    document.getElementById("checkin-view").style.display="none";
+    showAdmin(_adminData);
+  }else if(!individualCheckinEnabled){
+    // Kiosk mode on (default)
     document.getElementById("checkin-view").style.display="none";
     openKioskMode();
   }else{
