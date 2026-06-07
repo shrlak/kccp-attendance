@@ -91,8 +91,6 @@ body.light-mode .card{box-shadow:0 1px 4px rgba(0,0,0,.07),0 4px 16px rgba(0,0,0
 .kiosk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-bottom:8px;}
 .kiosk-cols{display:flex;gap:10px;align-items:flex-start;}
 .kiosk-col{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;}
-.kiosk-dept{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;}
-.kiosk-dept-cols{display:flex;gap:8px;align-items:flex-start;}
 .kiosk-col-head{position:sticky;top:0;z-index:2;background:var(--bg);font-size:14px;font-weight:800;letter-spacing:.5px;padding:8px 4px 9px;border-bottom:2px solid var(--bdr);text-align:center;}
 .kiosk-col .kiosk-btn{width:100%;}
 .kiosk-btn{padding:16px 10px;border-radius:14px;border:1.5px solid var(--bdr);background:var(--card);color:var(--txt);font-family:'Sora',sans-serif;font-size:14px;font-weight:700;cursor:pointer;text-align:center;transition:background .12s,border-color .12s;min-height:62px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
@@ -3383,9 +3381,8 @@ function renderKioskMembers(q){
   let names=sortNames(Object.keys(members)).filter(n=>!isVisitorMember(n));
   if(sq)names=names.filter(n=>n.toLowerCase().includes(sq));
   if(!names.length){el.innerHTML=`<div style="text-align:center;padding:48px 24px;color:var(--txt-d);font-size:14px;">${sq?t('kiosk_no_results'):t('kiosk_no_members')}</div>`;return;}
-  // Two departments side by side — 대학부 / 청년부 — each split into two
-  // sub-columns, giving four columns total. No 동산 subdivision.
-  const cols=[{key:"대학부",color:"#FBBF24",cls:"univ"},{key:"청년부",color:"#60A5FA",cls:"youth"}];
+  // Four flat columns: two for 대학부 (yellow) and two for 청년부 (blue).
+  const depts=[{key:"대학부",color:"#FBBF24",cls:"univ"},{key:"청년부",color:"#60A5FA",cls:"youth"}];
   const buckets={"대학부":[],"청년부":[]};const others=[];
   names.forEach(n=>{const g=members[n].group;if(g==="대학부"||g==="청년부")buckets[g].push(n);else others.push(n);});
   const btn=(name,cls)=>{const done=checkedSet.has(name);const total=totalForName(name);
@@ -3393,19 +3390,19 @@ function renderKioskMembers(q){
       <span>${esc(name)}</span>
       <span style="font-size:10px;font-weight:600;${done?"":"color:var(--txt-d);"}">${done?STRINGS[lang].kiosk_checked(total):STRINGS[lang].kiosk_count_lbl(total)}</span>
     </button>`;};
-  let html=`<div class="kiosk-cols">`;
-  cols.forEach(c=>{
+  // Build four direct column divs: left-half and right-half for each department.
+  let html=`<div style="display:flex;gap:8px;align-items:flex-start;">`;
+  depts.forEach(c=>{
     const list=buckets[c.key];
-    // Split this department's members across two columns (down-then-across).
     const half=Math.ceil(list.length/2);
-    const sub=[list.slice(0,half),list.slice(half)];
-    html+=`<div class="kiosk-dept"><div class="kiosk-col-head" style="color:${c.color};border-color:${c.color}55;">${esc(c.key)} <span style="color:var(--txt-d);font-weight:700;font-size:11px;">${list.length}</span></div>`;
-    if(list.length){
-      html+=`<div class="kiosk-dept-cols">`+sub.map(part=>`<div class="kiosk-col">${part.map(n=>btn(n,c.cls)).join("")}</div>`).join("")+`</div>`;
-    }else{
-      html+=`<div style="text-align:center;padding:20px 8px;color:var(--txt-d);font-size:12px;">${sq?t('kiosk_no_results'):"—"}</div>`;
-    }
-    html+=`</div>`;
+    const halves=[list.slice(0,half),list.slice(half)];
+    halves.forEach((part,i)=>{
+      const head=i===0?`<div class="kiosk-col-head" style="color:${c.color};border-color:${c.color}55;">${esc(c.key)} <span style="color:var(--txt-d);font-weight:700;font-size:11px;">${list.length}</span></div>`
+                      :`<div class="kiosk-col-head" style="color:${c.color};border-color:${c.color}55;">&nbsp;</div>`;
+      html+=`<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;">${head}`;
+      html+=part.length?part.map(n=>btn(n,c.cls)).join(""):`<div style="text-align:center;padding:20px 4px;color:var(--txt-d);font-size:12px;">—</div>`;
+      html+=`</div>`;
+    });
   });
   html+=`</div>`;
   if(others.length){
