@@ -2077,12 +2077,14 @@ async function toggleNewMemberEdu(name,week,cb){
   const dids=getDevicesFor(name);
   if(!dids.length){flash("멤버를 찾을 수 없습니다","err");cb.checked=!checked;return;}
   let err=null;
-  for(const did of dids){
-    const body={deviceId:did,adminDeviceId:deviceId};
-    if(week===1)body.newMemberEduWeek1=checked;else body.newMemberEduWeek2=checked;
-    const r=await api("PUT","/api/device",body);
-    if(r&&r.error){err=r.error;break;}
-  }
+  try{
+    for(const did of dids){
+      const body={deviceId:did,adminDeviceId:deviceId};
+      if(week===1)body.newMemberEduWeek1=checked;else body.newMemberEduWeek2=checked;
+      const r=await api("PUT","/api/device",body);
+      if(r&&r.error){err=r.error;break;}
+    }
+  }catch(e){err=e.message||"네트워크 오류";}
   if(err){cb.checked=!checked;flash(err,"err");return;}
   dids.forEach(did=>{const v=D.devices[did];if(v&&typeof v==="object"){if(week===1)v.newMemberEduWeek1=checked;else v.newMemberEduWeek2=checked;}});
   _saveDevCache();
