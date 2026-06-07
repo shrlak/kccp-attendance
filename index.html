@@ -1285,7 +1285,9 @@ async function submitSelfRegister(){
 }
 
 // ─── ADMIN ───
-async function tryAdmin(){try{const r=await api("POST","/api/check-admin",{deviceId});if(r.noAdminsYet){document.getElementById("admin-access-msg").textContent=t('admin_no_admins_msg');document.getElementById("password-modal").style.display="flex";document.getElementById("admin-pw").focus();return;}if(r.isAdmin){showAdmin();return;}document.getElementById("admin-access-msg").textContent=t('admin_not_authorized_msg');document.getElementById("password-modal").style.display="flex";document.getElementById("admin-pw").focus();}catch(e){flash(t('connection_error'),"err");}}
+async function tryAdmin(){try{const r=await api("POST","/api/check-admin",{deviceId});if(r.noAdminsYet){document.getElementById("admin-access-msg").textContent=t('admin_no_admins_msg');document.getElementById("password-modal").style.display="flex";document.getElementById("admin-pw").focus();return;}if(r.isAdmin){showAdmin();return;}
+  // Admins already exist: only a super admin can grant access, so no self-promotion via master password.
+  flash(t('admin_not_authorized_msg'),"warn");}catch(e){flash(t('connection_error'),"err");}}
 async function submitAdminPassword(){const pw=document.getElementById("admin-pw").value;const r=await api("POST","/api/admin/add",{password:pw,targetDeviceId:deviceId});if(r.error){flash(r.error==="Wrong password"?t('wrong_pw'):t('connection_error'),"err");return;}document.getElementById("password-modal").style.display="none";document.getElementById("admin-pw").value="";flash(t('admin_granted'));showAdmin();}
 async function showAdmin(prefetchedAdminData=null){
   document.getElementById("checkin-view").style.display="none";
@@ -2479,7 +2481,7 @@ const STRINGS={
     // Admin access modal
     admin_access_title:"관리자 접속",admin_pw_ph:"관리자 비밀번호",unlock_btn:"확인",
     admin_no_admins_msg:"등록된 관리자가 없습니다. 마스터 비밀번호를 입력하세요.",
-    admin_not_authorized_msg:"권한이 없습니다. 마스터 비밀번호를 입력하세요.",
+    admin_not_authorized_msg:"권한이 없습니다. 슈퍼 관리자에게 관리자 권한을 요청하세요.",
     wrong_pw:"비밀번호가 틀렸습니다",admin_granted:"관리자 접속 완료!",
     // Edit member modal
     edit_member_title:"멤버 편집",name_label:"이름",group_label:"부서",
@@ -2751,7 +2753,7 @@ const STRINGS={
     // Admin access modal
     admin_access_title:"Admin Access",admin_pw_ph:"Admin password",unlock_btn:"Unlock",
     admin_no_admins_msg:"No admins yet. Enter master password.",
-    admin_not_authorized_msg:"Not authorized. Enter master password.",
+    admin_not_authorized_msg:"Not authorized. Ask a super admin to grant you access.",
     wrong_pw:"Wrong password",admin_granted:"Admin access granted!",
     // Edit member modal
     edit_member_title:"Edit Member",name_label:"Name",group_label:"Group",
