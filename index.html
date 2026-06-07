@@ -75,7 +75,8 @@ body.light-mode .card{box-shadow:0 1px 4px rgba(0,0,0,.07),0 4px 16px rgba(0,0,0
 .confirm-hold-fill{position:absolute;left:0;top:0;bottom:0;width:0%;pointer-events:none;transition:none;}
 .confirm-hold-inner{position:relative;padding:14px 20px;border-radius:12px;text-align:center;font-size:14px;font-weight:700;border:1.5px solid;}
 /* ── Member grid (responsive) ── */
-.member-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;}
+.member-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
+@media(max-width:900px){.member-grid{grid-template-columns:repeat(2,1fr);}}
 @media(max-width:540px){.member-grid{grid-template-columns:1fr;}}
 /* ── Flip card ── */
 .flip-wrap{perspective:900px;flex:1;min-width:0;}
