@@ -1,4 +1,4 @@
-const CACHE = "kccp-v15";
+const CACHE = "kccp-v16";
 const BASE = self.location.pathname.replace(/\/sw\.js$/, '') || '';
 const STATIC = [
   BASE + '/',
@@ -40,7 +40,28 @@ self.addEventListener("fetch", e => {
     return;
   }
 
-  // Static assets: cache-first, fallback to network then cache root
+  // App shell (HTML navigations + index.html): network-first so newly deployed
+  // versions show up on reload, falling back to cache only when offline.
+  const isShell = e.request.mode === "navigate" ||
+                  url.pathname === BASE + '/' ||
+                  url.pathname === BASE + '/index.html' ||
+                  url.pathname.endsWith('/index.html');
+  if (isShell) {
+    e.respondWith(
+      fetch(e.request).then(res => {
+        if (res.ok) {
+          const clone = res.clone();
+          caches.open(CACHE).then(c => c.put(e.request, clone));
+        }
+        return res;
+      }).catch(() =>
+        caches.match(e.request).then(c => c || caches.match(BASE + '/'))
+      )
+    );
+    return;
+  }
+
+  // Other static assets: cache-first, fallback to network then cache root
   e.respondWith(
     caches.match(e.request).then(cached => {
       if (cached) return cached;
