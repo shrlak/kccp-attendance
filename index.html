@@ -1437,7 +1437,7 @@ function renderAll(){
   const smb=document.getElementById("summer-mode-banner");if(smb)smb.style.display=summerMode?"block":"none";
   const dmb=document.getElementById("demo-mode-banner");if(dmb)dmb.style.display=demoMode?"block":"none";
   updateCheckinBtnVisibility();
-  renderStats();renderGrpTabs("sheet-grp-tabs",sheetGroup,"setSheetGroup",true);renderSubgroupTabs("sheet-subgrp-tabs",sheetGroup,sheetSubgroup,"setSheetSubgroup");renderGrpTabs("today-grp-tabs",todayGroup,"setTodayGroup",false);renderSubgroupTabs("today-subgrp-tabs",todayGroup,todaySubgroup,"setTodaySubgroup");renderGrpTabs("dev-grp-tabs",devGroup,"setDevGroup",true);renderSubgroupTabs("dev-subgrp-tabs",devGroup,devSubgroup,"setDevSubgroup");renderGrpTabs("newcomer-grp-tabs",newcomerGroup,"setNewcomerGroup",true);renderSheet();renderToday();renderDevices();renderDongsanEditor();renderDongsanLeadersEditor();renderLinkDropdown();renderLeaderDashboard();renderWeeklyComparison();if(chartsVisible)renderCharts();
+  renderStats();renderGrpTabs("sheet-grp-tabs",sheetGroup,"setSheetGroup",true);renderSubgroupTabs("sheet-subgrp-tabs",sheetGroup,sheetSubgroup,"setSheetSubgroup");renderGrpTabs("today-grp-tabs",todayGroup,"setTodayGroup",true);renderSubgroupTabs("today-subgrp-tabs",todayGroup,todaySubgroup,"setTodaySubgroup");renderGrpTabs("dev-grp-tabs",devGroup,"setDevGroup",true);renderSubgroupTabs("dev-subgrp-tabs",devGroup,devSubgroup,"setDevSubgroup");renderGrpTabs("newcomer-grp-tabs",newcomerGroup,"setNewcomerGroup",true);renderSheet();renderToday();renderDevices();renderDongsanEditor();renderDongsanLeadersEditor();renderLinkDropdown();renderLeaderDashboard();renderWeeklyComparison();if(chartsVisible)renderCharts();
   renderNewMembers();renderMonthlyRegistrations();
 }
 
@@ -1481,7 +1481,7 @@ function renderWeeklyComparison(){
   </div>`;
 }
 function renderStats(){
-  const grp=activeTab==="today"?(summerMode?"":todayGroup):(activeTab==="members"?devGroup:sheetGroup);
+  const grp=activeTab==="today"?todayGroup:(activeTab==="members"?devGroup:sheetGroup);
   const sub=activeTab==="today"?todaySubgroup:activeTab==="members"?devSubgroup:sheetSubgroup;
   const td=today();
   const todayPeople=new Set();
@@ -1542,7 +1542,7 @@ function renderSheet(){
 function renderToday(){
   const td=today();document.getElementById("today-label").textContent=t('today_label_fn')(fmtDL(td));
   let entries=D.log.filter(e=>e.date===td);
-  const effTodayGroup=summerMode?"":todayGroup;
+  const effTodayGroup=todayGroup;
   if(myAllowedGroups.length)entries=entries.filter(e=>isGroupAllowed(dGroup(e.deviceId)||e.group||""));
   if(effTodayGroup)entries=entries.filter(e=>dGroup(e.deviceId)===effTodayGroup||(e.group||"")===effTodayGroup);
   if(todaySubgroup)entries=entries.filter(e=>dSubgroup(e.deviceId)===todaySubgroup||(e.subgroup||"")===todaySubgroup);
@@ -2180,7 +2180,7 @@ function renderMonthlyRegistrations(){
 function copyKakaoSummary(){
   const td=today();
   let entries=D.log.filter(e=>e.date===td);
-  const effTGrp=summerMode?"":todayGroup;
+  const effTGrp=todayGroup;
   if(effTGrp)entries=entries.filter(e=>dGroup(e.deviceId)===effTGrp||(e.group||"")===effTGrp);
   if(todaySubgroup)entries=entries.filter(e=>dSubgroup(e.deviceId)===todaySubgroup||(e.subgroup||"")===todaySubgroup);
   if(!entries.length){flash(t('no_today_records'),"warn");return;}
@@ -2953,7 +2953,7 @@ function showWeeklyRecap(){
   if(!dates.length){el.innerHTML=`<div class="card" style="text-align:center;color:var(--txt-d);padding:20px;font-size:13px;">${t('no_records')}</div>`;return;}
   const rows=dates.map(d=>{
     let entries=D.log.filter(e=>e.date===d);
-    const effTGrpR=summerMode?"":todayGroup;
+    const effTGrpR=todayGroup;
     if(effTGrpR)entries=entries.filter(e=>dGroup(e.deviceId)===effTGrpR||(e.group||"")===effTGrpR);
     if(todaySubgroup)entries=entries.filter(e=>dSubgroup(e.deviceId)===todaySubgroup||(e.subgroup||"")===todaySubgroup);
     const names=[...new Set(entries.filter(e=>!getMemberRole(dName(e.deviceId)||e.name)).map(e=>dName(e.deviceId)||e.name))];
