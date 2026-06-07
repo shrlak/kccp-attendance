@@ -197,17 +197,26 @@ Deno.serve(async (req: Request) => {
 
     if(req.method==="POST"&&p==="/api/self-register") {
       const {deviceId,name,group,subgroup}=body; if(!deviceId||!name) return fail(400,"deviceId and name required");
+      const cleanName=name.trim();
       const {data:ex}=await sb.from("devices").select("id,name").eq("id",deviceId).single();
       if(ex) return ok({status:"already-registered",name:ex.name});
+      // If a person with this name already exists, this device is being added for
+      // access purposes — combine it with the existing record (inherit their
+      // group/동산) instead of creating a divergent duplicate, and never flag it
+      // as 새가족.
+      const {data:matches}=await sb.from("devices").select("group_name,subgroup").eq("name",cleanName).limit(1);
+      const match=matches&&matches.length?matches[0]:null;
+      const finalGroup=match?(match.group_name||""):(group||"");
+      const finalSub=match?(match.subgroup||""):(subgroup||"");
       const cfg=await getCfg(sb);
       if(cfg.require_approval){
         const {data:al}=await sb.from("pending_registrations").select("id").eq("device_id",deviceId).single();
-        if(!al) await sb.from("pending_registrations").insert({device_id:deviceId,name:name.trim(),group_name:group||"",subgroup:subgroup||""});
-        return ok({status:"pending",name:name.trim()});
+        if(!al) await sb.from("pending_registrations").insert({device_id:deviceId,name:cleanName,group_name:finalGroup,subgroup:finalSub});
+        return ok({status:"pending",name:cleanName});
       }
-      await sb.from("devices").upsert({id:deviceId,name:name.trim(),group_name:group||"",subgroup:subgroup||""});
-      await sb.from("attendance_log").update({name:name.trim(),group_name:group||"",subgroup:subgroup||""}).eq("device_id",deviceId);
-      return ok({status:"ok",name:name.trim()});
+      await sb.from("devices").upsert({id:deviceId,name:cleanName,group_name:finalGroup,subgroup:finalSub,is_new_member:false});
+      await sb.from("attendance_log").update({name:cleanName,group_name:finalGroup,subgroup:finalSub}).eq("device_id",deviceId);
+      return ok({status:"ok",name:cleanName,combined:!!match});
     }
 
     // Kiosk new member registration (새가족 등록)

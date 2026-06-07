@@ -91,10 +91,14 @@ body.light-mode .card{box-shadow:0 1px 4px rgba(0,0,0,.07),0 4px 16px rgba(0,0,0
 .kiosk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-bottom:8px;}
 .kiosk-cols{display:flex;gap:10px;align-items:flex-start;}
 .kiosk-col{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;}
+.kiosk-dept{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;}
+.kiosk-dept-cols{display:flex;gap:8px;align-items:flex-start;}
 .kiosk-col-head{position:sticky;top:0;z-index:2;background:var(--bg);font-size:14px;font-weight:800;letter-spacing:.5px;padding:8px 4px 9px;border-bottom:2px solid var(--bdr);text-align:center;}
 .kiosk-col .kiosk-btn{width:100%;}
 .kiosk-btn{padding:16px 10px;border-radius:14px;border:1.5px solid var(--bdr);background:var(--card);color:var(--txt);font-family:'Sora',sans-serif;font-size:14px;font-weight:700;cursor:pointer;text-align:center;transition:background .12s,border-color .12s;min-height:62px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
 .kiosk-btn:active{opacity:.75;transform:scale(.97);}
+.kiosk-btn.univ{background:rgba(251,191,36,.12);border-color:rgba(251,191,36,.45);color:#FBBF24;}
+.kiosk-btn.youth{background:rgba(96,165,250,.12);border-color:rgba(96,165,250,.45);color:#60A5FA;}
 .kiosk-btn.done{background:var(--acc-dim);border-color:rgba(52,211,153,.35);color:var(--acc);}
 .kiosk-footer{flex-shrink:0;padding:12px 14px;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px));background:rgba(8,9,13,.95);backdrop-filter:blur(16px);border-top:1px solid var(--bdr);display:flex;gap:10px;z-index:2;}
 body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
@@ -359,7 +363,7 @@ body.light-mode .kiosk-footer{background:rgba(244,245,250,.95);}
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
       <button id="theme-toggle" class="btn btn-sm" style="background:var(--card);border:1px solid var(--bdr);font-size:16px;padding:5px 10px;" onclick="toggleTheme()" title="다크/라이트 모드">🌙</button>
       <button class="btn btn-sm" data-i18n="kiosk_mode_btn" style="background:var(--purple-dim);border:1px solid rgba(167,139,250,.25);color:var(--purple);font-weight:600;" onclick="openKioskMode()">🖥️ Kiosk</button>
-      <button class="btn btn-sm" data-i18n="back_checkin_btn" style="background:var(--acc-dim);border:1px solid rgba(52,211,153,.2);color:var(--acc);font-weight:600;" onclick="showCheckin()">← Check-in</button>
+      <button id="back-checkin-btn" class="btn btn-sm" data-i18n="back_checkin_btn" style="display:none;background:var(--acc-dim);border:1px solid rgba(52,211,153,.2);color:var(--acc);font-weight:600;" onclick="showCheckin()">← Check-in</button>
     </div>
   </div>
   <div id="ministry-banner" style="display:none;position:relative;z-index:1;margin:0 22px 4px;padding:8px 14px;background:rgba(96,165,250,.12);border:1px solid rgba(96,165,250,.35);border-radius:10px;font-size:12px;font-weight:700;color:var(--blue);letter-spacing:.3px;"></div>
@@ -997,9 +1001,11 @@ function grpAccent(g){if(g==="대학부")return{bg:"rgba(251,191,36,.08)",bdr:"r
 function grpDot(g){const c=grpAccent(g);return`background:${c.dot}`;}
 function grpDisplayName(g){return g==="대학부"?t('grp_univ'):g==="청년부"?t('grp_youth'):g==="EM"?"EM":g==="Adult Ministry"?"Adult Ministry (장년부)":g;}
 function getSummerDongsanList(){const all=[];const seen=new Set();Object.values(dongsanNames).forEach(subs=>subs.forEach(s=>{if(!seen.has(s)){seen.add(s);all.push(s);}}));return all;}
-function renderGrpTabs(containerId,current,setter){
+function renderGrpTabs(containerId,current,setter,showInSummer){
   const el=document.getElementById(containerId);
-  if(summerMode){el.innerHTML="";el.style.display="none";return;}
+  // Summer mode normally hides department tabs (대학부·청년부 합동). The sheet and
+  // members tabs still expose them (showInSummer) so admins can filter by department.
+  if(summerMode&&!showInSummer){el.innerHTML="";el.style.display="none";return;}
   el.style.display="";
   let groups=getGroups();
   if(myAllowedGroups.length)groups=groups.filter(g=>myAllowedGroups.includes(g));
@@ -1429,8 +1435,8 @@ async function saveDongsanLeaders(group,subgroup){
 function renderAll(){
   const smb=document.getElementById("summer-mode-banner");if(smb)smb.style.display=summerMode?"block":"none";
   const dmb=document.getElementById("demo-mode-banner");if(dmb)dmb.style.display=demoMode?"block":"none";
-  renderStats();renderGrpTabs("sheet-grp-tabs",sheetGroup,"setSheetGroup");renderSubgroupTabs("sheet-subgrp-tabs",sheetGroup,sheetSubgroup,"setSheetSubgroup");renderGrpTabs("today-grp-tabs",todayGroup,"setTodayGroup");renderSubgroupTabs("today-subgrp-tabs",todayGroup,todaySubgroup,"setTodaySubgroup");renderGrpTabs("dev-grp-tabs",devGroup,"setDevGroup");renderSubgroupTabs("dev-subgrp-tabs",devGroup,devSubgroup,"setDevSubgroup");renderSheet();renderToday();renderDevices();renderDongsanEditor();renderDongsanLeadersEditor();renderLinkDropdown();renderLeaderDashboard();renderWeeklyComparison();if(chartsVisible)renderCharts();
-  // Always render 새가족 tab so it's never blank on first click
+  updateCheckinBtnVisibility();
+  renderStats();renderGrpTabs("sheet-grp-tabs",sheetGroup,"setSheetGroup",true);renderSubgroupTabs("sheet-subgrp-tabs",sheetGroup,sheetSubgroup,"setSheetSubgroup");renderGrpTabs("today-grp-tabs",todayGroup,"setTodayGroup",false);renderSubgroupTabs("today-subgrp-tabs",todayGroup,todaySubgroup,"setTodaySubgroup");renderGrpTabs("dev-grp-tabs",devGroup,"setDevGroup",true);renderSubgroupTabs("dev-subgrp-tabs",devGroup,devSubgroup,"setDevSubgroup");renderSheet();renderToday();renderDevices();renderDongsanEditor();renderDongsanLeadersEditor();renderLinkDropdown();renderLeaderDashboard();renderWeeklyComparison();if(chartsVisible)renderCharts();
   renderNewMembers();renderMonthlyRegistrations();
 }
 
@@ -1474,7 +1480,7 @@ function renderWeeklyComparison(){
   </div>`;
 }
 function renderStats(){
-  const grp=summerMode?"":(activeTab==="today"?todayGroup:activeTab==="members"?devGroup:sheetGroup);
+  const grp=activeTab==="today"?(summerMode?"":todayGroup):(activeTab==="members"?devGroup:sheetGroup);
   const sub=activeTab==="today"?todaySubgroup:activeTab==="members"?devSubgroup:sheetSubgroup;
   const td=today();
   const todayPeople=new Set();
@@ -1498,7 +1504,7 @@ function renderSheet(){
 
   if(!D.log.length){c.innerHTML=`<div style="padding:40px;text-align:center;color:var(--txt-d);font-size:13px;">${t('no_att_yet')}</div>`;return;}
 
-  const effSheetGroup=summerMode?"":sheetGroup;
+  const effSheetGroup=sheetGroup;
   if(viewMode==="grid"){
     const dates=[...new Set(D.log.map(e=>e.date))].sort();
     const members=getUniqueNames("","");
@@ -1554,7 +1560,7 @@ function flipCard(el){
 }
 function renderDevices(){
   const members=getUniqueNames("","");let names=sortNames(Object.keys(members));
-  const effDevGroup=summerMode?"":devGroup;
+  const effDevGroup=devGroup;
   if(effDevGroup)names=names.filter(n=>members[n].group===effDevGroup);
   if(devSubgroup)names=names.filter(n=>(members[n].subgroup||"")===devSubgroup);
   if(myAllowedGroups.length)names=names.filter(n=>isGroupAllowed(members[n].group||""));
@@ -1858,7 +1864,17 @@ async function listAdmins(){const pw=document.getElementById("acl-pw").value;if(
   const sub=[a.group,a.subgroup].filter(Boolean).join(" › ");
   const roleLbl=a.role==="super"?"Super Admin":a.role==="pastor"?"목사님/멘토님":a.role==="welcoming"?"새가족팀":(sub?`리더 · ${sub}`:"리더");
   const devInfo=a.deviceCount>1?`${esc(a.deviceId)} <span style="color:var(--acc);font-weight:600;">(${a.deviceCount} devices)</span>`:esc(a.deviceId);
-  return`<div style="padding:8px 12px;margin-bottom:4px;border-radius:8px;background:var(--card);border:1px solid var(--bdr);display:flex;justify-content:space-between;align-items:center;"><div><div style="font-size:13px;font-weight:600;">${esc(a.name)}</div><div class="mono" style="font-size:10px;color:var(--txt-d);">${devInfo}${sub?` · ${esc(sub)}`:""}</div></div><span class="tag ${roleCls}">${esc(roleLbl)}</span></div>`;}).join("");}
+  return`<div style="padding:8px 12px;margin-bottom:4px;border-radius:8px;background:var(--card);border:1px solid var(--bdr);display:flex;justify-content:space-between;align-items:center;gap:8px;"><div style="min-width:0;"><div style="font-size:13px;font-weight:600;">${esc(a.name)}</div><div class="mono" style="font-size:10px;color:var(--txt-d);">${devInfo}${sub?` · ${esc(sub)}`:""}</div></div><div style="display:flex;align-items:center;gap:6px;flex-shrink:0;"><span class="tag ${roleCls}">${esc(roleLbl)}</span><button title="${t('remove_admin_btn')}" onclick="removeAdminById('${esc(a.deviceId)}','${esc(a.name)}')" style="width:26px;height:26px;padding:0;background:none;border:1.5px solid rgba(251,113,133,.35);border-radius:7px;cursor:pointer;font-size:12px;font-weight:700;color:var(--red);display:flex;align-items:center;justify-content:center;">✕</button></div></div>`;}).join("");}
+// Remove an admin directly from the list (super admins only — enforced server-side).
+async function removeAdminById(did,name){
+  const pw=document.getElementById("acl-pw").value;
+  if(!pw){flash(t('enter_password'),"warn");return;}
+  confirmAction(t('remove_admin_confirm_fn')(name),async()=>{
+    const r=await api("POST","/api/admin/remove",{password:pw,targetDeviceId:did,adminDeviceId:deviceId});
+    if(r.error){flash(r.error,"err");return;}
+    flash(t('admin_removed_msg'));listAdmins();
+  },{icon:"🗑️"});
+}
 
 // ─── Notes ───
 let notesEditName=null;
@@ -1960,7 +1976,14 @@ async function saveIndividualCheckin(checked){
   const r=await api("POST","/api/config",{individualCheckinEnabled:checked,adminDeviceId:deviceId});
   if(r.error){flash(r.error,"err");document.getElementById("individual-checkin-toggle").checked=!checked;return;}
   individualCheckinEnabled=checked;
+  updateCheckinBtnVisibility();
   flash(checked?"📱 개별 체크인 활성화":"📱 개별 체크인 비활성화 — 키오스크 기본 모드");
+}
+// The green "← Check-in" header button only makes sense when individual check-in
+// mode is on; otherwise the Kiosk button is the entry point. Hide it when off.
+function updateCheckinBtnVisibility(){
+  const b=document.getElementById("back-checkin-btn");
+  if(b)b.style.display=individualCheckinEnabled?"":"none";
 }
 
 // ─── New Member (새가족) Registration ───
@@ -2492,7 +2515,7 @@ const STRINGS={
     name_required:"이름을 입력해주세요",member_updated_fn:n=>`업데이트됨: ${n}`,
     fill_id_and_name:"ID와 이름을 입력해주세요",registered_fn:n=>`등록됨: ${n}`,
     fill_both_fields:"두 항목 모두 입력해주세요",
-    admin_removed_msg:"관리자 삭제됨",enter_password:"비밀번호를 입력해주세요",
+    admin_removed_msg:"관리자 삭제됨",enter_password:"비밀번호를 입력해주세요",remove_admin_btn:"관리자 삭제",remove_admin_confirm_fn:(n)=>`"${n}" 관리자 권한을 삭제하시겠습니까?`,
     no_admins_msg:"관리자가 없습니다.",admins_count_fn:n=>`${n}명 관리자`,
     super_admin_label:"슈퍼 관리자",leader_admin_label:"리더",admin_added:"관리자 추가됨!",
     // Kiosk/admin nav
@@ -2764,7 +2787,7 @@ const STRINGS={
     name_required:"Name is required",member_updated_fn:n=>`Updated: ${n}`,
     fill_id_and_name:"Fill in ID and name",registered_fn:n=>`Registered: ${n}`,
     fill_both_fields:"Fill both fields",
-    admin_removed_msg:"Admin removed",enter_password:"Enter password",
+    admin_removed_msg:"Admin removed",enter_password:"Enter password",remove_admin_btn:"Remove admin",remove_admin_confirm_fn:(n)=>`Remove admin access for "${n}"?`,
     no_admins_msg:"No admins.",admins_count_fn:n=>`${n} admin(s)`,
     super_admin_label:"super admin",leader_admin_label:"leader",admin_added:"Admin added!",
     // Kiosk/admin nav
@@ -3360,25 +3383,33 @@ function renderKioskMembers(q){
   let names=sortNames(Object.keys(members)).filter(n=>!isVisitorMember(n));
   if(sq)names=names.filter(n=>n.toLowerCase().includes(sq));
   if(!names.length){el.innerHTML=`<div style="text-align:center;padding:48px 24px;color:var(--txt-d);font-size:14px;">${sq?t('kiosk_no_results'):t('kiosk_no_members')}</div>`;return;}
-  // Two fixed columns side by side: 대학부 / 청년부 — no 동산 subdivision.
-  const cols=[{key:"대학부",color:"#FBBF24"},{key:"청년부",color:"#60A5FA"}];
+  // Two departments side by side — 대학부 / 청년부 — each split into two
+  // sub-columns, giving four columns total. No 동산 subdivision.
+  const cols=[{key:"대학부",color:"#FBBF24",cls:"univ"},{key:"청년부",color:"#60A5FA",cls:"youth"}];
   const buckets={"대학부":[],"청년부":[]};const others=[];
   names.forEach(n=>{const g=members[n].group;if(g==="대학부"||g==="청년부")buckets[g].push(n);else others.push(n);});
-  const btn=name=>{const done=checkedSet.has(name);const total=totalForName(name);
-    return`<button class="kiosk-btn${done?" done":""}" onclick="kioskCheckin('${esc(name)}')">
+  const btn=(name,cls)=>{const done=checkedSet.has(name);const total=totalForName(name);
+    return`<button class="kiosk-btn ${cls}${done?" done":""}" onclick="kioskCheckin('${esc(name)}')">
       <span>${esc(name)}</span>
       <span style="font-size:10px;font-weight:600;${done?"":"color:var(--txt-d);"}">${done?STRINGS[lang].kiosk_checked(total):STRINGS[lang].kiosk_count_lbl(total)}</span>
     </button>`;};
   let html=`<div class="kiosk-cols">`;
   cols.forEach(c=>{
     const list=buckets[c.key];
-    html+=`<div class="kiosk-col"><div class="kiosk-col-head" style="color:${c.color};border-color:${c.color}55;">${esc(c.key)} <span style="color:var(--txt-d);font-weight:700;font-size:11px;">${list.length}</span></div>`;
-    html+=list.length?list.map(btn).join(""):`<div style="text-align:center;padding:20px 8px;color:var(--txt-d);font-size:12px;">${sq?t('kiosk_no_results'):"—"}</div>`;
+    // Split this department's members across two columns (down-then-across).
+    const half=Math.ceil(list.length/2);
+    const sub=[list.slice(0,half),list.slice(half)];
+    html+=`<div class="kiosk-dept"><div class="kiosk-col-head" style="color:${c.color};border-color:${c.color}55;">${esc(c.key)} <span style="color:var(--txt-d);font-weight:700;font-size:11px;">${list.length}</span></div>`;
+    if(list.length){
+      html+=`<div class="kiosk-dept-cols">`+sub.map(part=>`<div class="kiosk-col">${part.map(n=>btn(n,c.cls)).join("")}</div>`).join("")+`</div>`;
+    }else{
+      html+=`<div style="text-align:center;padding:20px 8px;color:var(--txt-d);font-size:12px;">${sq?t('kiosk_no_results'):"—"}</div>`;
+    }
     html+=`</div>`;
   });
   html+=`</div>`;
   if(others.length){
-    html+=`<div class="kiosk-group-label" style="margin-top:14px;">${t('kiosk_other')}</div><div class="kiosk-grid">`+others.map(btn).join("")+`</div>`;
+    html+=`<div class="kiosk-group-label" style="margin-top:14px;">${t('kiosk_other')}</div><div class="kiosk-grid">`+others.map(n=>btn(n,"")).join("")+`</div>`;
   }
   el.innerHTML=html;
 }
@@ -3411,9 +3442,9 @@ async function kioskCheckin(name){
           <div style="font-size:16px;font-weight:700;color:var(--acc);margin-bottom:6px;">${STRINGS[lang].kiosk_total_fn(total)}</div>
           <div style="font-size:12px;color:var(--txt-m);">${t('kiosk_records')} ${recentAttendanceDates(name).join(' · ')||t('kiosk_none')}</div>
         </div>
-        <div style="width:220px;height:3px;border-radius:2px;background:var(--bdr);margin:22px auto 0;overflow:hidden;"><div style="height:100%;background:var(--amber);border-radius:2px;animation:countdown 3s linear forwards;"></div></div>
+        <div style="width:220px;height:3px;border-radius:2px;background:var(--bdr);margin:22px auto 0;overflow:hidden;"><div style="height:100%;background:var(--amber);border-radius:2px;animation:countdown 1s linear forwards;"></div></div>
       </div>`;
-      setTimeout(()=>{so.style.display="none";renderKioskMembers(document.getElementById("kiosk-search").value);updateKioskCount();},3000);
+      setTimeout(()=>{so.style.display="none";renderKioskMembers(document.getElementById("kiosk-search").value);updateKioskCount();},1000);
     }else{
       if(navigator.vibrate)navigator.vibrate([100,50,200]);
       sc.innerHTML=`<div class="fi">
@@ -3423,9 +3454,9 @@ async function kioskCheckin(name){
         <div style="font-size:30px;font-weight:800;color:var(--acc);margin-bottom:8px;">${t('kiosk_ok')}</div>
         <div style="font-size:24px;font-weight:600;">${esc(name)}</div>
         <div style="margin-top:16px;padding:10px 24px;border-radius:12px;background:var(--acc-dim);border:1px solid rgba(52,211,153,.2);display:inline-block;"><span style="font-size:16px;font-weight:700;color:var(--acc);">${STRINGS[lang].kiosk_total_fn(total)}</span></div>
-        <div style="width:220px;height:3px;border-radius:2px;background:var(--bdr);margin:22px auto 0;overflow:hidden;"><div style="height:100%;background:var(--acc);border-radius:2px;animation:countdown 4s linear forwards;"></div></div>
+        <div style="width:220px;height:3px;border-radius:2px;background:var(--bdr);margin:22px auto 0;overflow:hidden;"><div style="height:100%;background:var(--acc);border-radius:2px;animation:countdown 1s linear forwards;"></div></div>
       </div>`;
-      setTimeout(()=>{so.style.display="none";renderKioskMembers(document.getElementById("kiosk-search").value);updateKioskCount();},4000);
+      setTimeout(()=>{so.style.display="none";renderKioskMembers(document.getElementById("kiosk-search").value);updateKioskCount();},1000);
     }
   }catch(e){
     sc.innerHTML=`<div class="fi"><div style="font-size:44px;margin-bottom:12px;">❌</div><div style="font-size:20px;font-weight:700;color:var(--red);margin-bottom:10px;">${t('kiosk_err')}</div><div style="font-size:11px;font-family:'IBM Plex Mono',monospace;color:var(--txt-m);padding:10px 14px;background:var(--bg);border-radius:8px;border:1px solid var(--bdr);word-break:break-word;max-width:300px;text-align:left;"><span style="color:var(--red);">${esc(e.name||"Error")}</span><br>${esc(e.message||"Unknown error")}</div></div>`;
@@ -3542,7 +3573,7 @@ function renderCharts(){
   const el=document.getElementById("charts-content");if(!el)return;
   if(!D.log.length){el.innerHTML=`<div style="color:var(--txt-d);text-align:center;padding:20px;font-size:13px;">${t('no_chart_data')}</div>`;return;}
   let logData=D.log;
-  const effSGrpC=summerMode?"":sheetGroup;
+  const effSGrpC=sheetGroup;
   if(effSGrpC)logData=logData.filter(e=>(dGroup(e.deviceId)||e.group||"")===effSGrpC);
   if(sheetSubgroup)logData=logData.filter(e=>(dSubgroup(e.deviceId)||e.subgroup||"")===sheetSubgroup);
   const dates=[...new Set(logData.map(e=>e.date))].sort();
