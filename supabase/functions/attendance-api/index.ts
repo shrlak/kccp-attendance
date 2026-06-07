@@ -63,6 +63,7 @@ function rowToDev(d: any) {
     isNewMember:d.is_new_member||false,
     newMemberEduWeek1:d.new_member_edu_week1||false,
     newMemberEduWeek2:d.new_member_edu_week2||false,
+    kakaoId:d.kakao_id||"",
   };
 }
 function rowToLog(e: any) { return {deviceId:e.device_id,name:e.name,group:e.group_name||"",subgroup:e.subgroup||"",date:e.date,time:e.time_str,ts:e.ts,locationVerified:e.location_verified,adminAdded:e.admin_added,manual:e.is_manual,bulk:e.is_bulk,guest:e.is_guest,firstVisit:e.first_visit,memberRole:e.member_role}; }
@@ -256,7 +257,7 @@ Deno.serve(async (req: Request) => {
 
     // Kiosk new member registration (새가족 등록)
     if(req.method==="POST"&&p==="/api/kiosk-new-member") {
-      const {name,group,subgroup,gender,phone,birthDate,baptismStatus,schoolOrWork,faithDuration,registrationDate,pastoralVisitRequested}=body;
+      const {name,group,subgroup,gender,phone,birthDate,baptismStatus,schoolOrWork,faithDuration,registrationDate,pastoralVisitRequested,kakaoId}=body;
       if(!name?.trim()) return fail(400,"name required");
       if(!group) return fail(400,"group required");
       const regDate=registrationDate||localDate();
@@ -275,6 +276,7 @@ Deno.serve(async (req: Request) => {
         registration_date:regDate,
         pastoral_visit_requested:!!pastoralVisitRequested,
         is_new_member:true,
+        kakao_id:kakaoId||"",
       });
       const today=localDate();
       const time=localTime();
@@ -293,7 +295,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if(req.method==="PUT"&&p==="/api/device") {
-      const {deviceId,name,group,subgroup,notes,memberRole,gender,phone,birthDate,baptismStatus,schoolOrWork,faithDuration,registrationDate,pastoralVisitRequested,isNewMember,newMemberEduWeek1,newMemberEduWeek2,adminDeviceId}=body;
+      const {deviceId,name,group,subgroup,notes,memberRole,gender,phone,birthDate,baptismStatus,schoolOrWork,faithDuration,registrationDate,pastoralVisitRequested,isNewMember,newMemberEduWeek1,newMemberEduWeek2,kakaoId,adminDeviceId}=body;
       if(!await isAdmin(sb,adminDeviceId)) return fail(403,"Not authorized");
       const {data:dev}=await sb.from("devices").select("*").eq("id",deviceId).single(); if(!dev) return ok({status:"ok"});
       const oldName=dev.name,newName=name?name.trim():oldName,newGroup=group!==undefined?group.trim():dev.group_name||"",newSub=subgroup!==undefined?subgroup.trim():dev.subgroup||"";
@@ -311,6 +313,7 @@ Deno.serve(async (req: Request) => {
       if(isNewMember!==undefined) upd.is_new_member=!!isNewMember;
       if(newMemberEduWeek1!==undefined) upd.new_member_edu_week1=!!newMemberEduWeek1;
       if(newMemberEduWeek2!==undefined) upd.new_member_edu_week2=!!newMemberEduWeek2;
+      if(kakaoId!==undefined) upd.kakao_id=kakaoId;
       if(oldName!==newName){await sb.from("devices").update(upd).eq("name",oldName);await sb.from("attendance_log").update({name:newName,group_name:newGroup,subgroup:newSub}).eq("name",oldName);}
       else{await sb.from("devices").update(upd).eq("id",deviceId);}
       await addAudit(sb,"device-edit",adminDeviceId,newName+" ("+deviceId+")");
