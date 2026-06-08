@@ -1,10 +1,11 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { verifyAdmin, scopeFilter } from "./auth.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type,X-Device-Id,Authorization,apikey",
+  "Access-Control-Allow-Headers": "Content-Type,X-Device-Id,X-Admin-Password,Authorization,apikey",
 };
 function localDate() { return new Date().toLocaleDateString("en-CA",{timeZone:"America/New_York"}); }
 function localTime() { return new Date().toLocaleTimeString("en-US",{timeZone:"America/New_York",hour:"2-digit",minute:"2-digit",second:"2-digit"}); }
@@ -188,9 +189,33 @@ Deno.serve(async (req: Request) => {
     if(req.method==="GET"&&p==="/api/health") return ok({status:"ok",ts:Date.now()});
 
     if(req.method==="GET"&&p==="/api/data") {
+      // Hardened: the full dump is super-admin only — closes the legacy world-readable PII hole.
+      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      if(role?.role!=="super_admin") return fail(403,"Not authorized");
       const [{data:devData},{data:logData}]=await Promise.all([sb.from("devices").select("*"),sb.from("attendance_log").select("*").order("ts",{ascending:false})]);
       const devices: Record<string,any>={}; (devData||[]).forEach((d:any)=>{devices[d.id]=rowToDev(d);});
       return ok({devices,log:(logData||[]).map(rowToLog)});
+    }
+
+    // ── Hardened admin auth: personal (non-ROSTER) device + master password; member_roles model ──
+    if(req.method==="POST"&&p==="/api/admin/verify") {
+      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      if(!role) return fail(401,"Not authorized");
+      return ok({role:role.role,group:role.group,subgroup:role.subgroup,ministry:role.ministry});
+    }
+
+    // Scoped roster (replaces the world-readable /api/data for staff): super/pastor → all
+    // members; leader → their 동산 (summer-mode 합동 handled by scopeFilter).
+    if(req.method==="GET"&&p==="/api/roster") {
+      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      if(!role) return fail(401,"Not authorized");
+      const cfg=await getCfg(sb); const scope=scopeFilter(role,!!cfg.summer_mode);
+      let mq:any=sb.from("members").select("*").order("name",{ascending:true});
+      if(!scope.all){mq=mq.in("group_name",scope.groups);if(scope.subgroup)mq=mq.eq("subgroup",scope.subgroup);}
+      const {data:members}=await mq;
+      const ids=(members||[]).map((m:any)=>m.id);
+      const {data:logs}=ids.length?await sb.from("attendance_log").select("*").in("member_id",ids).order("ts",{ascending:false}):{data:[] as any[]};
+      return ok({role:role.role,members:members||[],log:(logs||[]).map(rowToLog)});
     }
 
     if(req.method==="POST"&&p==="/api/check-admin") {
