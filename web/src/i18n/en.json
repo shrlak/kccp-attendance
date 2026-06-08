@@ -44,5 +44,6 @@
     "synced": "Attendance synced"
   },
   "announce": { "label": "Notice" },
-  "common": { "cancel": "Cancel", "save": "Save", "loading": "Loading…", "error": "Connection error", "retry": "Try again", "close": "Close" }
+  "common": { "cancel": "Cancel", "save": "Save", "loading": "Loading…", "error": "Connection error", "retry": "Try again", "close": "Close" },
+  "notFound": { "message": "We couldn’t find that page", "home": "Back to check-in" }
 }

@@ -4,6 +4,7 @@ import { createContext, useContext, useState, type ReactNode } from 'react'
 type Tone = 'ok' | 'warn' | 'err'
 interface ToastState { title: string; tone: Tone }
 const ToastCtx = createContext<(t: ToastState) => void>(() => {})
+// eslint-disable-next-line react-refresh/only-export-components -- the toast hook lives with its provider
 export const useToast = () => useContext(ToastCtx)
 
 const toneClass: Record<Tone, string> = {
