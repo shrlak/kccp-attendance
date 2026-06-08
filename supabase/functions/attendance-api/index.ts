@@ -259,6 +259,36 @@ Deno.serve(async (req: Request) => {
       return ok({status:"ok"});
     }
 
+    // Merge two members: reassign the source's devices + attendance into the target
+    // (inheriting the target's name/group/동산), then delete the source member. Scoped
+    // (a leader may only merge members in their own 동산); pastor read-only; audited.
+    if(req.method==="POST"&&p==="/api/admin/merge") {
+      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      if(!role) return fail(401,"Not authorized");
+      if(role.role==="pastor") return fail(403,"Read-only");
+      const {fromId,toId}=body; if(!fromId||!toId||fromId===toId) return fail(400,"fromId and a different toId required");
+      const {data:from}=await sb.from("members").select("name,group_name,subgroup").eq("id",fromId).single();
+      const {data:to}=await sb.from("members").select("name,group_name,subgroup").eq("id",toId).single();
+      if(!from||!to) return fail(404,"Member not found");
+      if(role.role!=="super_admin"){
+        const cfg=await getCfg(sb); const scope=scopeFilter(role,!!cfg.summer_mode);
+        if(!scope.all){
+          for(const mm of [from,to]){
+            if(!scope.groups.includes(mm.group_name)) return fail(403,"Out of scope");
+            if(scope.subgroup&&mm.subgroup!==scope.subgroup) return fail(403,"Out of scope");
+          }
+        }
+      }
+      // Reassign BEFORE deleting (devices.member_id is ON DELETE CASCADE). Migrated rows
+      // inherit the target's denormalized name/group/동산 — matches the legacy merge.
+      const denorm={name:to.name,group_name:to.group_name||"",subgroup:to.subgroup||""};
+      await sb.from("devices").update({member_id:toId,...denorm}).eq("member_id",fromId);
+      await sb.from("attendance_log").update({member_id:toId,...denorm}).eq("member_id",fromId);
+      await sb.from("members").delete().eq("id",fromId);
+      await addAudit(sb,"member-merge",xDev,from.name+" → "+to.name);
+      return ok({status:"ok"});
+    }
+
     if(req.method==="POST"&&p==="/api/check-admin") {
       const {deviceId}=body; const cfg=await getCfg(sb); const ads: any[]=cfg.admin_devices||[];
       const noAdminsYet=!ads.length;

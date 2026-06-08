@@ -166,3 +166,8 @@ export interface MemberEdit {
 // Edit a member (scoped server-side: leaders only their 동산; pastor read-only).
 export const updateMember = (memberId: string, fields: MemberEdit) =>
   api<{ status: string }>('PUT', '/api/admin/member', { memberId, ...fields })
+
+// Merge one member into another: the source's devices + attendance move to the target,
+// then the source member is deleted. Scoped + audited server-side (pastor read-only).
+export const mergeMembers = (fromId: string, toId: string) =>
+  api<{ status: string }>('POST', '/api/admin/merge', { fromId, toId })
