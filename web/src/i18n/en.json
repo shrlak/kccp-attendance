@@ -56,6 +56,16 @@
     "roster": "Roster",
     "noMembers": "No members to show",
     "scopeAll": "All",
-    "roles": { "super_admin": "Super admin", "leader": "Leader", "pastor": "Pastor", "welcoming": "Welcome team" }
+    "roles": { "super_admin": "Super admin", "leader": "Leader", "pastor": "Pastor", "welcoming": "Welcome team" },
+    "nav": { "roster": "Roster", "settings": "Settings" },
+    "settings": {
+      "checkinWindow": "Check-in window",
+      "checkinWindowDesc": "Set which day(s) and time check-in is open.",
+      "days": "Days",
+      "start": "Start",
+      "end": "End",
+      "save": "Save",
+      "saved": "Saved"
+    }
   }
 }
