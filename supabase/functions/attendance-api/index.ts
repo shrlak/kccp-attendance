@@ -218,6 +218,19 @@ Deno.serve(async (req: Request) => {
       return ok({role:role.role,members:members||[],log:(logs||[]).map(rowToLog)});
     }
 
+    // Settings (super-admin only): the adjustable check-in window — day(s) + start/end.
+    if(req.method==="POST"&&p==="/api/admin/settings") {
+      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      if(role?.role!=="super_admin") return fail(403,"Super admin required");
+      const {checkinDays,checkinStartMin,checkinEndMin}=body;
+      const upd: any={updated_at:new Date().toISOString()};
+      if(checkinDays!==undefined) upd.checkin_days=checkinDays;
+      if(checkinStartMin!==undefined) upd.checkin_start_min=Number(checkinStartMin);
+      if(checkinEndMin!==undefined) upd.checkin_end_min=Number(checkinEndMin);
+      await sb.from("config").update(upd).eq("id",1);
+      return ok({status:"ok"});
+    }
+
     if(req.method==="POST"&&p==="/api/check-admin") {
       const {deviceId}=body; const cfg=await getCfg(sb); const ads: any[]=cfg.admin_devices||[];
       const noAdminsYet=!ads.length;
