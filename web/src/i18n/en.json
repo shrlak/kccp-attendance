@@ -1,0 +1,29 @@
+{
+  "checkin": {
+    "greeting": "Welcome",
+    "button": "Check in",
+    "checking": "Checking in…",
+    "checkingLocation": "Checking location…",
+    "success": "Checked in",
+    "already": "Already checked in",
+    "guest": "Guest",
+    "share": "Share",
+    "admin": "Admin"
+  },
+  "register": {
+    "welcome": "Welcome!",
+    "enterName": "Please enter your name",
+    "firstVisit": "First time? Please find the welcome team~!",
+    "namePlaceholder": "Name",
+    "groupPlaceholder": "Select your group~",
+    "save": "Save & check in"
+  },
+  "restriction": {
+    "time": "Check-in is not open right now",
+    "day": "Today is not a check-in day",
+    "locationRequired": "Location is required. Please allow location access.",
+    "locationFar": "You can only check in near the church."
+  },
+  "offline": { "queued": "Offline — saved to queue", "synced": "Attendance synced" },
+  "common": { "cancel": "Cancel", "save": "Save", "loading": "Loading…", "error": "Connection error" }
+}

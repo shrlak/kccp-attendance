@@ -1,0 +1,29 @@
+{
+  "checkin": {
+    "greeting": "환영합니다",
+    "button": "체크인",
+    "checking": "출석 확인 중…",
+    "checkingLocation": "위치 확인 중…",
+    "success": "체크인 완료",
+    "already": "이미 출석했습니다",
+    "guest": "방문자",
+    "share": "공유",
+    "admin": "관리자"
+  },
+  "register": {
+    "welcome": "환영합니다!",
+    "enterName": "이름을 입력해주세요",
+    "firstVisit": "첫 방문이시라면 새가족팀을 찾아주세요~!",
+    "namePlaceholder": "이름",
+    "groupPlaceholder": "부서를 선택해주세요~",
+    "save": "저장 후 출석"
+  },
+  "restriction": {
+    "time": "출석 시간이 아닙니다",
+    "day": "출석 가능한 요일이 아닙니다",
+    "locationRequired": "위치 정보가 필요합니다. 위치 접근을 허용해주세요.",
+    "locationFar": "교회 근처에서만 출석할 수 있습니다."
+  },
+  "offline": { "queued": "오프라인 — 대기열에 저장됨", "synced": "출석이 동기화되었습니다" },
+  "common": { "cancel": "취소", "save": "저장", "loading": "불러오는 중…", "error": "연결 오류" }
+}
