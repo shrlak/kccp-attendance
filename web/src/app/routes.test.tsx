@@ -35,4 +35,9 @@ describe('routes', () => {
     renderAt('/admin')
     expect(screen.getByText(/admin/i)).toBeInTheDocument()
   })
+
+  it('renders the 404 page for an unknown path', () => {
+    renderAt('/does-not-exist')
+    expect(screen.getByText('404')).toBeInTheDocument()
+  })
 })

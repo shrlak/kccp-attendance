@@ -25,5 +25,6 @@
     "locationFar": "교회 근처에서만 출석할 수 있습니다."
   },
   "offline": { "queued": "오프라인 — 대기열에 저장됨", "synced": "출석이 동기화되었습니다" },
-  "common": { "cancel": "취소", "save": "저장", "loading": "불러오는 중…", "error": "연결 오류" }
+  "common": { "cancel": "취소", "save": "저장", "loading": "불러오는 중…", "error": "연결 오류" },
+  "notFound": { "message": "페이지를 찾을 수 없습니다", "home": "홈으로 돌아가기" }
 }
