@@ -33,3 +33,8 @@ Thumbs.db
 .claude/
 docs/
 .superpowers/
+
+# React re-platform app (web/) — keep its package manifests tracked
+# (root patterns above ignore package.json / package-lock.json globally)
+!web/package.json
+!web/package-lock.json
