@@ -1,18 +1,14 @@
 -- Admin roles by PERSONAL DEVICE + master password (no email / no Supabase Auth).
 --
--- Per the chosen model: admin access = a personal device (any id that is NOT a
--- ROSTER-## seed stub) whose member holds a role, gated by the shared master
--- password. Roles attach to a member (so all of that person's personal devices
--- count) and NEVER to ROSTER placeholders.
+-- Admin access = a personal device (any id NOT starting with ROSTER-) whose member
+-- holds a role here, gated by the master password. The master password is NOT stored
+-- in the DB — it lives at the top of the edge function code
+-- (supabase/functions/attendance-api/auth.ts → MASTER_PASSWORD), so rotating it is a
+-- one-line change. Roles attach to a member (so all of that person's personal devices
+-- count) and NEVER to ROSTER-## seed stubs.
 --
--- This replaces the legacy config.admin_devices JSONB blob with a real table keyed
--- by member_id, and replaces the plaintext config.admin_password with a bcrypt hash.
---
--- SAFE TO APPLY EARLY: additive (new table + column + function). Seeding roles and
--- setting the password hash happens at cutover. Validate on a Supabase branch
--- (free-tier: local `supabase start`).
-
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
+-- SAFE TO APPLY EARLY: additive (new table). Role rows are seeded by the backfill
+-- (20260619) for personal-device admins only. Validate free-tier (rollback probe / CI).
 
 CREATE TABLE IF NOT EXISTS member_roles (
   member_id  uuid PRIMARY KEY REFERENCES members(id) ON DELETE CASCADE,
@@ -22,17 +18,3 @@ CREATE TABLE IF NOT EXISTS member_roles (
   ministry   text DEFAULT '',
   created_at timestamptz DEFAULT now()
 );
-
--- Hashed master password (replaces plaintext config.admin_password). Set at cutover:
---   UPDATE config SET admin_password_hash = crypt('<master password>', gen_salt('bf')) WHERE id = 1;
-ALTER TABLE config ADD COLUMN IF NOT EXISTS admin_password_hash text;
-
--- Server-side password check (SECURITY DEFINER so it works under RLS). The edge
--- function calls this via RPC; the plaintext password never leaves the request.
-CREATE OR REPLACE FUNCTION check_admin_password(pw text) RETURNS boolean
-LANGUAGE sql SECURITY DEFINER AS $$
-  SELECT c.admin_password_hash IS NOT NULL
-     AND c.admin_password_hash = crypt(pw, c.admin_password_hash)
-  FROM config c WHERE c.id = 1;
-$$;
-REVOKE ALL ON FUNCTION check_admin_password(text) FROM anon, authenticated;

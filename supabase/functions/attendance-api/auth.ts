@@ -2,13 +2,19 @@
 //
 // Model: NO email / NO Supabase Auth. Admin access = a PERSONAL device (any id that
 // is not a ROSTER-## seed stub) whose member holds a role in `member_roles`, gated by
-// the shared master password (hashed, verified server-side). Public check-in stays
-// anonymous and PII-free.
+// the shared master password below. Public check-in stays anonymous and PII-free.
 //
 // NOT YET WIRED INTO index.ts — that integration ships with the coordinated cutover
 // (plan Phase F). Import-clean and unit-tested (auth.test.ts).
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  MASTER ADMIN PASSWORD — change this one line when you need to rotate it (or set
+//  a MASTER_PASSWORD env var to override without editing code). Gates ALL admin
+//  access, alongside a personal (non-ROSTER) device.
+export const MASTER_PASSWORD = Deno.env.get("MASTER_PASSWORD") ?? "kccpwelcome";
+// ─────────────────────────────────────────────────────────────────────────────
 
 export type AdminRole = "super_admin" | "leader" | "pastor" | "welcoming";
 
@@ -49,8 +55,7 @@ type SB = ReturnType<typeof createClient>;
 // correct master password. Returns the role+scope, or null if any check fails.
 export async function verifyAdmin(sb: SB, deviceId: string, password: string): Promise<Role | null> {
   if (!isPersonalDevice(deviceId)) return null;
-  const { data: ok } = await sb.rpc("check_admin_password", { pw: password ?? "" });
-  if (ok !== true) return null;
+  if (password !== MASTER_PASSWORD) return null;
   const { data: dev } = await sb.from("devices").select("member_id").eq("id", deviceId).single();
   const memberId = (dev as { member_id?: string } | null)?.member_id;
   if (!memberId) return null;

@@ -32,6 +32,11 @@ CREATE TABLE IF NOT EXISTS members (
   updated_at timestamptz DEFAULT now()
 );
 
+-- Defensive: the live DB has drifted — the 20260614 kakao_id migration was never
+-- applied to production, so guarantee the column exists before the backfill copies it.
+-- No-op where it already exists.
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS kakao_id text DEFAULT '';
+
 ALTER TABLE devices        ADD COLUMN IF NOT EXISTS member_id uuid REFERENCES members(id) ON DELETE CASCADE;
 ALTER TABLE attendance_log ADD COLUMN IF NOT EXISTS member_id uuid REFERENCES members(id) ON DELETE SET NULL;
 
