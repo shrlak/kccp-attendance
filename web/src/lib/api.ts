@@ -5,10 +5,24 @@ const API_BASE =
   'https://loovulhchmmwagtvjnhc.supabase.co/functions/v1/attendance-api'
 type Method = 'GET' | 'POST' | 'PUT' | 'DELETE'
 
-export async function api<T = unknown>(method: Method, path: string, body?: unknown): Promise<T> {
+let adminPassword: string | null = null
+// Set by the admin auth store after a successful verify; attached to every admin request
+// alongside the X-Device-Id header (admin = personal device + master password).
+export function setAdminPassword(pw: string | null) {
+  adminPassword = pw
+}
+
+export async function api<T = unknown>(
+  method: Method,
+  path: string,
+  body?: unknown,
+  extraHeaders?: Record<string, string>,
+): Promise<T> {
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), 12_000)
   const headers: Record<string, string> = { 'X-Device-Id': getDeviceId() }
+  if (adminPassword) headers['X-Admin-Password'] = adminPassword
+  if (extraHeaders) Object.assign(headers, extraHeaders)
   if (body) headers['Content-Type'] = 'application/json'
   try {
     const resp = await fetch(API_BASE + path, {
@@ -81,3 +95,39 @@ export interface SelfRegisterResponse {
 
 export const selfRegister = (name: string, group: string, subgroup = '') =>
   api<SelfRegisterResponse>('POST', '/api/self-register', { deviceId: getDeviceId(), name, group, subgroup })
+
+// ── Admin (hardened: personal device + master password) ───────────────────
+export type AdminRole = 'super_admin' | 'leader' | 'pastor' | 'welcoming'
+
+export interface AdminIdentity {
+  role: AdminRole
+  group: string
+  subgroup: string
+  ministry: string
+}
+
+// Verify the master password against this device's role. The password is sent as a
+// one-off header here (before the store has persisted it).
+export const adminVerify = (password: string) =>
+  api<AdminIdentity>('POST', '/api/admin/verify', undefined, { 'X-Admin-Password': password })
+
+export interface Member {
+  id: string
+  name: string
+  group_name: string
+  subgroup: string
+  member_role: string
+  phone: string
+  birth_date: string | null
+  kakao_id: string
+  is_new_member: boolean
+}
+
+export interface RosterResponse {
+  role: AdminRole
+  members: Member[]
+  log: unknown[]
+}
+
+// The role-scoped roster (super/pastor → all; leader → their 동산).
+export const getRoster = () => api<RosterResponse>('GET', '/api/roster')

@@ -1,7 +1,8 @@
+import { useAdminAuth } from '../../stores/useAdminAuth'
+import { LoginGate } from './LoginGate'
+import { AdminHome } from './AdminHome'
+
 export function AdminShell() {
-  return (
-    <main className="min-h-dvh grid place-items-center text-muted font-mono text-sm">
-      Admin — coming in Phase 1
-    </main>
-  )
+  const status = useAdminAuth((s) => s.status)
+  return status === 'authed' ? <AdminHome /> : <LoginGate />
 }
