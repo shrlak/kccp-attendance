@@ -131,3 +131,8 @@ export interface RosterResponse {
 
 // The role-scoped roster (super/pastor → all; leader → their 동산).
 export const getRoster = () => api<RosterResponse>('GET', '/api/roster')
+
+// Update the adjustable check-in window (super-admin). The master password rides the
+// X-Admin-Password header set by the auth store.
+export const updateCheckinWindow = (checkinDays: number[], checkinStartMin: number, checkinEndMin: number) =>
+  api<{ status: string }>('POST', '/api/admin/settings', { checkinDays, checkinStartMin, checkinEndMin })

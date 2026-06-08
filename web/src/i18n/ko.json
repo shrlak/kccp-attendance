@@ -56,6 +56,16 @@
     "roster": "명단",
     "noMembers": "표시할 멤버가 없습니다",
     "scopeAll": "전체",
-    "roles": { "super_admin": "최고관리자", "leader": "리더", "pastor": "목사님", "welcoming": "새가족팀" }
+    "roles": { "super_admin": "최고관리자", "leader": "리더", "pastor": "목사님", "welcoming": "새가족팀" },
+    "nav": { "roster": "명단", "settings": "설정" },
+    "settings": {
+      "checkinWindow": "출석 시간",
+      "checkinWindowDesc": "출석 가능한 요일과 시간을 설정합니다.",
+      "days": "요일",
+      "start": "시작",
+      "end": "종료",
+      "save": "저장",
+      "saved": "저장되었습니다"
+    }
   }
 }
