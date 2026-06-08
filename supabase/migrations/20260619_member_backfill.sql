@@ -38,8 +38,13 @@ UPDATE attendance_log a SET member_id = d.member_id
 UPDATE attendance_log a SET member_id = m.id
   FROM members m WHERE a.member_id IS NULL AND a.name = m.name;
 
--- 4) Migrate admin roles to member_roles — PERSONAL-device grants only. ROSTER-stub
---    grants are dropped (re-register to regain). Legacy role strings map: super→super_admin.
+-- 4) Migrate ALL admin roles to member_roles, keyed by member — ROSTER-stub grants are
+--    KEPT (per maintainer). The role lives on the member, so it survives the device
+--    transition: a holder whose member is currently only a ROSTER stub keeps the role,
+--    and it becomes usable once they register their own personal device (auth still
+--    requires a personal, non-ROSTER device + master password — see auth.ts). Legacy
+--    role maps super→super_admin. Tiebreak prefers 'super', then a personal device, if a
+--    member somehow has multiple grants.
 INSERT INTO member_roles (member_id, role, group_name, subgroup, ministry)
 SELECT DISTINCT ON (d.member_id)
   d.member_id,
@@ -50,7 +55,8 @@ SELECT DISTINCT ON (d.member_id)
   COALESCE(e->>'group',''), COALESCE(e->>'subgroup',''), COALESCE(e->>'ministry','')
 FROM config c, jsonb_array_elements(c.admin_devices) e
 JOIN devices d ON d.id = (e->>'deviceId')
-WHERE c.id = 1
-  AND (e->>'deviceId') NOT LIKE 'ROSTER-%'
-  AND d.member_id IS NOT NULL
+WHERE c.id = 1 AND d.member_id IS NOT NULL
+ORDER BY d.member_id,
+  (CASE WHEN e->>'role' = 'super' THEN 0 ELSE 1 END),
+  (d.id NOT LIKE 'ROSTER-%') DESC
 ON CONFLICT (member_id) DO NOTHING;
