@@ -15,9 +15,11 @@
     "@radix-ui/react-dialog": "^1.1.16",
     "@radix-ui/react-toast": "^1.2.16",
     "@tailwindcss/vite": "^4.3.0",
+    "i18next": "^26.3.1",
     "lucide-react": "^1.17.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
+    "react-i18next": "^17.0.8",
     "tailwindcss": "^4.3.0"
   },
   "devDependencies": {
