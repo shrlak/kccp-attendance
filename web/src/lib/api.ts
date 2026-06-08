@@ -123,10 +123,21 @@ export interface Member {
   is_new_member: boolean
 }
 
+export interface LogEntry {
+  name: string
+  group: string
+  subgroup: string
+  date: string
+  time: string
+  ts: number
+  firstVisit?: boolean
+  memberRole?: string
+}
+
 export interface RosterResponse {
   role: AdminRole
   members: Member[]
-  log: unknown[]
+  log: LogEntry[]
 }
 
 // The role-scoped roster (super/pastor → all; leader → their 동산).

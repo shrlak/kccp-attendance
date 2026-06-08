@@ -57,7 +57,8 @@
     "noMembers": "No members to show",
     "scopeAll": "All",
     "roles": { "super_admin": "Super admin", "leader": "Leader", "pastor": "Pastor", "welcoming": "Welcome team" },
-    "nav": { "roster": "Roster", "settings": "Settings" },
+    "nav": { "today": "Today", "roster": "Roster", "settings": "Settings" },
+    "today": { "title": "Today", "none": "No check-ins yet", "thisWeek": "This week", "lastWeek": "Last week", "change": "Change" },
     "settings": {
       "checkinWindow": "Check-in window",
       "checkinWindowDesc": "Set which day(s) and time check-in is open.",
