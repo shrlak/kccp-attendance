@@ -12,7 +12,7 @@ const variants: Record<Variant, string> = {
   primary: 'bg-primary text-primary-fg hover:bg-primary-hover',
   secondary: 'bg-surface text-text border border-border hover:bg-surface-alt',
   ghost: 'bg-transparent text-primary hover:bg-primary/10',
-  danger: 'bg-danger text-white',
+  danger: 'bg-danger text-white hover:bg-danger/90',
 }
 const sizes: Record<Size, string> = {
   md: 'px-4 py-2.5 text-sm rounded-md',

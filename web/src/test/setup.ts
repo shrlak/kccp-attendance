@@ -21,6 +21,6 @@ if (typeof globalThis.localStorage === 'undefined') {
     removeItem: (key: string) => { delete store[key] },
     clear: () => { Object.keys(store).forEach(k => delete store[k]) },
     key: (index: number) => Object.keys(store)[index] ?? null,
-    length: Object.keys(store).length,
+    get length() { return Object.keys(store).length },
   } as Storage
 }

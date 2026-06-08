@@ -32,4 +32,9 @@ describe('api', () => {
     await api('GET', '/api/data')
     expect(fetchMock.mock.calls[0][1].headers['X-Device-Id']).toBe(getDeviceId())
   })
+  it('throws on a non-2xx response, surfacing the server error message', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ error: 'Not authorized' }), { status: 403 })))
+    await expect(api('GET', '/api/data')).rejects.toThrow('Not authorized')
+  })
 })
