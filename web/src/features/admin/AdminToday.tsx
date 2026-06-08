@@ -4,37 +4,76 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useRoster } from './useRoster'
 import { easternNow } from '../../lib/checkinWindow'
 import { todaysCheckins, weeklyComparison, presentNamesToday, checkinCandidates } from './today'
+import { filterMembers, filterLog, NO_FILTER, type Filter } from './filters'
+import { computeStats, leaderDashboard } from './stats'
+import { GroupFilter } from './GroupFilter'
+import { StatsBar } from './StatsBar'
 import { memberCheckin, type Member, type RosterResponse } from '../../lib/api'
 import { Dialog } from '../../components/ui/Dialog'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
 
-// Today's live check-in list (scoped) + a this-week-vs-last-week comparison, plus a
-// manual check-in (any admin except pastor).
+// Today's live check-in list (scoped) + stats bar, 부서/동산 filter, weekly comparison,
+// a 동산 leader dashboard, and a manual check-in (any admin except pastor).
 export function AdminToday() {
   const { t } = useTranslation()
   const { data, isLoading, isError } = useRoster(true)
   const [checkin, setCheckin] = useState(false)
+  const [filter, setFilter] = useState<Filter>(NO_FILTER)
 
   if (isLoading) return <p className="text-sm text-muted">{t('common.loading')}</p>
   if (isError) return <p className="text-sm text-danger">{t('common.error')}</p>
   if (!data) return null
 
   const today = easternNow().date
-  const todays = todaysCheckins(data.log, today)
-  const wk = weeklyComparison(data.log, today)
+  const members = filterMembers(data.members, filter)
+  const log = filterLog(data.log, filter)
+  const todays = todaysCheckins(log, today)
+  const wk = weeklyComparison(log, today)
   const arrow = wk.delta > 0 ? '↑' : wk.delta < 0 ? '↓' : '→'
   const arrowClass = wk.delta > 0 ? 'text-success' : wk.delta < 0 ? 'text-danger' : 'text-muted'
   const canCheckin = data.role !== 'pastor'
 
+  // The 동산 dashboard shows whenever a single 동산 is in view (a leader's roster, or a
+  // super-admin filtered down to one 동산).
+  const distinctSubs = new Set(members.map((m) => m.subgroup).filter(Boolean))
+  const dash = distinctSubs.size === 1 && members.length > 0 ? leaderDashboard(members, log, today) : null
+
   return (
     <>
+      <StatsBar stats={computeStats(members, log, today)} />
+      <GroupFilter members={data.members} value={filter} onChange={setFilter} />
+
       <div className="mb-5 grid grid-cols-3 gap-2">
         <Stat label={t('admin.today.thisWeek')} value={String(wk.thisWeek)} />
         <Stat label={t('admin.today.lastWeek')} value={String(wk.lastWeek)} />
         <Stat label={t('admin.today.change')} value={`${arrow} ${Math.abs(wk.delta)}`} valueClass={arrowClass} />
       </div>
+
+      {dash && (
+        <div className="mb-5 rounded-lg border-l-4 border-primary bg-surface px-4 py-3">
+          <div className="mb-2 flex items-center gap-4 text-sm">
+            <span className="font-semibold text-text">
+              {t('admin.dashboard.present')} <span className="text-success">{dash.present}</span> / {dash.total}
+            </span>
+            <span className="text-muted">
+              {t('admin.dashboard.avgRate')}{' '}
+              <span className={dash.avgRate >= 80 ? 'text-success' : dash.avgRate >= 60 ? 'text-warning' : 'text-danger'}>
+                {dash.avgRate}%
+              </span>
+            </span>
+          </div>
+          {dash.absent > 0 && (
+            <div className="text-xs text-muted">
+              <span className="font-semibold">
+                {t('admin.dashboard.absent')} ({dash.absent}):
+              </span>{' '}
+              {dash.absentNames.join(', ')}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="mb-3 flex items-center justify-between">
         <span className="font-mono text-xs uppercase tracking-wide text-subtle">

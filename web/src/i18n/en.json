@@ -58,9 +58,12 @@
     "scopeAll": "All",
     "roles": { "super_admin": "Super admin", "leader": "Leader", "pastor": "Pastor", "welcoming": "Welcome team" },
     "nav": { "today": "Today", "sheet": "Sheet", "members": "Members", "settings": "Settings" },
+    "filter": { "all": "All" },
+    "stats": { "today": "Today", "members": "Members", "records": "Records", "days": "Days" },
+    "dashboard": { "present": "Present", "absent": "Absent", "avgRate": "4-wk avg" },
     "members": { "search": "Search name", "edit": "Edit member", "saved": "Saved", "name": "Name", "group": "Group", "subgroup": "동산", "memberRole": "Role", "gender": "Gender", "phone": "Phone", "kakaoId": "KakaoTalk ID", "birthDate": "Birthday", "notes": "Notes", "isNewMember": "New member", "merge": { "action": "Merge", "title": "Merge members", "help": "Move one member's devices and attendance into another, then delete the original. This cannot be undone.", "from": "Member to merge (removed)", "to": "Member to keep", "warn": "{{summary}} — this cannot be undone.", "confirm": "Merge", "done": "Members merged" }, "attendance": { "action": "Attendance", "title": "Attendance", "date": "Date", "add": "Add", "remove": "Remove", "total": "{{n}} record(s)", "empty": "No attendance records", "added": "Attendance added", "removed": "Attendance removed", "already": "An entry for that date already exists" } },
     "today": { "title": "Today", "none": "No check-ins yet", "thisWeek": "This week", "lastWeek": "Last week", "change": "Change", "manualCheckin": { "action": "Check in", "title": "Manual check-in", "present": "Present", "none": "No members found", "done": "Checked in {{name}}", "already": "{{name}} is already checked in" } },
-    "sheet": { "grid": "Grid", "log": "Log", "total": "Total", "empty": "No attendance records yet" },
+    "sheet": { "grid": "Grid", "log": "Log", "total": "Total", "empty": "No attendance records yet", "bulk": { "action": "Bulk", "title": "Bulk attendance", "date": "Date", "selected": "{{n}} selected", "all": "Select all", "none": "Clear", "confirm": "Check in {{n}}", "done": "Checked in {{n}}" } },
     "settings": {
       "checkinWindow": "Check-in window",
       "checkinWindowDesc": "Set which day(s) and time check-in is open.",
