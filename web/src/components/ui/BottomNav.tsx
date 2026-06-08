@@ -18,6 +18,7 @@ export function BottomNav({ items, active, onSelect }: BottomNavProps) {
           <button key={id} type="button" onClick={() => onSelect(id)}
             aria-current={isActive ? 'page' : undefined}
             className={`flex-1 flex flex-col items-center gap-0.5 py-2 min-h-11 text-[10px] font-semibold font-sans
+                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary
                         ${isActive ? 'text-primary' : 'text-subtle'}`}>
             <Icon size={20} strokeWidth={2} aria-hidden />
             <span>{label}</span>
