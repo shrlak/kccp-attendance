@@ -4,10 +4,10 @@ import { useAdminAuth } from '../../stores/useAdminAuth'
 import { Button } from '../../components/ui/Button'
 import { AdminToday } from './AdminToday'
 import { AdminSheet } from './AdminSheet'
-import { AdminRoster } from './AdminRoster'
+import { AdminMembers } from './AdminMembers'
 import { AdminSettings } from './AdminSettings'
 
-type Tab = 'today' | 'sheet' | 'roster' | 'settings'
+type Tab = 'today' | 'sheet' | 'members' | 'settings'
 
 // Authenticated admin layout: header (who/scope/sign-out) + tab nav. Settings is
 // super-admin only. Today/Sheet/Members slot in as further tabs in later phases.
@@ -46,8 +46,8 @@ export function AdminApp() {
           <TabBtn active={tab === 'sheet'} onClick={() => setTab('sheet')}>
             {t('admin.nav.sheet')}
           </TabBtn>
-          <TabBtn active={tab === 'roster'} onClick={() => setTab('roster')}>
-            {t('admin.nav.roster')}
+          <TabBtn active={tab === 'members'} onClick={() => setTab('members')}>
+            {t('admin.nav.members')}
           </TabBtn>
           {isSuper && (
             <TabBtn active={tab === 'settings'} onClick={() => setTab('settings')}>
@@ -60,7 +60,7 @@ export function AdminApp() {
       <div className="px-5 py-4">
         {tab === 'today' && <AdminToday />}
         {tab === 'sheet' && <AdminSheet />}
-        {tab === 'roster' && <AdminRoster />}
+        {tab === 'members' && <AdminMembers />}
         {tab === 'settings' && isSuper && <AdminSettings />}
       </div>
     </main>

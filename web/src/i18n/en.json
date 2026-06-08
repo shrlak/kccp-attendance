@@ -57,7 +57,8 @@
     "noMembers": "No members to show",
     "scopeAll": "All",
     "roles": { "super_admin": "Super admin", "leader": "Leader", "pastor": "Pastor", "welcoming": "Welcome team" },
-    "nav": { "today": "Today", "sheet": "Sheet", "roster": "Roster", "settings": "Settings" },
+    "nav": { "today": "Today", "sheet": "Sheet", "members": "Members", "settings": "Settings" },
+    "members": { "search": "Search name", "edit": "Edit member", "saved": "Saved", "name": "Name", "group": "Group", "subgroup": "동산", "memberRole": "Role", "gender": "Gender", "phone": "Phone", "kakaoId": "KakaoTalk ID", "birthDate": "Birthday", "notes": "Notes", "isNewMember": "New member" },
     "today": { "title": "Today", "none": "No check-ins yet", "thisWeek": "This week", "lastWeek": "Last week", "change": "Change" },
     "sheet": { "grid": "Grid", "log": "Log", "total": "Total", "empty": "No attendance records yet" },
     "settings": {

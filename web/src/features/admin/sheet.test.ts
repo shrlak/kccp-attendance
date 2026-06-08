@@ -3,7 +3,7 @@ import { buildGrid, shortDate } from './sheet'
 import type { Member, LogEntry } from '../../lib/api'
 
 const member = (id: string, name: string): Member => ({
-  id, name, group_name: '', subgroup: '', member_role: '', phone: '', birth_date: null, kakao_id: '', is_new_member: false,
+  id, name, group_name: '', subgroup: '', member_role: '', gender: '', phone: '', birth_date: null, kakao_id: '', is_new_member: false, notes: '',
 })
 const entry = (name: string, date: string, ts: number): LogEntry => ({
   name, group: '', subgroup: '', date, time: '', ts,
