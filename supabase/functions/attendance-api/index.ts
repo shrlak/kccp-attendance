@@ -366,6 +366,37 @@ Deno.serve(async (req: Request) => {
       return ok({status:"ok"});
     }
 
+    // Bulk attendance — add an entry for many members on a chosen date. Hardened,
+    // member-id based; pastor read-only; out-of-scope members are silently dropped;
+    // members already present on that date are skipped; audited. Returns the count added.
+    if(req.method==="POST"&&p==="/api/admin/log/add-bulk") {
+      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      if(!role) return fail(401,"Not authorized");
+      if(role.role==="pastor") return fail(403,"Read-only");
+      const {memberIds,date}=body;
+      if(!Array.isArray(memberIds)||!memberIds.length||!date||!/^\d{4}-\d{2}-\d{2}$/.test(date)) return fail(400,"memberIds[] and a YYYY-MM-DD date required");
+      const {data:mem}=await sb.from("members").select("id,name,group_name,subgroup,member_role").in("id",memberIds);
+      let scoped=mem||[];
+      if(role.role!=="super_admin"){
+        const cfg=await getCfg(sb); const scope=scopeFilter(role,!!cfg.summer_mode);
+        if(!scope.all) scoped=scoped.filter((m:any)=>scope.groups.includes(m.group_name)&&(!scope.subgroup||m.subgroup===scope.subgroup));
+      }
+      if(!scoped.length) return ok({status:"ok",added:0});
+      const ids=scoped.map((m:any)=>m.id);
+      const {data:existing}=await sb.from("attendance_log").select("member_id").in("member_id",ids).eq("date",date);
+      const have=new Set((existing||[]).map((e:any)=>e.member_id));
+      const toAdd=scoped.filter((m:any)=>!have.has(m.id));
+      if(toAdd.length){
+        const {data:devs}=await sb.from("devices").select("id,member_id").in("member_id",toAdd.map((m:any)=>m.id));
+        const devByMember: Record<string,string>={}; (devs||[]).forEach((d:any)=>{if(!devByMember[d.member_id])devByMember[d.member_id]=d.id;});
+        const now=Date.now();
+        const rows=toAdd.map((m:any,i:number)=>({device_id:devByMember[m.id]||("MANUAL-"+(now+i)),member_id:m.id,name:m.name,group_name:m.group_name||"",subgroup:m.subgroup||"",date,time_str:localTime(),ts:now+i,is_manual:true,is_bulk:true,admin_added:true,member_role:m.member_role||null}));
+        await sb.from("attendance_log").insert(rows);
+      }
+      await addAudit(sb,"bulk-add",xDev,date+" | "+toAdd.length+" members");
+      return ok({status:"ok",added:toAdd.length});
+    }
+
     if(req.method==="POST"&&p==="/api/check-admin") {
       const {deviceId}=body; const cfg=await getCfg(sb); const ads: any[]=cfg.admin_devices||[];
       const noAdminsYet=!ads.length;

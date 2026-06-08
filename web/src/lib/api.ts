@@ -194,3 +194,8 @@ export const addMemberAttendance = (memberId: string, date: string) =>
 // Remove a single attendance entry by its row id. Scoped + audited; pastor read-only.
 export const removeAttendance = (logId: number) =>
   api<{ status: string }>('POST', '/api/admin/log/remove', { logId })
+
+// Add an entry for many members on a chosen date. Out-of-scope members are dropped and
+// already-present ones skipped server-side; returns how many were actually added.
+export const addBulkAttendance = (memberIds: string[], date: string) =>
+  api<{ status: string; added: number }>('POST', '/api/admin/log/add-bulk', { memberIds, date })
