@@ -1,7 +1,9 @@
 # Auth + Stable Member IDs + RLS + Coordinated Cutover — Design
 
 **Date:** 2026-06-08
-**Status:** DRAFT — pending user sign-off (nothing touches production until approved)
+**Status:** D1–D5 SIGNED OFF (2026-06-08). Nothing touches production until the coordinated cutover.
+
+> **REVISION 2026-06-08 (per maintainer):** **D2 changed** — admin auth is **device-id + master password** (legacy-style, hardened), **not** email / Supabase Auth. Roles attach to **personal (non-`ROSTER-##`) devices/members**, never seed stubs; the master password is now **hashed** (bcrypt). RLS simplifies to pure **deny-all** (no user JWTs ever reach PostgREST; the service-role edge function is the sole gateway). The core PII fix is unchanged: the world-readable `/api/data` is replaced by an admin-verified, role-scoped roster. Implemented in PR #48; the `staff`/`auth.users` machinery in the body below is superseded by `member_roles` + `check_admin_password`.
 **Scope:** The foundational hardening phase of the React re-platform. Replaces device-string/name-string identity and browser-only access control with real authentication, stable member IDs, and server-enforced authorization, shipped together with the legacy→React cutover ("option 1").
 
 > ⚠️ This is the highest-stakes design of the re-platform: production Supabase, real PII, real users, and a destructive-by-nature data migration. This document is the artifact to review. No migration is run, no RLS is enabled, no function is deployed, and the deploy pipeline is not changed until this spec is approved.

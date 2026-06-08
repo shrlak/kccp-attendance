@@ -1,16 +1,20 @@
-// Staff auth + scope helpers for the hardened edge function (spec D1 / plan Phase C1).
+// Admin auth + scope helpers for the hardened edge function (spec D1).
+//
+// Model: NO email / NO Supabase Auth. Admin access = a PERSONAL device (any id that
+// is not a ROSTER-## seed stub) whose member holds a role in `member_roles`, gated by
+// the shared master password (hashed, verified server-side). Public check-in stays
+// anonymous and PII-free.
 //
 // NOT YET WIRED INTO index.ts — that integration ships with the coordinated cutover
-// (plan Phase F), because deploying a function that requires auth on /api/roster while
-// the legacy app is live would break it. This module is import-clean and unit-tested
-// (auth.test.ts) so it can be reviewed and validated on a Supabase branch first.
+// (plan Phase F). Import-clean and unit-tested (auth.test.ts).
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
-export interface Staff {
-  userId: string;
-  memberId?: string | null;
-  role: "super_admin" | "leader" | "pastor" | "welcoming";
+export type AdminRole = "super_admin" | "leader" | "pastor" | "welcoming";
+
+export interface Role {
+  memberId: string;
+  role: AdminRole;
   group: string;
   subgroup: string;
   ministry: string;
@@ -18,42 +22,46 @@ export interface Staff {
 
 export type Scope = { all: true } | { all: false; groups: string[]; subgroup: string };
 
+// Any device id that is NOT a ROSTER-## seed stub is a real personal device. Admin
+// roles may only ever attach to personal devices — never to ROSTER placeholders.
+export function isPersonalDevice(deviceId: string): boolean {
+  return !!deviceId && !deviceId.startsWith("ROSTER-");
+}
+
 // Mirror of the legacy browser ACL: super/pastor see everything; a KM leader spans both
 // 대학부·청년부 in summer mode (합동) but only their own 부서 in semester mode; the
 // subgroup always pins to their 동산.
-export function scopeFilter(staff: Staff, summerMode: boolean): Scope {
-  if (staff.role === "super_admin" || staff.role === "pastor") return { all: true };
-  if (staff.role === "leader") {
-    const groups = summerMode && (staff.group === "대학부" || staff.group === "청년부")
+export function scopeFilter(role: Role, summerMode: boolean): Scope {
+  if (role.role === "super_admin" || role.role === "pastor") return { all: true };
+  if (role.role === "leader") {
+    const groups = summerMode && (role.group === "대학부" || role.group === "청년부")
       ? ["대학부", "청년부"]
-      : [staff.group];
-    return { all: false, groups, subgroup: staff.subgroup };
+      : [role.group];
+    return { all: false, groups, subgroup: role.subgroup };
   }
   // welcoming (새가족팀) and any other scoped role
-  return { all: false, groups: [staff.group].filter(Boolean), subgroup: staff.subgroup };
+  return { all: false, groups: [role.group].filter(Boolean), subgroup: role.subgroup };
 }
 
-// Verify a bearer JWT and load the caller's staff row. Returns null when the request
-// is unauthenticated or the user is not staff. Uses a service-role client to read
-// `staff` (which is itself RLS-protected).
-export async function getStaff(authHeader: string | null): Promise<Staff | null> {
-  if (!authHeader?.startsWith("Bearer ")) return null;
-  const jwt = authHeader.slice(7);
-  const sb = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-  );
-  const { data: userRes } = await sb.auth.getUser(jwt);
-  const uid = userRes?.user?.id;
-  if (!uid) return null;
-  const { data } = await sb.from("staff").select("*").eq("user_id", uid).single();
-  if (!data) return null;
+type SB = ReturnType<typeof createClient>;
+
+// Verify an admin: a personal (non-ROSTER) device whose member holds a role, AND the
+// correct master password. Returns the role+scope, or null if any check fails.
+export async function verifyAdmin(sb: SB, deviceId: string, password: string): Promise<Role | null> {
+  if (!isPersonalDevice(deviceId)) return null;
+  const { data: ok } = await sb.rpc("check_admin_password", { pw: password ?? "" });
+  if (ok !== true) return null;
+  const { data: dev } = await sb.from("devices").select("member_id").eq("id", deviceId).single();
+  const memberId = (dev as { member_id?: string } | null)?.member_id;
+  if (!memberId) return null;
+  const { data: r } = await sb.from("member_roles").select("*").eq("member_id", memberId).single();
+  if (!r) return null;
+  const row = r as { role: AdminRole; group_name?: string; subgroup?: string; ministry?: string };
   return {
-    userId: uid,
-    memberId: data.member_id,
-    role: data.role,
-    group: data.group_name || "",
-    subgroup: data.subgroup || "",
-    ministry: data.ministry || "",
+    memberId,
+    role: row.role,
+    group: row.group_name || "",
+    subgroup: row.subgroup || "",
+    ministry: row.ministry || "",
   };
 }

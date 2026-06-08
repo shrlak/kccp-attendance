@@ -2,9 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace name-as-key + browser-only access control with stable member IDs, Supabase Auth for staff, and server-enforced RLS — built and rehearsed on a Supabase branch, then shipped in one coordinated legacy→React cutover.
+> **REVISION 2026-06-08:** Admin auth is **device-id + master password** (no email / no Supabase Auth). Where this plan says Supabase Auth / `staff` / `staff_invites` / JWT / `getStaff` (Phases B, C, E), substitute: `member_roles` table keyed by member, a **hashed** master password (`check_admin_password`), `verifyAdmin(deviceId, password)`, and an admin **login = master password on a personal (non-`ROSTER-##`) device**. RLS is **pure deny-all** (drop the auth.uid() scoped policies — no user JWTs exist). Free tier only → validate via **local `supabase start`**, not a paid branch. See PR #48 + the spec revision banner.
 
-**Architecture:** Hybrid enforcement (spec D1) — the `attendance-api` edge function stays the single gateway (service-role), verifies a Supabase JWT on staff endpoints, and filters by role+scope in TypeScript; RLS is a deny-all backstop with defense-in-depth scoped SELECT policies. Public check-in stays anonymous/device-based and PII-free.
+**Goal:** Replace name-as-key + browser-only access control with stable member IDs, device+master-password admin auth, and server-enforced deny-all RLS — built and rehearsed on a free-tier local Supabase, then shipped in one coordinated legacy→React cutover.
+
+**Architecture:** Hybrid enforcement (spec D1) — the `attendance-api` edge function stays the single gateway (service-role), verifies **device-id + master password** on admin endpoints and filters by role+scope in TypeScript; RLS is a pure deny-all backstop (no user JWTs reach PostgREST). Public check-in stays anonymous/device-based and PII-free.
 
 **Tech Stack:** Supabase (Postgres + Auth + Edge Functions/Deno), Supabase branching + CLI, `@supabase/supabase-js`, React + Vite + TS (`web/`), Vitest, Deno test.
 
