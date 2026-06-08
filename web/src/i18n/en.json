@@ -59,7 +59,7 @@
     "roles": { "super_admin": "Super admin", "leader": "Leader", "pastor": "Pastor", "welcoming": "Welcome team" },
     "nav": { "today": "Today", "sheet": "Sheet", "members": "Members", "settings": "Settings" },
     "members": { "search": "Search name", "edit": "Edit member", "saved": "Saved", "name": "Name", "group": "Group", "subgroup": "동산", "memberRole": "Role", "gender": "Gender", "phone": "Phone", "kakaoId": "KakaoTalk ID", "birthDate": "Birthday", "notes": "Notes", "isNewMember": "New member", "merge": { "action": "Merge", "title": "Merge members", "help": "Move one member's devices and attendance into another, then delete the original. This cannot be undone.", "from": "Member to merge (removed)", "to": "Member to keep", "warn": "{{summary}} — this cannot be undone.", "confirm": "Merge", "done": "Members merged" } },
-    "today": { "title": "Today", "none": "No check-ins yet", "thisWeek": "This week", "lastWeek": "Last week", "change": "Change" },
+    "today": { "title": "Today", "none": "No check-ins yet", "thisWeek": "This week", "lastWeek": "Last week", "change": "Change", "manualCheckin": { "action": "Check in", "title": "Manual check-in", "present": "Present", "none": "No members found", "done": "Checked in {{name}}", "already": "{{name}} is already checked in" } },
     "sheet": { "grid": "Grid", "log": "Log", "total": "Total", "empty": "No attendance records yet" },
     "settings": {
       "checkinWindow": "Check-in window",
