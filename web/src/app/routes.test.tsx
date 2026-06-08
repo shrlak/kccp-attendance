@@ -31,9 +31,9 @@ describe('routes', () => {
     expect(await screen.findByRole('button', { name: '체크인' })).toBeInTheDocument()
   })
 
-  it('renders the admin placeholder at /admin', () => {
+  it('renders the admin login gate at /admin', () => {
     renderAt('/admin')
-    expect(screen.getByText(/admin/i)).toBeInTheDocument()
+    expect(screen.getByLabelText('관리자 비밀번호')).toBeInTheDocument()
   })
 
   it('renders the 404 page for an unknown path', () => {

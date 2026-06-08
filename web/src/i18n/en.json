@@ -45,5 +45,17 @@
   },
   "announce": { "label": "Notice" },
   "common": { "cancel": "Cancel", "save": "Save", "loading": "Loading…", "error": "Connection error", "retry": "Try again", "close": "Close" },
-  "notFound": { "message": "We couldn’t find that page", "home": "Back to check-in" }
+  "notFound": { "message": "We couldn’t find that page", "home": "Back to check-in" },
+  "admin": {
+    "title": "Admin",
+    "subtitle": "Enter with this device and the admin password",
+    "passwordPlaceholder": "Admin password",
+    "unlock": "Enter",
+    "wrongPassword": "Wrong password, or this device has no admin access",
+    "signOut": "Sign out",
+    "roster": "Roster",
+    "noMembers": "No members to show",
+    "scopeAll": "All",
+    "roles": { "super_admin": "Super admin", "leader": "Leader", "pastor": "Pastor", "welcoming": "Welcome team" }
+  }
 }

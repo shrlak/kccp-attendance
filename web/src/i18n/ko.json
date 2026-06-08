@@ -45,5 +45,17 @@
   },
   "announce": { "label": "공지" },
   "common": { "cancel": "취소", "save": "저장", "loading": "불러오는 중…", "error": "연결 오류", "retry": "다시 시도", "close": "닫기" },
-  "notFound": { "message": "페이지를 찾을 수 없습니다", "home": "홈으로 돌아가기" }
+  "notFound": { "message": "페이지를 찾을 수 없습니다", "home": "홈으로 돌아가기" },
+  "admin": {
+    "title": "관리자",
+    "subtitle": "이 기기와 관리자 비밀번호로 입장합니다",
+    "passwordPlaceholder": "관리자 비밀번호",
+    "unlock": "입장",
+    "wrongPassword": "비밀번호가 올바르지 않거나 이 기기에 권한이 없습니다",
+    "signOut": "로그아웃",
+    "roster": "명단",
+    "noMembers": "표시할 멤버가 없습니다",
+    "scopeAll": "전체",
+    "roles": { "super_admin": "최고관리자", "leader": "리더", "pastor": "목사님", "welcoming": "새가족팀" }
+  }
 }
