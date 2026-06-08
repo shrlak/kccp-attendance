@@ -2,13 +2,23 @@ import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import { useRoster } from './useRoster'
-import { updateMember, mergeMembers, type Member, type MemberEdit } from '../../lib/api'
+import {
+  updateMember,
+  mergeMembers,
+  addMemberAttendance,
+  removeAttendance,
+  type Member,
+  type MemberEdit,
+  type LogEntry,
+} from '../../lib/api'
 import { Dialog } from '../../components/ui/Dialog'
 import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
 import { mergeTargets, canMerge, mergeSummary, type MergeState } from './merge'
+import { memberHistory, hasEntryOn } from './attendance'
+import { easternNow } from '../../lib/checkinWindow'
 
 const GROUPS = ['대학부', '청년부', 'EM', 'Adult Ministry']
 const MEMBER_ROLES = ['', 'visitor', 'pastor', 'elder', 'deacon', 'mentor']
@@ -20,6 +30,7 @@ export function AdminMembers() {
   const { t } = useTranslation()
   const { data, isLoading, isError } = useRoster(true)
   const [editing, setEditing] = useState<Member | null>(null)
+  const [attendanceFor, setAttendanceFor] = useState<Member | null>(null)
   const [merging, setMerging] = useState(false)
   const [search, setSearch] = useState('')
 
@@ -64,9 +75,126 @@ export function AdminMembers() {
           </button>
         ))}
       </div>
-      {editing && <EditModal member={editing} onClose={() => setEditing(null)} />}
+      {editing && (
+        <EditModal
+          member={editing}
+          onClose={() => setEditing(null)}
+          onAttendance={() => {
+            setAttendanceFor(editing)
+            setEditing(null)
+          }}
+        />
+      )}
+      {attendanceFor && (
+        <AttendanceModal
+          member={attendanceFor}
+          log={data.log}
+          readOnly={data.role === 'pastor'}
+          onClose={() => setAttendanceFor(null)}
+        />
+      )}
       {merging && <MergeModal members={data.members} onClose={() => setMerging(false)} />}
     </>
+  )
+}
+
+function AttendanceModal({
+  member,
+  log,
+  readOnly,
+  onClose,
+}: {
+  member: Member
+  log: LogEntry[]
+  readOnly: boolean
+  onClose: () => void
+}) {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const toast = useToast()
+  const [date, setDate] = useState(easternNow().date)
+  const [busy, setBusy] = useState(false)
+
+  const history = memberHistory(log, member.id)
+
+  async function add() {
+    if (hasEntryOn(log, member.id, date)) {
+      toast({ title: t('admin.members.attendance.already'), tone: 'warn' })
+      return
+    }
+    setBusy(true)
+    try {
+      const res = await addMemberAttendance(member.id, date)
+      if (res.status === 'already') toast({ title: t('admin.members.attendance.already'), tone: 'warn' })
+      else toast({ title: t('admin.members.attendance.added'), tone: 'ok' })
+      await qc.invalidateQueries({ queryKey: ['roster'] })
+    } catch {
+      toast({ title: t('common.error'), tone: 'err' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function remove(id: number) {
+    setBusy(true)
+    try {
+      await removeAttendance(id)
+      toast({ title: t('admin.members.attendance.removed'), tone: 'ok' })
+      await qc.invalidateQueries({ queryKey: ['roster'] })
+    } catch {
+      toast({ title: t('common.error'), tone: 'err' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()} title={`${t('admin.members.attendance.title')} · ${member.name}`}>
+      {!readOnly && (
+        <div className="mb-3 flex items-end gap-2">
+          <label className="flex-1">
+            <span className="mb-1 block text-xs font-semibold text-subtle">{t('admin.members.attendance.date')}</span>
+            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          </label>
+          <Button onClick={add} disabled={busy}>
+            {t('admin.members.attendance.add')}
+          </Button>
+        </div>
+      )}
+      <div className="mb-2 font-mono text-xs uppercase tracking-wide text-subtle">
+        {t('admin.members.attendance.total', { n: history.length })}
+      </div>
+      {history.length === 0 ? (
+        <p className="text-sm text-muted">{t('admin.members.attendance.empty')}</p>
+      ) : (
+        <ul className="flex max-h-[45vh] flex-col gap-1.5 overflow-y-auto pr-1">
+          {history.map((e) => (
+            <li
+              key={e.id}
+              className="flex items-center justify-between rounded-lg border border-border bg-surface px-3 py-2"
+            >
+              <span className="text-sm text-text">
+                {e.date}
+                {e.time && <span className="ml-2 font-mono text-xs text-muted">{e.time}</span>}
+              </span>
+              {!readOnly && (
+                <button
+                  type="button"
+                  onClick={() => e.id !== undefined && remove(e.id)}
+                  disabled={busy}
+                  className="text-xs font-semibold text-danger hover:underline disabled:opacity-50"
+                >
+                  {t('admin.members.attendance.remove')}
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      <Button variant="secondary" onClick={onClose} className="mt-4 w-full">
+        {t('common.close')}
+      </Button>
+    </Dialog>
   )
 }
 
@@ -139,7 +267,7 @@ function MergeModal({ members, onClose }: { members: Member[]; onClose: () => vo
   )
 }
 
-function EditModal({ member, onClose }: { member: Member; onClose: () => void }) {
+function EditModal({ member, onClose, onAttendance }: { member: Member; onClose: () => void; onAttendance: () => void }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const toast = useToast()
@@ -227,9 +355,14 @@ function EditModal({ member, onClose }: { member: Member; onClose: () => void })
           {t('admin.members.isNewMember')}
         </label>
       </div>
-      <Button onClick={save} disabled={saving} className="mt-4 w-full">
-        {saving ? t('common.loading') : t('common.save')}
-      </Button>
+      <div className="mt-4 flex gap-2">
+        <Button variant="secondary" onClick={onAttendance} className="flex-1">
+          {t('admin.members.attendance.action')}
+        </Button>
+        <Button onClick={save} disabled={saving} className="flex-1">
+          {saving ? t('common.loading') : t('common.save')}
+        </Button>
+      </div>
     </Dialog>
   )
 }
