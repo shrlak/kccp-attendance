@@ -67,7 +67,7 @@ function rowToDev(d: any) {
     kakaoId:d.kakao_id||"",
   };
 }
-function rowToLog(e: any) { return {deviceId:e.device_id,name:e.name,group:e.group_name||"",subgroup:e.subgroup||"",date:e.date,time:e.time_str,ts:e.ts,locationVerified:e.location_verified,adminAdded:e.admin_added,manual:e.is_manual,bulk:e.is_bulk,guest:e.is_guest,firstVisit:e.first_visit,memberRole:e.member_role}; }
+function rowToLog(e: any) { return {id:e.id,memberId:e.member_id,deviceId:e.device_id,name:e.name,group:e.group_name||"",subgroup:e.subgroup||"",date:e.date,time:e.time_str,ts:e.ts,locationVerified:e.location_verified,adminAdded:e.admin_added,manual:e.is_manual,bulk:e.is_bulk,guest:e.is_guest,firstVisit:e.first_visit,memberRole:e.member_role}; }
 async function getDevsByName(sb: SB, name: string): Promise<string[]> { const {data}=await sb.from("devices").select("id").eq("name",name); return (data||[]).map((d:any)=>d.id); }
 // When a real device (DEV-…) is added for a member, it supersedes any ROSTER-…
 // placeholder rows for that same name (those are seeded roster stubs with no real
@@ -317,6 +317,53 @@ Deno.serve(async (req: Request) => {
       await sb.from("attendance_log").insert({device_id:did,member_id:memberId,name:m.name,group_name:m.group_name||"",subgroup:m.subgroup||"",date:today,time_str:time,ts:Date.now(),is_manual:true,admin_added:true,first_visit:isFirst,member_role:m.member_role||null});
       await addAudit(sb,"admin-checkin",xDev,m.name+" | "+today);
       return ok({status:"ok",time,name:m.name,firstVisit:isFirst});
+    }
+
+    // Manual attendance — add an entry for a member on ANY date (back-fill). Hardened,
+    // member-id based, scoped; pastor read-only; deduped by member_id+date; audited.
+    if(req.method==="POST"&&p==="/api/admin/log/add") {
+      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      if(!role) return fail(401,"Not authorized");
+      if(role.role==="pastor") return fail(403,"Read-only");
+      const {memberId,date}=body; if(!memberId||!date||!/^\d{4}-\d{2}-\d{2}$/.test(date)) return fail(400,"memberId and a YYYY-MM-DD date required");
+      const {data:m}=await sb.from("members").select("name,group_name,subgroup,member_role").eq("id",memberId).single();
+      if(!m) return fail(404,"Member not found");
+      if(role.role!=="super_admin"){
+        const cfg=await getCfg(sb); const scope=scopeFilter(role,!!cfg.summer_mode);
+        if(!scope.all){
+          if(!scope.groups.includes(m.group_name)) return fail(403,"Out of scope");
+          if(scope.subgroup&&m.subgroup!==scope.subgroup) return fail(403,"Out of scope");
+        }
+      }
+      const {data:exist}=await sb.from("attendance_log").select("id").eq("member_id",memberId).eq("date",date).limit(1);
+      if(exist&&exist.length) return ok({status:"already"});
+      const {data:dev}=await sb.from("devices").select("id").eq("member_id",memberId).limit(1);
+      const did=(dev&&dev.length)?dev[0].id:("MANUAL-"+Date.now());
+      await sb.from("attendance_log").insert({device_id:did,member_id:memberId,name:m.name,group_name:m.group_name||"",subgroup:m.subgroup||"",date,time_str:localTime(),ts:Date.now(),is_manual:true,admin_added:true,member_role:m.member_role||null});
+      await addAudit(sb,"manual-add",xDev,m.name+" | "+date);
+      return ok({status:"ok"});
+    }
+
+    // Manual attendance — remove a single entry by its row id. Hardened: scope-checks the
+    // entry's member; pastor read-only; audited.
+    if(req.method==="POST"&&p==="/api/admin/log/remove") {
+      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      if(!role) return fail(401,"Not authorized");
+      if(role.role==="pastor") return fail(403,"Read-only");
+      const {logId}=body; if(logId===undefined||logId===null) return fail(400,"logId required");
+      const {data:row}=await sb.from("attendance_log").select("id,name,date,member_id").eq("id",logId).single();
+      if(!row) return fail(404,"Entry not found");
+      if(role.role!=="super_admin"&&row.member_id){
+        const {data:m}=await sb.from("members").select("group_name,subgroup").eq("id",row.member_id).single();
+        const cfg=await getCfg(sb); const scope=scopeFilter(role,!!cfg.summer_mode);
+        if(m&&!scope.all){
+          if(!scope.groups.includes(m.group_name)) return fail(403,"Out of scope");
+          if(scope.subgroup&&m.subgroup!==scope.subgroup) return fail(403,"Out of scope");
+        }
+      }
+      await sb.from("attendance_log").delete().eq("id",logId);
+      await addAudit(sb,"manual-remove",xDev,row.name+" | "+row.date);
+      return ok({status:"ok"});
     }
 
     if(req.method==="POST"&&p==="/api/check-admin") {

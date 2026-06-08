@@ -126,6 +126,8 @@ export interface Member {
 }
 
 export interface LogEntry {
+  id?: number
+  memberId?: string | null
   name: string
   group: string
   subgroup: string
@@ -183,3 +185,12 @@ export interface MemberCheckinResponse {
 // audited server-side; pastor read-only. Returns 'already' if they're in for today.
 export const memberCheckin = (memberId: string) =>
   api<MemberCheckinResponse>('POST', '/api/admin/member-checkin', { memberId })
+
+// Add a manual attendance entry for a member on any date (back-fill). Scoped + audited;
+// pastor read-only. Returns 'already' if an entry exists for that member+date.
+export const addMemberAttendance = (memberId: string, date: string) =>
+  api<{ status: 'ok' | 'already' }>('POST', '/api/admin/log/add', { memberId, date })
+
+// Remove a single attendance entry by its row id. Scoped + audited; pastor read-only.
+export const removeAttendance = (logId: number) =>
+  api<{ status: string }>('POST', '/api/admin/log/remove', { logId })
