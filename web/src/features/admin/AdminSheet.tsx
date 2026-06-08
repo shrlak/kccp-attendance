@@ -7,6 +7,10 @@ import { addBulkAttendance, type LogEntry, type RosterResponse } from '../../lib
 import { easternNow } from '../../lib/checkinWindow'
 import { checkinCandidates } from './today'
 import { memberIdsPresentOn, toggleId } from './bulk'
+import { filterMembers, filterLog, NO_FILTER, type Filter } from './filters'
+import { computeStats } from './stats'
+import { GroupFilter } from './GroupFilter'
+import { StatsBar } from './StatsBar'
 import { Dialog } from '../../components/ui/Dialog'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
@@ -18,18 +22,23 @@ export function AdminSheet() {
   const { t } = useTranslation()
   const [view, setView] = useState<'grid' | 'log'>('grid')
   const [bulk, setBulk] = useState(false)
+  const [filter, setFilter] = useState<Filter>(NO_FILTER)
   const { data, isLoading, isError } = useRoster(true)
 
   if (isLoading) return <p className="text-sm text-muted">{t('common.loading')}</p>
   if (isError) return <p className="text-sm text-danger">{t('common.error')}</p>
   if (!data) return null
 
-  const grid = buildGrid(data.members, data.log)
-  const log = [...data.log].sort((a, b) => b.ts - a.ts)
+  const members = filterMembers(data.members, filter)
+  const fLog = filterLog(data.log, filter)
+  const grid = buildGrid(members, fLog)
+  const log = [...fLog].sort((a, b) => b.ts - a.ts)
   const canBulk = data.role !== 'pastor'
 
   return (
     <>
+      <StatsBar stats={computeStats(members, fLog, easternNow().date)} />
+      <GroupFilter members={data.members} value={filter} onChange={setFilter} />
       <div className="mb-3 flex items-center justify-between">
         <div className="flex gap-1">
           <Toggle active={view === 'grid'} onClick={() => setView('grid')}>
