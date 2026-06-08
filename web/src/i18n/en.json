@@ -25,5 +25,6 @@
     "locationFar": "You can only check in near the church."
   },
   "offline": { "queued": "Offline — saved to queue", "synced": "Attendance synced" },
-  "common": { "cancel": "Cancel", "save": "Save", "loading": "Loading…", "error": "Connection error" }
+  "common": { "cancel": "Cancel", "save": "Save", "loading": "Loading…", "error": "Connection error" },
+  "notFound": { "message": "We couldn’t find that page", "home": "Back to check-in" }
 }
