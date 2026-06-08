@@ -2,12 +2,13 @@ import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import { useRoster } from './useRoster'
-import { updateMember, type Member, type MemberEdit } from '../../lib/api'
+import { updateMember, mergeMembers, type Member, type MemberEdit } from '../../lib/api'
 import { Dialog } from '../../components/ui/Dialog'
 import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
+import { mergeTargets, canMerge, mergeSummary, type MergeState } from './merge'
 
 const GROUPS = ['대학부', '청년부', 'EM', 'Adult Ministry']
 const MEMBER_ROLES = ['', 'visitor', 'pastor', 'elder', 'deacon', 'mentor']
@@ -19,6 +20,7 @@ export function AdminMembers() {
   const { t } = useTranslation()
   const { data, isLoading, isError } = useRoster(true)
   const [editing, setEditing] = useState<Member | null>(null)
+  const [merging, setMerging] = useState(false)
   const [search, setSearch] = useState('')
 
   if (isLoading) return <p className="text-sm text-muted">{t('common.loading')}</p>
@@ -30,13 +32,18 @@ export function AdminMembers() {
 
   return (
     <>
-      <Input
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder={t('admin.members.search')}
-        aria-label={t('admin.members.search')}
-        className="mb-4"
-      />
+      <div className="mb-4 flex gap-2">
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={t('admin.members.search')}
+          aria-label={t('admin.members.search')}
+          className="flex-1"
+        />
+        <Button variant="secondary" onClick={() => setMerging(true)} disabled={data.members.length < 2}>
+          {t('admin.members.merge.action')}
+        </Button>
+      </div>
       <div className="mb-3 font-mono text-xs uppercase tracking-wide text-subtle">
         {t('admin.nav.members')} · {members.length}
       </div>
@@ -58,7 +65,77 @@ export function AdminMembers() {
         ))}
       </div>
       {editing && <EditModal member={editing} onClose={() => setEditing(null)} />}
+      {merging && <MergeModal members={data.members} onClose={() => setMerging(false)} />}
     </>
+  )
+}
+
+function MergeModal({ members, onClose }: { members: Member[]; onClose: () => void }) {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const toast = useToast()
+  const [s, setS] = useState<MergeState>({ fromId: '', toId: '' })
+  const [saving, setSaving] = useState(false)
+
+  const sorted = mergeTargets(members, '') // all members, by name — the source picker
+  const targets = mergeTargets(members, s.fromId) // everyone except the chosen source
+
+  async function submit() {
+    if (!canMerge(s)) return
+    setSaving(true)
+    try {
+      await mergeMembers(s.fromId, s.toId)
+      await qc.invalidateQueries({ queryKey: ['roster'] })
+      toast({ title: t('admin.members.merge.done'), tone: 'ok' })
+      onClose()
+    } catch {
+      toast({ title: t('common.error'), tone: 'err' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()} title={t('admin.members.merge.title')}>
+      <div className="flex flex-col gap-3">
+        <p className="text-xs text-muted">{t('admin.members.merge.help')}</p>
+        <Field label={t('admin.members.merge.from')}>
+          <Select value={s.fromId} onChange={(e) => setS({ fromId: e.target.value, toId: '' })}>
+            <option value="">—</option>
+            {sorted.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+                {[m.group_name, m.subgroup].filter(Boolean).length ? ` (${[m.group_name, m.subgroup].filter(Boolean).join(' · ')})` : ''}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label={t('admin.members.merge.to')}>
+          <Select value={s.toId} onChange={(e) => setS((cur) => ({ ...cur, toId: e.target.value }))} disabled={!s.fromId}>
+            <option value="">—</option>
+            {targets.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+                {[m.group_name, m.subgroup].filter(Boolean).length ? ` (${[m.group_name, m.subgroup].filter(Boolean).join(' · ')})` : ''}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        {canMerge(s) && (
+          <p className="rounded-md bg-danger/10 px-3 py-2 text-xs text-danger">
+            {t('admin.members.merge.warn', { summary: mergeSummary(members, s) })}
+          </p>
+        )}
+      </div>
+      <div className="mt-4 flex gap-2">
+        <Button variant="secondary" onClick={onClose} className="flex-1">
+          {t('common.cancel')}
+        </Button>
+        <Button variant="danger" onClick={submit} disabled={!canMerge(s) || saving} className="flex-1">
+          {saving ? t('common.loading') : t('admin.members.merge.confirm')}
+        </Button>
+      </div>
+    </Dialog>
   )
 }
 
