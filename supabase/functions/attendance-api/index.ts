@@ -289,6 +289,36 @@ Deno.serve(async (req: Request) => {
       return ok({status:"ok"});
     }
 
+    // Manual check-in (hardened, member-id based): mark a member present for today,
+    // bypassing day/time/location. Scoped (a leader may only check in members in their
+    // own 동산); pastor read-only; audited. Distinct from the legacy name-based
+    // /api/admin/checkin used by the old client.
+    if(req.method==="POST"&&p==="/api/admin/member-checkin") {
+      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      if(!role) return fail(401,"Not authorized");
+      if(role.role==="pastor") return fail(403,"Read-only");
+      const {memberId}=body; if(!memberId) return fail(400,"memberId required");
+      const {data:m}=await sb.from("members").select("name,group_name,subgroup,member_role").eq("id",memberId).single();
+      if(!m) return fail(404,"Member not found");
+      if(role.role!=="super_admin"){
+        const cfg=await getCfg(sb); const scope=scopeFilter(role,!!cfg.summer_mode);
+        if(!scope.all){
+          if(!scope.groups.includes(m.group_name)) return fail(403,"Out of scope");
+          if(scope.subgroup&&m.subgroup!==scope.subgroup) return fail(403,"Out of scope");
+        }
+      }
+      const today=localDate(),time=localTime();
+      const {data:exist}=await sb.from("attendance_log").select("time_str").eq("member_id",memberId).eq("date",today).limit(1);
+      if(exist&&exist.length) return ok({status:"already",time:exist[0].time_str,name:m.name});
+      const {count}=await sb.from("attendance_log").select("id",{count:"exact",head:true}).eq("member_id",memberId);
+      const isFirst=(count||0)===0;
+      const {data:dev}=await sb.from("devices").select("id").eq("member_id",memberId).limit(1);
+      const did=(dev&&dev.length)?dev[0].id:("MANUAL-"+Date.now());
+      await sb.from("attendance_log").insert({device_id:did,member_id:memberId,name:m.name,group_name:m.group_name||"",subgroup:m.subgroup||"",date:today,time_str:time,ts:Date.now(),is_manual:true,admin_added:true,first_visit:isFirst,member_role:m.member_role||null});
+      await addAudit(sb,"admin-checkin",xDev,m.name+" | "+today);
+      return ok({status:"ok",time,name:m.name,firstVisit:isFirst});
+    }
+
     if(req.method==="POST"&&p==="/api/check-admin") {
       const {deviceId}=body; const cfg=await getCfg(sb); const ads: any[]=cfg.admin_devices||[];
       const noAdminsYet=!ads.length;

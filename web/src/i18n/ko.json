@@ -59,7 +59,7 @@
     "roles": { "super_admin": "최고관리자", "leader": "리더", "pastor": "목사님", "welcoming": "새가족팀" },
     "nav": { "today": "오늘", "sheet": "출석부", "members": "멤버", "settings": "설정" },
     "members": { "search": "이름 검색", "edit": "멤버 편집", "saved": "저장되었습니다", "name": "이름", "group": "부서", "subgroup": "동산", "memberRole": "역할", "gender": "성별", "phone": "전화", "kakaoId": "카톡ID", "birthDate": "생일", "notes": "메모", "isNewMember": "새가족", "merge": { "action": "병합", "title": "멤버 병합", "help": "한 멤버의 기기와 출석 기록을 다른 멤버로 옮기고, 원래 멤버는 삭제합니다. 되돌릴 수 없습니다.", "from": "병합할 멤버 (삭제됨)", "to": "남길 멤버", "warn": "{{summary}} — 되돌릴 수 없습니다.", "confirm": "병합", "done": "병합되었습니다" } },
-    "today": { "title": "오늘 출석", "none": "아직 출석이 없습니다", "thisWeek": "이번 주", "lastWeek": "지난 주", "change": "증감" },
+    "today": { "title": "오늘 출석", "none": "아직 출석이 없습니다", "thisWeek": "이번 주", "lastWeek": "지난 주", "change": "증감", "manualCheckin": { "action": "수동 출석", "title": "수동 출석", "present": "출석", "none": "멤버를 찾을 수 없습니다", "done": "{{name}} 출석 처리되었습니다", "already": "{{name}} 님은 이미 출석했습니다" } },
     "sheet": { "grid": "표", "log": "기록", "total": "합계", "empty": "출석 기록이 없습니다" },
     "settings": {
       "checkinWindow": "출석 시간",

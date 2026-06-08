@@ -171,3 +171,15 @@ export const updateMember = (memberId: string, fields: MemberEdit) =>
 // then the source member is deleted. Scoped + audited server-side (pastor read-only).
 export const mergeMembers = (fromId: string, toId: string) =>
   api<{ status: string }>('POST', '/api/admin/merge', { fromId, toId })
+
+export interface MemberCheckinResponse {
+  status: 'ok' | 'already'
+  time?: string
+  name?: string
+  firstVisit?: boolean
+}
+
+// Manually mark a member present for today (bypasses day/time/location). Scoped +
+// audited server-side; pastor read-only. Returns 'already' if they're in for today.
+export const memberCheckin = (memberId: string) =>
+  api<MemberCheckinResponse>('POST', '/api/admin/member-checkin', { memberId })
