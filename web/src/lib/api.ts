@@ -50,3 +50,34 @@ export interface AppConfig {
 }
 
 export const getConfig = () => api<AppConfig>('GET', '/api/config')
+
+// ── Public check-in (anonymous, device-id based) ──────────────────────────
+// These endpoints take the device id in the body (the edge function reads
+// body.deviceId for /api/checkin & /api/self-register), in addition to the
+// X-Device-Id header the api() wrapper always sends.
+
+export interface CheckinResponse {
+  status: 'ok' | 'already' | 'time-restricted' | 'location-restricted' | 'location-required'
+  time?: string
+  name?: string
+  group?: string
+  subgroup?: string
+  isRegistered?: boolean
+  totalAttendance?: number
+  firstVisit?: boolean
+  message?: string
+  sub?: string
+  distance?: number
+}
+
+export const postCheckin = (lat: number | null, lng: number | null) =>
+  api<CheckinResponse>('POST', '/api/checkin', { deviceId: getDeviceId(), lat, lng })
+
+export interface SelfRegisterResponse {
+  status: 'ok' | 'pending' | 'already-registered'
+  name?: string
+  combined?: boolean
+}
+
+export const selfRegister = (name: string, group: string, subgroup = '') =>
+  api<SelfRegisterResponse>('POST', '/api/self-register', { deviceId: getDeviceId(), name, group, subgroup })

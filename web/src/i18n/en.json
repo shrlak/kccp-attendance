@@ -6,6 +6,14 @@
     "checkingLocation": "Checking location…",
     "success": "Checked in",
     "already": "Already checked in",
+    "firstVisit": "Welcome — your first check-in!",
+    "total": "Total",
+    "closePage": "You may close this page",
+    "open": "Check-in open",
+    "closed": "Check-in is not open right now",
+    "windowRange": "{{from}} – {{to}}",
+    "registerPrompt": "This device isn’t linked to a name yet",
+    "registerButton": "Add your name",
     "guest": "Guest",
     "share": "Share",
     "admin": "Admin"
@@ -16,15 +24,26 @@
     "firstVisit": "First time? Please find the welcome team~!",
     "namePlaceholder": "Name",
     "groupPlaceholder": "Select your group~",
-    "save": "Save & check in"
+    "save": "Save & check in",
+    "pendingTitle": "Pending approval",
+    "pendingMsg": "Your check-in completes after an admin approves."
   },
   "restriction": {
     "time": "Check-in is not open right now",
     "day": "Today is not a check-in day",
+    "timeSub": "Check-in hours: {{from}} – {{to}}",
+    "daySub": "Check-in days: {{days}}",
     "locationRequired": "Location is required. Please allow location access.",
-    "locationFar": "You can only check in near the church."
+    "locationFar": "You can only check in near the church.",
+    "locationFarSub": "You’re about {{distance}}m from the church."
   },
-  "offline": { "queued": "Offline — saved to queue", "synced": "Attendance synced" },
-  "common": { "cancel": "Cancel", "save": "Save", "loading": "Loading…", "error": "Connection error" },
+  "offline": {
+    "title": "Offline",
+    "msg": "You’ll be checked in automatically when back online.",
+    "queued": "Offline — saved to queue",
+    "synced": "Attendance synced"
+  },
+  "announce": { "label": "Notice" },
+  "common": { "cancel": "Cancel", "save": "Save", "loading": "Loading…", "error": "Connection error", "retry": "Try again", "close": "Close" },
   "notFound": { "message": "We couldn’t find that page", "home": "Back to check-in" }
 }
