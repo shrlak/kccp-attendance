@@ -13,9 +13,9 @@ window.matchMedia ||= ((query: string) => ({
 })) as unknown as typeof window.matchMedia
 
 // jsdom may lack localStorage in some environments
-if (typeof global.localStorage === 'undefined') {
+if (typeof globalThis.localStorage === 'undefined') {
   const store: Record<string, string> = {}
-  global.localStorage = {
+  globalThis.localStorage = {
     getItem: (key: string) => store[key] ?? null,
     setItem: (key: string, value: string) => { store[key] = value },
     removeItem: (key: string) => { delete store[key] },
