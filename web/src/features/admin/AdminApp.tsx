@@ -3,10 +3,11 @@ import { useTranslation } from 'react-i18next'
 import { useAdminAuth } from '../../stores/useAdminAuth'
 import { Button } from '../../components/ui/Button'
 import { AdminToday } from './AdminToday'
-import { AdminRoster } from './AdminRoster'
+import { AdminSheet } from './AdminSheet'
+import { AdminMembers } from './AdminMembers'
 import { AdminSettings } from './AdminSettings'
 
-type Tab = 'today' | 'roster' | 'settings'
+type Tab = 'today' | 'sheet' | 'members' | 'settings'
 
 // Authenticated admin layout: header (who/scope/sign-out) + tab nav. Settings is
 // super-admin only. Today/Sheet/Members slot in as further tabs in later phases.
@@ -42,8 +43,11 @@ export function AdminApp() {
           <TabBtn active={tab === 'today'} onClick={() => setTab('today')}>
             {t('admin.nav.today')}
           </TabBtn>
-          <TabBtn active={tab === 'roster'} onClick={() => setTab('roster')}>
-            {t('admin.nav.roster')}
+          <TabBtn active={tab === 'sheet'} onClick={() => setTab('sheet')}>
+            {t('admin.nav.sheet')}
+          </TabBtn>
+          <TabBtn active={tab === 'members'} onClick={() => setTab('members')}>
+            {t('admin.nav.members')}
           </TabBtn>
           {isSuper && (
             <TabBtn active={tab === 'settings'} onClick={() => setTab('settings')}>
@@ -55,7 +59,8 @@ export function AdminApp() {
 
       <div className="px-5 py-4">
         {tab === 'today' && <AdminToday />}
-        {tab === 'roster' && <AdminRoster />}
+        {tab === 'sheet' && <AdminSheet />}
+        {tab === 'members' && <AdminMembers />}
         {tab === 'settings' && isSuper && <AdminSettings />}
       </div>
     </main>

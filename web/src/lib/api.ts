@@ -117,10 +117,12 @@ export interface Member {
   group_name: string
   subgroup: string
   member_role: string
+  gender: string
   phone: string
   birth_date: string | null
   kakao_id: string
   is_new_member: boolean
+  notes: string
 }
 
 export interface LogEntry {
@@ -147,3 +149,20 @@ export const getRoster = () => api<RosterResponse>('GET', '/api/roster')
 // X-Admin-Password header set by the auth store.
 export const updateCheckinWindow = (checkinDays: number[], checkinStartMin: number, checkinEndMin: number) =>
   api<{ status: string }>('POST', '/api/admin/settings', { checkinDays, checkinStartMin, checkinEndMin })
+
+export interface MemberEdit {
+  name?: string
+  group?: string
+  subgroup?: string
+  memberRole?: string
+  isNewMember?: boolean
+  gender?: string
+  phone?: string
+  kakaoId?: string
+  birthDate?: string | null
+  notes?: string
+}
+
+// Edit a member (scoped server-side: leaders only their 동산; pastor read-only).
+export const updateMember = (memberId: string, fields: MemberEdit) =>
+  api<{ status: string }>('PUT', '/api/admin/member', { memberId, ...fields })

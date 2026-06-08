@@ -57,8 +57,10 @@
     "noMembers": "표시할 멤버가 없습니다",
     "scopeAll": "전체",
     "roles": { "super_admin": "최고관리자", "leader": "리더", "pastor": "목사님", "welcoming": "새가족팀" },
-    "nav": { "today": "오늘", "roster": "명단", "settings": "설정" },
+    "nav": { "today": "오늘", "sheet": "출석부", "members": "멤버", "settings": "설정" },
+    "members": { "search": "이름 검색", "edit": "멤버 편집", "saved": "저장되었습니다", "name": "이름", "group": "부서", "subgroup": "동산", "memberRole": "역할", "gender": "성별", "phone": "전화", "kakaoId": "카톡ID", "birthDate": "생일", "notes": "메모", "isNewMember": "새가족" },
     "today": { "title": "오늘 출석", "none": "아직 출석이 없습니다", "thisWeek": "이번 주", "lastWeek": "지난 주", "change": "증감" },
+    "sheet": { "grid": "표", "log": "기록", "total": "합계", "empty": "출석 기록이 없습니다" },
     "settings": {
       "checkinWindow": "출석 시간",
       "checkinWindowDesc": "출석 가능한 요일과 시간을 설정합니다.",

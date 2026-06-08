@@ -231,6 +231,34 @@ Deno.serve(async (req: Request) => {
       return ok({status:"ok"});
     }
 
+    // Edit a member. Pastor is read-only; a leader may only edit members in their own
+    // 동산 (scope-checked). Renames propagate to the denormalized devices/attendance names.
+    if(req.method==="PUT"&&p==="/api/admin/member") {
+      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      if(!role) return fail(401,"Not authorized");
+      if(role.role==="pastor") return fail(403,"Read-only");
+      const {memberId}=body; if(!memberId) return fail(400,"memberId required");
+      const {data:m}=await sb.from("members").select("name,group_name,subgroup").eq("id",memberId).single();
+      if(!m) return fail(404,"Member not found");
+      if(role.role!=="super_admin"){
+        const cfg=await getCfg(sb); const scope=scopeFilter(role,!!cfg.summer_mode);
+        if(!scope.all){
+          if(!scope.groups.includes(m.group_name)) return fail(403,"Out of scope");
+          if(scope.subgroup&&m.subgroup!==scope.subgroup) return fail(403,"Out of scope");
+        }
+      }
+      const COLS: Record<string,string>={name:"name",group:"group_name",subgroup:"subgroup",notes:"notes",memberRole:"member_role",gender:"gender",phone:"phone",birthDate:"birth_date",baptismStatus:"baptism_status",schoolOrWork:"school_or_work",faithDuration:"faith_duration",registrationDate:"registration_date",pastoralVisitRequested:"pastoral_visit_requested",isNewMember:"is_new_member",kakaoId:"kakao_id"};
+      const upd: any={updated_at:new Date().toISOString()};
+      for(const [k,col] of Object.entries(COLS)){ if(body[k]!==undefined) upd[col]=(col==="birth_date"||col==="registration_date")?(body[k]||null):body[k]; }
+      await sb.from("members").update(upd).eq("id",memberId);
+      if(body.name!==undefined&&body.name!==m.name){
+        await sb.from("devices").update({name:body.name}).eq("member_id",memberId);
+        await sb.from("attendance_log").update({name:body.name}).eq("member_id",memberId);
+      }
+      await addAudit(sb,"member-edit",xDev,(body.name||m.name)+" ("+memberId+")");
+      return ok({status:"ok"});
+    }
+
     if(req.method==="POST"&&p==="/api/check-admin") {
       const {deviceId}=body; const cfg=await getCfg(sb); const ads: any[]=cfg.admin_devices||[];
       const noAdminsYet=!ads.length;
