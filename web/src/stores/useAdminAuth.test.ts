@@ -2,7 +2,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('../lib/api', () => ({
   adminVerify: vi.fn(),
+  adminVerifyGoogle: vi.fn(),
   setAdminPassword: vi.fn(),
+  setAdminToken: vi.fn(),
+}))
+
+vi.mock('../lib/supabase', () => ({
+  supabase: {
+    auth: {
+      onAuthStateChange: vi.fn().mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } }),
+      signInWithOAuth: vi.fn(),
+      signOut: vi.fn().mockResolvedValue({}),
+    },
+  },
 }))
 
 beforeEach(() => {

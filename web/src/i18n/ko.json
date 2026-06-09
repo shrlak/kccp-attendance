@@ -90,7 +90,10 @@
   "admin": {
     "title": "관리자",
     "pageTitle": "관리자 페이지",
-    "subtitle": "이 기기와 관리자 비밀번호로 입장합니다",
+    "subtitle": "Google 계정으로 로그인하세요",
+    "signInWithGoogle": "Google로 로그인",
+    "googleError": "이 Google 계정은 관리자 권한이 없습니다",
+    "usePassword": "비밀번호로 입장",
     "passwordPlaceholder": "관리자 비밀번호",
     "unlock": "입장",
     "wrongPassword": "비밀번호가 올바르지 않거나 이 기기에 권한이 없습니다",

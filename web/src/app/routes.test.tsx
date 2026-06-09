@@ -43,12 +43,12 @@ describe('routes', () => {
 
   it('renders the admin login gate at /admin', () => {
     renderAt('/admin')
-    expect(screen.getByLabelText('관리자 비밀번호')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Google로 로그인' })).toBeInTheDocument()
   })
 
   it('gates /kiosk behind admin login when not authed', () => {
     renderAt('/kiosk')
-    expect(screen.getByLabelText('관리자 비밀번호')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Google로 로그인' })).toBeInTheDocument()
   })
 
   it('renders the 404 page for an unknown path', () => {

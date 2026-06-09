@@ -1,10 +1,11 @@
 // Admin auth + scope helpers for the hardened edge function (spec D1).
 //
-// Model: NO email / NO Supabase Auth. Admin access = a PERSONAL device (any id that
-// is not a ROSTER-## seed stub) whose member holds a role in `member_roles`, gated by
-// the shared master password below. Public check-in stays anonymous and PII-free.
+// Two auth paths, tried in order by resolveAdmin():
+//   1. Google JWT (Bearer token): email → members.email → member_roles → role/scope.
+//   2. Break-glass: personal (non-ROSTER) device + master password → same lookup.
+// Public check-in stays anonymous and PII-free.
 //
-// Wired into index.ts (imports verifyAdmin + scopeFilter) and unit-tested (auth.test.ts).
+// Wired into index.ts (imports resolveAdmin + scopeFilter) and unit-tested (auth.test.ts).
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
@@ -68,4 +69,32 @@ export async function verifyAdmin(sb: SB, deviceId: string, password: string): P
     subgroup: row.subgroup || "",
     ministry: row.ministry || "",
   };
+}
+
+// Verify via Supabase JWT (Google sign-in path). Resolves email → member → role.
+export async function verifyAdminJwt(sb: SB, jwt: string): Promise<Role | null> {
+  const { data: { user } } = await sb.auth.getUser(jwt);
+  if (!user?.email) return null;
+  const { data: member } = await sb.from("members").select("id").ilike("email", user.email).single();
+  const memberId = (member as { id?: string } | null)?.id;
+  if (!memberId) return null;
+  const { data: r } = await sb.from("member_roles").select("*").eq("member_id", memberId).single();
+  if (!r) return null;
+  const row = r as { role: AdminRole; group_name?: string; subgroup?: string; ministry?: string };
+  return {
+    memberId,
+    role: row.role,
+    group: row.group_name || "",
+    subgroup: row.subgroup || "",
+    ministry: row.ministry || "",
+  };
+}
+
+// Unified resolver: try Google JWT first (Authorization: Bearer), fall back to
+// device + master password. All hardened admin endpoints call this.
+export async function resolveAdmin(sb: SB, req: Request): Promise<Role | null> {
+  const auth = req.headers.get("authorization") || "";
+  if (auth.startsWith("Bearer ")) return verifyAdminJwt(sb, auth.slice(7));
+  const deviceId = req.headers.get("x-device-id") || req.headers.get("X-Device-Id") || "";
+  return verifyAdmin(sb, deviceId, req.headers.get("x-admin-password") || "");
 }
