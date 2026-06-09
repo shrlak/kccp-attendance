@@ -169,6 +169,17 @@ export interface SettingsPatch {
 export const updateSettings = (patch: SettingsPatch) =>
   api<{ status: string }>('POST', '/api/admin/settings', patch)
 
+// 동산 (dongsan) names, keyed by group: { "대학부": [...], "청년부": [...] } (super-admin).
+export type DongsanNames = Record<string, string[]>
+
+// Read the 동산-names map (super-admin); falls back to seeded defaults server-side.
+export const getDongsanNames = () =>
+  api<{ names: DongsanNames }>('GET', '/api/admin/dongsan-names').then((r) => r.names)
+
+// Replace the whole 동산-names map (super-admin). Audited as a config-change server-side.
+export const updateDongsanNames = (names: DongsanNames) =>
+  api<{ status: string }>('POST', '/api/admin/dongsan-names', { names })
+
 // ── Admins tab (super-admin) ──────────────────────────────────────────────
 export interface AdminRoleRow {
   memberId: string

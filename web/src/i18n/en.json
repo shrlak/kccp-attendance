@@ -83,7 +83,12 @@
       "individualCheckin": "Individual check-in",
       "individualCheckinDesc": "Let individuals check themselves in.",
       "demoMode": "Demo mode",
-      "demoModeDesc": "Allow check-in with no day/time/location limits."
+      "demoModeDesc": "Allow check-in with no day/time/location limits.",
+      "dongsanNames": "동산 names",
+      "dongsanNamesDesc": "Add, rename, or remove 동산 per group.",
+      "addDongsan": "Add 동산",
+      "dongsanPlaceholder": "동산 name",
+      "removeDongsan": "Remove"
     }
   }
 }
