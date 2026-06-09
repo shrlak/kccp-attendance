@@ -12,6 +12,10 @@ concurrency:
 
 jobs:
   deploy:
+    # Gate the frontend flip on a successful edge-function deploy so the cutover is atomic:
+    # if the function deploy fails, Pages is skipped and the site stays on the previous
+    # (legacy) build rather than serving React against the old function.
+    needs: deploy-edge-function
     runs-on: ubuntu-latest
     permissions:
       contents: read
