@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { sortAdminRoles, auditDetail } from './admins'
+import { sortAdminRoles, auditDetail, roleNeedsScope } from './admins'
 import type { AdminRoleRow } from '../../lib/api'
 
 const row = (name: string, role: AdminRoleRow['role']): AdminRoleRow => ({
@@ -15,6 +15,15 @@ describe('sortAdminRoles', () => {
     const rows = [row('B', 'leader'), row('A', 'super_admin')]
     sortAdminRoles(rows)
     expect(rows[0].name).toBe('B')
+  })
+})
+
+describe('roleNeedsScope', () => {
+  it('only leader needs a group scope', () => {
+    expect(roleNeedsScope('leader')).toBe(true)
+    expect(roleNeedsScope('super_admin')).toBe(false)
+    expect(roleNeedsScope('pastor')).toBe(false)
+    expect(roleNeedsScope('welcoming')).toBe(false)
   })
 })
 

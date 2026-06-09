@@ -1,14 +1,34 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { getConfig, getAdminRoles, getAuditLog, getPending, approvePending, rejectPending, updateSettings } from '../../lib/api'
-import { sortAdminRoles, auditDetail } from './admins'
+import {
+  getConfig,
+  getAdminRoles,
+  getAuditLog,
+  getPending,
+  approvePending,
+  rejectPending,
+  updateSettings,
+  setAdminRole,
+  removeAdminRole,
+  type AdminRole,
+  type RoleAssignment,
+} from '../../lib/api'
+import { sortAdminRoles, auditDetail, roleNeedsScope } from './admins'
+import { useRoster } from './useRoster'
+import { groupsOf, subgroupsOf } from './filters'
+import { checkinCandidates } from './today'
 import { Switch } from '../../components/ui/Switch'
 import { Button } from '../../components/ui/Button'
+import { Dialog } from '../../components/ui/Dialog'
+import { Input } from '../../components/ui/Input'
+import { Select } from '../../components/ui/Select'
 import { useToast } from '../../components/ui/Toast'
 
-// Admins tab (super-admin): registration-approval toggle, the admin roster, and the
-// audit log. Add/remove and pending-approval land in follow-ups.
+const ROLES: AdminRole[] = ['super_admin', 'leader', 'pastor', 'welcoming']
+
+// Admins tab (super-admin): registration-approval toggle, pending queue, the admin
+// roster with add/remove, and the audit log.
 export function AdminAdmins() {
   const { t } = useTranslation()
   const qc = useQueryClient()
@@ -17,6 +37,8 @@ export function AdminAdmins() {
   const { data: rolesData, isLoading: rolesLoading } = useQuery({ queryKey: ['adminRoles'], queryFn: getAdminRoles })
   const { data: pendingData } = useQuery({ queryKey: ['pending'], queryFn: getPending })
   const [pendingBusy, setPendingBusy] = useState<string | null>(null)
+  const [adding, setAdding] = useState(false)
+  const [roleBusy, setRoleBusy] = useState<string | null>(null)
   const [showAudit, setShowAudit] = useState(false)
   const { data: auditData, isLoading: auditLoading } = useQuery({
     queryKey: ['audit'],
@@ -51,6 +73,19 @@ export function AdminAdmins() {
       toast({ title: t('common.error'), tone: 'err' })
     } finally {
       setPendingBusy(null)
+    }
+  }
+
+  async function removeRole(memberId: string) {
+    setRoleBusy(memberId)
+    try {
+      await removeAdminRole(memberId)
+      await qc.invalidateQueries({ queryKey: ['adminRoles'] })
+      toast({ title: t('admin.settings.saved'), tone: 'ok' })
+    } catch (e) {
+      toast({ title: e instanceof Error ? e.message : t('common.error'), tone: 'err' })
+    } finally {
+      setRoleBusy(null)
     }
   }
 
@@ -104,9 +139,14 @@ export function AdminAdmins() {
 
       <hr className="my-6 border-border" />
 
-      <h2 className="mb-3 font-display text-lg font-semibold text-text">
-        {t('admin.admins.adminsList')} · {roles.length}
-      </h2>
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="font-display text-lg font-semibold text-text">
+          {t('admin.admins.adminsList')} · {roles.length}
+        </h2>
+        <Button size="sm" onClick={() => setAdding(true)}>
+          {t('admin.admins.addAdmin')}
+        </Button>
+      </div>
       {rolesLoading ? (
         <p className="text-sm text-muted">{t('common.loading')}</p>
       ) : roles.length === 0 ? (
@@ -114,20 +154,32 @@ export function AdminAdmins() {
       ) : (
         <ul className="flex flex-col gap-2">
           {roles.map((r) => (
-            <li key={r.memberId} className="flex items-center justify-between rounded-lg border border-border bg-surface px-3 py-2">
-              <div>
-                <div className="text-sm font-semibold text-text">{r.name}</div>
+            <li key={r.memberId} className="flex items-center justify-between gap-2 rounded-lg border border-border bg-surface px-3 py-2">
+              <div className="min-w-0">
+                <div className="truncate text-sm font-semibold text-text">{r.name}</div>
                 {(r.group || r.subgroup) && (
                   <div className="text-xs text-muted">{[r.group, r.subgroup].filter(Boolean).join(' · ')}</div>
                 )}
               </div>
-              <span className="rounded-full bg-primary/15 px-2.5 py-0.5 text-xs font-semibold text-primary">
-                {t(`admin.roles.${r.role}`)}
-              </span>
+              <div className="flex shrink-0 items-center gap-2">
+                <span className="rounded-full bg-primary/15 px-2.5 py-0.5 text-xs font-semibold text-primary">
+                  {t(`admin.roles.${r.role}`)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => removeRole(r.memberId)}
+                  disabled={roleBusy !== null}
+                  aria-label={t('admin.admins.remove')}
+                  className="text-sm font-bold text-danger hover:opacity-70 disabled:opacity-40"
+                >
+                  ×
+                </button>
+              </div>
             </li>
           ))}
         </ul>
       )}
+      {adding && <AddAdminModal onClose={() => setAdding(false)} />}
 
       <hr className="my-6 border-border" />
 
@@ -157,5 +209,107 @@ export function AdminAdmins() {
         </ul>
       )}
     </div>
+  )
+}
+
+function AddAdminModal({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const toast = useToast()
+  const { data } = useRoster(true)
+  const [search, setSearch] = useState('')
+  const [memberId, setMemberId] = useState('')
+  const [role, setRole] = useState<AdminRole>('leader')
+  const [group, setGroup] = useState('')
+  const [subgroup, setSubgroup] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const members = data?.members ?? []
+  const candidates = checkinCandidates(members, search).slice(0, 50)
+  const groups = groupsOf(members)
+  const subgroups = subgroupsOf(members, group)
+  const needsScope = roleNeedsScope(role)
+  const valid = !!memberId && !!role && (!needsScope || !!group)
+
+  async function save() {
+    if (!valid) return
+    setSaving(true)
+    try {
+      const payload: RoleAssignment = needsScope
+        ? { memberId, role, group, subgroup, ministry: 'KM' }
+        : { memberId, role, ministry: role === 'welcoming' ? 'KM' : '' }
+      await setAdminRole(payload)
+      await qc.invalidateQueries({ queryKey: ['adminRoles'] })
+      toast({ title: t('admin.settings.saved'), tone: 'ok' })
+      onClose()
+    } catch (e) {
+      toast({ title: e instanceof Error ? e.message : t('common.error'), tone: 'err' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()} title={t('admin.admins.addAdmin')}>
+      <div className="flex flex-col gap-3">
+        <label className="block">
+          <span className="mb-1 block text-xs font-semibold text-subtle">{t('admin.admins.member')}</span>
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('admin.members.search')} className="mb-2" />
+          <Select value={memberId} onChange={(e) => setMemberId(e.target.value)}>
+            <option value="">—</option>
+            {candidates.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+                {[m.group_name, m.subgroup].filter(Boolean).length ? ` (${[m.group_name, m.subgroup].filter(Boolean).join(' · ')})` : ''}
+              </option>
+            ))}
+          </Select>
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs font-semibold text-subtle">{t('admin.admins.role')}</span>
+          <Select value={role} onChange={(e) => setRole(e.target.value as AdminRole)}>
+            {ROLES.map((r) => (
+              <option key={r} value={r}>
+                {t(`admin.roles.${r}`)}
+              </option>
+            ))}
+          </Select>
+        </label>
+        {needsScope && (
+          <>
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold text-subtle">{t('admin.members.group')}</span>
+              <Select value={group} onChange={(e) => { setGroup(e.target.value); setSubgroup('') }}>
+                <option value="">—</option>
+                {groups.map((g) => (
+                  <option key={g} value={g}>
+                    {g}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold text-subtle">{t('admin.members.subgroup')}</span>
+              <Select value={subgroup} onChange={(e) => setSubgroup(e.target.value)} disabled={!group}>
+                <option value="">{t('admin.filter.all')}</option>
+                {subgroups.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </Select>
+            </label>
+          </>
+        )}
+      </div>
+      <div className="mt-4 flex gap-2">
+        <Button variant="secondary" onClick={onClose} className="flex-1">
+          {t('common.cancel')}
+        </Button>
+        <Button onClick={save} disabled={!valid || saving} className="flex-1">
+          {saving ? t('common.loading') : t('admin.admins.addAdmin')}
+        </Button>
+      </div>
+    </Dialog>
   )
 }
