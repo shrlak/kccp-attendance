@@ -6,11 +6,11 @@ const API_BASE =
 type Method = 'GET' | 'POST' | 'PUT' | 'DELETE'
 
 let adminPassword: string | null = null
-// Set by the admin auth store after a successful verify; attached to every admin request
-// alongside the X-Device-Id header (admin = personal device + master password).
-export function setAdminPassword(pw: string | null) {
-  adminPassword = pw
-}
+let adminToken: string | null = null
+
+export function setAdminPassword(pw: string | null) { adminPassword = pw }
+// Set by the auth store after a successful Google sign-in; sent as Authorization: Bearer.
+export function setAdminToken(token: string | null) { adminToken = token }
 
 export async function api<T = unknown>(
   method: Method,
@@ -21,7 +21,8 @@ export async function api<T = unknown>(
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), 12_000)
   const headers: Record<string, string> = { 'X-Device-Id': getDeviceId() }
-  if (adminPassword) headers['X-Admin-Password'] = adminPassword
+  if (adminToken) headers['Authorization'] = `Bearer ${adminToken}`
+  else if (adminPassword) headers['X-Admin-Password'] = adminPassword
   if (extraHeaders) Object.assign(headers, extraHeaders)
   if (body) headers['Content-Type'] = 'application/json'
   try {
@@ -106,10 +107,13 @@ export interface AdminIdentity {
   ministry: string
 }
 
-// Verify the master password against this device's role. The password is sent as a
-// one-off header here (before the store has persisted it).
+// Verify the master password against this device's role (break-glass path).
 export const adminVerify = (password: string) =>
   api<AdminIdentity>('POST', '/api/admin/verify', undefined, { 'X-Admin-Password': password })
+
+// Verify via Google JWT (token already set via setAdminToken before calling this).
+export const adminVerifyGoogle = () =>
+  api<AdminIdentity>('POST', '/api/admin/verify')
 
 export interface Member {
   id: string

@@ -90,7 +90,10 @@
   "admin": {
     "title": "Admin",
     "pageTitle": "Admin Page",
-    "subtitle": "Enter with this device and the admin password",
+    "subtitle": "Sign in with your Google account",
+    "signInWithGoogle": "Sign in with Google",
+    "googleError": "This Google account has no admin access",
+    "usePassword": "Use admin password instead",
     "passwordPlaceholder": "Admin password",
     "unlock": "Enter",
     "wrongPassword": "Wrong password, or this device has no admin access",

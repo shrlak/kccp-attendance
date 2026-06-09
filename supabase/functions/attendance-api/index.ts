@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { verifyAdmin, scopeFilter } from "./auth.ts";
+import { resolveAdmin, scopeFilter } from "./auth.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -212,7 +212,7 @@ Deno.serve(async (req: Request) => {
 
     if(req.method==="GET"&&p==="/api/data") {
       // Hardened: the full dump is super-admin only — closes the legacy world-readable PII hole.
-      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      const role=await resolveAdmin(sb,req);
       if(role?.role!=="super_admin") return fail(403,"Not authorized");
       const [{data:devData},{data:logData}]=await Promise.all([sb.from("devices").select("*"),sb.from("attendance_log").select("*").order("ts",{ascending:false})]);
       const devices: Record<string,any>={}; (devData||[]).forEach((d:any)=>{devices[d.id]=rowToDev(d);});
@@ -221,7 +221,7 @@ Deno.serve(async (req: Request) => {
 
     // ── Hardened admin auth: personal (non-ROSTER) device + master password; member_roles model ──
     if(req.method==="POST"&&p==="/api/admin/verify") {
-      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      const role=await resolveAdmin(sb,req);
       if(!role) return fail(401,"Not authorized");
       return ok({role:role.role,group:role.group,subgroup:role.subgroup,ministry:role.ministry});
     }
@@ -229,7 +229,7 @@ Deno.serve(async (req: Request) => {
     // Scoped roster (replaces the world-readable /api/data for staff): super/pastor → all
     // members; leader → their 동산 (summer-mode 합동 handled by scopeFilter).
     if(req.method==="GET"&&p==="/api/roster") {
-      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      const role=await resolveAdmin(sb,req);
       if(!role) return fail(401,"Not authorized");
       const cfg=await getCfg(sb); const scope=scopeFilter(role,!!cfg.summer_mode);
       let mq:any=sb.from("members").select("*").order("name",{ascending:true});
@@ -252,7 +252,7 @@ Deno.serve(async (req: Request) => {
 
     // Settings (super-admin only): the adjustable check-in window — day(s) + start/end.
     if(req.method==="POST"&&p==="/api/admin/settings") {
-      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      const role=await resolveAdmin(sb,req);
       if(role?.role!=="super_admin") return fail(403,"Super admin required");
       const {checkinDays,checkinStartMin,checkinEndMin,announcement,summerMode,demoMode,individualCheckinEnabled,requireApproval}=body;
       const upd: any={updated_at:new Date().toISOString()};
@@ -271,7 +271,7 @@ Deno.serve(async (req: Request) => {
     // 동산 (dongsan) names editor — read (super-admin only). Returns config.dongsan_names,
     // shaped { "대학부": [...], "청년부": [...] }, falling back to the seeded defaults.
     if(req.method==="GET"&&p==="/api/admin/dongsan-names") {
-      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      const role=await resolveAdmin(sb,req);
       if(role?.role!=="super_admin") return fail(403,"Super admin required");
       const cfg=await getCfg(sb);
       return ok({names:cfg.dongsan_names||{"대학부":["동산1","동산2","동산3","동산4"],"청년부":["동산1","동산2","동산3","동산4"]}});
@@ -280,7 +280,7 @@ Deno.serve(async (req: Request) => {
     // 동산 names editor — write (super-admin only). Replaces config.dongsan_names with the
     // posted map { [group]: string[] }. Audited as a config-change.
     if(req.method==="POST"&&p==="/api/admin/dongsan-names") {
-      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      const role=await resolveAdmin(sb,req);
       if(role?.role!=="super_admin") return fail(403,"Super admin required");
       const {names}=body;
       if(!names||typeof names!=="object"||Array.isArray(names)) return fail(400,"names map required");
@@ -293,7 +293,7 @@ Deno.serve(async (req: Request) => {
     // welcoming also see the 👑/⭐ badges on member cards + the Today list). Returns the
     // full config.dongsan_leaders map { [group|"합동"]: { [동산]: { leader, subLeaders } } }.
     if(req.method==="GET"&&p==="/api/admin/dongsan-leaders") {
-      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      const role=await resolveAdmin(sb,req);
       if(!role) return fail(401,"Not authorized");
       const cfg=await getCfg(sb);
       return ok({leaders:cfg.dongsan_leaders||{}});
@@ -303,7 +303,7 @@ Deno.serve(async (req: Request) => {
     // Mirrors the legacy /api/dongsan-leaders shape; in summer mode the group key is "합동".
     // Audited as a config-change.
     if(req.method==="POST"&&p==="/api/admin/dongsan-leaders") {
-      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      const role=await resolveAdmin(sb,req);
       if(role?.role!=="super_admin") return fail(403,"Super admin required");
       const {group,subgroup,leader,subLeaders}=body;
       if(!group||!subgroup) return fail(400,"group and subgroup required");
@@ -316,7 +316,7 @@ Deno.serve(async (req: Request) => {
 
     // List all admin role grants (member_roles ⨝ member names). Super-admin only.
     if(req.method==="GET"&&p==="/api/admin/roles") {
-      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      const role=await resolveAdmin(sb,req);
       if(role?.role!=="super_admin") return fail(403,"Super admin required");
       const {data:roles}=await sb.from("member_roles").select("*");
       const ids=(roles||[]).map((r:any)=>r.member_id);
@@ -327,7 +327,7 @@ Deno.serve(async (req: Request) => {
 
     // Audit log — most recent admin actions, newest first. Super-admin only.
     if(req.method==="GET"&&p==="/api/admin/audit") {
-      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      const role=await resolveAdmin(sb,req);
       if(role?.role!=="super_admin") return fail(403,"Super admin required");
       const limit=Math.min(parseInt(url.searchParams.get("limit")||"100")||100,200);
       const {data:log}=await sb.from("audit_log").select("*").order("ts",{ascending:false}).limit(limit);
@@ -338,7 +338,7 @@ Deno.serve(async (req: Request) => {
     // only. Reuses the legacy /api/backup builder's exact shape so a backup taken here is
     // interchangeable with the legacy one (and restorable through /api/admin/restore).
     if(req.method==="GET"&&p==="/api/admin/backup") {
-      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      const role=await resolveAdmin(sb,req);
       if(role?.role!=="super_admin") return fail(403,"Super admin required");
       const [{data:dd},{data:ld},{data:ed},{data:ad},{data:pd},cfg]=await Promise.all([sb.from("devices").select("*"),sb.from("attendance_log").select("*").order("ts",{ascending:false}),sb.from("events").select("*, event_attendees(device_id, name)"),sb.from("audit_log").select("*").order("ts",{ascending:false}),sb.from("pending_registrations").select("*"),getCfg(sb)]);
       const devices: Record<string,any>={}; (dd||[]).forEach((d:any)=>{devices[d.id]=rowToDev(d);});
@@ -350,7 +350,7 @@ Deno.serve(async (req: Request) => {
     // config, and events wholesale. Super-admin only. Reuses the legacy /api/restore
     // logic; writes a `restore` audit entry.
     if(req.method==="POST"&&p==="/api/admin/restore") {
-      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      const role=await resolveAdmin(sb,req);
       if(role?.role!=="super_admin") return fail(403,"Super admin required");
       const bk=body; if(!bk.version||!bk.attendance) return fail(400,"Invalid backup file");
       if(bk.attendance?.devices){await sb.from("devices").delete().neq("id","");const dr=Object.entries(bk.attendance.devices).map(([id,v]:any)=>({id,name:v.name,group_name:v.group||"",subgroup:v.subgroup||"",notes:v.notes||"",member_role:v.memberRole||"",gender:v.gender||"",phone:v.phone||"",birth_date:v.birthDate||null,baptism_status:v.baptismStatus||"해당없음",school_or_work:v.schoolOrWork||"",faith_duration:v.faithDuration||"",registration_date:v.registrationDate||null,pastoral_visit_requested:v.pastoralVisitRequested||false,is_new_member:v.isNewMember||false,new_member_edu_week1:v.newMemberEduWeek1||false,new_member_edu_week2:v.newMemberEduWeek2||false}));if(dr.length) await sb.from("devices").insert(dr);}
@@ -364,7 +364,7 @@ Deno.serve(async (req: Request) => {
     // Pending self-registrations (when require_approval is on). Any verified admin may
     // view; pastor is read-only for the approve/reject mutations below.
     if(req.method==="GET"&&p==="/api/admin/pending") {
-      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      const role=await resolveAdmin(sb,req);
       if(!role) return fail(401,"Not authorized");
       const {data:pd}=await sb.from("pending_registrations").select("*").order("requested_at",{ascending:false});
       return ok({pending:(pd||[]).map((p:any)=>({deviceId:p.device_id,name:p.name,group:p.group_name||"",subgroup:p.subgroup||"",requestedAt:new Date(p.requested_at).getTime()}))});
@@ -373,7 +373,7 @@ Deno.serve(async (req: Request) => {
     // Approve a pending registration: find-or-create the member, link the device to it,
     // then clear the pending row. Audited.
     if(req.method==="POST"&&p==="/api/admin/pending/approve") {
-      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      const role=await resolveAdmin(sb,req);
       if(!role) return fail(401,"Not authorized");
       if(role.role==="pastor") return fail(403,"Read-only");
       const {deviceId}=body; if(!deviceId) return fail(400,"deviceId required");
@@ -392,7 +392,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if(req.method==="POST"&&p==="/api/admin/pending/reject") {
-      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      const role=await resolveAdmin(sb,req);
       if(!role) return fail(401,"Not authorized");
       if(role.role==="pastor") return fail(403,"Read-only");
       const {deviceId}=body; if(!deviceId) return fail(400,"deviceId required");
@@ -404,7 +404,7 @@ Deno.serve(async (req: Request) => {
 
     // Assign/replace a member's admin role (super-admin only). Upsert into member_roles.
     if(req.method==="POST"&&p==="/api/admin/role/set") {
-      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      const role=await resolveAdmin(sb,req);
       if(role?.role!=="super_admin") return fail(403,"Super admin required");
       const {memberId,role:newRole,group,subgroup,ministry}=body;
       if(!memberId||!newRole) return fail(400,"memberId and role required");
@@ -418,7 +418,7 @@ Deno.serve(async (req: Request) => {
 
     // Revoke a member's admin role (super-admin only). Refuses to remove the last super.
     if(req.method==="POST"&&p==="/api/admin/role/remove") {
-      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      const role=await resolveAdmin(sb,req);
       if(role?.role!=="super_admin") return fail(403,"Super admin required");
       const {memberId}=body; if(!memberId) return fail(400,"memberId required");
       const {data:tr}=await sb.from("member_roles").select("role").eq("member_id",memberId).single();
@@ -436,7 +436,7 @@ Deno.serve(async (req: Request) => {
     // Edit a member. Pastor is read-only; a leader may only edit members in their own
     // 동산 (scope-checked). Renames propagate to the denormalized devices/attendance names.
     if(req.method==="PUT"&&p==="/api/admin/member") {
-      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      const role=await resolveAdmin(sb,req);
       if(!role) return fail(401,"Not authorized");
       if(role.role==="pastor") return fail(403,"Read-only");
       const {memberId}=body; if(!memberId) return fail(400,"memberId required");
@@ -465,7 +465,7 @@ Deno.serve(async (req: Request) => {
     // (inheriting the target's name/group/동산), then delete the source member. Scoped
     // (a leader may only merge members in their own 동산); pastor read-only; audited.
     if(req.method==="POST"&&p==="/api/admin/merge") {
-      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      const role=await resolveAdmin(sb,req);
       if(!role) return fail(401,"Not authorized");
       if(role.role==="pastor") return fail(403,"Read-only");
       const {fromId,toId}=body; if(!fromId||!toId||fromId===toId) return fail(400,"fromId and a different toId required");
@@ -495,7 +495,7 @@ Deno.serve(async (req: Request) => {
     // Allowed for super-admin OR a leader who is NOT a 동산지기/부동산지기. Out-of-scope
     // members are dropped server-side; subgroup "" removes them from any 동산. Audited.
     if(req.method==="POST"&&p==="/api/admin/members/bulk-subgroup") {
-      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      const role=await resolveAdmin(sb,req);
       if(!role) return fail(401,"Not authorized");
       const cfg=await getCfg(sb);
       if(role.role!=="super_admin"){
@@ -527,7 +527,7 @@ Deno.serve(async (req: Request) => {
     // (leader/welcoming who is NOT a 동산지기/부동산지기) files a request held for super
     // approval. Audited either way.
     if(req.method==="POST"&&p==="/api/admin/attendance/clear") {
-      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      const role=await resolveAdmin(sb,req);
       if(!role) return fail(401,"Not authorized");
       if(role.role==="super_admin"){
         await sb.from("attendance_log").delete().neq("id",0);
@@ -547,7 +547,7 @@ Deno.serve(async (req: Request) => {
 
     // Pending clear-all requests (super-admin only).
     if(req.method==="GET"&&p==="/api/admin/attendance/clear-pending") {
-      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      const role=await resolveAdmin(sb,req);
       if(role?.role!=="super_admin") return fail(403,"Super admin required");
       const cfg=await getCfg(sb);
       return ok({pending:Array.isArray(cfg.pending_clear)?cfg.pending_clear:[]});
@@ -555,7 +555,7 @@ Deno.serve(async (req: Request) => {
 
     // Approve pending clear → delete ALL attendance + empty the queue (super-admin only).
     if(req.method==="POST"&&p==="/api/admin/attendance/clear-approve") {
-      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      const role=await resolveAdmin(sb,req);
       if(role?.role!=="super_admin") return fail(403,"Super admin required");
       await sb.from("attendance_log").delete().neq("id",0);
       await sb.from("config").update({pending_clear:[]}).eq("id",1);
@@ -565,7 +565,7 @@ Deno.serve(async (req: Request) => {
 
     // Reject/dismiss pending clear requests (super-admin only).
     if(req.method==="POST"&&p==="/api/admin/attendance/clear-reject") {
-      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      const role=await resolveAdmin(sb,req);
       if(role?.role!=="super_admin") return fail(403,"Super admin required");
       await sb.from("config").update({pending_clear:[]}).eq("id",1);
       await addAudit(sb,"clear-rejected",xDev,"출석 기록 삭제 요청 거절");
@@ -577,7 +577,7 @@ Deno.serve(async (req: Request) => {
     // own 동산); pastor read-only; audited. Distinct from the legacy name-based
     // /api/admin/checkin used by the old client.
     if(req.method==="POST"&&p==="/api/admin/member-checkin") {
-      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      const role=await resolveAdmin(sb,req);
       if(!role) return fail(401,"Not authorized");
       if(role.role==="pastor") return fail(403,"Read-only");
       const {memberId}=body; if(!memberId) return fail(400,"memberId required");
@@ -605,7 +605,7 @@ Deno.serve(async (req: Request) => {
     // Manual attendance — add an entry for a member on ANY date (back-fill). Hardened,
     // member-id based, scoped; pastor read-only; deduped by member_id+date; audited.
     if(req.method==="POST"&&p==="/api/admin/log/add") {
-      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      const role=await resolveAdmin(sb,req);
       if(!role) return fail(401,"Not authorized");
       if(role.role==="pastor") return fail(403,"Read-only");
       const {memberId,date}=body; if(!memberId||!date||!/^\d{4}-\d{2}-\d{2}$/.test(date)) return fail(400,"memberId and a YYYY-MM-DD date required");
@@ -630,7 +630,7 @@ Deno.serve(async (req: Request) => {
     // Manual attendance — remove a single entry by its row id. Hardened: scope-checks the
     // entry's member; pastor read-only; audited.
     if(req.method==="POST"&&p==="/api/admin/log/remove") {
-      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      const role=await resolveAdmin(sb,req);
       if(!role) return fail(401,"Not authorized");
       if(role.role==="pastor") return fail(403,"Read-only");
       const {logId}=body; if(logId===undefined||logId===null) return fail(400,"logId required");
@@ -653,7 +653,7 @@ Deno.serve(async (req: Request) => {
     // member-id based; pastor read-only; out-of-scope members are silently dropped;
     // members already present on that date are skipped; audited. Returns the count added.
     if(req.method==="POST"&&p==="/api/admin/log/add-bulk") {
-      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      const role=await resolveAdmin(sb,req);
       if(!role) return fail(401,"Not authorized");
       if(role.role==="pastor") return fail(403,"Read-only");
       const {memberIds,date}=body;
@@ -685,7 +685,7 @@ Deno.serve(async (req: Request) => {
     // member with the denormalized name/group/동산. Any device (real or ROSTER) id is
     // allowed; ROSTER placeholders for the name are superseded. Pastor read-only; audited.
     if(req.method==="POST"&&p==="/api/admin/device/register") {
-      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      const role=await resolveAdmin(sb,req);
       if(!role) return fail(401,"Not authorized");
       if(role.role==="pastor") return fail(403,"Read-only");
       const {deviceId,name,group,subgroup}=body;
@@ -709,7 +709,7 @@ Deno.serve(async (req: Request) => {
     // name/group/동산 (the device row is created if it doesn't exist). ROSTER
     // placeholders for the name are superseded. Pastor read-only; audited.
     if(req.method==="POST"&&p==="/api/admin/device/link") {
-      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      const role=await resolveAdmin(sb,req);
       if(!role) return fail(401,"Not authorized");
       if(role.role==="pastor") return fail(403,"Read-only");
       const {deviceId,memberId}=body;
@@ -734,7 +734,7 @@ Deno.serve(async (req: Request) => {
     // device, so this is hardened (verifyAdmin) and bypasses day/time/location. Records a
     // visitor attendance row for today; deduped by name+date; pastor read-only; audited.
     if(req.method==="POST"&&p==="/api/admin/guest-checkin") {
-      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      const role=await resolveAdmin(sb,req);
       if(!role) return fail(401,"Not authorized");
       if(role.role==="pastor") return fail(403,"Read-only");
       const name=(body.name||"").trim(); if(!name) return fail(400,"name required");
@@ -751,7 +751,7 @@ Deno.serve(async (req: Request) => {
     // immediately records today's attendance (first_visit). Hardened (verifyAdmin);
     // pastor read-only; audited.
     if(req.method==="POST"&&p==="/api/admin/kiosk-new-member") {
-      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      const role=await resolveAdmin(sb,req);
       if(!role) return fail(401,"Not authorized");
       if(role.role==="pastor") return fail(403,"Read-only");
       const name=(body.name||"").trim(); const group=(body.group||"").trim();
