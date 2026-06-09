@@ -1,6 +1,8 @@
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useQuery } from '@tanstack/react-query'
 import { useAdminAuth } from '../../stores/useAdminAuth'
+import { getPending } from '../../lib/api'
 import { Button } from '../../components/ui/Button'
 import { AdminToday } from './AdminToday'
 import { AdminSheet } from './AdminSheet'
@@ -19,6 +21,8 @@ export function AdminApp() {
   const signOut = useAdminAuth((s) => s.signOut)
   const [tab, setTab] = useState<Tab>('today')
   const isSuper = identity?.role === 'super_admin'
+  const { data: pending } = useQuery({ queryKey: ['pending'], queryFn: getPending, enabled: isSuper })
+  const pendingCount = pending?.pending.length ?? 0
 
   const scopeLabel =
     identity && identity.role === 'leader'
@@ -55,7 +59,7 @@ export function AdminApp() {
             {t('admin.nav.newfamily')}
           </TabBtn>
           {isSuper && (
-            <TabBtn active={tab === 'admins'} onClick={() => setTab('admins')}>
+            <TabBtn active={tab === 'admins'} onClick={() => setTab('admins')} badge={pendingCount}>
               {t('admin.nav.admins')}
             </TabBtn>
           )}
@@ -79,17 +83,32 @@ export function AdminApp() {
   )
 }
 
-function TabBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
+function TabBtn({
+  active,
+  onClick,
+  children,
+  badge = 0,
+}: {
+  active: boolean
+  onClick: () => void
+  children: ReactNode
+  badge?: number
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
       className={
-        'min-h-9 rounded-md px-3 py-1.5 text-sm font-semibold transition-colors ' +
+        'relative min-h-9 rounded-md px-3 py-1.5 text-sm font-semibold transition-colors ' +
         (active ? 'bg-primary/15 text-primary' : 'text-muted hover:bg-surface-alt hover:text-text')
       }
     >
       {children}
+      {badge > 0 && (
+        <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-danger px-1 text-[10px] font-bold text-white">
+          {badge}
+        </span>
+      )}
     </button>
   )
 }

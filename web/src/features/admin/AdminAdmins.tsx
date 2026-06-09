@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { getConfig, getAdminRoles, getAuditLog, updateSettings } from '../../lib/api'
+import { getConfig, getAdminRoles, getAuditLog, getPending, approvePending, rejectPending, updateSettings } from '../../lib/api'
 import { sortAdminRoles, auditDetail } from './admins'
 import { Switch } from '../../components/ui/Switch'
 import { Button } from '../../components/ui/Button'
@@ -15,6 +15,8 @@ export function AdminAdmins() {
   const toast = useToast()
   const { data: cfg } = useQuery({ queryKey: ['config'], queryFn: getConfig })
   const { data: rolesData, isLoading: rolesLoading } = useQuery({ queryKey: ['adminRoles'], queryFn: getAdminRoles })
+  const { data: pendingData } = useQuery({ queryKey: ['pending'], queryFn: getPending })
+  const [pendingBusy, setPendingBusy] = useState<string | null>(null)
   const [showAudit, setShowAudit] = useState(false)
   const { data: auditData, isLoading: auditLoading } = useQuery({
     queryKey: ['audit'],
@@ -36,10 +38,57 @@ export function AdminAdmins() {
     }
   }
 
+  async function decide(deviceId: string, approve: boolean) {
+    setPendingBusy(deviceId)
+    try {
+      await (approve ? approvePending(deviceId) : rejectPending(deviceId))
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['pending'] }),
+        qc.invalidateQueries({ queryKey: ['roster'] }),
+      ])
+      toast({ title: t('admin.settings.saved'), tone: 'ok' })
+    } catch {
+      toast({ title: t('common.error'), tone: 'err' })
+    } finally {
+      setPendingBusy(null)
+    }
+  }
+
   const roles = sortAdminRoles(rolesData?.roles ?? [])
+  const pending = pendingData?.pending ?? []
 
   return (
     <div className="max-w-lg">
+      {pending.length > 0 && (
+        <>
+          <h2 className="mb-3 font-display text-lg font-semibold text-text">
+            {t('admin.admins.pending')} · {pending.length}
+          </h2>
+          <ul className="mb-6 flex flex-col gap-2">
+            {pending.map((p) => (
+              <li
+                key={p.deviceId}
+                className="flex items-center justify-between gap-2 rounded-lg border border-warning/40 bg-warning/5 px-3 py-2"
+              >
+                <div>
+                  <div className="text-sm font-semibold text-text">{p.name}</div>
+                  <div className="text-xs text-muted">{[p.group, p.subgroup].filter(Boolean).join(' · ') || '—'}</div>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={() => decide(p.deviceId, true)} disabled={pendingBusy !== null}>
+                    {t('admin.admins.approve')}
+                  </Button>
+                  <Button size="sm" variant="danger" onClick={() => decide(p.deviceId, false)} disabled={pendingBusy !== null}>
+                    {t('admin.admins.reject')}
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+          <hr className="my-6 border-border" />
+        </>
+      )}
+
       <div className="flex items-center justify-between gap-4 py-3">
         <div>
           <div className="text-sm font-semibold text-text">{t('admin.admins.approval')}</div>

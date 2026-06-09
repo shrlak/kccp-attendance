@@ -193,6 +193,25 @@ export interface AuditEntry {
 export const getAuditLog = (limit = 100) =>
   api<{ log: AuditEntry[] }>('GET', `/api/admin/audit?limit=${limit}`)
 
+export interface PendingReg {
+  deviceId: string
+  name: string
+  group: string
+  subgroup: string
+  requestedAt: number
+}
+
+// Pending self-registrations awaiting approval (any verified admin).
+export const getPending = () => api<{ pending: PendingReg[] }>('GET', '/api/admin/pending')
+
+// Approve a pending registration → creates/links the member + device. Pastor read-only.
+export const approvePending = (deviceId: string) =>
+  api<{ status: string }>('POST', '/api/admin/pending/approve', { deviceId })
+
+// Reject (delete) a pending registration. Pastor read-only.
+export const rejectPending = (deviceId: string) =>
+  api<{ status: string }>('POST', '/api/admin/pending/reject', { deviceId })
+
 export interface MemberEdit {
   name?: string
   group?: string
