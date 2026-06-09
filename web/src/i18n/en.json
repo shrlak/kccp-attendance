@@ -44,6 +44,11 @@
     "synced": "Attendance synced"
   },
   "announce": { "label": "Notice" },
+  "landing": {
+    "title": "KCCP Attendance System",
+    "subtitle": "Korean Central Church of Pittsburgh · College & Young Adult",
+    "kioskNote": "Check in at the church kiosk"
+  },
   "kiosk": {
     "title": "Attendance Kiosk",
     "enter": "Kiosk",
