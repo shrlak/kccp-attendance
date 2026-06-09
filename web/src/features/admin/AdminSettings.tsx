@@ -1,23 +1,12 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  getConfig,
-  updateCheckinWindow,
-  updateSettings,
-  getDongsanNames,
-  updateDongsanNames,
-  type SettingsPatch,
-  type DongsanNames,
-} from '../../lib/api'
+import { getConfig, updateCheckinWindow, updateSettings, type SettingsPatch } from '../../lib/api'
 import { useToast } from '../../components/ui/Toast'
 import { useLang } from '../../stores/useLang'
 import { Button } from '../../components/ui/Button'
-import { Input } from '../../components/ui/Input'
 import { Switch } from '../../components/ui/Switch'
 import { minutesToHHMM, hhmmToMinutes } from './time'
-import { renameAt, addDongsan, removeAt, cleanNames } from './dongsan'
-import { DongsanLeadersEditor } from './DongsanLeaders'
 
 const DAY_LABELS: Record<'ko' | 'en', string[]> = {
   ko: ['일', '월', '화', '수', '목', '금', '토'],
@@ -28,32 +17,24 @@ const timeInput =
   'w-full min-h-11 rounded-md border border-border bg-surface px-3 text-sm text-text outline-none ' +
   'focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/30'
 
-// The adjustable check-in window (day(s) + start/end). Super-admin only — matches the
-// legacy Settings tab. Form values are DERIVED from the loaded config with an edits
-// overlay, so there's no setState-in-effect and no flash of defaults.
+// Super-admin settings: the adjustable check-in window, announcement, and app-wide mode
+// toggles. (동산 names + 동산지기/부동산지기 live in their own 동산 tab now.)
 export function AdminSettings() {
   const { t } = useTranslation()
   const lang = useLang((s) => s.lang)
   const toast = useToast()
   const qc = useQueryClient()
   const { data: cfg } = useQuery({ queryKey: ['config'], queryFn: getConfig })
-  const { data: dongsanLoaded } = useQuery({ queryKey: ['dongsanNames'], queryFn: getDongsanNames })
   const [edits, setEdits] = useState<{ days?: number[]; start?: string; end?: string }>({})
   const [saving, setSaving] = useState(false)
   const [ann, setAnn] = useState<string | undefined>(undefined)
   const [annSaving, setAnnSaving] = useState(false)
   const [busyToggle, setBusyToggle] = useState<keyof SettingsPatch | null>(null)
-  // 동산-names form: an edits overlay over the loaded map so there's no setState-in-effect.
-  const [dongsanEdits, setDongsanEdits] = useState<DongsanNames | undefined>(undefined)
-  const [dongsanSaving, setDongsanSaving] = useState(false)
 
   const days = edits.days ?? cfg?.checkinDays ?? [0]
   const start = edits.start ?? (cfg ? minutesToHHMM(cfg.checkinStartMin) : '13:00')
   const end = edits.end ?? (cfg ? minutesToHHMM(cfg.checkinEndMin) : '15:00')
   const announcement = ann ?? cfg?.announcement ?? ''
-  const dongsanNames = dongsanEdits ?? dongsanLoaded ?? {}
-  const dongsanGroups = Object.keys(dongsanNames)
-  const dongsanDirty = dongsanEdits !== undefined
 
   function toggleDay(d: number) {
     const next = days.includes(d) ? days.filter((x) => x !== d) : [...days, d].sort((a, b) => a - b)
@@ -98,20 +79,6 @@ export function AdminSettings() {
       toast({ title: t('common.error'), tone: 'err' })
     } finally {
       setBusyToggle(null)
-    }
-  }
-
-  async function saveDongsan() {
-    setDongsanSaving(true)
-    try {
-      await updateDongsanNames(cleanNames(dongsanNames))
-      await qc.invalidateQueries({ queryKey: ['dongsanNames'] })
-      setDongsanEdits(undefined)
-      toast({ title: t('admin.settings.saved'), tone: 'ok' })
-    } catch {
-      toast({ title: t('common.error'), tone: 'err' })
-    } finally {
-      setDongsanSaving(false)
     }
   }
 
@@ -213,53 +180,6 @@ export function AdminSettings() {
           onChange={(v) => flip('demoMode', v)}
         />
       </div>
-
-      <hr className="my-8 border-border" />
-
-      <h2 className="font-display text-lg font-semibold text-text">{t('admin.settings.dongsanNames')}</h2>
-      <p className="mb-4 mt-1 text-sm text-muted">{t('admin.settings.dongsanNamesDesc')}</p>
-
-      <div className="flex flex-col gap-5">
-        {dongsanGroups.map((group) => (
-          <div key={group}>
-            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-subtle">{group}</span>
-            <div className="flex flex-col gap-2">
-              {(dongsanNames[group] ?? []).map((name, idx) => (
-                <div key={idx} className="flex items-center gap-2">
-                  <Input
-                    value={name}
-                    placeholder={t('admin.settings.dongsanPlaceholder')}
-                    aria-label={`${group} ${idx + 1}`}
-                    onChange={(e) => setDongsanEdits(renameAt(dongsanNames, group, idx, e.target.value))}
-                  />
-                  <Button
-                    variant="ghost"
-                    onClick={() => setDongsanEdits(removeAt(dongsanNames, group, idx))}
-                    aria-label={`${t('admin.settings.removeDongsan')} ${name}`}
-                  >
-                    {t('admin.settings.removeDongsan')}
-                  </Button>
-                </div>
-              ))}
-              <Button
-                variant="ghost"
-                className="self-start"
-                onClick={() => setDongsanEdits(addDongsan(dongsanNames, group))}
-              >
-                + {t('admin.settings.addDongsan')}
-              </Button>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <Button className="mt-5" onClick={saveDongsan} disabled={dongsanSaving || !dongsanDirty}>
-        {dongsanSaving ? t('common.loading') : t('admin.settings.save')}
-      </Button>
-
-      <hr className="my-8 border-border" />
-
-      <DongsanLeadersEditor />
     </div>
   )
 }

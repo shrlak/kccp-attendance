@@ -11,10 +11,11 @@ import { AdminAnalytics } from './AdminAnalytics'
 import { AdminNewFamily } from './AdminNewFamily'
 import { AdminDevices } from './AdminDevices'
 import { AdminAdmins } from './AdminAdmins'
+import { AdminDongsan } from './AdminDongsan'
 import { AdminSettings } from './AdminSettings'
 import { KioskView } from '../kiosk/KioskView'
 
-type Tab = 'today' | 'sheet' | 'members' | 'analytics' | 'newfamily' | 'devices' | 'admins' | 'settings'
+type Tab = 'today' | 'sheet' | 'members' | 'analytics' | 'newfamily' | 'devices' | 'admins' | 'dongsan' | 'settings'
 
 // Authenticated admin layout: header (who/scope/sign-out) + tab nav. Settings is
 // super-admin only. Today/Sheet/Members slot in as further tabs in later phases.
@@ -86,6 +87,11 @@ export function AdminApp() {
             </TabBtn>
           )}
           {isSuper && (
+            <TabBtn active={tab === 'dongsan'} onClick={() => setTab('dongsan')}>
+              {t('admin.nav.dongsan')}
+            </TabBtn>
+          )}
+          {isSuper && (
             <TabBtn active={tab === 'settings'} onClick={() => setTab('settings')}>
               {t('admin.nav.settings')}
             </TabBtn>
@@ -101,6 +107,7 @@ export function AdminApp() {
         {tab === 'newfamily' && <AdminNewFamily />}
         {tab === 'devices' && canDevices && <AdminDevices />}
         {tab === 'admins' && isSuper && <AdminAdmins />}
+        {tab === 'dongsan' && isSuper && <AdminDongsan />}
         {tab === 'settings' && isSuper && <AdminSettings />}
       </div>
 
