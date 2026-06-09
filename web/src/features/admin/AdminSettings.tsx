@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { getConfig, updateCheckinWindow } from '../../lib/api'
+import { getConfig, updateCheckinWindow, updateSettings, type SettingsPatch } from '../../lib/api'
 import { useToast } from '../../components/ui/Toast'
 import { useLang } from '../../stores/useLang'
 import { Button } from '../../components/ui/Button'
+import { Switch } from '../../components/ui/Switch'
 import { minutesToHHMM, hhmmToMinutes } from './time'
 
 const DAY_LABELS: Record<'ko' | 'en', string[]> = {
@@ -27,10 +28,14 @@ export function AdminSettings() {
   const { data: cfg } = useQuery({ queryKey: ['config'], queryFn: getConfig })
   const [edits, setEdits] = useState<{ days?: number[]; start?: string; end?: string }>({})
   const [saving, setSaving] = useState(false)
+  const [ann, setAnn] = useState<string | undefined>(undefined)
+  const [annSaving, setAnnSaving] = useState(false)
+  const [busyToggle, setBusyToggle] = useState<keyof SettingsPatch | null>(null)
 
   const days = edits.days ?? cfg?.checkinDays ?? [0]
   const start = edits.start ?? (cfg ? minutesToHHMM(cfg.checkinStartMin) : '13:00')
   const end = edits.end ?? (cfg ? minutesToHHMM(cfg.checkinEndMin) : '15:00')
+  const announcement = ann ?? cfg?.announcement ?? ''
 
   function toggleDay(d: number) {
     const next = days.includes(d) ? days.filter((x) => x !== d) : [...days, d].sort((a, b) => a - b)
@@ -48,6 +53,33 @@ export function AdminSettings() {
       toast({ title: t('common.error'), tone: 'err' })
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function saveAnnouncement() {
+    setAnnSaving(true)
+    try {
+      await updateSettings({ announcement })
+      await qc.invalidateQueries({ queryKey: ['config'] })
+      setAnn(undefined)
+      toast({ title: t('admin.settings.saved'), tone: 'ok' })
+    } catch {
+      toast({ title: t('common.error'), tone: 'err' })
+    } finally {
+      setAnnSaving(false)
+    }
+  }
+
+  async function flip(field: keyof SettingsPatch, value: boolean) {
+    setBusyToggle(field)
+    try {
+      await updateSettings({ [field]: value })
+      await qc.invalidateQueries({ queryKey: ['config'] })
+      toast({ title: t('admin.settings.saved'), tone: 'ok' })
+    } catch {
+      toast({ title: t('common.error'), tone: 'err' })
+    } finally {
+      setBusyToggle(null)
     }
   }
 
@@ -107,6 +139,72 @@ export function AdminSettings() {
       <Button onClick={save} disabled={saving || days.length === 0}>
         {saving ? t('common.loading') : t('admin.settings.save')}
       </Button>
+
+      <hr className="my-8 border-border" />
+
+      <h2 className="font-display text-lg font-semibold text-text">{t('admin.settings.announcement')}</h2>
+      <p className="mb-3 mt-1 text-sm text-muted">{t('admin.settings.announcementDesc')}</p>
+      <textarea
+        value={announcement}
+        onChange={(e) => setAnn(e.target.value)}
+        rows={2}
+        placeholder={t('admin.settings.announcementPlaceholder')}
+        className="mb-3 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/30"
+      />
+      <Button onClick={saveAnnouncement} disabled={annSaving || announcement === (cfg?.announcement ?? '')}>
+        {annSaving ? t('common.loading') : t('admin.settings.save')}
+      </Button>
+
+      <hr className="my-8 border-border" />
+
+      <h2 className="mb-3 font-display text-lg font-semibold text-text">{t('admin.settings.modes')}</h2>
+      <div className="flex flex-col divide-y divide-border">
+        <ToggleRow
+          label={t('admin.settings.summerMode')}
+          desc={t('admin.settings.summerModeDesc')}
+          checked={!!cfg?.summerMode}
+          disabled={!cfg || busyToggle === 'summerMode'}
+          onChange={(v) => flip('summerMode', v)}
+        />
+        <ToggleRow
+          label={t('admin.settings.individualCheckin')}
+          desc={t('admin.settings.individualCheckinDesc')}
+          checked={!!cfg?.individualCheckinEnabled}
+          disabled={!cfg || busyToggle === 'individualCheckinEnabled'}
+          onChange={(v) => flip('individualCheckinEnabled', v)}
+        />
+        <ToggleRow
+          label={t('admin.settings.demoMode')}
+          desc={t('admin.settings.demoModeDesc')}
+          checked={!!cfg?.demoMode}
+          disabled={!cfg || busyToggle === 'demoMode'}
+          onChange={(v) => flip('demoMode', v)}
+        />
+      </div>
+    </div>
+  )
+}
+
+function ToggleRow({
+  label,
+  desc,
+  checked,
+  disabled,
+  onChange,
+}: {
+  label: string
+  desc: string
+  checked: boolean
+  disabled: boolean
+  onChange: (v: boolean) => void
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 py-3">
+      <div>
+        <div className="text-sm font-semibold text-text">{label}</div>
+        <div className="text-xs text-muted">{desc}</div>
+      </div>
+      <Switch checked={checked} onChange={onChange} disabled={disabled} label={label} />
     </div>
   )
 }

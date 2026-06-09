@@ -156,6 +156,19 @@ export const getRoster = () => api<RosterResponse>('GET', '/api/roster')
 export const updateCheckinWindow = (checkinDays: number[], checkinStartMin: number, checkinEndMin: number) =>
   api<{ status: string }>('POST', '/api/admin/settings', { checkinDays, checkinStartMin, checkinEndMin })
 
+export interface SettingsPatch {
+  announcement?: string
+  summerMode?: boolean
+  demoMode?: boolean
+  individualCheckinEnabled?: boolean
+  requireApproval?: boolean
+}
+
+// Update any subset of the app-wide settings (super-admin). Same endpoint as the
+// check-in window; only the provided fields change.
+export const updateSettings = (patch: SettingsPatch) =>
+  api<{ status: string }>('POST', '/api/admin/settings', patch)
+
 export interface MemberEdit {
   name?: string
   group?: string

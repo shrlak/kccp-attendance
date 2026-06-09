@@ -72,7 +72,17 @@
       "start": "Start",
       "end": "End",
       "save": "Save",
-      "saved": "Saved"
+      "saved": "Saved",
+      "announcement": "Announcement",
+      "announcementDesc": "Shown on the check-in screen.",
+      "announcementPlaceholder": "Enter an announcement",
+      "modes": "Modes",
+      "summerMode": "Summer mode",
+      "summerModeDesc": "Merge 대학부·청년부 by 동산.",
+      "individualCheckin": "Individual check-in",
+      "individualCheckinDesc": "Let individuals check themselves in.",
+      "demoMode": "Demo mode",
+      "demoModeDesc": "Allow check-in with no day/time/location limits."
     }
   }
 }
