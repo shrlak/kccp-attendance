@@ -222,11 +222,16 @@ Deno.serve(async (req: Request) => {
     if(req.method==="POST"&&p==="/api/admin/settings") {
       const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
       if(role?.role!=="super_admin") return fail(403,"Super admin required");
-      const {checkinDays,checkinStartMin,checkinEndMin}=body;
+      const {checkinDays,checkinStartMin,checkinEndMin,announcement,summerMode,demoMode,individualCheckinEnabled,requireApproval}=body;
       const upd: any={updated_at:new Date().toISOString()};
       if(checkinDays!==undefined) upd.checkin_days=checkinDays;
       if(checkinStartMin!==undefined) upd.checkin_start_min=Number(checkinStartMin);
       if(checkinEndMin!==undefined) upd.checkin_end_min=Number(checkinEndMin);
+      if(announcement!==undefined) upd.announcement=announcement;
+      if(summerMode!==undefined) upd.summer_mode=!!summerMode;
+      if(demoMode!==undefined) upd.demo_mode=!!demoMode;
+      if(individualCheckinEnabled!==undefined) upd.individual_checkin_enabled=!!individualCheckinEnabled;
+      if(requireApproval!==undefined) upd.require_approval=!!requireApproval;
       await sb.from("config").update(upd).eq("id",1);
       return ok({status:"ok"});
     }
