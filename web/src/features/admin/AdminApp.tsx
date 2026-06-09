@@ -8,10 +8,11 @@ import { AdminToday } from './AdminToday'
 import { AdminSheet } from './AdminSheet'
 import { AdminMembers } from './AdminMembers'
 import { AdminNewFamily } from './AdminNewFamily'
+import { AdminDevices } from './AdminDevices'
 import { AdminAdmins } from './AdminAdmins'
 import { AdminSettings } from './AdminSettings'
 
-type Tab = 'today' | 'sheet' | 'members' | 'newfamily' | 'admins' | 'settings'
+type Tab = 'today' | 'sheet' | 'members' | 'newfamily' | 'devices' | 'admins' | 'settings'
 
 // Authenticated admin layout: header (who/scope/sign-out) + tab nav. Settings is
 // super-admin only. Today/Sheet/Members slot in as further tabs in later phases.
@@ -21,6 +22,7 @@ export function AdminApp() {
   const signOut = useAdminAuth((s) => s.signOut)
   const [tab, setTab] = useState<Tab>('today')
   const isSuper = identity?.role === 'super_admin'
+  const canDevices = identity?.role !== 'pastor'
   const { data: pending } = useQuery({ queryKey: ['pending'], queryFn: getPending, enabled: isSuper })
   const pendingCount = pending?.pending.length ?? 0
 
@@ -58,6 +60,11 @@ export function AdminApp() {
           <TabBtn active={tab === 'newfamily'} onClick={() => setTab('newfamily')}>
             {t('admin.nav.newfamily')}
           </TabBtn>
+          {canDevices && (
+            <TabBtn active={tab === 'devices'} onClick={() => setTab('devices')}>
+              {t('admin.nav.devices')}
+            </TabBtn>
+          )}
           {isSuper && (
             <TabBtn active={tab === 'admins'} onClick={() => setTab('admins')} badge={pendingCount}>
               {t('admin.nav.admins')}
@@ -76,6 +83,7 @@ export function AdminApp() {
         {tab === 'sheet' && <AdminSheet />}
         {tab === 'members' && <AdminMembers />}
         {tab === 'newfamily' && <AdminNewFamily />}
+        {tab === 'devices' && canDevices && <AdminDevices />}
         {tab === 'admins' && isSuper && <AdminAdmins />}
         {tab === 'settings' && isSuper && <AdminSettings />}
       </div>
