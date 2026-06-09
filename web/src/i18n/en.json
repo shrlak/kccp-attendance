@@ -59,7 +59,7 @@
     "roles": { "super_admin": "Super admin", "leader": "Leader", "pastor": "Pastor", "welcoming": "Welcome team" },
     "nav": { "today": "Today", "sheet": "Sheet", "members": "Members", "newfamily": "New family", "admins": "Admins", "settings": "Settings" },
     "filter": { "all": "All" },
-    "admins": { "approval": "Registration approval", "approvalDesc": "When on, new registrations go to an approval queue.", "adminsList": "Admins", "noAdmins": "No admins", "auditLog": "Audit log", "loadAudit": "Load audit log", "noAudit": "No activity", "pending": "Pending approval", "approve": "Approve", "reject": "Reject" },
+    "admins": { "approval": "Registration approval", "approvalDesc": "When on, new registrations go to an approval queue.", "adminsList": "Admins", "noAdmins": "No admins", "auditLog": "Audit log", "loadAudit": "Load audit log", "noAudit": "No activity", "pending": "Pending approval", "approve": "Approve", "reject": "Reject", "addAdmin": "Add admin", "remove": "Remove", "member": "Member", "role": "Role" },
     "newfamily": { "title": "New family", "empty": "No new family this semester", "monthly": "Monthly registrations", "noRegDate": "No registration date", "pastoralVisit": "Visit requested", "edu1": "Class wk 1", "edu2": "Class wk 2", "season": { "spring": "Spring", "summer": "Summer", "fall": "Fall" } },
     "stats": { "today": "Today", "members": "Members", "records": "Records", "days": "Days" },
     "dashboard": { "present": "Present", "absent": "Absent", "avgRate": "4-wk avg" },

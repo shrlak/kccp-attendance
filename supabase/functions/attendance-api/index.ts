@@ -297,6 +297,37 @@ Deno.serve(async (req: Request) => {
       return ok({status:"ok"});
     }
 
+    // Assign/replace a member's admin role (super-admin only). Upsert into member_roles.
+    if(req.method==="POST"&&p==="/api/admin/role/set") {
+      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      if(role?.role!=="super_admin") return fail(403,"Super admin required");
+      const {memberId,role:newRole,group,subgroup,ministry}=body;
+      if(!memberId||!newRole) return fail(400,"memberId and role required");
+      if(!["super_admin","leader","pastor","welcoming"].includes(newRole)) return fail(400,"Invalid role");
+      const {data:m}=await sb.from("members").select("name").eq("id",memberId).single();
+      if(!m) return fail(404,"Member not found");
+      await sb.from("member_roles").upsert({member_id:memberId,role:newRole,group_name:group||"",subgroup:subgroup||"",ministry:ministry||""});
+      await addAudit(sb,"admin-add",xDev,(m as {name?:string}).name+" → "+newRole);
+      return ok({status:"ok"});
+    }
+
+    // Revoke a member's admin role (super-admin only). Refuses to remove the last super.
+    if(req.method==="POST"&&p==="/api/admin/role/remove") {
+      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      if(role?.role!=="super_admin") return fail(403,"Super admin required");
+      const {memberId}=body; if(!memberId) return fail(400,"memberId required");
+      const {data:tr}=await sb.from("member_roles").select("role").eq("member_id",memberId).single();
+      if(!tr) return ok({status:"ok"});
+      if((tr as {role?:string}).role==="super_admin"){
+        const {count}=await sb.from("member_roles").select("member_id",{count:"exact",head:true}).eq("role","super_admin");
+        if((count||0)<=1) return fail(400,"Cannot remove the last super admin");
+      }
+      const {data:m}=await sb.from("members").select("name").eq("id",memberId).single();
+      await sb.from("member_roles").delete().eq("member_id",memberId);
+      await addAudit(sb,"admin-remove",xDev,((m as {name?:string}|null)?.name||memberId)+"");
+      return ok({status:"ok"});
+    }
+
     // Edit a member. Pastor is read-only; a leader may only edit members in their own
     // 동산 (scope-checked). Renames propagate to the denormalized devices/attendance names.
     if(req.method==="PUT"&&p==="/api/admin/member") {

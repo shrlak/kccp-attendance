@@ -182,6 +182,21 @@ export interface AdminRoleRow {
 // All admin role grants (super-admin only).
 export const getAdminRoles = () => api<{ roles: AdminRoleRow[] }>('GET', '/api/admin/roles')
 
+export interface RoleAssignment {
+  memberId: string
+  role: AdminRole
+  group?: string
+  subgroup?: string
+  ministry?: string
+}
+
+// Assign/replace a member's admin role (super-admin only).
+export const setAdminRole = (a: RoleAssignment) => api<{ status: string }>('POST', '/api/admin/role/set', a)
+
+// Revoke a member's admin role (super-admin only; refuses the last super admin).
+export const removeAdminRole = (memberId: string) =>
+  api<{ status: string }>('POST', '/api/admin/role/remove', { memberId })
+
 export interface AuditEntry {
   ts: number
   action: string
