@@ -236,6 +236,26 @@ Deno.serve(async (req: Request) => {
       return ok({status:"ok"});
     }
 
+    // List all admin role grants (member_roles ⨝ member names). Super-admin only.
+    if(req.method==="GET"&&p==="/api/admin/roles") {
+      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      if(role?.role!=="super_admin") return fail(403,"Super admin required");
+      const {data:roles}=await sb.from("member_roles").select("*");
+      const ids=(roles||[]).map((r:any)=>r.member_id);
+      const {data:mem}=ids.length?await sb.from("members").select("id,name").in("id",ids):{data:[] as any[]};
+      const nameById: Record<string,string>={}; (mem||[]).forEach((m:any)=>{nameById[m.id]=m.name;});
+      return ok({roles:(roles||[]).map((r:any)=>({memberId:r.member_id,name:nameById[r.member_id]||"—",role:r.role,group:r.group_name||"",subgroup:r.subgroup||"",ministry:r.ministry||""}))});
+    }
+
+    // Audit log — most recent admin actions, newest first. Super-admin only.
+    if(req.method==="GET"&&p==="/api/admin/audit") {
+      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      if(role?.role!=="super_admin") return fail(403,"Super admin required");
+      const limit=Math.min(parseInt(url.searchParams.get("limit")||"100")||100,200);
+      const {data:log}=await sb.from("audit_log").select("*").order("ts",{ascending:false}).limit(limit);
+      return ok({log:(log||[]).map((e:any)=>({ts:e.ts,action:e.action,adminName:e.admin_name,details:e.details}))});
+    }
+
     // Edit a member. Pastor is read-only; a leader may only edit members in their own
     // 동산 (scope-checked). Renames propagate to the denormalized devices/attendance names.
     if(req.method==="PUT"&&p==="/api/admin/member") {

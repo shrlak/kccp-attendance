@@ -169,6 +169,30 @@ export interface SettingsPatch {
 export const updateSettings = (patch: SettingsPatch) =>
   api<{ status: string }>('POST', '/api/admin/settings', patch)
 
+// ── Admins tab (super-admin) ──────────────────────────────────────────────
+export interface AdminRoleRow {
+  memberId: string
+  name: string
+  role: AdminRole
+  group: string
+  subgroup: string
+  ministry: string
+}
+
+// All admin role grants (super-admin only).
+export const getAdminRoles = () => api<{ roles: AdminRoleRow[] }>('GET', '/api/admin/roles')
+
+export interface AuditEntry {
+  ts: number
+  action: string
+  adminName: string
+  details: unknown
+}
+
+// Recent admin actions, newest first (super-admin only).
+export const getAuditLog = (limit = 100) =>
+  api<{ log: AuditEntry[] }>('GET', `/api/admin/audit?limit=${limit}`)
+
 export interface MemberEdit {
   name?: string
   group?: string
