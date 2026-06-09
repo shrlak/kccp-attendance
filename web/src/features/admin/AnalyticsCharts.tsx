@@ -121,7 +121,7 @@ export function AnalyticsCharts({ members, log }: { members: Member[]; log: LogE
   if (trend.length === 0) return <p className="text-sm text-muted">{t('admin.sheet.empty')}</p>
 
   return (
-    <div className="mb-5 flex flex-col gap-5">
+    <div className={'mb-5 grid gap-5 ' + (showGroups ? 'md:grid-cols-2' : 'grid-cols-1')}>
       <Panel title={t('admin.analytics.trend')}>
         <ChartCanvas build={trendBuild} />
       </Panel>

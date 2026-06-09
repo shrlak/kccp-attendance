@@ -28,9 +28,11 @@ export function AdminAnalytics() {
     <>
       <GroupFilter members={data.members} value={filter} onChange={setFilter} />
       <AnalyticsCharts members={members} log={log} />
-      <MonthlyTable members={members} log={log} />
-      <SemesterTable members={members} log={log} />
-      <WeeklyRecap log={log} />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <SemesterTable members={members} log={log} />
+        <MonthlyTable members={members} log={log} />
+        <WeeklyRecap log={log} />
+      </div>
     </>
   )
 }
@@ -151,7 +153,7 @@ function SummaryTable({ head, rows }: { head: string[]; rows: { key: string; cel
 
 function Section({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
   return (
-    <section className="mb-5 rounded-lg border border-border bg-surface p-4">
+    <section className="rounded-lg border border-border bg-surface p-4">
       <div className="mb-2 flex items-center justify-between">
         <h3 className="font-mono text-xs uppercase tracking-wide text-subtle">{title}</h3>
         {action}
