@@ -4,8 +4,7 @@
 // is not a ROSTER-## seed stub) whose member holds a role in `member_roles`, gated by
 // the shared master password below. Public check-in stays anonymous and PII-free.
 //
-// NOT YET WIRED INTO index.ts — that integration ships with the coordinated cutover
-// (plan Phase F). Import-clean and unit-tested (auth.test.ts).
+// Wired into index.ts (imports verifyAdmin + scopeFilter) and unit-tested (auth.test.ts).
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
