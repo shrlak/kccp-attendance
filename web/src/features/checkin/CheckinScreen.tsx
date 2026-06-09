@@ -51,7 +51,10 @@ function TopBar() {
   return (
     <header className="flex items-center justify-between px-5 pt-[calc(1rem+env(safe-area-inset-top))]">
       <div className="flex items-center gap-2 text-primary">
-        <KccpMark size={26} />
+        {/* white chip so the multi-color mark (esp. the yellow) stays crisp on both themes */}
+        <span className="grid place-items-center rounded-md bg-white p-1 shadow-sm">
+          <KccpMark size={22} />
+        </span>
         <span className="font-display text-base font-semibold tracking-tight">KCCP</span>
       </div>
       <div className="flex items-center gap-1">
