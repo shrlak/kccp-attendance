@@ -13,6 +13,9 @@ import {
   removeAdminRole,
   getBackup,
   postRestore,
+  getClearPending,
+  approveClear,
+  rejectClear,
   type AdminRole,
   type RoleAssignment,
 } from '../../lib/api'
@@ -38,6 +41,8 @@ export function AdminAdmins() {
   const { data: cfg } = useQuery({ queryKey: ['config'], queryFn: getConfig })
   const { data: rolesData, isLoading: rolesLoading } = useQuery({ queryKey: ['adminRoles'], queryFn: getAdminRoles })
   const { data: pendingData } = useQuery({ queryKey: ['pending'], queryFn: getPending })
+  const { data: clearPending } = useQuery({ queryKey: ['clearPending'], queryFn: getClearPending })
+  const [clearBusy, setClearBusy] = useState(false)
   const [pendingBusy, setPendingBusy] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
   const [roleBusy, setRoleBusy] = useState<string | null>(null)
@@ -147,11 +152,49 @@ export function AdminAdmins() {
     }
   }
 
+  async function clearDecide(approve: boolean) {
+    setClearBusy(true)
+    try {
+      if (approve) {
+        await approveClear()
+        await qc.invalidateQueries({ queryKey: ['roster'] })
+      } else {
+        await rejectClear()
+      }
+      await qc.invalidateQueries({ queryKey: ['clearPending'] })
+      toast({ title: t(approve ? 'admin.sheet.clearAll.cleared' : 'admin.admins.clearReq.rejected'), tone: 'ok' })
+    } catch {
+      toast({ title: t('common.error'), tone: 'err' })
+    } finally {
+      setClearBusy(false)
+    }
+  }
+
   const roles = sortAdminRoles(rolesData?.roles ?? [])
   const pending = pendingData?.pending ?? []
+  const clearReqs = clearPending ?? []
 
   return (
     <div className="w-full">
+      {clearReqs.length > 0 && (
+        <>
+          <h2 className="mb-2 font-display text-lg font-semibold text-text">{t('admin.admins.clearReq.title')}</h2>
+          <div className="mb-6 rounded-lg border border-danger/40 bg-danger/5 px-3 py-3">
+            <p className="mb-2 text-xs text-muted">
+              {t('admin.admins.clearReq.by', { name: clearReqs.map((r) => r.requestedByName).join(', ') })}
+            </p>
+            <div className="flex gap-2">
+              <Button size="sm" variant="danger" onClick={() => clearDecide(true)} disabled={clearBusy}>
+                {t('admin.admins.clearReq.approve')}
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => clearDecide(false)} disabled={clearBusy}>
+                {t('admin.admins.clearReq.reject')}
+              </Button>
+            </div>
+          </div>
+          <hr className="my-6 border-border" />
+        </>
+      )}
       {pending.length > 0 && (
         <>
           <h2 className="mb-3 font-display text-lg font-semibold text-text">

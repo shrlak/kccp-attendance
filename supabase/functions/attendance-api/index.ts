@@ -237,13 +237,17 @@ Deno.serve(async (req: Request) => {
       const {data:members}=await mq;
       const ids=(members||[]).map((m:any)=>m.id);
       const {data:logs}=ids.length?await sb.from("attendance_log").select("*").in("member_id",ids).order("ts",{ascending:false}):{data:[] as any[]};
-      // Bulk 동산 reassignment is for super-admins + leaders who are NOT 동산지기/부동산지기.
+      // Bulk 동산 reassignment: super-admins + leaders who are NOT 동산지기/부동산지기.
+      // Clear-all-attendance: super-admins (direct) + leader/welcoming non-동산지기 (request).
       let canBulkSubgroup=role.role==="super_admin";
-      if(role.role==="leader"){
+      let canClearAttendance=role.role==="super_admin";
+      if(role.role==="leader"||role.role==="welcoming"){
         const {data:me}=await sb.from("members").select("name").eq("id",role.memberId).single();
-        canBulkSubgroup=!isDongsanLeaderName((me as any)?.name||"",role.group,role.subgroup,cfg.dongsan_leaders,!!cfg.summer_mode);
+        const tag=isDongsanLeaderName((me as any)?.name||"",role.group,role.subgroup,cfg.dongsan_leaders,!!cfg.summer_mode);
+        if(role.role==="leader") canBulkSubgroup=!tag;
+        canClearAttendance=!tag;
       }
-      return ok({role:role.role,canBulkSubgroup,members:members||[],log:(logs||[]).map(rowToLog)});
+      return ok({role:role.role,canBulkSubgroup,canClearAttendance,members:members||[],log:(logs||[]).map(rowToLog)});
     }
 
     // Settings (super-admin only): the adjustable check-in window — day(s) + start/end.
@@ -517,6 +521,55 @@ Deno.serve(async (req: Request) => {
       await sb.from("attendance_log").update({subgroup:sub}).in("member_id",targetIds);
       await addAudit(sb,"bulk-transfer",xDev,targetIds.length+"명 → 동산 "+(sub||"(해제)"));
       return ok({status:"ok",updated:targetIds.length});
+    }
+
+    // Clear ALL attendance records. Super-admin clears immediately; a non-super admin
+    // (leader/welcoming who is NOT a 동산지기/부동산지기) files a request held for super
+    // approval. Audited either way.
+    if(req.method==="POST"&&p==="/api/admin/attendance/clear") {
+      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      if(!role) return fail(401,"Not authorized");
+      if(role.role==="super_admin"){
+        await sb.from("attendance_log").delete().neq("id",0);
+        await addAudit(sb,"clear-attendance",xDev,"모든 출석 기록 삭제");
+        return ok({status:"cleared"});
+      }
+      if(role.role!=="leader"&&role.role!=="welcoming") return fail(403,"Not authorized");
+      const cfg=await getCfg(sb);
+      const {data:me}=await sb.from("members").select("name").eq("id",role.memberId).single();
+      if(isDongsanLeaderName((me as any)?.name||"",role.group,role.subgroup,cfg.dongsan_leaders,!!cfg.summer_mode)) return fail(403,"동산지기/부동산지기는 사용할 수 없습니다");
+      const pending=Array.isArray(cfg.pending_clear)?cfg.pending_clear:[];
+      pending.push({requestedBy:xDev,requestedByName:(me as any)?.name||xDev,requestedAt:Date.now()});
+      await sb.from("config").update({pending_clear:pending}).eq("id",1);
+      await addAudit(sb,"clear-requested",xDev,"출석 기록 삭제 요청");
+      return ok({status:"pending"});
+    }
+
+    // Pending clear-all requests (super-admin only).
+    if(req.method==="GET"&&p==="/api/admin/attendance/clear-pending") {
+      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      if(role?.role!=="super_admin") return fail(403,"Super admin required");
+      const cfg=await getCfg(sb);
+      return ok({pending:Array.isArray(cfg.pending_clear)?cfg.pending_clear:[]});
+    }
+
+    // Approve pending clear → delete ALL attendance + empty the queue (super-admin only).
+    if(req.method==="POST"&&p==="/api/admin/attendance/clear-approve") {
+      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      if(role?.role!=="super_admin") return fail(403,"Super admin required");
+      await sb.from("attendance_log").delete().neq("id",0);
+      await sb.from("config").update({pending_clear:[]}).eq("id",1);
+      await addAudit(sb,"clear-attendance",xDev,"모든 출석 기록 삭제 (요청 승인)");
+      return ok({status:"cleared"});
+    }
+
+    // Reject/dismiss pending clear requests (super-admin only).
+    if(req.method==="POST"&&p==="/api/admin/attendance/clear-reject") {
+      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      if(role?.role!=="super_admin") return fail(403,"Super admin required");
+      await sb.from("config").update({pending_clear:[]}).eq("id",1);
+      await addAudit(sb,"clear-rejected",xDev,"출석 기록 삭제 요청 거절");
+      return ok({status:"ok"});
     }
 
     // Manual check-in (hardened, member-id based): mark a member present for today,

@@ -149,6 +149,8 @@ export interface RosterResponse {
   // True for super-admins and leaders who are NOT a 동산지기/부동산지기 — they may bulk
   // reassign members' 동산 (feature-gated client-side; enforced server-side too).
   canBulkSubgroup?: boolean
+  // True for super-admins (clear directly) + leader/welcoming non-동산지기 (request a clear).
+  canClearAttendance?: boolean
 }
 
 // The role-scoped roster (super/pastor → all; leader → their 동산).
@@ -159,6 +161,28 @@ export const getRoster = () => api<RosterResponse>('GET', '/api/roster')
 // server-side. Returns how many were actually updated.
 export const bulkSetSubgroup = (memberIds: string[], subgroup: string) =>
   api<{ status: string; updated: number }>('POST', '/api/admin/members/bulk-subgroup', { memberIds, subgroup })
+
+// ── Clear all attendance (super clears directly; others request → super approves) ─────
+export interface ClearRequest {
+  requestedBy: string
+  requestedByName: string
+  requestedAt: number
+}
+
+// Wipe all attendance. super-admin → { status:'cleared' }; an allowed non-super admin →
+// { status:'pending' } (held for a super-admin to approve). Audited server-side.
+export const clearAttendance = () =>
+  api<{ status: 'cleared' | 'pending' }>('POST', '/api/admin/attendance/clear')
+
+// Pending clear-all requests (super-admin only).
+export const getClearPending = () =>
+  api<{ pending: ClearRequest[] }>('GET', '/api/admin/attendance/clear-pending').then((r) => r.pending)
+
+// Approve a pending clear → wipes all attendance + empties the queue (super-admin only).
+export const approveClear = () => api<{ status: string }>('POST', '/api/admin/attendance/clear-approve')
+
+// Dismiss/reject pending clear requests (super-admin only).
+export const rejectClear = () => api<{ status: string }>('POST', '/api/admin/attendance/clear-reject')
 
 // Update the adjustable check-in window (super-admin). The master password rides the
 // X-Admin-Password header set by the auth store.

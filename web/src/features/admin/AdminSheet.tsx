@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import { useRoster } from './useRoster'
 import { buildGrid, shortDate, type Grid } from './sheet'
-import { addBulkAttendance, type LogEntry, type RosterResponse } from '../../lib/api'
+import { addBulkAttendance, clearAttendance, type LogEntry, type RosterResponse } from '../../lib/api'
 import { easternNow } from '../../lib/checkinWindow'
 import { checkinCandidates } from './today'
 import { memberIdsPresentOn, toggleId } from './bulk'
@@ -23,6 +23,7 @@ export function AdminSheet() {
   const { t } = useTranslation()
   const [view, setView] = useState<'grid' | 'log'>('grid')
   const [bulk, setBulk] = useState(false)
+  const [clearing, setClearing] = useState(false)
   const [filter, setFilter] = useState<Filter>(NO_FILTER)
   const { data, isLoading, isError } = useRoster(true)
 
@@ -56,11 +57,58 @@ export function AdminSheet() {
               {t('admin.sheet.bulk.action')}
             </Button>
           )}
+          {data.canClearAttendance && (
+            <Button variant="danger" size="sm" onClick={() => setClearing(true)}>
+              {t('admin.sheet.clearAll.action')}
+            </Button>
+          )}
         </div>
       </div>
       {view === 'grid' ? <GridView grid={grid} empty={t('admin.sheet.empty')} totalLabel={t('admin.sheet.total')} /> : <LogView log={log} empty={t('admin.sheet.empty')} />}
       {bulk && <BulkModal data={data} onClose={() => setBulk(false)} />}
+      {clearing && <ClearDialog isSuper={data.role === 'super_admin'} onClose={() => setClearing(false)} />}
     </>
+  )
+}
+
+function ClearDialog({ isSuper, onClose }: { isSuper: boolean; onClose: () => void }) {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const toast = useToast()
+  const [busy, setBusy] = useState(false)
+
+  async function confirm() {
+    setBusy(true)
+    try {
+      const res = await clearAttendance()
+      if (res.status === 'cleared') {
+        toast({ title: t('admin.sheet.clearAll.cleared'), tone: 'ok' })
+        await qc.invalidateQueries({ queryKey: ['roster'] })
+      } else {
+        toast({ title: t('admin.sheet.clearAll.requested'), tone: 'ok' })
+      }
+      onClose()
+    } catch {
+      toast({ title: t('common.error'), tone: 'err' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()} title={t('admin.sheet.clearAll.title')}>
+      <p className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">
+        {t(isSuper ? 'admin.sheet.clearAll.warnSuper' : 'admin.sheet.clearAll.warnRequest')}
+      </p>
+      <div className="mt-4 flex gap-2">
+        <Button variant="secondary" onClick={onClose} className="flex-1">
+          {t('common.cancel')}
+        </Button>
+        <Button variant="danger" onClick={confirm} disabled={busy} className="flex-1">
+          {busy ? t('common.loading') : t(isSuper ? 'admin.sheet.clearAll.confirm' : 'admin.sheet.clearAll.request')}
+        </Button>
+      </div>
+    </Dialog>
   )
 }
 
