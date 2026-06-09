@@ -288,3 +288,13 @@ export const removeAttendance = (logId: number) =>
 // already-present ones skipped server-side; returns how many were actually added.
 export const addBulkAttendance = (memberIds: string[], date: string) =>
   api<{ status: string; added: number }>('POST', '/api/admin/log/add-bulk', { memberIds, date })
+
+// ── Backup / Restore (super-admin) ────────────────────────────────────────
+// Full v2 JSON snapshot of all data (devices, log, config, events, audit, pending).
+// Returned as a plain object so the caller can serialize and download it.
+export const getBackup = () => api<Record<string, unknown>>('GET', '/api/admin/backup')
+
+// Destructive restore from a previously downloaded v2 snapshot. Replaces all data
+// server-side and writes a `restore` audit entry.
+export const postRestore = (data: unknown) =>
+  api<{ status: string }>('POST', '/api/admin/restore', data)
