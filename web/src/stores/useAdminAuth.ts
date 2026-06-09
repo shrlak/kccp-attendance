@@ -50,8 +50,9 @@ export const useAdminAuth = create<AdminAuthState>((set) => ({
     set({ status: 'verifying' })
     await supabase.auth.signInWithOAuth({
       provider: 'google',
-      // Redirect to the site root (a real file) so GitHub Pages serves it directly.
-      // The SIGNED_IN handler pushes state to /admin after verification.
+      // Redirect to the site root (a real file) so GitHub Pages serves it directly — no
+      // dependence on the 404.html SPA fallback. The auth handler routes to /admin once
+      // the session verifies.
       options: { redirectTo: 'https://shrlak.github.io/kccp-attendance/' },
     })
     // Page redirects away — control does not return here.
@@ -66,46 +67,66 @@ export const useAdminAuth = create<AdminAuthState>((set) => ({
   },
 }))
 
-// Handle Supabase auth state: INITIAL_SESSION (on load) + SIGNED_IN (OAuth callback).
+// Whether this page load is the OAuth redirect landing. Supabase appends `?code=` (PKCE)
+// or a `#access_token=` hash (implicit) to the redirect URL. Captured at module load —
+// before supabase-js strips it — so we can route to /admin once the session verifies,
+// regardless of whether the callback surfaces as INITIAL_SESSION or SIGNED_IN (the event
+// differs across supabase-js versions).
+const isOAuthCallback =
+  typeof window !== 'undefined' &&
+  (new URLSearchParams(window.location.search).has('code') ||
+    window.location.hash.includes('access_token'))
+
+// Route to the admin panel without a full reload (the OAuth redirect lands at the site
+// root). React Router listens for popstate, so dispatching one makes it render /admin.
+function navigateToAdmin(): void {
+  if (typeof window === 'undefined') return
+  if (window.location.pathname.startsWith('/kccp-attendance/admin')) return
+  window.history.pushState({}, '', '/kccp-attendance/admin')
+  window.dispatchEvent(new PopStateEvent('popstate', { state: {} }))
+}
+
+// Verify a Google session with the edge function. On success, reflect it in the store and
+// — when this load is the fresh OAuth callback — route to /admin so the user lands on the
+// panel instead of the public landing page. Returns false if the session isn't an
+// authorized admin (caller decides how to surface that).
+async function verifyGoogleSession(accessToken: string): Promise<boolean> {
+  useAdminAuth.setState({ status: 'verifying' })
+  try {
+    setAdminToken(accessToken)
+    const identity = await adminVerifyGoogle()
+    useAdminAuth.setState({ status: 'authed', identity })
+    if (isOAuthCallback) navigateToAdmin()
+    return true
+  } catch {
+    setAdminToken(null)
+    return false
+  }
+}
+
+// Handle Supabase auth state. An OAuth callback may arrive as INITIAL_SESSION or SIGNED_IN
+// depending on the supabase-js version, so both verify + route through the same helper.
 supabase.auth.onAuthStateChange(async (event, session) => {
   if (event === 'INITIAL_SESSION') {
     if (session?.access_token) {
-      // Active Google session — verify it with the edge function.
-      useAdminAuth.setState({ status: 'verifying' })
-      try {
-        setAdminToken(session.access_token)
-        const identity = await adminVerifyGoogle()
-        useAdminAuth.setState({ status: 'authed', identity })
-      } catch {
-        setAdminToken(null)
+      // Active Google session — verify it; if it's not an admin, fall back to a saved
+      // break-glass password rather than showing an error on a passive page load.
+      const ok = await verifyGoogleSession(session.access_token)
+      if (!ok) {
         useAdminAuth.setState({ status: 'idle', identity: null })
-        // Fall through: password restore below will still run.
         const stored = readPw()
         if (stored) void useAdminAuth.getState().verify(stored)
       }
     } else {
-      // No Google session — try saved break-glass password.
+      // No Google session — try a saved break-glass password.
       const stored = readPw()
       if (stored) void useAdminAuth.getState().verify(stored)
     }
   } else if (event === 'SIGNED_IN' && session?.access_token) {
-    const store = useAdminAuth.getState()
-    if (store.status === 'authed') return
-    useAdminAuth.setState({ status: 'verifying' })
-    try {
-      setAdminToken(session.access_token)
-      const identity = await adminVerifyGoogle()
-      useAdminAuth.setState({ status: 'authed', identity })
-      // After OAuth the browser lands at root (/). Push state to /admin so the
-      // router renders the admin panel without a page reload.
-      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/kccp-attendance/admin')) {
-        window.history.pushState({}, '', '/kccp-attendance/admin')
-        window.dispatchEvent(new PopStateEvent('popstate', { state: {} }))
-      }
-    } catch {
-      setAdminToken(null)
-      useAdminAuth.setState({ status: 'error', identity: null })
-    }
+    if (useAdminAuth.getState().status === 'authed') return
+    // Active sign-in — surface an error if this Google account isn't an authorized admin.
+    const ok = await verifyGoogleSession(session.access_token)
+    if (!ok) useAdminAuth.setState({ status: 'error', identity: null })
   } else if (event === 'SIGNED_OUT') {
     setAdminToken(null)
   }
