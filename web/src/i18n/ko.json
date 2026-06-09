@@ -98,7 +98,7 @@
     "noMembers": "표시할 멤버가 없습니다",
     "scopeAll": "전체",
     "roles": { "super_admin": "최고관리자", "leader": "리더", "pastor": "목사님", "welcoming": "새가족팀" },
-    "nav": { "today": "오늘", "sheet": "출석부", "members": "멤버", "analytics": "통계", "newfamily": "새가족", "devices": "기기", "admins": "관리자", "settings": "설정" },
+    "nav": { "today": "오늘", "sheet": "출석부", "members": "멤버", "analytics": "통계", "newfamily": "새가족", "devices": "기기", "admins": "관리자", "dongsan": "동산", "settings": "설정" },
     "filter": { "all": "전체" },
     "dongsanRole": { "leader": "동산지기", "subleader": "부동산지기" },
     "analytics": { "trend": "출석 추이", "groupCompare": "부서별 비교", "attendance": "출석", "monthly": "월별 요약", "semester": "학기별 요약", "weeklyRecap": "주간 요약", "month": "월", "date": "날짜", "sundays": "주일", "attendees": "출석 인원", "firstVisits": "첫출석", "half1": "상반기", "half2": "하반기", "copy": "복사", "copied": "클립보드에 복사되었습니다" },
