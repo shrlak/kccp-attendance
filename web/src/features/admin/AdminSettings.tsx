@@ -116,7 +116,7 @@ export function AdminSettings() {
   }
 
   return (
-    <div className="max-w-md">
+    <div className="w-full">
       <h2 className="font-display text-lg font-semibold text-text">{t('admin.settings.checkinWindow')}</h2>
       <p className="mb-5 mt-1 text-sm text-muted">{t('admin.settings.checkinWindowDesc')}</p>
 

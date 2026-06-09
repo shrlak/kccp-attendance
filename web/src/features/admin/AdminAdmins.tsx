@@ -151,7 +151,7 @@ export function AdminAdmins() {
   const pending = pendingData?.pending ?? []
 
   return (
-    <div className="max-w-lg">
+    <div className="w-full">
       {pending.length > 0 && (
         <>
           <h2 className="mb-3 font-display text-lg font-semibold text-text">
