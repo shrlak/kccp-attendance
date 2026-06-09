@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -11,10 +11,12 @@ import {
   updateSettings,
   setAdminRole,
   removeAdminRole,
+  getBackup,
+  postRestore,
   type AdminRole,
   type RoleAssignment,
 } from '../../lib/api'
-import { sortAdminRoles, auditDetail, roleNeedsScope } from './admins'
+import { sortAdminRoles, auditDetail, roleNeedsScope, backupFilename } from './admins'
 import { useRoster } from './useRoster'
 import { groupsOf, subgroupsOf } from './filters'
 import { checkinCandidates } from './today'
@@ -86,6 +88,62 @@ export function AdminAdmins() {
       toast({ title: e instanceof Error ? e.message : t('common.error'), tone: 'err' })
     } finally {
       setRoleBusy(null)
+    }
+  }
+
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [backupBusy, setBackupBusy] = useState(false)
+  // The picked restore file is staged here; the destructive restore only runs after a
+  // second explicit "confirm" click (parity with the legacy hold-to-confirm gate).
+  const [restoreFile, setRestoreFile] = useState<File | null>(null)
+  const [restoreArmed, setRestoreArmed] = useState(false)
+  const [restoreBusy, setRestoreBusy] = useState(false)
+
+  async function downloadBackup() {
+    setBackupBusy(true)
+    try {
+      const data = await getBackup()
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+      const href = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = href
+      a.download = backupFilename()
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(href)
+    } catch {
+      toast({ title: t('common.error'), tone: 'err' })
+    } finally {
+      setBackupBusy(false)
+    }
+  }
+
+  function pickRestoreFile(file: File | null) {
+    setRestoreFile(file)
+    setRestoreArmed(false)
+  }
+
+  async function runRestore() {
+    if (!restoreFile) return
+    setRestoreBusy(true)
+    try {
+      const parsed = JSON.parse(await restoreFile.text())
+      await postRestore(parsed)
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['roster'] }),
+        qc.invalidateQueries({ queryKey: ['config'] }),
+        qc.invalidateQueries({ queryKey: ['adminRoles'] }),
+        qc.invalidateQueries({ queryKey: ['pending'] }),
+      ])
+      toast({ title: t('admin.admins.restored'), tone: 'ok' })
+      setRestoreFile(null)
+      setRestoreArmed(false)
+      if (fileRef.current) fileRef.current.value = ''
+    } catch {
+      toast({ title: t('common.error'), tone: 'err' })
+    } finally {
+      setRestoreBusy(false)
     }
   }
 
@@ -208,6 +266,42 @@ export function AdminAdmins() {
           ))}
         </ul>
       )}
+
+      <hr className="my-6 border-border" />
+
+      <h2 className="mb-1 font-display text-lg font-semibold text-text">{t('admin.admins.backup')}</h2>
+      <p className="mb-3 text-xs text-muted">{t('admin.admins.backupDesc')}</p>
+
+      <Button variant="secondary" onClick={downloadBackup} disabled={backupBusy}>
+        {t('admin.admins.download')}
+      </Button>
+
+      <div className="mt-4 flex flex-col gap-2 rounded-lg border border-danger/40 bg-danger/5 p-3">
+        <label className="text-sm font-semibold text-text">{t('admin.admins.restore')}</label>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="application/json,.json"
+          onChange={(e) => pickRestoreFile(e.target.files?.[0] ?? null)}
+          className="text-xs text-muted file:mr-3 file:rounded-sm file:border file:border-border file:bg-surface file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-text"
+        />
+        {restoreFile && (
+          <div className="flex flex-wrap items-center gap-2">
+            {!restoreArmed ? (
+              <Button size="sm" variant="danger" onClick={() => setRestoreArmed(true)} disabled={restoreBusy}>
+                {t('admin.admins.restore')}
+              </Button>
+            ) : (
+              <Button size="sm" variant="danger" onClick={runRestore} disabled={restoreBusy}>
+                {t('admin.admins.restoreConfirm')}
+              </Button>
+            )}
+            <Button size="sm" variant="ghost" onClick={() => pickRestoreFile(null)} disabled={restoreBusy}>
+              {t('common.cancel')}
+            </Button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

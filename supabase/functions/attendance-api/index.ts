@@ -277,6 +277,33 @@ Deno.serve(async (req: Request) => {
       return ok({log:(log||[]).map((e:any)=>({ts:e.ts,action:e.action,adminName:e.admin_name,details:e.details}))});
     }
 
+    // Full v2 JSON snapshot — devices, log, config, events, audit, pending. Super-admin
+    // only. Reuses the legacy /api/backup builder's exact shape so a backup taken here is
+    // interchangeable with the legacy one (and restorable through /api/admin/restore).
+    if(req.method==="GET"&&p==="/api/admin/backup") {
+      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      if(role?.role!=="super_admin") return fail(403,"Super admin required");
+      const [{data:dd},{data:ld},{data:ed},{data:ad},{data:pd},cfg]=await Promise.all([sb.from("devices").select("*"),sb.from("attendance_log").select("*").order("ts",{ascending:false}),sb.from("events").select("*, event_attendees(device_id, name)"),sb.from("audit_log").select("*").order("ts",{ascending:false}),sb.from("pending_registrations").select("*"),getCfg(sb)]);
+      const devices: Record<string,any>={}; (dd||[]).forEach((d:any)=>{devices[d.id]=rowToDev(d);});
+      const bk={version:2,exportedAt:Date.now(),attendance:{devices,log:(ld||[]).map(rowToLog)},config:{adminDevices:cfg.admin_devices||[],nameOrder:cfg.name_order||[],dongsanNames:cfg.dongsan_names,checkinDays:cfg.checkin_days||[0],checkinStartMin:cfg.checkin_start_min??780,checkinEndMin:cfg.checkin_end_min??900,dongsanLeaders:cfg.dongsan_leaders||{},requireApproval:cfg.require_approval||false,announcement:cfg.announcement||"",individualCheckinEnabled:cfg.individual_checkin_enabled||false},events:{events:(ed||[]).map((e:any)=>({id:e.id,name:e.name,date:e.date,type:e.type,group:e.group_name,notes:e.notes,createdBy:e.created_by,createdAt:new Date(e.created_at).getTime(),attendees:(e.event_attendees||[]).map((a:any)=>a.name||a.device_id)}))},audit:(ad||[]).map((e:any)=>({ts:e.ts,action:e.action,adminId:e.admin_id,adminName:e.admin_name,details:e.details})),pending:(pd||[]).map((p:any)=>({deviceId:p.device_id,name:p.name,group:p.group_name,subgroup:p.subgroup,requestedAt:new Date(p.requested_at).getTime()}))};
+      return new Response(JSON.stringify(bk,null,2),{headers:{...CORS,"Content-Type":"application/json","Content-Disposition":'attachment; filename="kccp-backup-'+localDate()+'.json"'}});
+    }
+
+    // Destructive restore from a posted v2 snapshot — replaces devices, attendance_log,
+    // config, and events wholesale. Super-admin only. Reuses the legacy /api/restore
+    // logic; writes a `restore` audit entry.
+    if(req.method==="POST"&&p==="/api/admin/restore") {
+      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      if(role?.role!=="super_admin") return fail(403,"Super admin required");
+      const bk=body; if(!bk.version||!bk.attendance) return fail(400,"Invalid backup file");
+      if(bk.attendance?.devices){await sb.from("devices").delete().neq("id","");const dr=Object.entries(bk.attendance.devices).map(([id,v]:any)=>({id,name:v.name,group_name:v.group||"",subgroup:v.subgroup||"",notes:v.notes||"",member_role:v.memberRole||"",gender:v.gender||"",phone:v.phone||"",birth_date:v.birthDate||null,baptism_status:v.baptismStatus||"해당없음",school_or_work:v.schoolOrWork||"",faith_duration:v.faithDuration||"",registration_date:v.registrationDate||null,pastoral_visit_requested:v.pastoralVisitRequested||false,is_new_member:v.isNewMember||false,new_member_edu_week1:v.newMemberEduWeek1||false,new_member_edu_week2:v.newMemberEduWeek2||false}));if(dr.length) await sb.from("devices").insert(dr);}
+      if(bk.attendance?.log){await sb.from("attendance_log").delete().neq("id",0);const lr=bk.attendance.log.map((e:any)=>({device_id:e.deviceId,name:e.name,group_name:e.group||"",subgroup:e.subgroup||"",date:e.date,time_str:e.time,ts:e.ts,location_verified:!!e.locationVerified,admin_added:!!e.adminAdded,first_visit:!!e.firstVisit,is_manual:!!e.manual,is_bulk:!!e.bulk,is_guest:!!e.guest,member_role:e.memberRole||null}));if(lr.length) await sb.from("attendance_log").insert(lr);}
+      if(bk.config){const c=bk.config;await sb.from("config").update({admin_devices:c.adminDevices||[],name_order:c.nameOrder||[],dongsan_names:c.dongsanNames,checkin_days:c.checkinDays||[0],checkin_start_min:c.checkinStartMin??780,checkin_end_min:c.checkinEndMin??900,dongsan_leaders:c.dongsanLeaders||{},require_approval:c.requireApproval||false,announcement:c.announcement||"",individual_checkin_enabled:c.individualCheckinEnabled||false}).eq("id",1);}
+      if(bk.events?.events){await sb.from("events").delete().neq("id","");for(const e of bk.events.events){await sb.from("events").insert({id:e.id,name:e.name,date:e.date,type:e.type||"기타",group_name:e.group||"",notes:e.notes||"",created_by:e.createdBy,created_at:e.createdAt?new Date(e.createdAt).toISOString():new Date().toISOString()});if(e.attendees?.length) await sb.from("event_attendees").insert(e.attendees.map((a:string)=>({event_id:e.id,device_id:"NAME-"+a,name:a})));}}
+      await addAudit(sb,"restore",xDev,"Restored backup from "+(bk.exportedAt?new Date(bk.exportedAt).toLocaleString("ko-KR",{timeZone:"America/New_York"}):"unknown"));
+      return ok({status:"ok"});
+    }
+
     // Pending self-registrations (when require_approval is on). Any verified admin may
     // view; pastor is read-only for the approve/reject mutations below.
     if(req.method==="GET"&&p==="/api/admin/pending") {
