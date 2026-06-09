@@ -17,6 +17,7 @@ import { Input } from '../../components/ui/Input'
 import { Switch } from '../../components/ui/Switch'
 import { minutesToHHMM, hhmmToMinutes } from './time'
 import { renameAt, addDongsan, removeAt, cleanNames } from './dongsan'
+import { DongsanLeadersEditor } from './DongsanLeaders'
 
 const DAY_LABELS: Record<'ko' | 'en', string[]> = {
   ko: ['일', '월', '화', '수', '목', '금', '토'],
@@ -255,6 +256,10 @@ export function AdminSettings() {
       <Button className="mt-5" onClick={saveDongsan} disabled={dongsanSaving || !dongsanDirty}>
         {dongsanSaving ? t('common.loading') : t('admin.settings.save')}
       </Button>
+
+      <hr className="my-8 border-border" />
+
+      <DongsanLeadersEditor />
     </div>
   )
 }

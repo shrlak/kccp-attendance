@@ -257,6 +257,31 @@ Deno.serve(async (req: Request) => {
       return ok({status:"ok"});
     }
 
+    // 동산지기/부동산지기 display roles — read (any verified admin, so leaders/pastor/
+    // welcoming also see the 👑/⭐ badges on member cards + the Today list). Returns the
+    // full config.dongsan_leaders map { [group|"합동"]: { [동산]: { leader, subLeaders } } }.
+    if(req.method==="GET"&&p==="/api/admin/dongsan-leaders") {
+      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      if(!role) return fail(401,"Not authorized");
+      const cfg=await getCfg(sb);
+      return ok({leaders:cfg.dongsan_leaders||{}});
+    }
+
+    // 동산지기/부동산지기 editor — write one 동산's leader + sub-leaders (super-admin only).
+    // Mirrors the legacy /api/dongsan-leaders shape; in summer mode the group key is "합동".
+    // Audited as a config-change.
+    if(req.method==="POST"&&p==="/api/admin/dongsan-leaders") {
+      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      if(role?.role!=="super_admin") return fail(403,"Super admin required");
+      const {group,subgroup,leader,subLeaders}=body;
+      if(!group||!subgroup) return fail(400,"group and subgroup required");
+      const cfg=await getCfg(sb); const ldrs=cfg.dongsan_leaders||{}; if(!ldrs[group]) ldrs[group]={};
+      ldrs[group][subgroup]={leader:leader||"",subLeaders:Array.isArray(subLeaders)?subLeaders:[]};
+      await sb.from("config").update({dongsan_leaders:ldrs,updated_at:new Date().toISOString()}).eq("id",1);
+      await addAudit(sb,"config-change",xDev,"동산지기 수정: "+group+" "+subgroup);
+      return ok({status:"ok"});
+    }
+
     // List all admin role grants (member_roles ⨝ member names). Super-admin only.
     if(req.method==="GET"&&p==="/api/admin/roles") {
       const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
