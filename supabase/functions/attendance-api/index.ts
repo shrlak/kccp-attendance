@@ -236,6 +236,27 @@ Deno.serve(async (req: Request) => {
       return ok({status:"ok"});
     }
 
+    // 동산 (dongsan) names editor — read (super-admin only). Returns config.dongsan_names,
+    // shaped { "대학부": [...], "청년부": [...] }, falling back to the seeded defaults.
+    if(req.method==="GET"&&p==="/api/admin/dongsan-names") {
+      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      if(role?.role!=="super_admin") return fail(403,"Super admin required");
+      const cfg=await getCfg(sb);
+      return ok({names:cfg.dongsan_names||{"대학부":["동산1","동산2","동산3","동산4"],"청년부":["동산1","동산2","동산3","동산4"]}});
+    }
+
+    // 동산 names editor — write (super-admin only). Replaces config.dongsan_names with the
+    // posted map { [group]: string[] }. Audited as a config-change.
+    if(req.method==="POST"&&p==="/api/admin/dongsan-names") {
+      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      if(role?.role!=="super_admin") return fail(403,"Super admin required");
+      const {names}=body;
+      if(!names||typeof names!=="object"||Array.isArray(names)) return fail(400,"names map required");
+      await sb.from("config").update({dongsan_names:names,updated_at:new Date().toISOString()}).eq("id",1);
+      await addAudit(sb,"config-change",xDev,"동산 이름 수정");
+      return ok({status:"ok"});
+    }
+
     // List all admin role grants (member_roles ⨝ member names). Super-admin only.
     if(req.method==="GET"&&p==="/api/admin/roles") {
       const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");

@@ -83,7 +83,12 @@
       "individualCheckin": "개인 체크인",
       "individualCheckinDesc": "개인이 직접 출석 체크할 수 있습니다.",
       "demoMode": "데모 모드",
-      "demoModeDesc": "요일·시간·위치 제한 없이 체크인할 수 있습니다."
+      "demoModeDesc": "요일·시간·위치 제한 없이 체크인할 수 있습니다.",
+      "dongsanNames": "동산 이름",
+      "dongsanNamesDesc": "부서별 동산 이름을 추가·수정·삭제합니다.",
+      "addDongsan": "동산 추가",
+      "dongsanPlaceholder": "동산 이름",
+      "removeDongsan": "삭제"
     }
   }
 }
