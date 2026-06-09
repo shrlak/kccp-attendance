@@ -12,11 +12,15 @@ import { AppRoutes } from './app/routes'
 
 registerSW({ immediate: true })
 
+// Match the Vite base (GitHub Project Pages subpath) so client routes resolve under
+// /kccp-attendance/ instead of the domain root. BASE_URL is '/' in dev → basename '/'.
+const basename = import.meta.env.BASE_URL.replace(/\/$/, '') || '/'
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <I18nextProvider i18n={i18n}>
-        <BrowserRouter>
+        <BrowserRouter basename={basename}>
           <AppRoutes />
         </BrowserRouter>
       </I18nextProvider>
