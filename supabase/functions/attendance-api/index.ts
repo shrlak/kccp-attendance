@@ -592,6 +592,50 @@ Deno.serve(async (req: Request) => {
       return ok({status:"ok"});
     }
 
+    // Kiosk guest (방문자) check-in (Phase 3.7): the kiosk runs on a verified admin
+    // device, so this is hardened (verifyAdmin) and bypasses day/time/location. Records a
+    // visitor attendance row for today; deduped by name+date; pastor read-only; audited.
+    if(req.method==="POST"&&p==="/api/admin/guest-checkin") {
+      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      if(!role) return fail(401,"Not authorized");
+      if(role.role==="pastor") return fail(403,"Read-only");
+      const name=(body.name||"").trim(); if(!name) return fail(400,"name required");
+      const today=localDate(),time=localTime();
+      const {data:exist}=await sb.from("attendance_log").select("time_str").eq("name",name).eq("date",today).eq("is_guest",true).limit(1);
+      if(exist&&exist.length) return ok({status:"already",time:exist[0].time_str,name});
+      await sb.from("attendance_log").insert({device_id:"GUEST-"+Date.now(),name,group_name:"",subgroup:"",date:today,time_str:time,ts:Date.now(),is_manual:true,is_guest:true,member_role:"visitor"});
+      await addAudit(sb,"guest-checkin",xDev,name+" | "+today);
+      return ok({status:"ok",time,name});
+    }
+
+    // Kiosk 새가족 (new-family) registration (Phase 3.8): creates a member with
+    // is_new_member=true and the extended profile fields, links a NEW-{ts} device, then
+    // immediately records today's attendance (first_visit). Hardened (verifyAdmin);
+    // pastor read-only; audited.
+    if(req.method==="POST"&&p==="/api/admin/kiosk-new-member") {
+      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      if(!role) return fail(401,"Not authorized");
+      if(role.role==="pastor") return fail(403,"Read-only");
+      const name=(body.name||"").trim(); const group=(body.group||"").trim();
+      if(!name||!group) return fail(400,"name and group required");
+      const subgroup=(body.subgroup||"").trim();
+      const today=localDate(),time=localTime();
+      const {data:created}=await sb.from("members").insert({
+        name,group_name:group,subgroup,is_new_member:true,
+        gender:body.gender||"",phone:body.phone||"",kakao_id:body.kakaoId||"",
+        birth_date:body.birthDate||null,baptism_status:body.baptismStatus||"해당없음",
+        school_or_work:body.schoolOrWork||"",faith_duration:body.faithDuration||"",
+        registration_date:body.registrationDate||today,pastoral_visit_requested:!!body.pastoralVisitRequested,
+      }).select("id").single();
+      const memberId=(created as {id?:string}|null)?.id||null;
+      if(!memberId) return fail(500,"Could not create member");
+      const newId="NEW-"+Date.now();
+      await sb.from("devices").insert({id:newId,name,group_name:group,subgroup,member_id:memberId,is_new_member:true});
+      await sb.from("attendance_log").insert({device_id:newId,member_id:memberId,name,group_name:group,subgroup,date:today,time_str:time,ts:Date.now(),is_manual:true,admin_added:false,first_visit:true});
+      await addAudit(sb,"new-member-register",xDev,name+" | "+group);
+      return ok({status:"ok",memberId,time});
+    }
+
     if(req.method==="POST"&&p==="/api/check-admin") {
       const {deviceId}=body; const cfg=await getCfg(sb); const ads: any[]=cfg.admin_devices||[];
       const noAdminsYet=!ads.length;

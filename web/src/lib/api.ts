@@ -315,3 +315,31 @@ export const registerDevice = (fields: DeviceRegister) =>
 // Scoped + audited server-side; pastor read-only.
 export const linkDevice = (deviceId: string, memberId: string) =>
   api<{ status: string }>('POST', '/api/admin/device/link', { deviceId, memberId })
+
+// ── Kiosk (runs on a verified admin device) ───────────────────────────────
+// Guest (방문자) check-in from the kiosk: records a visitor attendance row for today
+// (is_manual + is_guest, member_role "visitor"), bypassing day/time/location. Hardened
+// (verifyAdmin) + audited server-side; pastor read-only. Deduped by name+date.
+export const guestCheckin = (name: string) =>
+  api<{ status: 'ok' | 'already'; time?: string; name?: string }>('POST', '/api/admin/guest-checkin', { name })
+
+export interface NewMemberFields {
+  name: string
+  group: string
+  subgroup?: string
+  gender?: string
+  phone?: string
+  kakaoId?: string
+  birthDate?: string | null
+  baptismStatus?: string
+  schoolOrWork?: string
+  faithDuration?: string
+  registrationDate?: string | null
+  pastoralVisitRequested?: boolean
+}
+
+// 새가족 (new-family) registration from the kiosk: creates a member with
+// is_new_member=true + a NEW-{ts} device, then records today's attendance (first_visit).
+// Hardened (verifyAdmin) + audited server-side; pastor read-only.
+export const kioskNewMember = (fields: NewMemberFields) =>
+  api<{ status: 'ok'; memberId: string; time?: string }>('POST', '/api/admin/kiosk-new-member', fields)
