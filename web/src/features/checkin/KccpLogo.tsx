@@ -5,7 +5,12 @@ import { KccpMark } from './KccpMark'
 export function KccpLogo({ size = 220, className = '' }: { size?: number; className?: string }) {
   return (
     <div
-      className={'grid place-items-center rounded-full border border-border bg-surface text-center shadow-sm ' + className}
+      className={
+        // White in light mode (the logo's native ground → crisp green/yellow + navy), a
+        // dark surface in dark mode (text flips light) so it reads clearly on both.
+        'grid place-items-center rounded-full border border-border bg-white text-center shadow-sm dark:bg-surface ' +
+        className
+      }
       style={{ width: size, height: size }}
       role="img"
       aria-label="Korean Central Church of Pittsburgh"
