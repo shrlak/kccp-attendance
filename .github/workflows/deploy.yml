@@ -44,6 +44,9 @@ jobs:
         run: |
           mkdir -p dist
           cp -r web/dist/* dist/
+          # SPA fallback: GitHub Pages serves 404.html for unknown paths, so a deep-link
+          # refresh (e.g. /kccp-attendance/kiosk) loads the app and the router takes over.
+          cp dist/index.html dist/404.html
 
       - name: Setup Pages
         uses: actions/configure-pages@v6
@@ -78,3 +81,31 @@ jobs:
       - name: Skip (no token configured)
         if: ${{ env.SUPABASE_ACCESS_TOKEN == '' }}
         run: echo "SUPABASE_ACCESS_TOKEN secret not set — skipping Edge Function deploy. Add it in Settings → Secrets to enable auto-deploy."
+
+  # Post a CI-success signal as a comment so a watching session is notified (the GitHub
+  # integration forwards comments, but not raw CI-success events). Comments on the merged
+  # PR associated with the commit, falling back to a commit comment for direct pushes.
+  notify:
+    needs: [deploy-edge-function, deploy]
+    if: success()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Comment deploy success
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { owner, repo } = context.repo
+            const sha = context.sha
+            const body = `✅ Production deploy succeeded for \`${sha.slice(0, 7)}\` — edge function + GitHub Pages are live.`
+            const { data: prs } = await github.rest.repos.listPullRequestsAssociatedWithCommit({ owner, repo, commit_sha: sha })
+            if (prs.length > 0) {
+              for (const pr of prs) {
+                await github.rest.issues.createComment({ owner, repo, issue_number: pr.number, body })
+              }
+            } else {
+              await github.rest.repos.createCommitComment({ owner, repo, commit_sha: sha, body })
+            }

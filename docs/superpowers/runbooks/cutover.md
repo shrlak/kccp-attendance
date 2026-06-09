@@ -67,7 +67,10 @@ of legacy kiosk/admin while Pages rebuilds. Public check-in is never down.
 - `get_advisors security` → no world-readable-table findings.
 
 ## Rollback (if any check fails)
-- **Frontend:** revert the `deploy.yml` change on `main` → Pages republishes legacy `index.html`.
+- **Frontend:** `git revert` the cutover commits on `main` (restores the legacy `index.html`
+  + the pre-cutover `deploy.yml`) → Pages republishes the legacy app. The legacy static files
+  (`index.html`, `sw.js`, `manifest.json`, root icons) were removed post-cutover but remain in
+  git history, so a revert brings them back.
 - **Function:** roll back to the previous version (v11) from the Supabase dashboard's function
   version history; or redeploy the repo function with the `/api/data` super-admin gate removed
   (re-open it) so the legacy app loads again.
