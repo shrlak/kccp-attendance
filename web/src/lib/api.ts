@@ -298,3 +298,20 @@ export const getBackup = () => api<Record<string, unknown>>('GET', '/api/admin/b
 // server-side and writes a `restore` audit entry.
 export const postRestore = (data: unknown) =>
   api<{ status: string }>('POST', '/api/admin/restore', data)
+
+export interface DeviceRegister {
+  deviceId: string
+  name: string
+  group: string
+  subgroup: string
+}
+
+// Register a device (Devices tab): find-or-create the member by name, then upsert a
+// device row linked to it. Scoped + audited server-side; pastor read-only.
+export const registerDevice = (fields: DeviceRegister) =>
+  api<{ status: string }>('POST', '/api/admin/device/register', fields)
+
+// Link a device id to an existing member, inheriting that member's name/group/동산.
+// Scoped + audited server-side; pastor read-only.
+export const linkDevice = (deviceId: string, memberId: string) =>
+  api<{ status: string }>('POST', '/api/admin/device/link', { deviceId, memberId })

@@ -542,6 +542,56 @@ Deno.serve(async (req: Request) => {
       return ok({status:"ok",added:toAdd.length});
     }
 
+    // Register a device (Devices tab 2.4): find-or-create the member by name (creating
+    // it with the given 부서/동산 when new), then upsert a devices row linked to that
+    // member with the denormalized name/group/동산. Any device (real or ROSTER) id is
+    // allowed; ROSTER placeholders for the name are superseded. Pastor read-only; audited.
+    if(req.method==="POST"&&p==="/api/admin/device/register") {
+      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      if(!role) return fail(401,"Not authorized");
+      if(role.role==="pastor") return fail(403,"Read-only");
+      const {deviceId,name,group,subgroup}=body;
+      const did=(deviceId||"").trim(); const nm=(name||"").trim();
+      if(!did||!nm) return fail(400,"deviceId and name required");
+      const grp=(group||"").trim(),sub=(subgroup||"").trim();
+      const {data:mm}=await sb.from("members").select("id").eq("name",nm).limit(1);
+      let memberId=mm&&mm.length?mm[0].id:null;
+      if(!memberId){
+        const {data:created}=await sb.from("members").insert({name:nm,group_name:grp,subgroup:sub}).select("id").single();
+        memberId=(created as {id?:string}|null)?.id||null;
+      }
+      await sb.from("devices").upsert({id:did,name:nm,group_name:grp,subgroup:sub,member_id:memberId});
+      await supersedeRosterPlaceholders(sb,nm,did);
+      await addAudit(sb,"device-register",xDev,nm+" ("+did+")");
+      return ok({status:"ok"});
+    }
+
+    // Link a device to an existing member (Devices tab 2.5): point an existing-or-new
+    // device id at the chosen member, inheriting that member's denormalized
+    // name/group/동산 (the device row is created if it doesn't exist). ROSTER
+    // placeholders for the name are superseded. Pastor read-only; audited.
+    if(req.method==="POST"&&p==="/api/admin/device/link") {
+      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      if(!role) return fail(401,"Not authorized");
+      if(role.role==="pastor") return fail(403,"Read-only");
+      const {deviceId,memberId}=body;
+      const did=(deviceId||"").trim();
+      if(!did||!memberId) return fail(400,"deviceId and memberId required");
+      const {data:m}=await sb.from("members").select("name,group_name,subgroup").eq("id",memberId).single();
+      if(!m) return fail(404,"Member not found");
+      if(role.role!=="super_admin"){
+        const cfg=await getCfg(sb); const scope=scopeFilter(role,!!cfg.summer_mode);
+        if(!scope.all){
+          if(!scope.groups.includes(m.group_name)) return fail(403,"Out of scope");
+          if(scope.subgroup&&m.subgroup!==scope.subgroup) return fail(403,"Out of scope");
+        }
+      }
+      await sb.from("devices").upsert({id:did,name:m.name,group_name:m.group_name||"",subgroup:m.subgroup||"",member_id:memberId});
+      await supersedeRosterPlaceholders(sb,m.name,did);
+      await addAudit(sb,"device-edit",xDev,m.name+" ("+did+")");
+      return ok({status:"ok"});
+    }
+
     if(req.method==="POST"&&p==="/api/check-admin") {
       const {deviceId}=body; const cfg=await getCfg(sb); const ads: any[]=cfg.admin_devices||[];
       const noAdminsYet=!ads.length;
