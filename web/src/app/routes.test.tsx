@@ -36,6 +36,11 @@ describe('routes', () => {
     expect(screen.getByLabelText('관리자 비밀번호')).toBeInTheDocument()
   })
 
+  it('gates /kiosk behind admin login when not authed', () => {
+    renderAt('/kiosk')
+    expect(screen.getByLabelText('관리자 비밀번호')).toBeInTheDocument()
+  })
+
   it('renders the 404 page for an unknown path', () => {
     renderAt('/does-not-exist')
     expect(screen.getByText('404')).toBeInTheDocument()

@@ -12,6 +12,7 @@ import { AdminNewFamily } from './AdminNewFamily'
 import { AdminDevices } from './AdminDevices'
 import { AdminAdmins } from './AdminAdmins'
 import { AdminSettings } from './AdminSettings'
+import { KioskView } from '../kiosk/KioskView'
 
 type Tab = 'today' | 'sheet' | 'members' | 'analytics' | 'newfamily' | 'devices' | 'admins' | 'settings'
 
@@ -22,8 +23,11 @@ export function AdminApp() {
   const identity = useAdminAuth((s) => s.identity)
   const signOut = useAdminAuth((s) => s.signOut)
   const [tab, setTab] = useState<Tab>('today')
+  const [kiosk, setKiosk] = useState(false)
   const isSuper = identity?.role === 'super_admin'
   const canDevices = identity?.role !== 'pastor'
+  // Pastors are read-only and can't check anyone in, so they don't get the kiosk.
+  const canKiosk = identity?.role !== 'pastor'
   const { data: pending } = useQuery({ queryKey: ['pending'], queryFn: getPending, enabled: isSuper })
   const pendingCount = pending?.pending.length ?? 0
 
@@ -44,9 +48,16 @@ export function AdminApp() {
               {scopeLabel}
             </div>
           </div>
-          <Button variant="ghost" size="sm" onClick={signOut}>
-            {t('admin.signOut')}
-          </Button>
+          <div className="flex items-center gap-1">
+            {canKiosk && (
+              <Button variant="secondary" size="sm" onClick={() => setKiosk(true)}>
+                {t('kiosk.enter')}
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" onClick={signOut}>
+              {t('admin.signOut')}
+            </Button>
+          </div>
         </div>
         <nav className="mt-3 flex gap-1">
           <TabBtn active={tab === 'today'} onClick={() => setTab('today')}>
@@ -92,6 +103,8 @@ export function AdminApp() {
         {tab === 'admins' && isSuper && <AdminAdmins />}
         {tab === 'settings' && isSuper && <AdminSettings />}
       </div>
+
+      {kiosk && canKiosk && <KioskView onExit={() => setKiosk(false)} />}
     </main>
   )
 }
