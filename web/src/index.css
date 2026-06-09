@@ -22,9 +22,11 @@
   --color-danger: var(--danger);
   --color-info: var(--info);
 
-  --font-display: 'Fraunces', serif;
-  --font-sans: 'Inter', system-ui, sans-serif;
-  --font-mono: 'IBM Plex Mono', monospace;
+  /* Rounded, cute Korean+Latin type: Jua (chunky, for headings) + Gowun Dodum
+     (rounded, readable, for body/mono). Applied to every font role. */
+  --font-display: 'Jua', 'Gowun Dodum', system-ui, sans-serif;
+  --font-sans: 'Gowun Dodum', system-ui, sans-serif;
+  --font-mono: 'Gowun Dodum', ui-monospace, monospace;
 
   --radius-sm: 8px;
   --radius-md: 12px;
