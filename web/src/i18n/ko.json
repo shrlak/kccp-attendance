@@ -59,7 +59,7 @@
     "roles": { "super_admin": "최고관리자", "leader": "리더", "pastor": "목사님", "welcoming": "새가족팀" },
     "nav": { "today": "오늘", "sheet": "출석부", "members": "멤버", "newfamily": "새가족", "admins": "관리자", "settings": "설정" },
     "filter": { "all": "전체" },
-    "admins": { "approval": "등록 승인", "approvalDesc": "켜면 새 등록이 승인 대기열로 들어갑니다.", "adminsList": "관리자 목록", "noAdmins": "관리자가 없습니다", "auditLog": "활동 기록", "loadAudit": "활동 기록 불러오기", "noAudit": "기록이 없습니다" },
+    "admins": { "approval": "등록 승인", "approvalDesc": "켜면 새 등록이 승인 대기열로 들어갑니다.", "adminsList": "관리자 목록", "noAdmins": "관리자가 없습니다", "auditLog": "활동 기록", "loadAudit": "활동 기록 불러오기", "noAudit": "기록이 없습니다", "pending": "승인 대기", "approve": "승인", "reject": "거절" },
     "newfamily": { "title": "새가족", "empty": "이번 학기 새가족이 없습니다", "monthly": "월별 등록", "noRegDate": "등록일 미입력", "pastoralVisit": "심방 요청", "edu1": "교육 1주차", "edu2": "교육 2주차", "season": { "spring": "봄학기", "summer": "여름학기", "fall": "가을학기" } },
     "stats": { "today": "오늘", "members": "멤버", "records": "출석", "days": "주일" },
     "dashboard": { "present": "출석", "absent": "결석", "avgRate": "4주 평균" },

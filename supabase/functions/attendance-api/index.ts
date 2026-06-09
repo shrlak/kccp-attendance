@@ -256,6 +256,47 @@ Deno.serve(async (req: Request) => {
       return ok({log:(log||[]).map((e:any)=>({ts:e.ts,action:e.action,adminName:e.admin_name,details:e.details}))});
     }
 
+    // Pending self-registrations (when require_approval is on). Any verified admin may
+    // view; pastor is read-only for the approve/reject mutations below.
+    if(req.method==="GET"&&p==="/api/admin/pending") {
+      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      if(!role) return fail(401,"Not authorized");
+      const {data:pd}=await sb.from("pending_registrations").select("*").order("requested_at",{ascending:false});
+      return ok({pending:(pd||[]).map((p:any)=>({deviceId:p.device_id,name:p.name,group:p.group_name||"",subgroup:p.subgroup||"",requestedAt:new Date(p.requested_at).getTime()}))});
+    }
+
+    // Approve a pending registration: find-or-create the member, link the device to it,
+    // then clear the pending row. Audited.
+    if(req.method==="POST"&&p==="/api/admin/pending/approve") {
+      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      if(!role) return fail(401,"Not authorized");
+      if(role.role==="pastor") return fail(403,"Read-only");
+      const {deviceId}=body; if(!deviceId) return fail(400,"deviceId required");
+      const {data:pr}=await sb.from("pending_registrations").select("*").eq("device_id",deviceId).single();
+      if(!pr) return fail(404,"Not found in pending list");
+      const {data:mm}=await sb.from("members").select("id").eq("name",pr.name).limit(1);
+      let memberId=mm&&mm.length?mm[0].id:null;
+      if(!memberId){
+        const {data:nm}=await sb.from("members").insert({name:pr.name,group_name:pr.group_name||"",subgroup:pr.subgroup||""}).select("id").single();
+        memberId=(nm as {id?:string}|null)?.id||null;
+      }
+      await sb.from("devices").upsert({id:pr.device_id,name:pr.name,group_name:pr.group_name||"",subgroup:pr.subgroup||"",member_id:memberId});
+      await sb.from("pending_registrations").delete().eq("device_id",deviceId);
+      await addAudit(sb,"pending-approve",xDev,pr.name+" ("+pr.device_id+")");
+      return ok({status:"ok"});
+    }
+
+    if(req.method==="POST"&&p==="/api/admin/pending/reject") {
+      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      if(!role) return fail(401,"Not authorized");
+      if(role.role==="pastor") return fail(403,"Read-only");
+      const {deviceId}=body; if(!deviceId) return fail(400,"deviceId required");
+      const {data:pr}=await sb.from("pending_registrations").select("name").eq("device_id",deviceId).single();
+      await sb.from("pending_registrations").delete().eq("device_id",deviceId);
+      await addAudit(sb,"pending-reject",xDev,((pr as {name?:string}|null)?.name||deviceId)+" ("+deviceId+")");
+      return ok({status:"ok"});
+    }
+
     // Edit a member. Pastor is read-only; a leader may only edit members in their own
     // 동산 (scope-checked). Renames propagate to the denormalized devices/attendance names.
     if(req.method==="PUT"&&p==="/api/admin/member") {
