@@ -123,6 +123,10 @@ export interface Member {
   kakao_id: string
   is_new_member: boolean
   notes: string
+  registration_date?: string | null
+  new_member_edu_week1?: boolean
+  new_member_edu_week2?: boolean
+  pastoral_visit_requested?: boolean
 }
 
 export interface LogEntry {
@@ -163,6 +167,9 @@ export interface MemberEdit {
   kakaoId?: string
   birthDate?: string | null
   notes?: string
+  registrationDate?: string | null
+  newMemberEduWeek1?: boolean
+  newMemberEduWeek2?: boolean
 }
 
 // Edit a member (scoped server-side: leaders only their 동산; pastor read-only).
