@@ -69,16 +69,30 @@ function rowToDev(d: any) {
 }
 function rowToLog(e: any) { return {id:e.id,memberId:e.member_id,deviceId:e.device_id,name:e.name,group:e.group_name||"",subgroup:e.subgroup||"",date:e.date,time:e.time_str,ts:e.ts,locationVerified:e.location_verified,adminAdded:e.admin_added,manual:e.is_manual,bulk:e.is_bulk,guest:e.is_guest,firstVisit:e.first_visit,memberRole:e.member_role}; }
 async function getDevsByName(sb: SB, name: string): Promise<string[]> { const {data}=await sb.from("devices").select("id").eq("name",name); return (data||[]).map((d:any)=>d.id); }
-// When a real device (DEV-…) is added for a member, it supersedes any ROSTER-…
-// placeholder rows for that same name (those are seeded roster stubs with no real
-// device). Their attendance history and any admin-role grant are migrated onto the
-// new DEV device, then the placeholders are deleted so the member has a single
-// canonical device record. No-op unless devId is a DEV- id and ROSTER- stubs exist.
+// When a real device is added for a member, it supersedes any ROSTER-… placeholder rows
+// for that same name (seeded roster stubs with no real device). The placeholder's MEMBER
+// IDENTITY is inherited onto the new personal device (so any member_roles grant on that
+// member becomes usable from the personal device — e.g. a 동산지기/super whose only record
+// was a ROSTER stub can now sign in), its attendance history is migrated, the legacy
+// admin_devices entry is remapped, and the placeholders are deleted so the member has a
+// single canonical device record. No-op unless devId is a personal (non-ROSTER) id and
+// ROSTER- stubs for the name exist.
 async function supersedeRosterPlaceholders(sb: SB, name: string, devId: string) {
-  if(!name||!devId||!devId.startsWith("DEV-")) return;
-  const {data:rows}=await sb.from("devices").select("id").eq("name",name).like("id","ROSTER-%");
-  const rosterIds=(rows||[]).map((r:any)=>r.id).filter((id:string)=>id!==devId);
+  if(!name||!devId||devId.startsWith("ROSTER-")) return;
+  const {data:rows}=await sb.from("devices").select("id,member_id").eq("name",name).like("id","ROSTER-%");
+  const stubs=(rows||[]).filter((r:any)=>r.id!==devId);
+  const rosterIds=stubs.map((r:any)=>r.id);
   if(!rosterIds.length) return;
+  // Inherit the member identity from the placeholder so the personal device maps to the
+  // same member (and inherits any member_roles grant). Only set it when the device isn't
+  // already linked — the admin device/register|link paths set member_id explicitly.
+  const inheritedMember=stubs.map((r:any)=>r.member_id).find((m:any)=>m)||null;
+  if(inheritedMember){
+    const {data:curDev}=await sb.from("devices").select("member_id").eq("id",devId).single();
+    if(!(curDev as {member_id?:string}|null)?.member_id){
+      await sb.from("devices").update({member_id:inheritedMember}).eq("id",devId);
+    }
+  }
   // Move any attendance logged under the placeholders onto the real device.
   await sb.from("attendance_log").update({device_id:devId}).in("device_id",rosterIds);
   // Transfer any admin-role grant from a placeholder to the DEV device (keeping the
@@ -717,7 +731,15 @@ Deno.serve(async (req: Request) => {
         if(!al) await sb.from("pending_registrations").insert({device_id:deviceId,name:cleanName,group_name:finalGroup,subgroup:finalSub});
         return ok({status:"pending",name:cleanName});
       }
-      await sb.from("devices").upsert({id:deviceId,name:cleanName,group_name:finalGroup,subgroup:finalSub,is_new_member:false});
+      // Link this device to the person's existing member (a linked device's member, else
+      // the members row by name) so a returning admin's personal device inherits their
+      // member — and any member_roles grant on it. supersede below also covers the ROSTER
+      // stub case; this additionally handles a 2nd personal device (no stub left).
+      let memberId: string|null=null;
+      const {data:linked}=await sb.from("devices").select("member_id").eq("name",cleanName).not("member_id","is",null).limit(1);
+      if(linked&&linked.length) memberId=(linked[0] as {member_id?:string}).member_id||null;
+      else { const {data:mm}=await sb.from("members").select("id").eq("name",cleanName).limit(1); if(mm&&mm.length) memberId=(mm[0] as {id?:string}).id||null; }
+      await sb.from("devices").upsert({id:deviceId,name:cleanName,group_name:finalGroup,subgroup:finalSub,is_new_member:false,member_id:memberId});
       await sb.from("attendance_log").update({name:cleanName,group_name:finalGroup,subgroup:finalSub}).eq("device_id",deviceId);
       await supersedeRosterPlaceholders(sb,cleanName,deviceId);
       return ok({status:"ok",name:cleanName,combined:!!match});
