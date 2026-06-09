@@ -95,6 +95,7 @@
     "roles": { "super_admin": "Super admin", "leader": "Leader", "pastor": "Pastor", "welcoming": "Welcome team" },
     "nav": { "today": "Today", "sheet": "Sheet", "members": "Members", "analytics": "Analytics", "newfamily": "New family", "devices": "Devices", "admins": "Admins", "settings": "Settings" },
     "filter": { "all": "All" },
+    "dongsanRole": { "leader": "Leader", "subleader": "Sub-leader" },
     "analytics": { "trend": "Attendance trend", "groupCompare": "Group comparison", "attendance": "Attendance", "monthly": "Monthly summary", "semester": "Semester summary", "weeklyRecap": "Weekly recap", "month": "Month", "date": "Date", "sundays": "Sundays", "attendees": "Attendees", "firstVisits": "First visits", "half1": "Spring", "half2": "Fall", "copy": "Copy", "copied": "Copied to clipboard" },
     "admins": { "approval": "Registration approval", "approvalDesc": "When on, new registrations go to an approval queue.", "adminsList": "Admins", "noAdmins": "No admins", "auditLog": "Audit log", "loadAudit": "Load audit log", "noAudit": "No activity", "pending": "Pending approval", "approve": "Approve", "reject": "Reject", "addAdmin": "Add admin", "remove": "Remove", "member": "Member", "role": "Role", "backup": "Backup / Restore", "backupDesc": "Download a full JSON snapshot of all data, or restore from one. Restore replaces all data.", "download": "Download backup", "restore": "Restore", "restoreConfirm": "Confirm restore (replaces all data)", "restored": "Restore complete" },
     "newfamily": { "title": "New family", "empty": "No new family this semester", "monthly": "Monthly registrations", "noRegDate": "No registration date", "pastoralVisit": "Visit requested", "edu1": "Class wk 1", "edu2": "Class wk 2", "season": { "spring": "Spring", "summer": "Summer", "fall": "Fall" } },
@@ -126,7 +127,14 @@
       "dongsanNamesDesc": "Add, rename, or remove 동산 per group.",
       "addDongsan": "Add 동산",
       "dongsanPlaceholder": "동산 name",
-      "removeDongsan": "Remove"
+      "removeDongsan": "Remove",
+      "dongsanLeaders": "동산 leaders",
+      "dongsanLeadersDesc": "Set the leader (동산지기) and sub-leaders (부동산지기) for each 동산. Shown as badges on member cards and the Today list.",
+      "leader": "Leader (동산지기)",
+      "subLeaders": "Sub-leaders (부동산지기)",
+      "noLeader": "None",
+      "noDongsanMembers": "No members in this 동산",
+      "summerCombined": "☀️ Summer mode — combined 동산 (대학부·청년부)"
     }
   }
 }

@@ -180,6 +180,25 @@ export const getDongsanNames = () =>
 export const updateDongsanNames = (names: DongsanNames) =>
   api<{ status: string }>('POST', '/api/admin/dongsan-names', { names })
 
+// ── 동산지기 / 부동산지기 display roles ────────────────────────────────────
+// The 동산지기 (leader, 👑) + 부동산지기 (sub-leaders, ⭐) per 동산. This is a display
+// badge system distinct from the `leader` admin role (which controls data scope). The
+// map is keyed by group (or "합동" in summer mode), then by 동산 name.
+export interface DongsanLeaderEntry {
+  leader: string
+  subLeaders: string[]
+}
+export type DongsanLeaders = Record<string, Record<string, DongsanLeaderEntry>>
+
+// Read the 동산지기 map (any verified admin — badges show for everyone who can see the
+// roster). Falls back to {} server-side.
+export const getDongsanLeaders = () =>
+  api<{ leaders: DongsanLeaders }>('GET', '/api/admin/dongsan-leaders').then((r) => r.leaders)
+
+// Set one 동산's leader + sub-leaders (super-admin only). In summer mode pass group "합동".
+export const setDongsanLeader = (group: string, subgroup: string, leader: string, subLeaders: string[]) =>
+  api<{ status: string }>('POST', '/api/admin/dongsan-leaders', { group, subgroup, leader, subLeaders })
+
 // ── Admins tab (super-admin) ──────────────────────────────────────────────
 export interface AdminRoleRow {
   memberId: string

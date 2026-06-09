@@ -19,6 +19,8 @@ import { useToast } from '../../components/ui/Toast'
 import { mergeTargets, canMerge, mergeSummary, type MergeState } from './merge'
 import { memberHistory, hasEntryOn } from './attendance'
 import { easternNow } from '../../lib/checkinWindow'
+import { DongsanBadge } from './DongsanLeaders'
+import { useDongsanRole } from './useDongsanRole'
 
 const GROUPS = ['대학부', '청년부', 'EM', 'Adult Ministry']
 const MEMBER_ROLES = ['', 'visitor', 'pastor', 'elder', 'deacon', 'mentor']
@@ -29,6 +31,7 @@ const MEMBER_ROLES = ['', 'visitor', 'pastor', 'elder', 'deacon', 'mentor']
 export function AdminMembers() {
   const { t } = useTranslation()
   const { data, isLoading, isError } = useRoster(true)
+  const dongsanRole = useDongsanRole()
   const [editing, setEditing] = useState<Member | null>(null)
   const [attendanceFor, setAttendanceFor] = useState<Member | null>(null)
   const [merging, setMerging] = useState(false)
@@ -69,6 +72,7 @@ export function AdminMembers() {
             <div className="text-sm font-semibold text-text">
               {m.name}
               {m.is_new_member && <span className="ml-1 text-xs">🌟</span>}
+              <DongsanBadge role={dongsanRole(m.name, m.group_name, m.subgroup)} />
             </div>
             <div className="text-xs text-muted">{[m.group_name, m.subgroup].filter(Boolean).join(' · ') || '—'}</div>
             {m.member_role && <div className="mt-1 font-mono text-[10px] text-subtle">{m.member_role}</div>}
