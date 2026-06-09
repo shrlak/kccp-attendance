@@ -247,7 +247,7 @@ Deno.serve(async (req: Request) => {
           if(scope.subgroup&&m.subgroup!==scope.subgroup) return fail(403,"Out of scope");
         }
       }
-      const COLS: Record<string,string>={name:"name",group:"group_name",subgroup:"subgroup",notes:"notes",memberRole:"member_role",gender:"gender",phone:"phone",birthDate:"birth_date",baptismStatus:"baptism_status",schoolOrWork:"school_or_work",faithDuration:"faith_duration",registrationDate:"registration_date",pastoralVisitRequested:"pastoral_visit_requested",isNewMember:"is_new_member",kakaoId:"kakao_id"};
+      const COLS: Record<string,string>={name:"name",group:"group_name",subgroup:"subgroup",notes:"notes",memberRole:"member_role",gender:"gender",phone:"phone",birthDate:"birth_date",baptismStatus:"baptism_status",schoolOrWork:"school_or_work",faithDuration:"faith_duration",registrationDate:"registration_date",pastoralVisitRequested:"pastoral_visit_requested",isNewMember:"is_new_member",newMemberEduWeek1:"new_member_edu_week1",newMemberEduWeek2:"new_member_edu_week2",kakaoId:"kakao_id"};
       const upd: any={updated_at:new Date().toISOString()};
       for(const [k,col] of Object.entries(COLS)){ if(body[k]!==undefined) upd[col]=(col==="birth_date"||col==="registration_date")?(body[k]||null):body[k]; }
       await sb.from("members").update(upd).eq("id",memberId);

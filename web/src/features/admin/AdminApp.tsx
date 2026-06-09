@@ -5,9 +5,10 @@ import { Button } from '../../components/ui/Button'
 import { AdminToday } from './AdminToday'
 import { AdminSheet } from './AdminSheet'
 import { AdminMembers } from './AdminMembers'
+import { AdminNewFamily } from './AdminNewFamily'
 import { AdminSettings } from './AdminSettings'
 
-type Tab = 'today' | 'sheet' | 'members' | 'settings'
+type Tab = 'today' | 'sheet' | 'members' | 'newfamily' | 'settings'
 
 // Authenticated admin layout: header (who/scope/sign-out) + tab nav. Settings is
 // super-admin only. Today/Sheet/Members slot in as further tabs in later phases.
@@ -49,6 +50,9 @@ export function AdminApp() {
           <TabBtn active={tab === 'members'} onClick={() => setTab('members')}>
             {t('admin.nav.members')}
           </TabBtn>
+          <TabBtn active={tab === 'newfamily'} onClick={() => setTab('newfamily')}>
+            {t('admin.nav.newfamily')}
+          </TabBtn>
           {isSuper && (
             <TabBtn active={tab === 'settings'} onClick={() => setTab('settings')}>
               {t('admin.nav.settings')}
@@ -61,6 +65,7 @@ export function AdminApp() {
         {tab === 'today' && <AdminToday />}
         {tab === 'sheet' && <AdminSheet />}
         {tab === 'members' && <AdminMembers />}
+        {tab === 'newfamily' && <AdminNewFamily />}
         {tab === 'settings' && isSuper && <AdminSettings />}
       </div>
     </main>
