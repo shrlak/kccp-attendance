@@ -29,7 +29,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 24
           cache: npm
@@ -67,7 +67,7 @@ jobs:
 
       - name: Setup Supabase CLI
         if: ${{ env.SUPABASE_ACCESS_TOKEN != '' }}
-        uses: supabase/setup-cli@v1
+        uses: supabase/setup-cli@v2
         with:
           version: latest
 
