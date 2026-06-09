@@ -1,9 +1,11 @@
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useAdminAuth } from '../../stores/useAdminAuth'
 import { getPending } from '../../lib/api'
 import { Button } from '../../components/ui/Button'
+import { KccpMark } from '../checkin/KccpMark'
 import { AdminToday } from './AdminToday'
 import { AdminSheet } from './AdminSheet'
 import { AdminMembers } from './AdminMembers'
@@ -21,10 +23,16 @@ type Tab = 'today' | 'sheet' | 'members' | 'analytics' | 'newfamily' | 'devices'
 // super-admin only. Today/Sheet/Members slot in as further tabs in later phases.
 export function AdminApp() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const identity = useAdminAuth((s) => s.identity)
   const signOut = useAdminAuth((s) => s.signOut)
   const [tab, setTab] = useState<Tab>('today')
   const [kiosk, setKiosk] = useState(false)
+  // Sign out drops back to the public landing page.
+  function handleSignOut() {
+    signOut()
+    navigate('/')
+  }
   const isSuper = identity?.role === 'super_admin'
   const canDevices = identity?.role !== 'pastor'
   // Pastors are read-only and can't check anyone in, so they don't get the kiosk.
@@ -41,12 +49,17 @@ export function AdminApp() {
     <main className="min-h-dvh">
       <header className="sticky top-0 z-10 border-b border-border bg-canvas/90 px-5 py-3 pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur">
         <div className="flex items-center justify-between">
-          <div>
-            <div className="font-display text-lg font-semibold text-text">{t('admin.title')}</div>
-            <div className="text-xs text-muted">
-              {identity ? t(`admin.roles.${identity.role}`) : ''}
-              {identity ? ' · ' : ''}
-              {scopeLabel}
+          <div className="flex items-center gap-2">
+            <span className="grid place-items-center rounded-md bg-white p-1 shadow-sm">
+              <KccpMark size={22} />
+            </span>
+            <div>
+              <div className="font-display text-lg font-semibold text-text">{t('admin.pageTitle')}</div>
+              <div className="text-xs text-muted">
+                {identity ? t(`admin.roles.${identity.role}`) : ''}
+                {identity ? ' · ' : ''}
+                {scopeLabel}
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-1">
@@ -55,7 +68,7 @@ export function AdminApp() {
                 {t('kiosk.enter')}
               </Button>
             )}
-            <Button variant="ghost" size="sm" onClick={signOut}>
+            <Button variant="ghost" size="sm" onClick={handleSignOut}>
               {t('admin.signOut')}
             </Button>
           </div>

@@ -89,6 +89,7 @@
   "notFound": { "message": "We couldn’t find that page", "home": "Back to check-in" },
   "admin": {
     "title": "Admin",
+    "pageTitle": "Admin Page",
     "subtitle": "Enter with this device and the admin password",
     "passwordPlaceholder": "Admin password",
     "unlock": "Enter",
