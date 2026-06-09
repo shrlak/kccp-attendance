@@ -146,10 +146,19 @@ export interface RosterResponse {
   role: AdminRole
   members: Member[]
   log: LogEntry[]
+  // True for super-admins and leaders who are NOT a 동산지기/부동산지기 — they may bulk
+  // reassign members' 동산 (feature-gated client-side; enforced server-side too).
+  canBulkSubgroup?: boolean
 }
 
 // The role-scoped roster (super/pastor → all; leader → their 동산).
 export const getRoster = () => api<RosterResponse>('GET', '/api/roster')
+
+// Bulk-set the 동산 (subgroup) of many members at once; subgroup "" removes them from any
+// 동산. super-admin or a non-동산지기 leader; out-of-scope members dropped + audited
+// server-side. Returns how many were actually updated.
+export const bulkSetSubgroup = (memberIds: string[], subgroup: string) =>
+  api<{ status: string; updated: number }>('POST', '/api/admin/members/bulk-subgroup', { memberIds, subgroup })
 
 // Update the adjustable check-in window (super-admin). The master password rides the
 // X-Admin-Password header set by the auth store.

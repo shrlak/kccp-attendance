@@ -7,6 +7,7 @@ import {
   mergeMembers,
   addMemberAttendance,
   removeAttendance,
+  bulkSetSubgroup,
   type Member,
   type MemberEdit,
   type LogEntry,
@@ -30,12 +31,18 @@ const MEMBER_ROLES = ['', 'visitor', 'pastor', 'elder', 'deacon', 'mentor']
 // and contact fields all go through PUT /api/admin/member.
 export function AdminMembers() {
   const { t } = useTranslation()
+  const qc = useQueryClient()
+  const toast = useToast()
   const { data, isLoading, isError } = useRoster(true)
   const dongsanRole = useDongsanRole()
   const [editing, setEditing] = useState<Member | null>(null)
   const [attendanceFor, setAttendanceFor] = useState<Member | null>(null)
   const [merging, setMerging] = useState(false)
   const [search, setSearch] = useState('')
+  const [selectMode, setSelectMode] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [target, setTarget] = useState('')
+  const [bulkBusy, setBulkBusy] = useState(false)
 
   if (isLoading) return <p className="text-sm text-muted">{t('common.loading')}</p>
   if (isError) return <p className="text-sm text-danger">{t('common.error')}</p>
@@ -43,6 +50,35 @@ export function AdminMembers() {
 
   const q = search.trim().toLowerCase()
   const members = q ? data.members.filter((m) => m.name.toLowerCase().includes(q)) : data.members
+  const dongsanOptions = [...new Set(data.members.map((m) => m.subgroup).filter(Boolean))].sort()
+
+  function toggleSel(id: string) {
+    setSelected((s) => {
+      const n = new Set(s)
+      if (n.has(id)) n.delete(id)
+      else n.add(id)
+      return n
+    })
+  }
+  function exitSelect() {
+    setSelectMode(false)
+    setSelected(new Set())
+    setTarget('')
+  }
+  async function applyBulk(subgroup: string) {
+    if (selected.size === 0) return
+    setBulkBusy(true)
+    try {
+      const res = await bulkSetSubgroup([...selected], subgroup)
+      toast({ title: t('admin.members.bulkMove.done', { n: res.updated }), tone: 'ok' })
+      await qc.invalidateQueries({ queryKey: ['roster'] })
+      exitSelect()
+    } catch {
+      toast({ title: t('common.error'), tone: 'err' })
+    } finally {
+      setBulkBusy(false)
+    }
+  }
 
   return (
     <>
@@ -54,30 +90,71 @@ export function AdminMembers() {
           aria-label={t('admin.members.search')}
           className="flex-1"
         />
-        <Button variant="secondary" onClick={() => setMerging(true)} disabled={data.members.length < 2}>
-          {t('admin.members.merge.action')}
-        </Button>
+        {data.canBulkSubgroup && (
+          <Button variant="secondary" onClick={() => (selectMode ? exitSelect() : setSelectMode(true))}>
+            {selectMode ? t('common.cancel') : t('admin.members.bulkMove.action')}
+          </Button>
+        )}
+        {!selectMode && (
+          <Button variant="secondary" onClick={() => setMerging(true)} disabled={data.members.length < 2}>
+            {t('admin.members.merge.action')}
+          </Button>
+        )}
       </div>
-      <div className="mb-3 font-mono text-xs uppercase tracking-wide text-subtle">
-        {t('admin.nav.members')} · {members.length}
-      </div>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        {members.map((m) => (
-          <button
-            key={m.id}
-            type="button"
-            onClick={() => setEditing(m)}
-            className="rounded-lg border border-border bg-surface p-3 text-left transition-colors hover:bg-surface-alt"
+      {selectMode ? (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
+          <span className="font-mono text-xs font-semibold text-primary">
+            {t('admin.members.bulkMove.selected', { n: selected.size })}
+          </span>
+          <Select value={target} onChange={(e) => setTarget(e.target.value)} className="min-w-[8rem] flex-1">
+            <option value="">{t('admin.members.bulkMove.placeholder')}</option>
+            {dongsanOptions.map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </Select>
+          <Button size="sm" disabled={selected.size === 0 || !target || bulkBusy} onClick={() => applyBulk(target)}>
+            {t('admin.members.bulkMove.moveTo')}
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={selected.size === 0 || bulkBusy}
+            onClick={() => applyBulk('')}
           >
-            <div className="text-sm font-semibold text-text">
-              {m.name}
-              {m.is_new_member && <span className="ml-1 text-xs">🌟</span>}
-              <DongsanBadge role={dongsanRole(m.name, m.group_name, m.subgroup)} />
-            </div>
-            <div className="text-xs text-muted">{[m.group_name, m.subgroup].filter(Boolean).join(' · ') || '—'}</div>
-            {m.member_role && <div className="mt-1 font-mono text-[10px] text-subtle">{m.member_role}</div>}
-          </button>
-        ))}
+            {t('admin.members.bulkMove.remove')}
+          </Button>
+        </div>
+      ) : (
+        <div className="mb-3 font-mono text-xs uppercase tracking-wide text-subtle">
+          {t('admin.nav.members')} · {members.length}
+        </div>
+      )}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {members.map((m) => {
+          const sel = selectMode && selected.has(m.id)
+          return (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => (selectMode ? toggleSel(m.id) : setEditing(m))}
+              className={
+                'rounded-lg border bg-surface p-3 text-left transition-colors hover:bg-surface-alt ' +
+                (sel ? 'border-primary ring-2 ring-primary/40' : 'border-border')
+              }
+            >
+              <div className="text-sm font-semibold text-text">
+                {selectMode && <span className="mr-1 text-primary">{sel ? '☑' : '☐'}</span>}
+                {m.name}
+                {m.is_new_member && <span className="ml-1 text-xs">🌟</span>}
+                <DongsanBadge role={dongsanRole(m.name, m.group_name, m.subgroup)} />
+              </div>
+              <div className="text-xs text-muted">{[m.group_name, m.subgroup].filter(Boolean).join(' · ') || '—'}</div>
+              {m.member_role && <div className="mt-1 font-mono text-[10px] text-subtle">{m.member_role}</div>}
+            </button>
+          )
+        })}
       </div>
       {editing && (
         <EditModal

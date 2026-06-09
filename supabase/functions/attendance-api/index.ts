@@ -122,6 +122,14 @@ async function countAtt(sb: SB, name: string): Promise<number> {
   const {data}=await sb.from("attendance_log").select("date").in("device_id",dids);
   return new Set((data||[]).map((e:any)=>e.date)).size;
 }
+// Is `name` the 동산지기/부동산지기 of their 동산 (the display roster in config.dongsan_leaders)?
+// Used to exclude such leaders from bulk-동산 reassignment (super-admins + non-동산지기 leaders only).
+function isDongsanLeaderName(name: string, group: string, subgroup: string, leaders: any, summer: boolean): boolean {
+  if(!name||!subgroup||!leaders) return false;
+  const entry = summer ? (leaders["합동"]&&leaders["합동"][subgroup]) : (group&&leaders[group]&&leaders[group][subgroup]);
+  if(!entry) return false;
+  return entry.leader===name || (Array.isArray(entry.subLeaders)&&entry.subLeaders.includes(name));
+}
 async function checkedToday(sb: SB, name: string, today: string) {
   const dids=await getDevsByName(sb,name); if(!dids.length) return null;
   const {data}=await sb.from("attendance_log").select("*").in("device_id",dids).eq("date",today).limit(1);
@@ -229,7 +237,13 @@ Deno.serve(async (req: Request) => {
       const {data:members}=await mq;
       const ids=(members||[]).map((m:any)=>m.id);
       const {data:logs}=ids.length?await sb.from("attendance_log").select("*").in("member_id",ids).order("ts",{ascending:false}):{data:[] as any[]};
-      return ok({role:role.role,members:members||[],log:(logs||[]).map(rowToLog)});
+      // Bulk 동산 reassignment is for super-admins + leaders who are NOT 동산지기/부동산지기.
+      let canBulkSubgroup=role.role==="super_admin";
+      if(role.role==="leader"){
+        const {data:me}=await sb.from("members").select("name").eq("id",role.memberId).single();
+        canBulkSubgroup=!isDongsanLeaderName((me as any)?.name||"",role.group,role.subgroup,cfg.dongsan_leaders,!!cfg.summer_mode);
+      }
+      return ok({role:role.role,canBulkSubgroup,members:members||[],log:(logs||[]).map(rowToLog)});
     }
 
     // Settings (super-admin only): the adjustable check-in window — day(s) + start/end.
@@ -471,6 +485,38 @@ Deno.serve(async (req: Request) => {
       await sb.from("members").delete().eq("id",fromId);
       await addAudit(sb,"member-merge",xDev,from.name+" → "+to.name);
       return ok({status:"ok"});
+    }
+
+    // Bulk 동산 (subgroup) reassignment: set or clear the 동산 for many members at once.
+    // Allowed for super-admin OR a leader who is NOT a 동산지기/부동산지기. Out-of-scope
+    // members are dropped server-side; subgroup "" removes them from any 동산. Audited.
+    if(req.method==="POST"&&p==="/api/admin/members/bulk-subgroup") {
+      const role=await verifyAdmin(sb,xDev,req.headers.get("x-admin-password")||"");
+      if(!role) return fail(401,"Not authorized");
+      const cfg=await getCfg(sb);
+      if(role.role!=="super_admin"){
+        if(role.role!=="leader") return fail(403,"Not authorized");
+        const {data:me}=await sb.from("members").select("name").eq("id",role.memberId).single();
+        if(isDongsanLeaderName((me as any)?.name||"",role.group,role.subgroup,cfg.dongsan_leaders,!!cfg.summer_mode)) return fail(403,"동산지기/부동산지기는 사용할 수 없습니다");
+      }
+      const {memberIds,subgroup}=body;
+      if(!Array.isArray(memberIds)||!memberIds.length) return fail(400,"memberIds required");
+      const sub=(subgroup||"").trim();
+      let targetIds: string[]=memberIds;
+      if(role.role!=="super_admin"){
+        const scope=scopeFilter(role,!!cfg.summer_mode);
+        if(!scope.all){
+          const {data:ms}=await sb.from("members").select("id,group_name,subgroup").in("id",memberIds);
+          targetIds=(ms||[]).filter((m:any)=>scope.groups.includes(m.group_name)&&(!scope.subgroup||m.subgroup===scope.subgroup)).map((m:any)=>m.id);
+        }
+      }
+      if(!targetIds.length) return ok({status:"ok",updated:0});
+      const ts=new Date().toISOString();
+      await sb.from("members").update({subgroup:sub,updated_at:ts}).in("id",targetIds);
+      await sb.from("devices").update({subgroup:sub}).in("member_id",targetIds);
+      await sb.from("attendance_log").update({subgroup:sub}).in("member_id",targetIds);
+      await addAudit(sb,"bulk-transfer",xDev,targetIds.length+"명 → 동산 "+(sub||"(해제)"));
+      return ok({status:"ok",updated:targetIds.length});
     }
 
     // Manual check-in (hardened, member-id based): mark a member present for today,
