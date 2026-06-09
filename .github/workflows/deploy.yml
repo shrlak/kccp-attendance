@@ -12,6 +12,10 @@ concurrency:
 
 jobs:
   deploy:
+    # Gate the frontend flip on a successful edge-function deploy so the cutover is atomic:
+    # if the function deploy fails, Pages is skipped and the site stays on the previous
+    # (legacy) build rather than serving React against the old function.
+    needs: deploy-edge-function
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -24,10 +28,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Prepare static files
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build web app
+        run: |
+          npm ci --prefix web
+          npm --prefix web run build
+
+      - name: Stage dist
         run: |
           mkdir -p dist
-          cp index.html sw.js manifest.json icon-192.png icon-512.png dist/
+          cp -r web/dist/* dist/
 
       - name: Setup Pages
         uses: actions/configure-pages@v6
