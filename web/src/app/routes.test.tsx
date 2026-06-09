@@ -22,10 +22,20 @@ function renderAt(path: string) {
 }
 
 describe('routes', () => {
-  it('renders the check-in screen at /', async () => {
+  it('renders the KCCP landing at / (kiosk-first: branded page, no check-in button)', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
       announcement: '', checkinDays: [0], checkinStartMin: 780, checkinEndMin: 900,
       requireApproval: false, summerMode: false, demoMode: false, individualCheckinEnabled: false,
+    }), { status: 200 })))
+    renderAt('/')
+    expect(await screen.findByText('KCCP 출석 시스템')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '체크인' })).not.toBeInTheDocument()
+  })
+
+  it('surfaces the check-in button at / when individual check-in is enabled', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      announcement: '', checkinDays: [0], checkinStartMin: 780, checkinEndMin: 900,
+      requireApproval: false, summerMode: false, demoMode: false, individualCheckinEnabled: true,
     }), { status: 200 })))
     renderAt('/')
     expect(await screen.findByRole('button', { name: '체크인' })).toBeInTheDocument()

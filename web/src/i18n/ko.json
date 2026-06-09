@@ -44,6 +44,11 @@
     "synced": "출석이 동기화되었습니다"
   },
   "announce": { "label": "공지" },
+  "landing": {
+    "title": "KCCP 출석 시스템",
+    "subtitle": "한국중앙교회 피츠버그 · 대학청년부",
+    "kioskNote": "출석은 교회 키오스크에서 진행됩니다"
+  },
   "kiosk": {
     "title": "출석 키오스크",
     "enter": "키오스크",

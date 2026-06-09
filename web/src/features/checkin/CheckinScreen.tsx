@@ -8,6 +8,7 @@ import { useTheme } from '../../stores/useTheme'
 import { useLang } from '../../stores/useLang'
 import { Button } from '../../components/ui/Button'
 import { KccpMark } from './KccpMark'
+import { KccpLogo } from './KccpLogo'
 import { CheckinResult } from './CheckinResult'
 import { SelfRegisterDialog } from './SelfRegisterDialog'
 import { useCheckin } from './useCheckin'
@@ -130,11 +131,11 @@ export function CheckinScreen() {
       {phase.kind === 'idle' && (
         <>
           <TopBar />
-          <div className="flex flex-1 flex-col items-center justify-center gap-7 px-6 pb-16 text-center">
-            <KccpMark size={120} className="fx-breathe text-primary" />
+          <div className="flex flex-1 flex-col items-center justify-center gap-6 px-6 pb-16 text-center">
+            <KccpLogo size={232} className="fx-breathe" />
             <div className="fx-rise">
-              <h1 className="font-display text-4xl font-semibold text-text">{t('checkin.greeting')}</h1>
-              <WindowBadge cfg={config} />
+              <h1 className="font-display text-3xl font-semibold text-text">{t('landing.title')}</h1>
+              <p className="mt-2 text-sm text-muted">{t('landing.subtitle')}</p>
             </div>
             {config.announcement && (
               <div className="fx-rise mx-auto max-w-xs rounded-xl border border-gold/30 bg-gold/10 px-4 py-2.5">
@@ -144,12 +145,21 @@ export function CheckinScreen() {
                 <div className="text-xs leading-relaxed text-text">{config.announcement}</div>
               </div>
             )}
-            <Button
-              onClick={() => void checkIn()}
-              className="fx-rise min-w-[12rem] rounded-xl px-10 py-4 text-base shadow-lg shadow-primary/20"
-            >
-              {t('checkin.button')}
-            </Button>
+            {/* Check-in only surfaces when individual check-in is enabled; otherwise this is
+                purely the system's landing page (check-in runs on the church kiosk). */}
+            {config.individualCheckinEnabled ? (
+              <>
+                <WindowBadge cfg={config} />
+                <Button
+                  onClick={() => void checkIn()}
+                  className="fx-rise min-w-[12rem] rounded-xl px-10 py-4 text-base shadow-lg shadow-primary/20"
+                >
+                  {t('checkin.button')}
+                </Button>
+              </>
+            ) : (
+              <p className="fx-rise text-xs text-subtle">{t('landing.kioskNote')}</p>
+            )}
           </div>
         </>
       )}

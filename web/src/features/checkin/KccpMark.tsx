@@ -1,31 +1,17 @@
-// A warm "rising sun over an arch" mark — welcoming, church-adjacent, and on-brand
-// with the clay-coral system. Inherits color via `currentColor`.
+// The KCCP mark — a green "book/sanctuary" with a yellow open door and a white cross
+// at the threshold (recreated as vector from the church's logo). Multi-color brand mark;
+// `className` controls sizing/effects only, not color. Swap freely if an official asset
+// is dropped in.
 export function KccpMark({ size = 120, className = '' }: { size?: number; className?: string }) {
-  const rays = Array.from({ length: 12 }, (_, i) => {
-    const a = ((i * 30 - 90) * Math.PI) / 180
-    const inner = 30
-    const outer = 38
-    return (
-      <line
-        key={i}
-        x1={60 + Math.cos(a) * inner}
-        y1={64 + Math.sin(a) * inner}
-        x2={60 + Math.cos(a) * outer}
-        y2={64 + Math.sin(a) * outer}
-        stroke="currentColor"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        opacity={0.7}
-      />
-    )
-  })
   return (
-    <svg width={size} height={size} viewBox="0 0 120 120" fill="none" className={className} role="img" aria-label="KCCP">
-      <circle cx="60" cy="60" r="56" stroke="currentColor" strokeWidth="1.5" opacity={0.16} />
-      <circle cx="60" cy="60" r="45" stroke="currentColor" strokeWidth="1" opacity={0.1} />
-      <circle cx="60" cy="64" r="20" fill="currentColor" opacity={0.92} />
-      {rays}
-      <path d="M30 92 Q60 80 90 92" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" opacity={0.5} />
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" className={className} role="img" aria-label="KCCP">
+      {/* green book / sanctuary wall */}
+      <rect x="23" y="33" width="35" height="39" rx="1.5" fill="#54C083" />
+      {/* yellow door opening in perspective (top-right lifted) */}
+      <path d="M58 30 L78 22.5 L78 69 L58 72 Z" fill="#F2E52C" />
+      {/* white cross at the threshold, near the top */}
+      <rect x="55.5" y="36" width="5" height="21" rx="0.6" fill="#fff" />
+      <rect x="49.5" y="43" width="20" height="5" rx="0.6" fill="#fff" />
     </svg>
   )
 }
