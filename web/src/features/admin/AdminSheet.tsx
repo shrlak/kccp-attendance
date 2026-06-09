@@ -168,7 +168,7 @@ function GridView({ grid, empty, totalLabel }: { grid: Grid; empty: string; tota
   if (grid.dates.length === 0) return <p className="text-sm text-muted">{empty}</p>
   return (
     <div className="overflow-x-auto">
-      <table className="border-collapse text-sm">
+      <table className="w-full border-collapse text-sm">
         <thead>
           <tr>
             <th className="sticky left-0 z-10 bg-canvas px-2 py-1.5 text-left font-semibold text-muted">{' '}</th>
