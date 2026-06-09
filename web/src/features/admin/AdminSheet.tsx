@@ -10,6 +10,7 @@ import { memberIdsPresentOn, toggleId } from './bulk'
 import { filterMembers, filterLog, NO_FILTER, type Filter } from './filters'
 import { computeStats } from './stats'
 import { GroupFilter } from './GroupFilter'
+import { ExportMenu } from './ExportMenu'
 import { StatsBar } from './StatsBar'
 import { Dialog } from '../../components/ui/Dialog'
 import { Input } from '../../components/ui/Input'
@@ -48,11 +49,14 @@ export function AdminSheet() {
             {t('admin.sheet.log')}
           </Toggle>
         </div>
-        {canBulk && (
-          <Button variant="secondary" size="sm" onClick={() => setBulk(true)} disabled={data.members.length === 0}>
-            {t('admin.sheet.bulk.action')}
-          </Button>
-        )}
+        <div className="flex gap-2">
+          <ExportMenu members={members} log={fLog} filter={filter} />
+          {canBulk && (
+            <Button variant="secondary" size="sm" onClick={() => setBulk(true)} disabled={data.members.length === 0}>
+              {t('admin.sheet.bulk.action')}
+            </Button>
+          )}
+        </div>
       </div>
       {view === 'grid' ? <GridView grid={grid} empty={t('admin.sheet.empty')} totalLabel={t('admin.sheet.total')} /> : <LogView log={log} empty={t('admin.sheet.empty')} />}
       {bulk && <BulkModal data={data} onClose={() => setBulk(false)} />}
