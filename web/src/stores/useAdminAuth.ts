@@ -50,7 +50,9 @@ export const useAdminAuth = create<AdminAuthState>((set) => ({
     set({ status: 'verifying' })
     await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: 'https://shrlak.github.io/kccp-attendance/admin' },
+      // Redirect to the site root (a real file) so GitHub Pages serves it directly.
+      // The SIGNED_IN handler pushes state to /admin after verification.
+      options: { redirectTo: 'https://shrlak.github.io/kccp-attendance/' },
     })
     // Page redirects away — control does not return here.
   },
@@ -94,6 +96,12 @@ supabase.auth.onAuthStateChange(async (event, session) => {
       setAdminToken(session.access_token)
       const identity = await adminVerifyGoogle()
       useAdminAuth.setState({ status: 'authed', identity })
+      // After OAuth the browser lands at root (/). Push state to /admin so the
+      // router renders the admin panel without a page reload.
+      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/kccp-attendance/admin')) {
+        window.history.pushState({}, '', '/kccp-attendance/admin')
+        window.dispatchEvent(new PopStateEvent('popstate', { state: {} }))
+      }
     } catch {
       setAdminToken(null)
       useAdminAuth.setState({ status: 'error', identity: null })
