@@ -31,7 +31,9 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
-          node-version: 24
+          # Single source of truth (web/.nvmrc) — keeps CI, Vercel, and local dev on the
+          # same Node. Pinned to 22.x (Active LTS); Node 20 is EOL as of 2026-04.
+          node-version-file: web/.nvmrc
           cache: npm
           cache-dependency-path: web/package-lock.json
 
