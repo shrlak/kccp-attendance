@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { semesterKey, currentNewFamily, monthlyRegistrations } from './newFamily'
+import { semesterKey, semesterBounds, semesterSundays, currentNewFamily, monthlyRegistrations } from './newFamily'
 import type { Member } from '../../lib/api'
 
 const m = (id: string, isNew: boolean, reg: string | null): Member => ({
@@ -14,6 +14,29 @@ describe('semesterKey', () => {
     expect(semesterKey('2026-08-14')).toBe('2026-summer')
     expect(semesterKey('2026-08-15')).toBe('2026-fall')
     expect(semesterKey('2026-12-31')).toBe('2026-fall')
+  })
+})
+
+describe('semesterBounds', () => {
+  it('returns the term + inclusive start/end for the date', () => {
+    expect(semesterBounds('2026-03-01')).toEqual({ year: 2026, season: 'spring', start: '2026-01-01', end: '2026-05-09' })
+    expect(semesterBounds('2026-06-07')).toEqual({ year: 2026, season: 'summer', start: '2026-05-10', end: '2026-08-14' })
+    expect(semesterBounds('2026-09-01')).toEqual({ year: 2026, season: 'fall', start: '2026-08-15', end: '2026-12-31' })
+  })
+})
+
+describe('semesterSundays', () => {
+  it('lists the semester Sundays from the start through today (inclusive)', () => {
+    expect(semesterSundays('2026-06-07')).toEqual(['2026-05-10', '2026-05-17', '2026-05-24', '2026-05-31', '2026-06-07'])
+  })
+  it('excludes future Sundays', () => {
+    expect(semesterSundays('2026-05-31')).toEqual(['2026-05-10', '2026-05-17', '2026-05-24', '2026-05-31'])
+  })
+  it('stops at the last Sunday on/before a mid-week today', () => {
+    expect(semesterSundays('2026-06-03')).toEqual(['2026-05-10', '2026-05-17', '2026-05-24', '2026-05-31'])
+  })
+  it('starts at the first Sunday on/after the semester start (spring 2026 → Jan 4)', () => {
+    expect(semesterSundays('2026-01-10')).toEqual(['2026-01-04'])
   })
 })
 
