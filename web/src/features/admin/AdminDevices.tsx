@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import { useRoster } from './useRoster'
 import { registerDevice, linkDevice, type Member } from '../../lib/api'
+import { getDeviceId } from '../../lib/device'
 import { groupsOf, subgroupsOf } from './filters'
 import { checkinCandidates } from './today'
 import { isValidDeviceId, normalizeDeviceId } from './devices'
@@ -77,13 +78,26 @@ function RegisterCard({ members }: { members: Member[] }) {
   return (
     <Card title={t('admin.devices.register.title')} desc={t('admin.devices.register.desc')}>
       <Field label={t('admin.devices.deviceId')}>
-        <Input
-          value={deviceId}
-          onChange={(e) => setDeviceId(e.target.value)}
-          placeholder={t('admin.devices.deviceIdPlaceholder')}
-          autoComplete="off"
-          spellCheck={false}
-        />
+        <div className="flex gap-2">
+          <Input
+            value={deviceId}
+            onChange={(e) => setDeviceId(e.target.value)}
+            placeholder={t('admin.devices.deviceIdPlaceholder')}
+            autoComplete="off"
+            spellCheck={false}
+            className="flex-1"
+          />
+          {/* Paste this browser's own device id (the X-Device-Id used for check-in/auth)
+              so an admin registering the device they're holding doesn't have to copy it. */}
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => setDeviceId(getDeviceId())}
+            className="shrink-0 whitespace-nowrap"
+          >
+            {t('admin.devices.useThisDevice')}
+          </Button>
+        </div>
       </Field>
       <Field label={t('admin.devices.register.name')}>
         <Input value={name} onChange={(e) => setName(e.target.value)} />
