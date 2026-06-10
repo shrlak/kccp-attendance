@@ -1,5 +1,6 @@
 import type { Member, LogEntry } from '../../lib/api'
-import { buildGrid, type GridRow } from './sheet'
+import { buildGrid } from './sheet'
+import { semesterBounds, semesterSundays } from './newFamily'
 
 // ── Pure export helpers ──────────────────────────────────────────────────────
 // Everything here is side-effect free so it can be unit-tested. The thin DOM bits
@@ -45,58 +46,121 @@ export interface SheetData {
   merges: CellMerge[]
 }
 
+// One member row inside an attendance block: their attended dates (by name) and the count
+// of *shown* dates they attended (예배 총 출석).
+export interface AttendanceMemberRow {
+  member: Member
+  present: Set<string>
+  total: number
+}
+
+export interface AttendanceSection {
+  subgroup: string
+  rows: AttendanceMemberRow[]
+  totals: number[] // present count per shown date
+}
+
+export interface AttendanceModel {
+  dates: string[]
+  dateLabels: string[]
+  sections: AttendanceSection[]
+}
+
+// Shared spine of the Excel sheet and the PDF report: the roster split into 동산 blocks and
+// scored against an explicit list of `dates` (the current semester's Sundays). Members without
+// a 동산 bucket last, under `unassigned`. Roster order is preserved.
+export function buildAttendanceModel(
+  members: Member[],
+  log: LogEntry[],
+  dates: string[],
+  unassigned: string,
+): AttendanceModel {
+  // name -> every date that name attended (the denormalized log carries the name).
+  const attended = new Map<string, Set<string>>()
+  for (const e of log) {
+    let set = attended.get(e.name)
+    if (!set) {
+      set = new Set<string>()
+      attended.set(e.name, set)
+    }
+    set.add(e.date)
+  }
+
+  const order: string[] = []
+  const byKey = new Map<string, AttendanceMemberRow[]>()
+  for (const m of members) {
+    const present = attended.get(m.name) ?? new Set<string>()
+    const total = dates.reduce((n, d) => n + (present.has(d) ? 1 : 0), 0)
+    const key = m.subgroup || unassigned
+    let bucket = byKey.get(key)
+    if (!bucket) {
+      bucket = []
+      byKey.set(key, bucket)
+      order.push(key)
+    }
+    bucket.push({ member: m, present, total })
+  }
+
+  const sections = order.map((subgroup) => {
+    const rows = byKey.get(subgroup)!
+    const totals = dates.map((d) => rows.reduce((n, r) => n + (r.present.has(d) ? 1 : 0), 0))
+    return { subgroup, rows, totals }
+  })
+  return { dates, dateLabels: dates.map(formatGridDate), sections }
+}
+
+// Human label for the semester containing `today`, e.g. "2026 여름 학기" / "Summer 2026".
+export function semesterLabel(today: string, lang: Lang): string {
+  const { year, season } = semesterBounds(today)
+  if (lang === 'ko') {
+    const ko = season === 'spring' ? '봄' : season === 'summer' ? '여름' : '가을'
+    return `${year} ${ko} 학기`
+  }
+  const en = season === 'spring' ? 'Spring' : season === 'summer' ? 'Summer' : 'Fall'
+  return `${en} ${year}`
+}
+
 // Sheet 1 - "Attendance". Reproduces the church's legacy spreadsheet: members are split
 // into 동산 (subgroup) blocks; each block has a two-row header (date row + 예배 label row),
 // O = present / X = absent cells, a per-member 예배 총 출석 count and a 총 출석 totals row.
-// A KEY legend (O 출석 / X 결석) closes the sheet. The original's 동산모임 column is dropped
-// on purpose - the system only records 예배 (worship) check-ins. Returns the array-of-rows
-// plus the header/totals cell-merges. Dates are ascending.
-export function gridSheet(members: Member[], log: LogEntry[], lang: Lang): SheetData {
+// A KEY legend (O 출석 / X 결석) closes the sheet. Date columns are the current semester's
+// Sundays through `today` (the original's 동산모임 column is dropped - the system only records
+// 예배 worship check-ins). Returns the array-of-rows plus the header/totals cell-merges.
+export function gridSheet(members: Member[], log: LogEntry[], lang: Lang, today: string): SheetData {
   const L =
     lang === 'ko'
       ? { name: '이름', memberTotal: '예배 총 출석', worship: '예배', total: '총 출석', key: 'KEY', present: '출석', absent: '결석', unassigned: '동산 미지정' }
       : { name: 'Name', memberTotal: 'Worship Total', worship: 'Worship', total: 'Total', key: 'KEY', present: 'Present', absent: 'Absent', unassigned: 'Unassigned' }
 
-  const grid = buildGrid(members, log)
-  const dateCols = grid.dates.map(formatGridDate)
-
-  // Bucket member rows by 동산, preserving roster order; members without a 동산 group last.
-  const sections = new Map<string, GridRow[]>()
-  for (const r of grid.rows) {
-    const key = r.member.subgroup || L.unassigned
-    const bucket = sections.get(key)
-    if (bucket) bucket.push(r)
-    else sections.set(key, [r])
-  }
+  const model = buildAttendanceModel(members, log, semesterSundays(today), L.unassigned)
 
   const aoa: (string | number)[][] = []
   const merges: CellMerge[] = []
 
   let firstSection = true
-  for (const [subgroup, sectionRows] of sections) {
+  for (const section of model.sections) {
     if (!firstSection) aoa.push([]) // blank row between 동산 blocks
     firstSection = false
 
     const top = aoa.length
-    aoa.push(['', L.name, L.memberTotal, ...dateCols]) // header row 1: labels + dates
-    aoa.push(['', '', '', ...grid.dates.map(() => L.worship)]) // header row 2: 예배 per date
+    aoa.push(['', L.name, L.memberTotal, ...model.dateLabels]) // header row 1: labels + dates
+    aoa.push(['', '', '', ...model.dates.map(() => L.worship)]) // header row 2: 예배 per date
     // The empty corner / 이름 / 예배 총 출석 each span both header rows.
     for (let c = 0; c < 3; c++) merges.push({ s: { r: top, c }, e: { r: top + 1, c } })
 
     // Member rows - 동산 name sits in column A of the first member (as in the sample).
-    sectionRows.forEach((r, i) => {
+    section.rows.forEach((r, i) => {
       aoa.push([
-        i === 0 ? subgroup : '',
+        i === 0 ? section.subgroup : '',
         r.member.name,
         r.total,
-        ...grid.dates.map((d) => (r.present.has(d) ? 'O' : 'X')),
+        ...model.dates.map((d) => (r.present.has(d) ? 'O' : 'X')),
       ])
     })
 
     aoa.push([]) // blank spacer before the totals row
     const totalsAt = aoa.length
-    const totals = grid.dates.map((d) => sectionRows.reduce((n, r) => n + (r.present.has(d) ? 1 : 0), 0))
-    aoa.push([L.total, '', '', ...totals]) // 총 출석: present count per date
+    aoa.push([L.total, '', '', ...section.totals]) // 총 출석: present count per date
     merges.push({ s: { r: totalsAt, c: 0 }, e: { r: totalsAt, c: 1 } }) // 총 출석 label spans A:B
   }
 
@@ -218,19 +282,6 @@ export interface ReportOpts {
   lang: Lang
 }
 
-// Per-member attendance rate %, denominated by the number of recorded attendance dates
-// in scope (distinct dates anyone in scope attended). 0 dates → 0%.
-export function attendanceRate(presentDates: number, totalDates: number): number {
-  return totalDates ? Math.round((presentDates / totalDates) * 100) : 0
-}
-
-// Color bucket for a rate: ≥80 green, ≥60 amber, else red.
-export function rateColor(rate: number): string {
-  if (rate >= 80) return '#16a34a'
-  if (rate >= 60) return '#d97706'
-  return '#dc2626'
-}
-
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, '&amp;')
@@ -239,116 +290,88 @@ function escapeHtml(s: string): string {
     .replace(/"/g, '&quot;')
 }
 
-// Full standalone HTML document for the print/HTML report: a stats bar plus a
-// members×dates grid with per-member attendance-rate %, color-coded. Self-contained
-// (inline CSS), client-rendered — no server endpoint. Includes a Print button.
+// Full standalone HTML document for the PDF report. Mirrors the Excel "Attendance" sheet:
+// one table per 동산 (two-row header: date row + 예배 row), O = present / X = absent cells,
+// a per-member 예배 총 출석 count and a 총 출석 totals row, then a KEY legend. Date columns are
+// the current semester's Sundays through `today`. Self-contained (inline CSS), client-rendered;
+// opens the browser print dialog (Save as PDF) on load. Landscape page for wide grids.
 export function reportHtml(members: Member[], log: LogEntry[], opts: ReportOpts): string {
   const { lang } = opts
   const L =
     lang === 'ko'
-      ? {
-          title: 'KCCP 출석 보고서',
-          members: '멤버',
-          sundays: '주일',
-          records: '출석',
-          avg: '평균 출석률',
-          name: '이름',
-          total: '합계',
-          rate: '출석률',
-          print: '인쇄',
-          empty: '출석 기록이 없습니다',
-        }
-      : {
-          title: 'KCCP Attendance Report',
-          members: 'Members',
-          sundays: 'Dates',
-          records: 'Records',
-          avg: 'Avg rate',
-          name: 'Name',
-          total: 'Total',
-          rate: 'Rate',
-          print: 'Print',
-          empty: 'No attendance records',
-        }
+      ? { title: 'KCCP 출석부', name: '이름', memberTotal: '예배 총 출석', worship: '예배', total: '총 출석', key: 'KEY', present: '출석', absent: '결석', unassigned: '동산 미지정', save: 'PDF로 저장', empty: '출석 기록이 없습니다' }
+      : { title: 'KCCP Attendance', name: 'Name', memberTotal: 'Worship Total', worship: 'Worship', total: 'Total', key: 'KEY', present: 'Present', absent: 'Absent', unassigned: 'Unassigned', save: 'Save as PDF', empty: 'No attendance records' }
 
-  const grid = buildGrid(members, log)
-  const totalDates = grid.dates.length
+  const model = buildAttendanceModel(members, log, semesterSundays(opts.today), L.unassigned)
 
-  const memberCount = members.length
-  const recordCount = log.length
-  const rates = grid.rows.map((r) => attendanceRate(r.present.size, totalDates))
-  const avgRate = rates.length ? Math.round(rates.reduce((a, b) => a + b, 0) / rates.length) : 0
+  const dateHead = model.dateLabels.map((d) => `<th>${escapeHtml(d)}</th>`).join('')
+  const worshipHead = model.dates.map(() => `<th>${escapeHtml(L.worship)}</th>`).join('')
 
-  const head = `<th class="name">${escapeHtml(L.name)}</th>${grid.dates
-    .map((d) => `<th>${escapeHtml(shortHeaderDate(d))}</th>`)
-    .join('')}<th>${escapeHtml(L.total)}</th><th>${escapeHtml(L.rate)}</th>`
-
-  const body = grid.rows.length
-    ? grid.rows
-        .map((r, i) => {
-          const rate = rates[i]
-          const cells = grid.dates
-            .map((d) => `<td class="cell">${r.present.has(d) ? '●' : ''}</td>`)
+  const blocks = model.sections
+    .map((s) => {
+      const rows = s.rows
+        .map((r) => {
+          const cells = model.dates
+            .map((d) => (r.present.has(d) ? '<td class="o">O</td>' : '<td class="x">X</td>'))
             .join('')
-          return `<tr><td class="name">${escapeHtml(r.member.name)}</td>${cells}<td class="total">${r.total}</td><td class="rate" style="color:${rateColor(
-            rate,
-          )}">${rate}%</td></tr>`
+          return `<tr><td class="name">${escapeHtml(r.member.name)}</td><td class="num">${r.total}</td>${cells}</tr>`
         })
         .join('')
-    : `<tr><td class="empty" colspan="${totalDates + 3}">${escapeHtml(L.empty)}</td></tr>`
+      const totals = s.totals.map((t) => `<td class="num">${t}</td>`).join('')
+      return `<section class="block">
+  <h2>${escapeHtml(s.subgroup)}</h2>
+  <table>
+    <thead>
+      <tr><th class="name" rowspan="2">${escapeHtml(L.name)}</th><th class="num" rowspan="2">${escapeHtml(L.memberTotal)}</th>${dateHead}</tr>
+      <tr>${worshipHead}</tr>
+    </thead>
+    <tbody>${rows}</tbody>
+    <tfoot><tr><td class="total" colspan="2">${escapeHtml(L.total)}</td>${totals}</tr></tfoot>
+  </table>
+</section>`
+    })
+    .join('')
+
+  const content = model.sections.length ? blocks : `<p class="empty">${escapeHtml(L.empty)}</p>`
 
   return `<!doctype html>
 <html lang="${lang}">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>${escapeHtml(L.title)}</title>
+<title>${escapeHtml(exportFilename(opts.group, opts.today).replace(/\.xlsx$/, ''))}</title>
 <style>
   * { box-sizing: border-box; }
-  body { font-family: -apple-system, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; margin: 24px; color: #1f2937; }
-  h1 { font-size: 20px; margin: 0 0 4px; }
-  .sub { color: #6b7280; font-size: 13px; margin-bottom: 16px; }
-  .stats { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
-  .stat { border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px 16px; min-width: 96px; text-align: center; }
-  .stat .n { font-size: 22px; font-weight: 700; }
-  .stat .l { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #9ca3af; margin-top: 2px; }
-  table { border-collapse: collapse; font-size: 12px; width: 100%; }
-  th, td { border: 1px solid #e5e7eb; padding: 4px 8px; text-align: center; }
-  th { background: #f9fafb; font-weight: 600; }
-  th.name, td.name { text-align: left; white-space: nowrap; }
-  td.cell { color: #16a34a; }
-  td.total { font-weight: 700; }
-  td.rate { font-weight: 700; }
-  td.empty { text-align: center; color: #9ca3af; padding: 20px; }
+  body { font-family: -apple-system, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; margin: 20px; color: #1f2937; }
+  h1 { font-size: 20px; margin: 0 0 2px; }
+  .sub { color: #6b7280; font-size: 13px; margin-bottom: 18px; }
+  .block { margin-bottom: 22px; break-inside: avoid; }
+  h2 { font-size: 14px; margin: 0 0 6px; color: #4f46e5; }
+  table { border-collapse: collapse; font-size: 11px; width: 100%; }
+  th, td { border: 1px solid #d1d5db; padding: 3px 6px; text-align: center; white-space: nowrap; }
+  thead th { background: #eef2ff; font-weight: 700; }
+  td.name { text-align: left; }
+  td.num, th.num { font-weight: 700; }
+  td.o { color: #16a34a; font-weight: 700; }
+  td.x { color: #dc2626; }
+  td.total { text-align: left; font-weight: 700; }
+  tfoot td { background: #f9fafb; font-weight: 700; }
+  tr { break-inside: avoid; }
+  .key { margin-top: 8px; font-size: 12px; color: #374151; display: flex; gap: 16px; align-items: center; }
+  .empty { color: #9ca3af; }
   .actions { margin-bottom: 16px; }
   button { font: inherit; padding: 8px 16px; border-radius: 6px; border: none; background: #4f46e5; color: #fff; cursor: pointer; }
+  @page { size: landscape; margin: 12mm; }
   @media print { .actions { display: none; } body { margin: 0; } }
 </style>
 </head>
 <body>
-  <div class="actions"><button onclick="window.print()">${escapeHtml(L.print)}</button></div>
+  <div class="actions"><button onclick="window.print()">${escapeHtml(L.save)}</button></div>
   <h1>${escapeHtml(L.title)}</h1>
-  <div class="sub">${escapeHtml(formatHeaderDate(opts.today, lang))} · ${escapeHtml(
-    filterLabel(opts.group, opts.subgroup, lang),
-  )}</div>
-  <div class="stats">
-    <div class="stat"><div class="n">${memberCount}</div><div class="l">${escapeHtml(L.members)}</div></div>
-    <div class="stat"><div class="n">${totalDates}</div><div class="l">${escapeHtml(L.sundays)}</div></div>
-    <div class="stat"><div class="n">${recordCount}</div><div class="l">${escapeHtml(L.records)}</div></div>
-    <div class="stat"><div class="n" style="color:${rateColor(avgRate)}">${avgRate}%</div><div class="l">${escapeHtml(
-      L.avg,
-    )}</div></div>
-  </div>
-  <table>
-    <thead><tr>${head}</tr></thead>
-    <tbody>${body}</tbody>
-  </table>
+  <div class="sub">${escapeHtml(semesterLabel(opts.today, lang))} · ${escapeHtml(formatHeaderDate(opts.today, lang))} · ${escapeHtml(filterLabel(opts.group, opts.subgroup, lang))}</div>
+  ${content}
+  <div class="key"><b>${escapeHtml(L.key)}</b><span><b>O</b> ${escapeHtml(L.present)}</span><span><b>X</b> ${escapeHtml(L.absent)}</span></div>
+  <script>window.addEventListener('load', function () { setTimeout(function () { window.print() }, 350) })</script>
 </body>
 </html>`
-}
-
-// "2026-06-07" → "6/7" for compact grid column headers in the report.
-function shortHeaderDate(iso: string): string {
-  const [, m, d] = iso.split('-')
-  return `${parseInt(m, 10)}/${parseInt(d, 10)}`
 }

@@ -2,15 +2,16 @@ import { describe, it, expect } from 'vitest'
 import {
   exportFilename,
   gridSheet,
+  buildAttendanceModel,
+  semesterLabel,
   formatGridDate,
   logRows,
   kakaoSummary,
   reportHtml,
   formatHeaderDate,
   filterLabel,
-  attendanceRate,
-  rateColor,
 } from './exports'
+import { semesterSundays } from './newFamily'
 import type { Member, LogEntry } from '../../lib/api'
 
 const member = (id: string, name: string, group = '청년부', subgroup = '건영동산'): Member => ({
@@ -51,17 +52,42 @@ describe('filterLabel', () => {
   })
 })
 
-describe('attendanceRate / rateColor', () => {
-  it('rounds the rate and guards divide-by-zero', () => {
-    expect(attendanceRate(3, 4)).toBe(75)
-    expect(attendanceRate(0, 0)).toBe(0)
-    expect(attendanceRate(1, 3)).toBe(33)
+describe('semesterLabel', () => {
+  it('names the term containing the date', () => {
+    expect(semesterLabel('2026-06-07', 'ko')).toBe('2026 여름 학기')
+    expect(semesterLabel('2026-06-07', 'en')).toBe('Summer 2026')
+    expect(semesterLabel('2026-02-01', 'ko')).toBe('2026 봄 학기')
+    expect(semesterLabel('2026-09-01', 'en')).toBe('Fall 2026')
   })
-  it('buckets colors at 80 / 60 thresholds', () => {
-    expect(rateColor(80)).toBe('#16a34a')
-    expect(rateColor(79)).toBe('#d97706')
-    expect(rateColor(60)).toBe('#d97706')
-    expect(rateColor(59)).toBe('#dc2626')
+})
+
+describe('buildAttendanceModel', () => {
+  const members = [member('1', 'A'), member('2', 'B'), member('3', 'C', '청년부', '중호동산')]
+  const log = [
+    entry('A', '2026-05-31', 1),
+    entry('A', '2026-06-07', 2),
+    entry('B', '2026-06-07', 3),
+    entry('C', '2026-06-07', 4, { subgroup: '중호동산' }),
+  ]
+  const dates = ['2026-05-31', '2026-06-07']
+
+  it('groups by 동산 in roster order and labels dates MM/DD/YYYY', () => {
+    const m = buildAttendanceModel(members, log, dates, '동산 미지정')
+    expect(m.dateLabels).toEqual(['05/31/2026', '06/07/2026'])
+    expect(m.sections.map((s) => s.subgroup)).toEqual(['건영동산', '중호동산'])
+  })
+  it('counts per-member present + per-date section totals over the given dates only', () => {
+    const s1 = buildAttendanceModel(members, log, dates, '동산 미지정').sections[0]
+    expect(s1.rows.map((r) => [r.member.name, r.total])).toEqual([['A', 2], ['B', 1]])
+    expect(s1.totals).toEqual([1, 2]) // 5/31: A; 6/7: A + B
+    // narrowing the window drops the 5/31 attendance from the totals
+    const narrow = buildAttendanceModel(members, log, ['2026-06-07'], '동산 미지정').sections[0]
+    expect(narrow.rows.map((r) => r.total)).toEqual([1, 1])
+  })
+  it('buckets members without a 동산 under the unassigned label, last', () => {
+    const ms = [member('1', 'A'), member('9', 'Z', '청년부', '')]
+    const m = buildAttendanceModel(ms, [], ['2026-06-07'], '동산 미지정')
+    expect(m.sections.map((s) => s.subgroup)).toEqual(['건영동산', '동산 미지정'])
   })
 })
 
@@ -73,49 +99,57 @@ describe('formatGridDate', () => {
 })
 
 describe('gridSheet', () => {
+  // Summer 2026: semester Sundays are 05/10, 05/17, 05/24, 05/31, 06/07 through today.
+  const today = '2026-06-07'
+  const dates = semesterSundays(today)
   const members = [member('1', 'A'), member('2', 'B')]
-  const log = [entry('A', '2026-05-31', 1), entry('A', '2026-06-07', 2), entry('B', '2026-06-07', 3)]
+  const log = [entry('A', '2026-05-31', 1), entry('A', today, 2), entry('B', today, 3)]
 
-  it('builds a two-row 동산 header: labels + MM/DD/YYYY dates, then 예배 under each date', () => {
-    const { aoa } = gridSheet(members, log, 'ko')
-    expect(aoa[0]).toEqual(['', '이름', '예배 총 출석', '05/31/2026', '06/07/2026'])
-    expect(aoa[1]).toEqual(['', '', '', '예배', '예배'])
+  it('header row 1 = labels + the semester Sundays (MM/DD/YYYY); row 2 = 예배 per date', () => {
+    const { aoa } = gridSheet(members, log, 'ko', today)
+    expect(aoa[0]).toEqual(['', '이름', '예배 총 출석', ...dates.map(formatGridDate)])
+    expect(aoa[1]).toEqual(['', '', '', ...dates.map(() => '예배')])
   })
-  it('marks O present / X absent with the 동산 name on the first member row and a worship total', () => {
-    const { aoa } = gridSheet(members, log, 'ko')
-    // A present both dates → 동산 label in col A, total 2
-    expect(aoa[2]).toEqual(['건영동산', 'A', 2, 'O', 'O'])
-    // B absent 5/31, present 6/7 → col A blank, total 1
-    expect(aoa[3]).toEqual(['', 'B', 1, 'X', 'O'])
+  it('marks O present / X absent across the semester Sundays with 동산 name + worship total', () => {
+    const { aoa } = gridSheet(members, log, 'ko', today)
+    const aRow = aoa[2]
+    expect(aRow.slice(0, 3)).toEqual(['건영동산', 'A', 2]) // A attended 2 of the shown Sundays
+    expect(aRow[3]).toBe('X') // 05/10 absent
+    expect(aRow.slice(-2)).toEqual(['O', 'O']) // 05/31 + 06/07 present
+    // B: col A blank, present only 06/07
+    expect(aoa[3].slice(0, 3)).toEqual(['', 'B', 1])
+    expect(aoa[3].slice(-2)).toEqual(['X', 'O'])
   })
-  it('adds a blank spacer then a 총 출석 row counting present per date, and a KEY legend', () => {
-    const { aoa } = gridSheet(members, log, 'ko')
+  it('adds a blank spacer, a 총 출석 row counting present per date, and a KEY legend', () => {
+    const { aoa } = gridSheet(members, log, 'ko', today)
     expect(aoa[4]).toEqual([])
-    expect(aoa[5]).toEqual(['총 출석', '', '', 1, 2]) // 5/31: A only; 6/7: A + B
+    expect(aoa[5][0]).toBe('총 출석')
+    expect(aoa[5].slice(-2)).toEqual([1, 2]) // 05/31: A; 06/07: A + B
     expect(aoa.slice(-3)).toEqual([['KEY'], ['O', '출석'], ['X', '결석']])
   })
   it('merges the three left header cells down and the 총 출석 label across A:B', () => {
-    const { merges } = gridSheet(members, log, 'ko')
-    expect(merges).toEqual([
+    const { merges } = gridSheet(members, log, 'ko', today)
+    expect(merges.slice(0, 3)).toEqual([
       { s: { r: 0, c: 0 }, e: { r: 1, c: 0 } },
       { s: { r: 0, c: 1 }, e: { r: 1, c: 1 } },
       { s: { r: 0, c: 2 }, e: { r: 1, c: 2 } },
-      { s: { r: 5, c: 0 }, e: { r: 5, c: 1 } },
     ])
+    expect(merges[3]).toEqual({ s: { r: 5, c: 0 }, e: { r: 5, c: 1 } }) // 2 header + 2 members + spacer
   })
   it('emits one blank-separated block per 동산', () => {
     const ms = [member('1', 'A', '청년부', '건영동산'), member('2', 'C', '청년부', '중호동산')]
-    const lg = [entry('A', '2026-06-07', 1), entry('C', '2026-06-07', 2, { subgroup: '중호동산' })]
-    const { aoa } = gridSheet(ms, lg, 'ko')
-    expect(aoa[2]).toEqual(['건영동산', 'A', 1, 'O']) // section 1 member
-    expect(aoa[4]).toEqual(['총 출석', '', '', 1]) // section 1 totals
-    expect(aoa[5]).toEqual([]) // blank separator
-    expect(aoa[8]).toEqual(['중호동산', 'C', 1, 'O']) // section 2 member
+    const lg = [entry('A', today, 1), entry('C', today, 2, { subgroup: '중호동산' })]
+    const { aoa } = gridSheet(ms, lg, 'ko', today)
+    expect(aoa[2][0]).toBe('건영동산') // section 1 member
+    expect(aoa[4][0]).toBe('총 출석') // section 1 totals (2 header + 1 member + spacer)
+    expect(aoa[5]).toEqual([]) // blank separator between blocks
+    expect(aoa[6]).toEqual(['', '이름', '예배 총 출석', ...dates.map(formatGridDate)]) // section 2 header
+    expect(aoa[8][0]).toBe('중호동산') // section 2 member
   })
   it('uses English labels in en mode', () => {
-    const { aoa } = gridSheet(members, log, 'en')
-    expect(aoa[0]).toEqual(['', 'Name', 'Worship Total', '05/31/2026', '06/07/2026'])
-    expect(aoa[1]).toEqual(['', '', '', 'Worship', 'Worship'])
+    const { aoa } = gridSheet(members, log, 'en', today)
+    expect(aoa[0].slice(0, 3)).toEqual(['', 'Name', 'Worship Total'])
+    expect(aoa[1][3]).toBe('Worship')
     expect(aoa.slice(-3)).toEqual([['KEY'], ['O', 'Present'], ['X', 'Absent']])
   })
 })
@@ -181,25 +215,38 @@ describe('kakaoSummary', () => {
 })
 
 describe('reportHtml', () => {
+  const today = '2026-06-07'
   const members = [member('1', 'A'), member('2', 'B')]
-  const log = [entry('A', '2026-05-31', 1), entry('A', '2026-06-07', 2), entry('B', '2026-06-07', 3)]
+  const log = [entry('A', '2026-05-31', 1), entry('A', today, 2), entry('B', today, 3)]
 
-  it('is a standalone HTML document with a print button and stats', () => {
-    const html = reportHtml(members, log, { group: '', subgroup: '', today: '2026-06-07', lang: 'en' })
+  it('is a standalone HTML doc that auto-opens the print / Save-as-PDF dialog (landscape)', () => {
+    const html = reportHtml(members, log, { group: '', subgroup: '', today, lang: 'en' })
     expect(html).toContain('<!doctype html>')
     expect(html).toContain('window.print()')
-    expect(html).toContain('KCCP Attendance Report')
-    expect(html).toContain('Avg rate')
+    expect(html).toContain('@page { size: landscape')
   })
-  it('color-codes the per-member rate', () => {
-    const html = reportHtml(members, log, { group: '', subgroup: '', today: '2026-06-07', lang: 'en' })
-    // A attended 2/2 dates → 100% green; B 1/2 → 50% red
-    expect(html).toContain('color:#16a34a">100%')
-    expect(html).toContain('color:#dc2626">50%')
+  it('renders the 동산 grid: name, 예배 총 출석, O/X cells, 총 출석 and a KEY legend', () => {
+    const html = reportHtml(members, log, { group: '', subgroup: '', today, lang: 'ko' })
+    expect(html).toContain('건영동산')
+    expect(html).toContain('예배 총 출석')
+    expect(html).toContain('<td class="o">O</td>')
+    expect(html).toContain('<td class="x">X</td>')
+    expect(html).toContain('총 출석')
+    expect(html).toContain('출석') // KEY present
+    expect(html).toContain('결석') // KEY absent
+  })
+  it('labels the semester and uses its Sundays as date columns', () => {
+    const html = reportHtml(members, log, { group: '', subgroup: '', today, lang: 'ko' })
+    expect(html).toContain('2026 여름 학기')
+    for (const d of semesterSundays(today)) expect(html).toContain(formatGridDate(d))
   })
   it('escapes member names', () => {
-    const html = reportHtml([member('1', '<b>X</b>')], [entry('<b>X</b>', '2026-06-07', 1)], { group: '', subgroup: '', today: '2026-06-07', lang: 'en' })
-    expect(html).toContain('&lt;b&gt;X&lt;/b&gt;')
-    expect(html).not.toContain('<b>X</b>')
+    const html = reportHtml([member('1', '<b>X</b>')], [entry('<b>X</b>', today, 1)], { group: '', subgroup: '', today, lang: 'en' })
+    expect(html).toContain('<td class="name">&lt;b&gt;X&lt;/b&gt;</td>')
+    expect(html).not.toContain('<td class="name"><b>X</b></td>')
+  })
+  it('shows an empty message when no members are in scope', () => {
+    const html = reportHtml([], [], { group: '', subgroup: '', today, lang: 'en' })
+    expect(html).toContain('No attendance records')
   })
 })

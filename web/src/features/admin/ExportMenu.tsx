@@ -37,7 +37,7 @@ export function ExportMenu({ members, log, filter }: { members: Member[]; log: L
       // Lazy-load SheetJS so it stays out of the main bundle.
       const XLSX = await import('xlsx')
       const wb = XLSX.utils.book_new()
-      const { aoa, merges } = gridSheet(members, log, lang)
+      const { aoa, merges } = gridSheet(members, log, lang, today)
       const attendance = XLSX.utils.aoa_to_sheet(aoa)
       attendance['!merges'] = merges
       const full = XLSX.utils.aoa_to_sheet(logRows(members, log, lang))
