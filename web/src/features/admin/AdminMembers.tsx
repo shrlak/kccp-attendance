@@ -50,6 +50,7 @@ export function AdminMembers() {
 
   const q = search.trim().toLowerCase()
   const members = q ? data.members.filter((m) => m.name.toLowerCase().includes(q)) : data.members
+  const staffMembers = q ? data.staffMembers.filter((m) => m.name.toLowerCase().includes(q)) : data.staffMembers
   const dongsanOptions = [...new Set(data.members.map((m) => m.subgroup).filter(Boolean))].sort()
 
   function toggleSel(id: string) {
@@ -156,6 +157,26 @@ export function AdminMembers() {
           )
         })}
       </div>
+      {staffMembers.length > 0 && (
+        <>
+          <div className="mb-3 mt-6 font-mono text-xs uppercase tracking-wide text-subtle">
+            {t('admin.members.staffSection')} · {staffMembers.length}
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {staffMembers.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => setEditing(m)}
+                className="rounded-lg border border-border bg-surface p-3 text-left transition-colors hover:bg-surface-alt"
+              >
+                <div className="text-sm font-semibold text-text">{m.name}</div>
+                <div className="text-xs text-muted">{m.member_role || '—'}</div>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
       {editing && (
         <EditModal
           member={editing}
