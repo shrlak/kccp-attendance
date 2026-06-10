@@ -34,15 +34,16 @@ export function isPersonalDevice(deviceId: string): boolean {
   return !!deviceId && !deviceId.startsWith("ROSTER-");
 }
 
-// Mirror of the legacy browser ACL: super/pastor see everything; a KM leader spans both
-// 대학부·청년부 in summer mode (합동) but only their own 부서 in semester mode; the
-// subgroup always pins to their 동산.
+// Mirror of the legacy browser ACL: super/pastor see everything; a leader is scoped to
+// their 부서 + 동산. A leader whose group is "합동" spans BOTH 대학부·청년부 in EVERY
+// season (the shared 임원 account); in summer mode a 대학부/청년부 leader is likewise
+// promoted to 합동. The subgroup always pins to their 동산.
 export function scopeFilter(role: Role, summerMode: boolean): Scope {
   if (role.role === "super_admin" || role.role === "pastor") return { all: true };
   if (role.role === "leader") {
-    const groups = summerMode && (role.group === "대학부" || role.group === "청년부")
-      ? ["대학부", "청년부"]
-      : [role.group];
+    const combined = role.group === "합동" ||
+      (summerMode && (role.group === "대학부" || role.group === "청년부"));
+    const groups = combined ? ["대학부", "청년부"] : [role.group];
     return { all: false, groups, subgroup: role.subgroup };
   }
   // welcoming (새가족팀) and any other scoped role

@@ -33,6 +33,12 @@ Deno.test("KM leader spans both depts in summer mode (합동)", () => {
   assertEquals(scopeFilter(leader, true), { all: false, groups: ["대학부", "청년부"], subgroup: "건영동산" });
 });
 
+Deno.test("합동 leader spans both 부서 in EVERY season (임원 account)", () => {
+  const s: Role = { memberId: "m", role: "leader", group: "합동", subgroup: "", ministry: "KM" };
+  assertEquals(scopeFilter(s, false), { all: false, groups: ["대학부", "청년부"], subgroup: "" });
+  assertEquals(scopeFilter(s, true), { all: false, groups: ["대학부", "청년부"], subgroup: "" });
+});
+
 Deno.test("welcoming is scoped to its group", () => {
   const s: Role = { memberId: "m", role: "welcoming", group: "청년부", subgroup: "", ministry: "KM" };
   assertEquals(scopeFilter(s, false), { all: false, groups: ["청년부"], subgroup: "" });
