@@ -131,6 +131,7 @@ export interface Member {
   new_member_edu_week1?: boolean
   new_member_edu_week2?: boolean
   pastoral_visit_requested?: boolean
+  is_staff?: boolean
 }
 
 export interface LogEntry {
