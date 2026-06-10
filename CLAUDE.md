@@ -30,10 +30,15 @@ Korean church (한국중앙교회 피츠버그 대학·청년부) attendance sys
   So **any `supabase/functions` change deploys on merge to `main`**. Current fn version: v14.
 - **Pages deploy `needs` the edge-function job** (atomic cutover) → if the fn deploy fails, Pages
   is skipped and the site stays put. A `notify` job comments deploy-success on the PR.
-- **Migrations: apply via `mcp__Supabase__apply_migration`** (allowed). Do NOT `supabase db push` —
-  prod's `schema_migrations` uses full-timestamp versions that don't match the repo's date-prefix
-  filenames (drift), and the Supabase branching integration's `main` is stuck `MIGRATIONS_FAILED`
-  (stale, harmless). Add a repo migration file too, for preview/branch parity.
+- **Migrations: add a repo file in `supabase/migrations/` and merge** — since 2026-06-10 prod's
+  `schema_migrations` was repaired to match the repo's date-prefix filenames 1:1, so the Supabase
+  branching integration is functional again: merge to `main` auto-applies new migration files to
+  prod, and PR preview branches replay the full set (keep files **idempotent + guarded**, and
+  version prefixes **unique**, ordered after their dependencies — members table exists from
+  `20260615`, email from `20260623`). If you must hot-apply via `mcp__Supabase__apply_migration`,
+  it records an orphan full-timestamp version that re-breaks the `main` sync ("Remote migration
+  versions not found") — afterwards DELETE that row from `supabase_migrations.schema_migrations`
+  and add the repo file with the next free date prefix instead.
 - **Vite `base: '/kccp-attendance/'`** (GitHub Project Pages subpath) + `BrowserRouter` basename +
   `dist/404.html` SPA fallback. Without the base, every asset 404s → blank page.
   **Vercel PR previews serve at the domain root, so they look broken — preview-only; Pages is prod.**

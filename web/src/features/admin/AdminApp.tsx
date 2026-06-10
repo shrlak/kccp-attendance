@@ -41,6 +41,14 @@ export function AdminApp() {
   const signOut = useAdminAuth((s) => s.signOut)
   const [tab, setTab] = useState<Tab>('today')
   const [kiosk, setKiosk] = useState(false)
+  // Rail expansion is state-driven (not pure CSS hover/focus) so selecting a tab can
+  // collapse it immediately — even while the pointer is still over the rail or the
+  // clicked button keeps focus. It re-expands on the next hover / keyboard focus.
+  const [navOpen, setNavOpen] = useState(false)
+  function selectTab(id: Tab) {
+    setTab(id)
+    setNavOpen(false)
+  }
   // Sign out drops back to the public landing page.
   function handleSignOut() {
     signOut()
@@ -73,16 +81,33 @@ export function AdminApp() {
 
   return (
     <div className="min-h-dvh">
-      {/* Left rail: icons only until hover/focus, then it widens to reveal labels.
-          It's fixed (overlays content on expand) so the main column never reflows. */}
-      <aside className="group fixed inset-y-0 left-0 z-30 flex w-16 flex-col overflow-hidden border-r border-border bg-canvas/95 backdrop-blur transition-all duration-200 ease-out hover:w-60 hover:shadow-xl focus-within:w-60 focus-within:shadow-xl">
+      {/* Left rail: icons only until hover/keyboard focus expands it to reveal labels;
+          selecting a tab collapses it again. It's fixed (overlays content on expand)
+          so the main column never reflows. */}
+      <aside
+        className={
+          'fixed inset-y-0 left-0 z-30 flex flex-col overflow-hidden border-r border-border bg-canvas/95 backdrop-blur transition-all duration-200 ease-out ' +
+          (navOpen ? 'w-60 shadow-xl' : 'w-16')
+        }
+        onMouseEnter={() => setNavOpen(true)}
+        onMouseLeave={() => setNavOpen(false)}
+        onFocusCapture={() => setNavOpen(true)}
+        onBlurCapture={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setNavOpen(false)
+        }}
+      >
         <div className="flex h-16 shrink-0 items-center pt-[env(safe-area-inset-top)]">
           <span className="grid w-16 shrink-0 place-items-center">
             <span className="grid size-9 place-items-center rounded-xl bg-white shadow-sm">
               <KccpMark size={22} />
             </span>
           </span>
-          <span className="whitespace-nowrap font-display text-base font-semibold text-text opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
+          <span
+            className={
+              'whitespace-nowrap font-display text-base font-semibold text-text transition-opacity duration-200 ' +
+              (navOpen ? 'opacity-100' : 'opacity-0')
+            }
+          >
             {t('admin.pageTitle')}
           </span>
         </div>
@@ -95,7 +120,8 @@ export function AdminApp() {
                 icon={item.icon}
                 label={t(`admin.nav.${item.id}`)}
                 active={tab === item.id}
-                onClick={() => setTab(item.id)}
+                open={navOpen}
+                onClick={() => selectTab(item.id)}
                 badge={item.badge}
               />
             ))}
@@ -149,12 +175,14 @@ function TabItem({
   icon: Icon,
   label,
   active,
+  open,
   onClick,
   badge = 0,
 }: {
   icon: LucideIcon
   label: string
   active: boolean
+  open: boolean
   onClick: () => void
   badge?: number
 }) {
@@ -185,7 +213,7 @@ function TabItem({
           )}
         </span>
       </span>
-      <span className="whitespace-nowrap pr-3 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
+      <span className={'whitespace-nowrap pr-3 transition-opacity duration-200 ' + (open ? 'opacity-100' : 'opacity-0')}>
         {label}
       </span>
     </button>
