@@ -4,6 +4,8 @@ import {
   gridSheet,
   buildAttendanceModel,
   semesterLabel,
+  blockColors,
+  cssColor,
   formatGridDate,
   logRows,
   kakaoSummary,
@@ -58,6 +60,17 @@ describe('semesterLabel', () => {
     expect(semesterLabel('2026-06-07', 'en')).toBe('Summer 2026')
     expect(semesterLabel('2026-02-01', 'ko')).toBe('2026 봄 학기')
     expect(semesterLabel('2026-09-01', 'en')).toBe('Fall 2026')
+  })
+})
+
+describe('blockColors / cssColor', () => {
+  it('cycles 4 families and converts ARGB to CSS hex', () => {
+    expect(blockColors(0).medium).toBe('FFB6D7A8') // green
+    expect(blockColors(1).medium).toBe('FF9FC5E8') // blue
+    expect(blockColors(2).medium).toBe('FFFFE599') // yellow
+    expect(blockColors(3).medium).toBe('FFEA9999') // red
+    expect(blockColors(4)).toEqual(blockColors(0)) // wraps
+    expect(cssColor('FFB6D7A8')).toBe('#B6D7A8')
   })
 })
 
@@ -152,6 +165,24 @@ describe('gridSheet', () => {
     expect(aoa[1][3]).toBe('Worship')
     expect(aoa.slice(-3)).toEqual([['KEY'], ['O', 'Present'], ['X', 'Absent']])
   })
+  it('paints the header fills: 이름 light, 예배총출석 pink, dates medium, KEY teal', () => {
+    const { fills } = gridSheet(members, log, 'ko', today)
+    const at = (r: number, c: number) => fills.find((f) => f.r === r && f.c === c)?.rgb
+    expect(at(0, 0)).toBe('FFD9EAD3') // 이름 label, green light
+    expect(at(0, 2)).toBe('FFEAD1DC') // 예배 총 출석, pink
+    expect(at(0, 3)).toBe('FFB6D7A8') // first date, green medium
+    expect(at(2, 0)).toBe('FFB6D7A8') // 동산 name cell (first member row)
+    expect(fills.some((f) => f.rgb === 'FF76A5AF')).toBe(true) // KEY teal
+  })
+  it('cycles the palette per 동산 block (block 1 = blue)', () => {
+    const ms = [member('1', 'A', '청년부', '건영동산'), member('2', 'C', '청년부', '중호동산')]
+    const lg = [entry('A', today, 1), entry('C', today, 2, { subgroup: '중호동산' })]
+    const { fills } = gridSheet(ms, lg, 'ko', today)
+    const at = (r: number, c: number) => fills.find((f) => f.r === r && f.c === c)?.rgb
+    // block 1 header begins at row 6 (2 header + 1 member + spacer + totals + blank separator)
+    expect(at(6, 0)).toBe('FFCFE2F3') // blue light
+    expect(at(6, 3)).toBe('FF9FC5E8') // blue medium
+  })
 })
 
 describe('logRows', () => {
@@ -239,6 +270,15 @@ describe('reportHtml', () => {
     const html = reportHtml(members, log, { group: '', subgroup: '', today, lang: 'ko' })
     expect(html).toContain('2026 여름 학기')
     for (const d of semesterSundays(today)) expect(html).toContain(formatGridDate(d))
+  })
+  it('color-codes 동산 blocks (green, then blue) plus pink total + teal KEY', () => {
+    const ms = [member('1', 'A', '청년부', '건영동산'), member('2', 'C', '청년부', '중호동산')]
+    const lg = [entry('A', today, 1), entry('C', today, 2, { subgroup: '중호동산' })]
+    const html = reportHtml(ms, lg, { group: '', subgroup: '', today, lang: 'ko' })
+    expect(html).toContain('background:#B6D7A8') // block 0 green medium
+    expect(html).toContain('background:#9FC5E8') // block 1 blue medium
+    expect(html).toContain('background:#EAD1DC') // 예배 총 출석 pink
+    expect(html).toContain('background:#76A5AF') // KEY teal chip
   })
   it('escapes member names', () => {
     const html = reportHtml([member('1', '<b>X</b>')], [entry('<b>X</b>', today, 1)], { group: '', subgroup: '', today, lang: 'en' })

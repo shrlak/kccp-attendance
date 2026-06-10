@@ -34,12 +34,19 @@ export function ExportMenu({ members, log, filter }: { members: Member[]; log: L
   async function doExcel() {
     setBusy(true)
     try {
-      // Lazy-load SheetJS so it stays out of the main bundle.
-      const XLSX = await import('xlsx')
+      // Lazy-load SheetJS (the xlsx-js-style fork — it writes cell fills) so it stays out
+      // of the main bundle.
+      const XLSX = await import('xlsx-js-style')
       const wb = XLSX.utils.book_new()
-      const { aoa, merges } = gridSheet(members, log, lang, today)
+      const { aoa, merges, fills } = gridSheet(members, log, lang, today)
       const attendance = XLSX.utils.aoa_to_sheet(aoa)
       attendance['!merges'] = merges
+      // Paint the per-동산 header colors onto the cells the grid marked.
+      for (const f of fills) {
+        const addr = XLSX.utils.encode_cell({ r: f.r, c: f.c })
+        const cell = attendance[addr] ?? (attendance[addr] = { t: 's', v: '' })
+        cell.s = { fill: { patternType: 'solid', fgColor: { rgb: f.rgb } } }
+      }
       const full = XLSX.utils.aoa_to_sheet(logRows(members, log, lang))
       XLSX.utils.book_append_sheet(wb, attendance, 'Attendance')
       XLSX.utils.book_append_sheet(wb, full, 'Full Log')

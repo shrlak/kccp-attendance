@@ -41,9 +41,17 @@ export interface CellMerge {
   e: { r: number; c: number }
 }
 
+// A solid cell fill (0-based row/col), rgb as ARGB hex (e.g. "FFB6D7A8").
+export interface CellFill {
+  r: number
+  c: number
+  rgb: string
+}
+
 export interface SheetData {
   aoa: (string | number)[][]
   merges: CellMerge[]
+  fills: CellFill[]
 }
 
 // One member row inside an attendance block: their attended dates (by name) and the count
@@ -120,12 +128,39 @@ export function semesterLabel(today: string, lang: Lang): string {
   return `${en} ${year}`
 }
 
+// Per-동산 header palette, matching the legacy sheet: blocks cycle green -> blue -> yellow ->
+// red, each a light shade (이름 labels) + a medium shade (date headers, 동산 name, 총 출석). The
+// 예배 총 출석 header is a constant pink; the KEY legend a teal. Colors are ARGB hex.
+export interface BlockColors {
+  light: string
+  medium: string
+}
+const COLOR_FAMILIES: BlockColors[] = [
+  { light: 'FFD9EAD3', medium: 'FFB6D7A8' }, // green
+  { light: 'FFCFE2F3', medium: 'FF9FC5E8' }, // blue
+  { light: 'FFFFF2CC', medium: 'FFFFE599' }, // yellow
+  { light: 'FFF4CCCC', medium: 'FFEA9999' }, // red
+]
+export const HEADER_TOTAL_FILL = 'FFEAD1DC' // 예배 총 출석 column header
+export const KEY_FILL = 'FF76A5AF' // KEY legend label
+
+// The color family for the nth 동산 block (cycles through the palette).
+export function blockColors(index: number): BlockColors {
+  return COLOR_FAMILIES[index % COLOR_FAMILIES.length]
+}
+
+// ARGB hex ("FFB6D7A8") -> CSS hex ("#B6D7A8"), dropping the alpha byte.
+export function cssColor(argb: string): string {
+  return `#${argb.slice(2)}`
+}
+
 // Sheet 1 - "Attendance". Reproduces the church's legacy spreadsheet: members are split
 // into 동산 (subgroup) blocks; each block has a two-row header (date row + 예배 label row),
 // O = present / X = absent cells, a per-member 예배 총 출석 count and a 총 출석 totals row.
 // A KEY legend (O 출석 / X 결석) closes the sheet. Date columns are the current semester's
 // Sundays through `today` (the original's 동산모임 column is dropped - the system only records
-// 예배 worship check-ins). Returns the array-of-rows plus the header/totals cell-merges.
+// 예배 worship check-ins). Returns the array-of-rows, the header/totals cell-merges and the
+// per-동산 header fills (ARGB).
 export function gridSheet(members: Member[], log: LogEntry[], lang: Lang, today: string): SheetData {
   const L =
     lang === 'ko'
@@ -133,22 +168,29 @@ export function gridSheet(members: Member[], log: LogEntry[], lang: Lang, today:
       : { name: 'Name', memberTotal: 'Worship Total', worship: 'Worship', total: 'Total', key: 'KEY', present: 'Present', absent: 'Absent', unassigned: 'Unassigned' }
 
   const model = buildAttendanceModel(members, log, semesterSundays(today), L.unassigned)
+  const nDates = model.dates.length
 
   const aoa: (string | number)[][] = []
   const merges: CellMerge[] = []
+  const fills: CellFill[] = []
 
-  let firstSection = true
-  for (const section of model.sections) {
-    if (!firstSection) aoa.push([]) // blank row between 동산 blocks
-    firstSection = false
+  model.sections.forEach((section, si) => {
+    if (si > 0) aoa.push([]) // blank row between 동산 blocks
+    const { light, medium } = blockColors(si)
 
     const top = aoa.length
     aoa.push(['', L.name, L.memberTotal, ...model.dateLabels]) // header row 1: labels + dates
     aoa.push(['', '', '', ...model.dates.map(() => L.worship)]) // header row 2: 예배 per date
     // The empty corner / 이름 / 예배 총 출석 each span both header rows.
     for (let c = 0; c < 3; c++) merges.push({ s: { r: top, c }, e: { r: top + 1, c } })
+    // Color the header band: 이름 labels light, 예배 총 출석 pink, date columns medium.
+    for (const r of [top, top + 1]) {
+      fills.push({ r, c: 0, rgb: light }, { r, c: 1, rgb: light }, { r, c: 2, rgb: HEADER_TOTAL_FILL })
+      for (let c = 3; c < 3 + nDates; c++) fills.push({ r, c, rgb: medium })
+    }
 
     // Member rows - 동산 name sits in column A of the first member (as in the sample).
+    const firstMemberRow = aoa.length
     section.rows.forEach((r, i) => {
       aoa.push([
         i === 0 ? section.subgroup : '',
@@ -157,17 +199,21 @@ export function gridSheet(members: Member[], log: LogEntry[], lang: Lang, today:
         ...model.dates.map((d) => (r.present.has(d) ? 'O' : 'X')),
       ])
     })
+    if (section.rows.length) fills.push({ r: firstMemberRow, c: 0, rgb: medium }) // 동산 name cell
 
     aoa.push([]) // blank spacer before the totals row
     const totalsAt = aoa.length
     aoa.push([L.total, '', '', ...section.totals]) // 총 출석: present count per date
     merges.push({ s: { r: totalsAt, c: 0 }, e: { r: totalsAt, c: 1 } }) // 총 출석 label spans A:B
-  }
+    fills.push({ r: totalsAt, c: 0, rgb: medium }, { r: totalsAt, c: 1, rgb: medium })
+  })
 
   // KEY legend: O = 출석, X = 결석.
+  const keyRow = aoa.length + 2
   aoa.push([], [], [L.key], ['O', L.present], ['X', L.absent])
+  fills.push({ r: keyRow, c: 0, rgb: KEY_FILL })
 
-  return { aoa, merges }
+  return { aoa, merges, fills }
 }
 
 // Sheet 2 — "Full Log" as an array-of-rows (header first), newest first. Columns:
@@ -291,10 +337,10 @@ function escapeHtml(s: string): string {
 }
 
 // Full standalone HTML document for the PDF report. Mirrors the Excel "Attendance" sheet:
-// one table per 동산 (two-row header: date row + 예배 row), O = present / X = absent cells,
-// a per-member 예배 총 출석 count and a 총 출석 totals row, then a KEY legend. Date columns are
-// the current semester's Sundays through `today`. Self-contained (inline CSS), client-rendered;
-// opens the browser print dialog (Save as PDF) on load. Landscape page for wide grids.
+// one color-coded table per 동산 (two-row header: date row + 예배 row), O = present / X = absent
+// cells, a per-member 예배 총 출석 count and a 총 출석 totals row, then a KEY legend. Date columns
+// are the current semester's Sundays through `today`; per-동산 colors match the legacy sheet.
+// Self-contained (inline CSS), client-rendered; opens the print / Save-as-PDF dialog on load.
 export function reportHtml(members: Member[], log: LogEntry[], opts: ReportOpts): string {
   const { lang } = opts
   const L =
@@ -303,12 +349,15 @@ export function reportHtml(members: Member[], log: LogEntry[], opts: ReportOpts)
       : { title: 'KCCP Attendance', name: 'Name', memberTotal: 'Worship Total', worship: 'Worship', total: 'Total', key: 'KEY', present: 'Present', absent: 'Absent', unassigned: 'Unassigned', save: 'Save as PDF', empty: 'No attendance records' }
 
   const model = buildAttendanceModel(members, log, semesterSundays(opts.today), L.unassigned)
-
-  const dateHead = model.dateLabels.map((d) => `<th>${escapeHtml(d)}</th>`).join('')
-  const worshipHead = model.dates.map(() => `<th>${escapeHtml(L.worship)}</th>`).join('')
+  const pink = cssColor(HEADER_TOTAL_FILL)
 
   const blocks = model.sections
-    .map((s) => {
+    .map((s, si) => {
+      const { light: lightArgb, medium: mediumArgb } = blockColors(si)
+      const light = cssColor(lightArgb)
+      const medium = cssColor(mediumArgb)
+      const dateHead = model.dateLabels.map((d) => `<th style="background:${medium}">${escapeHtml(d)}</th>`).join('')
+      const worshipHead = model.dates.map(() => `<th style="background:${medium}">${escapeHtml(L.worship)}</th>`).join('')
       const rows = s.rows
         .map((r) => {
           const cells = model.dates
@@ -319,14 +368,14 @@ export function reportHtml(members: Member[], log: LogEntry[], opts: ReportOpts)
         .join('')
       const totals = s.totals.map((t) => `<td class="num">${t}</td>`).join('')
       return `<section class="block">
-  <h2>${escapeHtml(s.subgroup)}</h2>
+  <h2 style="background:${medium}">${escapeHtml(s.subgroup)}</h2>
   <table>
     <thead>
-      <tr><th class="name" rowspan="2">${escapeHtml(L.name)}</th><th class="num" rowspan="2">${escapeHtml(L.memberTotal)}</th>${dateHead}</tr>
+      <tr><th class="name" rowspan="2" style="background:${light}">${escapeHtml(L.name)}</th><th class="num" rowspan="2" style="background:${pink}">${escapeHtml(L.memberTotal)}</th>${dateHead}</tr>
       <tr>${worshipHead}</tr>
     </thead>
     <tbody>${rows}</tbody>
-    <tfoot><tr><td class="total" colspan="2">${escapeHtml(L.total)}</td>${totals}</tr></tfoot>
+    <tfoot><tr><td class="total" colspan="2" style="background:${medium}">${escapeHtml(L.total)}</td>${totals}</tr></tfoot>
   </table>
 </section>`
     })
@@ -346,18 +395,19 @@ export function reportHtml(members: Member[], log: LogEntry[], opts: ReportOpts)
   h1 { font-size: 20px; margin: 0 0 2px; }
   .sub { color: #6b7280; font-size: 13px; margin-bottom: 18px; }
   .block { margin-bottom: 22px; break-inside: avoid; }
-  h2 { font-size: 14px; margin: 0 0 6px; color: #4f46e5; }
+  h2 { display: inline-block; font-size: 13px; font-weight: 700; margin: 0 0 6px; padding: 3px 12px; border-radius: 4px; color: #1f2937; }
   table { border-collapse: collapse; font-size: 11px; width: 100%; }
-  th, td { border: 1px solid #d1d5db; padding: 3px 6px; text-align: center; white-space: nowrap; }
-  thead th { background: #eef2ff; font-weight: 700; }
+  th, td { border: 1px solid #b7b7b7; padding: 3px 6px; text-align: center; white-space: nowrap; }
+  thead th { font-weight: 700; }
   td.name { text-align: left; }
   td.num, th.num { font-weight: 700; }
   td.o { color: #16a34a; font-weight: 700; }
   td.x { color: #dc2626; }
   td.total { text-align: left; font-weight: 700; }
-  tfoot td { background: #f9fafb; font-weight: 700; }
+  tfoot td.num { background: #fff; }
   tr { break-inside: avoid; }
   .key { margin-top: 8px; font-size: 12px; color: #374151; display: flex; gap: 16px; align-items: center; }
+  .key .kchip { color: #fff; padding: 2px 10px; border-radius: 3px; }
   .empty { color: #9ca3af; }
   .actions { margin-bottom: 16px; }
   button { font: inherit; padding: 8px 16px; border-radius: 6px; border: none; background: #4f46e5; color: #fff; cursor: pointer; }
@@ -370,7 +420,7 @@ export function reportHtml(members: Member[], log: LogEntry[], opts: ReportOpts)
   <h1>${escapeHtml(L.title)}</h1>
   <div class="sub">${escapeHtml(semesterLabel(opts.today, lang))} · ${escapeHtml(formatHeaderDate(opts.today, lang))} · ${escapeHtml(filterLabel(opts.group, opts.subgroup, lang))}</div>
   ${content}
-  <div class="key"><b>${escapeHtml(L.key)}</b><span><b>O</b> ${escapeHtml(L.present)}</span><span><b>X</b> ${escapeHtml(L.absent)}</span></div>
+  <div class="key"><b class="kchip" style="background:${cssColor(KEY_FILL)}">${escapeHtml(L.key)}</b><span><b>O</b> ${escapeHtml(L.present)}</span><span><b>X</b> ${escapeHtml(L.absent)}</span></div>
   <script>window.addEventListener('load', function () { setTimeout(function () { window.print() }, 350) })</script>
 </body>
 </html>`
