@@ -58,16 +58,18 @@ describe('KioskGuestDialog (방문자 체크인)', () => {
     expect(guestCheckin).not.toHaveBeenCalled()
   })
 
-  it('keeps the dialog open and toasts an error when the API rejects', async () => {
+  it('keeps the dialog open and surfaces the real error message when the API rejects', async () => {
     const { guestCheckin } = await import('../../lib/api')
-    ;(guestCheckin as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('network'))
+    ;(guestCheckin as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Not authorized'))
     const onClose = vi.fn()
     renderWithProviders(<KioskGuestDialog open onClose={onClose} />)
 
     await userEvent.type(screen.getByLabelText('방문자 이름'), '오류방문')
     await userEvent.click(screen.getByRole('button', { name: '체크인' }))
 
-    expect(await screen.findByText('연결 오류')).toBeInTheDocument()
+    // The actual failure reason is shown (not a generic "연결 오류"), so a broken
+    // kiosk is diagnosable on-screen.
+    expect(await screen.findByText('Not authorized')).toBeInTheDocument()
     expect(onClose).not.toHaveBeenCalled()
   })
 })
