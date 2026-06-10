@@ -31,7 +31,8 @@ Thumbs.db
 # Misc
 *.txt
 .claude/
-docs/
+docs/*
+!docs/manual/
 .superpowers/
 
 # React re-platform app (web/) — keep its package manifests tracked
