@@ -29,7 +29,7 @@ export function KioskView({ onExit }: { onExit: () => void }) {
   const qc = useQueryClient()
   const { data, isLoading } = useRoster(true)
   const [search, setSearch] = useState('')
-  const [overlay, setOverlay] = useState<{ tone: 'loading' | 'ok' | 'already'; name: string } | null>(null)
+  const [overlay, setOverlay] = useState<{ tone: 'loading' | 'ok' | 'already' | 'error'; name: string; detail?: string } | null>(null)
   const [dialog, setDialog] = useState<'guest' | 'newMember' | 'exit' | null>(null)
   const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -55,6 +55,7 @@ export function KioskView({ onExit }: { onExit: () => void }) {
   async function tap(m: Member) {
     if (dismissTimer.current) clearTimeout(dismissTimer.current)
     setOverlay({ tone: 'loading', name: m.name })
+    let hold = 1000
     try {
       const res = await memberCheckin(m.id)
       void qc.invalidateQueries({ queryKey: ['roster'] })
@@ -63,10 +64,12 @@ export function KioskView({ onExit }: { onExit: () => void }) {
           ? { tone: 'already', name: m.name }
           : { tone: 'ok', name: m.name },
       )
-    } catch {
-      setOverlay({ tone: 'already', name: m.name }) // amber fallback; auto-dismisses
+    } catch (e) {
+      // A real failure (auth/network) — show it as an error, not a misleading "already".
+      setOverlay({ tone: 'error', name: m.name, detail: (e as Error)?.message })
+      hold = 3500 // hold longer so the operator can read the failure
     }
-    dismissTimer.current = setTimeout(() => setOverlay(null), 1000)
+    dismissTimer.current = setTimeout(() => setOverlay(null), hold)
   }
 
   function Tile({ m }: { m: Member }) {
@@ -190,26 +193,35 @@ export function KioskView({ onExit }: { onExit: () => void }) {
   )
 }
 
-// Full-screen 1-second feedback overlay: amber for already, green check for success.
-function SuccessOverlay({ tone, name }: { tone: 'loading' | 'ok' | 'already'; name: string }) {
+// Full-screen feedback overlay: green check for success, amber for already, red for a
+// real failure (with the underlying reason so a broken kiosk is diagnosable on-screen).
+function SuccessOverlay({ tone, name, detail }: { tone: 'loading' | 'ok' | 'already' | 'error'; name: string; detail?: string }) {
   const { t } = useTranslation()
-  const color = tone === 'already' ? 'var(--warning)' : 'var(--success)'
+  const color =
+    tone === 'already' ? 'var(--warning)' : tone === 'error' ? 'var(--danger)' : 'var(--success)'
   return (
     <div
       role="status"
       aria-live="polite"
-      className="fixed inset-0 z-[1002] flex flex-col items-center justify-center bg-canvas/95 text-center"
+      className="fixed inset-0 z-[1002] flex flex-col items-center justify-center bg-canvas/95 px-6 text-center"
     >
       <div
         className="mb-5 flex h-28 w-28 items-center justify-center rounded-full text-5xl"
         style={{ background: `color-mix(in oklab, ${color} 16%, transparent)`, border: `2px solid ${color}` }}
       >
-        {tone === 'loading' ? '⏳' : tone === 'already' ? '📋' : '✓'}
+        {tone === 'loading' ? '⏳' : tone === 'already' ? '📋' : tone === 'error' ? '⚠️' : '✓'}
       </div>
       <div className="font-display text-2xl font-bold" style={{ color }}>
-        {tone === 'loading' ? t('kiosk.loading') : tone === 'already' ? t('kiosk.already') : t('kiosk.success')}
+        {tone === 'loading'
+          ? t('kiosk.loading')
+          : tone === 'already'
+            ? t('kiosk.already')
+            : tone === 'error'
+              ? t('kiosk.fail')
+              : t('kiosk.success')}
       </div>
       <div className="mt-1 text-base font-medium text-text">{name}</div>
+      {tone === 'error' && detail && <div className="mt-2 max-w-xs text-xs text-muted">{detail}</div>}
     </div>
   )
 }

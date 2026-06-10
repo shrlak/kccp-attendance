@@ -69,8 +69,10 @@ export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose
       await qc.invalidateQueries({ queryKey: ['roster'] })
       toast({ title: t('kiosk.newMember.done', { name: payload.name }), tone: 'ok' })
       close()
-    } catch {
-      toast({ title: t('common.error'), tone: 'err' })
+    } catch (e) {
+      // Surface the real reason (auth/network/server message) instead of a generic error,
+      // so a failing kiosk is diagnosable rather than silently "not working".
+      toast({ title: (e as Error)?.message || t('common.error'), tone: 'err' })
       setBusy(false)
     }
   }

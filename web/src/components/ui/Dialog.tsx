@@ -12,9 +12,13 @@ export interface DialogProps {
 export function Dialog({ open, onOpenChange, title, children }: DialogProps) {
   return (
     <RDialog.Root open={open} onOpenChange={onOpenChange}>
+      {/* z-index must clear the full-screen kiosk layer (KioskView: fixed inset-0 z-[999]).
+          The dialog portals to <body>, a sibling of that layer, so a lower z-index would
+          render the modal *behind* the opaque kiosk and it would silently not appear.
+          Kept below the toast viewport (z-[1100]) so toasts still surface over dialogs. */}
       <RDialog.Portal>
-        <RDialog.Overlay className="fixed inset-0 bg-black/50 z-40" />
-        <RDialog.Content className="fixed left-1/2 top-1/2 z-50 w-[min(420px,calc(100vw-2rem))]
+        <RDialog.Overlay className="fixed inset-0 bg-black/50 z-[1000]" />
+        <RDialog.Content className="fixed left-1/2 top-1/2 z-[1001] w-[min(420px,calc(100vw-2rem))]
           -translate-x-1/2 -translate-y-1/2 bg-surface border border-border rounded-xl p-7
           focus:outline-none">
           <div className="flex items-center justify-between mb-3">
