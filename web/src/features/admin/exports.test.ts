@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
   exportFilename,
-  gridRows,
+  gridSheet,
+  formatGridDate,
   logRows,
   kakaoSummary,
   reportHtml,
@@ -64,20 +65,58 @@ describe('attendanceRate / rateColor', () => {
   })
 })
 
-describe('gridRows', () => {
-  const members = [member('1', 'A'), member('2', 'B')]
-  const log = [entry('A', '2026-05-31', 1, { time: '01:00:00 PM' }), entry('A', '2026-06-07', 2), entry('B', '2026-06-07', 3)]
-
-  it('has a header row with Name/Group/동산/Total then dates', () => {
-    const rows = gridRows(members, log, 'en')
-    expect(rows[0]).toEqual(['Name', 'Group', '동산', 'Total', '2026-05-31', '2026-06-07'])
+describe('formatGridDate', () => {
+  it('formats ISO as MM/DD/YYYY', () => {
+    expect(formatGridDate('2026-06-07')).toBe('06/07/2026')
+    expect(formatGridDate('2026-12-25')).toBe('12/25/2026')
   })
-  it('places the check-in time string in present cells and Total count', () => {
-    const rows = gridRows(members, log, 'en')
-    // row for A: name, group, subgroup, total=2, 5/31 time, 6/7 time
-    expect(rows[1]).toEqual(['A', '청년부', '건영동산', 2, '01:00:00 PM', '01:15:23 PM'])
-    // row for B: absent 5/31 → '', present 6/7
-    expect(rows[2]).toEqual(['B', '청년부', '건영동산', 1, '', '01:15:23 PM'])
+})
+
+describe('gridSheet', () => {
+  const members = [member('1', 'A'), member('2', 'B')]
+  const log = [entry('A', '2026-05-31', 1), entry('A', '2026-06-07', 2), entry('B', '2026-06-07', 3)]
+
+  it('builds a two-row 동산 header: labels + MM/DD/YYYY dates, then 예배 under each date', () => {
+    const { aoa } = gridSheet(members, log, 'ko')
+    expect(aoa[0]).toEqual(['', '이름', '예배 총 출석', '05/31/2026', '06/07/2026'])
+    expect(aoa[1]).toEqual(['', '', '', '예배', '예배'])
+  })
+  it('marks O present / X absent with the 동산 name on the first member row and a worship total', () => {
+    const { aoa } = gridSheet(members, log, 'ko')
+    // A present both dates → 동산 label in col A, total 2
+    expect(aoa[2]).toEqual(['건영동산', 'A', 2, 'O', 'O'])
+    // B absent 5/31, present 6/7 → col A blank, total 1
+    expect(aoa[3]).toEqual(['', 'B', 1, 'X', 'O'])
+  })
+  it('adds a blank spacer then a 총 출석 row counting present per date, and a KEY legend', () => {
+    const { aoa } = gridSheet(members, log, 'ko')
+    expect(aoa[4]).toEqual([])
+    expect(aoa[5]).toEqual(['총 출석', '', '', 1, 2]) // 5/31: A only; 6/7: A + B
+    expect(aoa.slice(-3)).toEqual([['KEY'], ['O', '출석'], ['X', '결석']])
+  })
+  it('merges the three left header cells down and the 총 출석 label across A:B', () => {
+    const { merges } = gridSheet(members, log, 'ko')
+    expect(merges).toEqual([
+      { s: { r: 0, c: 0 }, e: { r: 1, c: 0 } },
+      { s: { r: 0, c: 1 }, e: { r: 1, c: 1 } },
+      { s: { r: 0, c: 2 }, e: { r: 1, c: 2 } },
+      { s: { r: 5, c: 0 }, e: { r: 5, c: 1 } },
+    ])
+  })
+  it('emits one blank-separated block per 동산', () => {
+    const ms = [member('1', 'A', '청년부', '건영동산'), member('2', 'C', '청년부', '중호동산')]
+    const lg = [entry('A', '2026-06-07', 1), entry('C', '2026-06-07', 2, { subgroup: '중호동산' })]
+    const { aoa } = gridSheet(ms, lg, 'ko')
+    expect(aoa[2]).toEqual(['건영동산', 'A', 1, 'O']) // section 1 member
+    expect(aoa[4]).toEqual(['총 출석', '', '', 1]) // section 1 totals
+    expect(aoa[5]).toEqual([]) // blank separator
+    expect(aoa[8]).toEqual(['중호동산', 'C', 1, 'O']) // section 2 member
+  })
+  it('uses English labels in en mode', () => {
+    const { aoa } = gridSheet(members, log, 'en')
+    expect(aoa[0]).toEqual(['', 'Name', 'Worship Total', '05/31/2026', '06/07/2026'])
+    expect(aoa[1]).toEqual(['', '', '', 'Worship', 'Worship'])
+    expect(aoa.slice(-3)).toEqual([['KEY'], ['O', 'Present'], ['X', 'Absent']])
   })
 })
 

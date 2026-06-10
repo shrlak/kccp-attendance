@@ -7,7 +7,7 @@ import { easternNow } from '../../lib/checkinWindow'
 import type { Filter } from './filters'
 import {
   exportFilename,
-  gridRows,
+  gridSheet,
   logRows,
   kakaoSummary,
   reportHtml,
@@ -37,7 +37,9 @@ export function ExportMenu({ members, log, filter }: { members: Member[]; log: L
       // Lazy-load SheetJS so it stays out of the main bundle.
       const XLSX = await import('xlsx')
       const wb = XLSX.utils.book_new()
-      const attendance = XLSX.utils.aoa_to_sheet(gridRows(members, log, lang))
+      const { aoa, merges } = gridSheet(members, log, lang)
+      const attendance = XLSX.utils.aoa_to_sheet(aoa)
+      attendance['!merges'] = merges
       const full = XLSX.utils.aoa_to_sheet(logRows(members, log, lang))
       XLSX.utils.book_append_sheet(wb, attendance, 'Attendance')
       XLSX.utils.book_append_sheet(wb, full, 'Full Log')
