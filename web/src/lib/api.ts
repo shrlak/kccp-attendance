@@ -392,7 +392,6 @@ export interface NewMemberFields {
   baptismStatus?: string
   schoolOrWork?: string
   faithDuration?: string
-  registrationDate?: string | null
   pastoralVisitRequested?: boolean
 }
 
@@ -417,7 +416,6 @@ export interface ScannedCardFields {
   baptismStatus: string
   schoolOrWork: string
   faithDuration: string
-  registrationDate: string | null
   pastoralVisitRequested: boolean
 }
 

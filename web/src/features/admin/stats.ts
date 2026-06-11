@@ -31,8 +31,11 @@ export function leaderDashboard(members: Member[], log: LogEntry[], today: strin
 
   const recentDates = [...new Set(log.map((e) => e.date))].sort().slice(-4)
   const rates = recentDates.map((d) => {
+    // A member only counts toward a date's denominator from their 등록일자 onward —
+    // dates before someone joined are not absences.
+    const eligible = members.filter((m) => !m.registration_date || m.registration_date <= d).length
     const attendees = new Set(log.filter((e) => e.date === d).map((e) => e.name)).size
-    return total ? attendees / total : 0
+    return eligible ? attendees / eligible : 0
   })
   const avgRate = rates.length ? Math.round((rates.reduce((a, b) => a + b, 0) / rates.length) * 100) : 0
 

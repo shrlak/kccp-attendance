@@ -36,4 +36,9 @@ describe('leaderDashboard', () => {
   it('avgRate is 0 with no members', () => {
     expect(leaderDashboard([], log, '2026-06-07').avgRate).toBe(0)
   })
+  it('excludes members from dates before their 등록일자', () => {
+    // C registered 2026-06-01 → 05-31 denominator is 2 (1/2 = 50%), 06-07 is 3 (2/3 ≈ 67%) → avg ≈ 58%
+    const withReg = [m('A'), m('B'), { ...m('C'), registration_date: '2026-06-01' }]
+    expect(leaderDashboard(withReg, log, '2026-06-07').avgRate).toBe(58)
+  })
 })
