@@ -101,7 +101,7 @@
     "noMembers": "No members to show",
     "scopeAll": "All",
     "roles": { "super_admin": "Super admin", "leader": "Leader", "pastor": "Pastor", "welcoming": "Welcome team" },
-    "nav": { "today": "Today", "sheet": "Sheet", "members": "Members", "analytics": "Analytics", "newfamily": "New family", "devices": "Devices", "admins": "Admins", "dongsan": "동산", "settings": "Settings" },
+    "nav": { "today": "Today", "sheet": "Sheet", "members": "Members", "analytics": "Analytics", "newfamily": "New family", "devices": "Devices", "admins": "Admins", "dongsan": "동산", "officers": "임원", "settings": "Settings" },
     "filter": { "all": "All" },
     "dongsanRole": { "leader": "Leader", "subleader": "Sub-leader", "officer": "Officer" },
     "analytics": { "trend": "Attendance trend", "groupCompare": "Group comparison", "attendance": "Attendance", "monthly": "Monthly summary", "semester": "Semester summary", "weeklyRecap": "Weekly recap", "month": "Month", "date": "Date", "sundays": "Sundays", "attendees": "Attendees", "firstVisits": "First visits", "half1": "Spring", "half2": "Fall", "copy": "Copy", "copied": "Copied to clipboard" },
