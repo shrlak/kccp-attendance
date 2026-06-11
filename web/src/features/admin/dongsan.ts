@@ -74,12 +74,11 @@ export function getDongsanRole(
 }
 
 // ── 임원 (officer) display badge ────────────────────────────────────────────
-// Fixed officer roster — a display badge like 동산지기/부동산지기, independent of admin roles.
+// `officers` is the config-managed name list (config.officers, edited in the 동산 tab).
+// Undefined (endpoint unreachable / still loading) means no badges — graceful degradation.
 
-const OFFICERS = new Set(['강혜윤', '조인서', '심영은', '최휘서', '박주연', '최건영'])
-
-export function isOfficer(name: string): boolean {
-  return OFFICERS.has(name)
+export function isOfficer(name: string, officers: string[] | undefined): boolean {
+  return !!name && !!officers && officers.includes(name)
 }
 
 // The stored entry for a 동산 (defaulting to empty), used to seed the editor.

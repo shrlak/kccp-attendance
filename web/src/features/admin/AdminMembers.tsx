@@ -20,7 +20,8 @@ import { useToast } from '../../components/ui/Toast'
 import { mergeTargets, canMerge, mergeSummary, type MergeState } from './merge'
 import { memberHistory, hasEntryOn } from './attendance'
 import { easternNow } from '../../lib/checkinWindow'
-import { DongsanBadge, OfficerBadge } from './DongsanLeaders'
+import { DongsanBadge } from './DongsanLeaders'
+import { OfficerBadge } from './Officers'
 import { useDongsanRole } from './useDongsanRole'
 
 const GROUPS = ['대학부', '청년부', 'EM', 'Adult Ministry']

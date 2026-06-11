@@ -7,6 +7,7 @@ import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { renameAt, addDongsan, removeAt, cleanNames, summerDongsanList } from './dongsan'
 import { DongsanLeadersEditor } from './DongsanLeaders'
+import { OfficersEditor } from './Officers'
 
 const KM_GROUPS = ['대학부', '청년부']
 
@@ -130,6 +131,10 @@ export function AdminDongsan() {
       <hr className="my-8 border-border" />
 
       <DongsanLeadersEditor />
+
+      <hr className="my-8 border-border" />
+
+      <OfficersEditor />
     </div>
   )
 }

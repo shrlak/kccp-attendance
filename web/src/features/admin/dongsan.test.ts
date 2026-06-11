@@ -107,12 +107,18 @@ describe('getDongsanRole (display badge lookup)', () => {
 })
 
 describe('isOfficer (임원 display badge)', () => {
-  it('returns true for each officer and false otherwise', () => {
-    for (const n of ['강혜윤', '조인서', '심영은', '최휘서', '박주연', '최건영']) {
-      expect(isOfficer(n)).toBe(true)
-    }
-    expect(isOfficer('김호연')).toBe(false)
-    expect(isOfficer('')).toBe(false)
+  const officers = ['강혜윤', '조인서', '심영은']
+
+  it('matches names in the config-managed officer list', () => {
+    expect(isOfficer('강혜윤', officers)).toBe(true)
+    expect(isOfficer('심영은', officers)).toBe(true)
+    expect(isOfficer('김호연', officers)).toBe(false)
+  })
+
+  it('returns false for an empty name or an unloaded list', () => {
+    expect(isOfficer('', officers)).toBe(false)
+    expect(isOfficer('강혜윤', undefined)).toBe(false)
+    expect(isOfficer('강혜윤', [])).toBe(false)
   })
 })
 

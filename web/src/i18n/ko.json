@@ -136,6 +136,8 @@
       "addDongsan": "동산 추가",
       "dongsanPlaceholder": "동산 이름",
       "removeDongsan": "삭제",
+      "officers": "임원",
+      "officersDesc": "🎖️ 임원 배지를 표시할 멤버를 선택합니다. 멤버 카드와 오늘 출석 목록에 배지로 표시됩니다.",
       "dongsanLeaders": "동산지기 / 부동산지기",
       "dongsanLeadersDesc": "동산별 동산지기와 부동산지기를 지정합니다. 멤버 카드와 오늘 출석 목록에 배지로 표시됩니다.",
       "leader": "동산지기",

@@ -137,6 +137,8 @@
       "dongsanPlaceholder": "동산 name",
       "removeDongsan": "Remove",
       "dongsanLeaders": "동산 leaders",
+      "officers": "Officers (임원)",
+      "officersDesc": "Select the members who carry the 🎖️ officer (임원) badge. Shown on member cards and the Today list.",
       "dongsanLeadersDesc": "Set the leader (동산지기) and sub-leaders (부동산지기) for each 동산. Shown as badges on member cards and the Today list.",
       "leader": "Leader (동산지기)",
       "subLeaders": "Sub-leaders (부동산지기)",

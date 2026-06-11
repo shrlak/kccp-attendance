@@ -318,6 +318,28 @@ Deno.serve(async (req: Request) => {
       return ok({status:"ok"});
     }
 
+    // 임원 display-badge roster — read (any verified admin, so the 🎖️ badge shows for
+    // everyone who can see the roster). Returns config.officers as a name list.
+    if(req.method==="GET"&&p==="/api/admin/officers") {
+      const role=await resolveAdmin(sb,req);
+      if(!role) return fail(401,"Not authorized");
+      const cfg=await getCfg(sb);
+      return ok({officers:Array.isArray(cfg.officers)?cfg.officers:[]});
+    }
+
+    // 임원 editor — replace the whole officer name list (super-admin only). Audited as a
+    // config-change. A display badge like 동산지기, independent of admin roles.
+    if(req.method==="POST"&&p==="/api/admin/officers") {
+      const role=await resolveAdmin(sb,req);
+      if(role?.role!=="super_admin") return fail(403,"Super admin required");
+      const {officers}=body;
+      if(!Array.isArray(officers)||officers.some((n:any)=>typeof n!=="string")) return fail(400,"officers array required");
+      const clean=Array.from(new Set(officers.map((n:string)=>n.trim()).filter((n:string)=>n.length>0)));
+      await sb.from("config").update({officers:clean,updated_at:new Date().toISOString()}).eq("id",1);
+      await addAudit(sb,"config-change",xDev,"임원 수정");
+      return ok({status:"ok"});
+    }
+
     // List all admin role grants (member_roles ⨝ member names). Super-admin only.
     if(req.method==="GET"&&p==="/api/admin/roles") {
       const role=await resolveAdmin(sb,req);
