@@ -20,7 +20,7 @@ import { useToast } from '../../components/ui/Toast'
 import { mergeTargets, canMerge, mergeSummary, type MergeState } from './merge'
 import { memberHistory, hasEntryOn } from './attendance'
 import { easternNow } from '../../lib/checkinWindow'
-import { DongsanBadge } from './DongsanLeaders'
+import { DongsanBadge, OfficerBadge } from './DongsanLeaders'
 import { useDongsanRole } from './useDongsanRole'
 
 const GROUPS = ['대학부', '청년부', 'EM', 'Adult Ministry']
@@ -150,6 +150,7 @@ export function AdminMembers() {
                 {m.name}
                 {m.is_new_member && <span className="ml-1 text-xs">🌟</span>}
                 <DongsanBadge role={dongsanRole(m.name, m.group_name, m.subgroup)} />
+                <OfficerBadge name={m.name} />
               </div>
               <div className="text-xs text-muted">{[m.group_name, m.subgroup].filter(Boolean).join(' · ') || '—'}</div>
               {m.member_role && <div className="mt-1 font-mono text-[10px] text-subtle">{m.member_role}</div>}

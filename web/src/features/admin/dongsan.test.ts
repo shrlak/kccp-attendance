@@ -10,6 +10,7 @@ import {
   membersInDongsan,
   withLeader,
   toggleSubLeader,
+  isOfficer,
 } from './dongsan'
 import type { DongsanNames, DongsanLeaders, Member } from '../../lib/api'
 
@@ -102,6 +103,16 @@ describe('getDongsanRole (display badge lookup)', () => {
 
   it('falls through to the per-group lookup in summer mode when no 합동 entry exists', () => {
     expect(getDongsanRole('최건영', '청년부', '건영동산', leaders, true)).toBe('동산지기')
+  })
+})
+
+describe('isOfficer (임원 display badge)', () => {
+  it('returns true for each officer and false otherwise', () => {
+    for (const n of ['강혜윤', '조인서', '심영은', '최휘서', '박주연', '최건영']) {
+      expect(isOfficer(n)).toBe(true)
+    }
+    expect(isOfficer('김호연')).toBe(false)
+    expect(isOfficer('')).toBe(false)
   })
 })
 

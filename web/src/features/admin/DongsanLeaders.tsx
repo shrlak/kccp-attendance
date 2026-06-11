@@ -18,6 +18,7 @@ import {
   membersInDongsan,
   withLeader,
   toggleSubLeader,
+  isOfficer,
   type DongsanRole,
 } from './dongsan'
 
@@ -37,6 +38,18 @@ export function DongsanBadge({ role }: { role: DongsanRole }) {
       }
     >
       {isLeader ? '👑' : '⭐'} {t(`admin.dongsanRole.${isLeader ? 'leader' : 'subleader'}`)}
+    </span>
+  )
+}
+
+// The 🎖️ 임원 display badge, shown next to a member's name on the Members grid and the
+// Today list. Renders nothing for non-officers.
+export function OfficerBadge({ name }: { name: string }) {
+  const { t } = useTranslation()
+  if (!isOfficer(name)) return null
+  return (
+    <span className="ml-1.5 inline-flex items-center gap-0.5 rounded bg-success/15 px-1 py-px align-middle text-[10px] font-semibold text-success">
+      🎖️ {t('admin.dongsanRole.officer')}
     </span>
   )
 }

@@ -8,7 +8,7 @@ import { filterMembers, filterLog, NO_FILTER, type Filter } from './filters'
 import { computeStats, leaderDashboard } from './stats'
 import { GroupFilter } from './GroupFilter'
 import { StatsBar } from './StatsBar'
-import { DongsanBadge } from './DongsanLeaders'
+import { DongsanBadge, OfficerBadge } from './DongsanLeaders'
 import { useDongsanRole } from './useDongsanRole'
 import { memberCheckin, type Member, type RosterResponse } from '../../lib/api'
 import { Dialog } from '../../components/ui/Dialog'
@@ -106,6 +106,7 @@ export function AdminToday() {
                     {e.name}
                     {e.firstVisit && <span className="ml-1.5 align-middle text-xs">🌟</span>}
                     <DongsanBadge role={dongsanRole(e.name, e.group, e.subgroup)} />
+                    <OfficerBadge name={e.name} />
                   </div>
                   <div className="text-xs text-muted">{[e.group, e.subgroup].filter(Boolean).join(' · ') || '—'}</div>
                 </div>
