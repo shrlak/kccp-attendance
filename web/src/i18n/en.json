@@ -80,11 +80,7 @@
       "pastoralVisit": "Visit requested",
       "submit": "Register & check in",
       "done": "Registered {{name}}",
-      "nameRequired": "Please enter a name and group",
-      "scanAction": "📷 Fill from card photo",
-      "scanning": "Reading card… (up to 1 min)",
-      "scanDone": "Card read — please review before registering",
-      "scanFail": "Could not read the card"
+      "nameRequired": "Please enter a name and group"
     },
     "exitModal": { "title": "Exit kiosk", "passwordPlaceholder": "Admin password", "submit": "Exit", "wrong": "Wrong password" }
   },

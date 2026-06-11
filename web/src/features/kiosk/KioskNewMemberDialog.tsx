@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import { Dialog } from '../../components/ui/Dialog'
@@ -6,8 +6,7 @@ import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
-import { kioskNewMember, scanNewMemberCard, type NewMemberFields } from '../../lib/api'
-import { prepareCardImage } from '../../lib/cardImage'
+import { kioskNewMember, type NewMemberFields } from '../../lib/api'
 
 const GROUPS = ['대학부', '청년부', 'EM', 'Adult Ministry']
 
@@ -33,8 +32,6 @@ export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose
   const toast = useToast()
   const [f, setF] = useState({ ...EMPTY })
   const [busy, setBusy] = useState(false)
-  const [scanning, setScanning] = useState(false)
-  const fileRef = useRef<HTMLInputElement>(null)
 
   function set<K extends keyof typeof EMPTY>(key: K, value: (typeof EMPTY)[K]) {
     setF((prev) => ({ ...prev, [key]: value }))
@@ -42,39 +39,7 @@ export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose
   function close() {
     setF({ ...EMPTY })
     setBusy(false)
-    setScanning(false)
     onClose()
-  }
-
-  // Photo → AI extraction → prefill. The admin still reviews and submits, so a
-  // misread card never reaches the database unseen. Only non-empty extracted
-  // values overwrite the form, preserving anything already typed.
-  async function scan(file: File) {
-    setScanning(true)
-    try {
-      const { base64, mediaType } = await prepareCardImage(file)
-      const { fields } = await scanNewMemberCard(base64, mediaType)
-      setF((prev) => ({
-        ...prev,
-        name: fields.name || prev.name,
-        group: fields.group || prev.group,
-        subgroup: fields.subgroup || prev.subgroup,
-        gender: fields.gender || prev.gender,
-        phone: fields.phone || prev.phone,
-        kakaoId: fields.kakaoId || prev.kakaoId,
-        birthDate: fields.birthDate || prev.birthDate,
-        baptismStatus: fields.baptismStatus || prev.baptismStatus,
-        schoolOrWork: fields.schoolOrWork || prev.schoolOrWork,
-        faithDuration: fields.faithDuration || prev.faithDuration,
-        pastoralVisitRequested: fields.pastoralVisitRequested || prev.pastoralVisitRequested,
-      }))
-      toast({ title: t('kiosk.newMember.scanDone'), tone: 'ok' })
-    } catch (e) {
-      toast({ title: (e as Error)?.message || t('kiosk.newMember.scanFail'), tone: 'err' })
-    } finally {
-      setScanning(false)
-      if (fileRef.current) fileRef.current.value = ''
-    }
   }
 
   async function submit() {
@@ -114,25 +79,6 @@ export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose
   return (
     <Dialog open={open} onOpenChange={(o) => !o && close()} title={t('kiosk.newMember.title')}>
       <div className="flex max-h-[60vh] flex-col gap-3 overflow-y-auto pr-1">
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0]
-            if (file) void scan(file)
-          }}
-        />
-        <Button
-          variant="secondary"
-          onClick={() => fileRef.current?.click()}
-          disabled={scanning || busy}
-          className="w-full"
-        >
-          {scanning ? t('kiosk.newMember.scanning') : t('kiosk.newMember.scanAction')}
-        </Button>
         <Field label={t('kiosk.newMember.name')}>
           <Input value={f.name} onChange={(e) => set('name', e.target.value)} autoFocus autoComplete="off" />
         </Field>

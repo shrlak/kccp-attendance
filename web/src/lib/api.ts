@@ -17,10 +17,9 @@ export async function api<T = unknown>(
   path: string,
   body?: unknown,
   extraHeaders?: Record<string, string>,
-  timeoutMs = 12_000,
 ): Promise<T> {
   const ctrl = new AbortController()
-  const timer = setTimeout(() => ctrl.abort(), timeoutMs)
+  const timer = setTimeout(() => ctrl.abort(), 12_000)
   const headers: Record<string, string> = { 'X-Device-Id': getDeviceId() }
   if (adminToken) headers['Authorization'] = `Bearer ${adminToken}`
   else if (adminPassword) headers['X-Admin-Password'] = adminPassword
@@ -400,31 +399,3 @@ export interface NewMemberFields {
 // Hardened (verifyAdmin) + audited server-side; pastor read-only.
 export const kioskNewMember = (fields: NewMemberFields) =>
   api<{ status: 'ok'; memberId: string; time?: string }>('POST', '/api/admin/kiosk-new-member', fields)
-
-// Fields extracted from a 새가족카드 photo by /api/admin/scan-new-member-card.
-// Strings are ''-when-unreadable (group is '' unless it matched a known 부서);
-// dates are YYYY-MM-DD or null. The caller prefills the registration form —
-// nothing is written to the DB until the admin submits kioskNewMember.
-export interface ScannedCardFields {
-  name: string
-  group: string
-  subgroup: string
-  gender: string
-  phone: string
-  kakaoId: string
-  birthDate: string | null
-  baptismStatus: string
-  schoolOrWork: string
-  faithDuration: string
-  pastoralVisitRequested: boolean
-}
-
-// Vision extraction takes well beyond the default 12s timeout — allow 90s.
-export const scanNewMemberCard = (imageBase64: string, mediaType: string) =>
-  api<{ status: 'ok'; fields: ScannedCardFields }>(
-    'POST',
-    '/api/admin/scan-new-member-card',
-    { imageBase64, mediaType },
-    undefined,
-    90_000,
-  )
