@@ -102,6 +102,13 @@ describe('buildAttendanceModel', () => {
     const m = buildAttendanceModel(ms, [], ['2026-06-07'], '동산 미지정')
     expect(m.sections.map((s) => s.subgroup)).toEqual(['건영동산', '동산 미지정'])
   })
+  it('ignores attendance on dates before a member 등록일자', () => {
+    // B registered 2026-06-01: a (stray) 05-31 attendance does not count toward their total.
+    const ms = [member('1', 'A'), { ...member('2', 'B'), registration_date: '2026-06-01' }]
+    const lg = [entry('B', '2026-05-31', 1), entry('B', '2026-06-07', 2)]
+    const rows = buildAttendanceModel(ms, lg, dates, '동산 미지정').sections[0].rows
+    expect(rows.map((r) => [r.member.name, r.total])).toEqual([['A', 0], ['B', 1]])
+  })
 })
 
 describe('formatGridDate', () => {
@@ -132,6 +139,14 @@ describe('gridSheet', () => {
     // B: col A blank, present only 06/07
     expect(aoa[3].slice(0, 3)).toEqual(['', 'B', 1])
     expect(aoa[3].slice(-2)).toEqual(['X', 'O'])
+  })
+  it('leaves pre-등록일자 dates blank instead of X', () => {
+    const ms = [member('1', 'A'), { ...member('2', 'B'), registration_date: today }]
+    const { aoa } = gridSheet(ms, log, 'ko', today)
+    // B registered on the last shown Sunday: earlier date cells are blank (not absences).
+    const bRow = aoa[3]
+    expect(bRow.slice(3, -1)).toEqual(['', '', '', ''])
+    expect(bRow[bRow.length - 1]).toBe('O')
   })
   it('adds a blank spacer, a 총 출석 row counting present per date, and a KEY legend', () => {
     const { aoa } = gridSheet(members, log, 'ko', today)

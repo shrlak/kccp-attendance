@@ -62,6 +62,12 @@ export interface AttendanceMemberRow {
   total: number
 }
 
+// Dates before a member's 등록일자 don't apply to them — not an absence, not part of
+// their counts. Members without a registration date are scored on every date.
+export function beforeRegistration(m: Member, date: string): boolean {
+  return !!m.registration_date && date < m.registration_date
+}
+
 export interface AttendanceSection {
   subgroup: string
   rows: AttendanceMemberRow[]
@@ -98,7 +104,7 @@ export function buildAttendanceModel(
   const byKey = new Map<string, AttendanceMemberRow[]>()
   for (const m of members) {
     const present = attended.get(m.name) ?? new Set<string>()
-    const total = dates.reduce((n, d) => n + (present.has(d) ? 1 : 0), 0)
+    const total = dates.reduce((n, d) => n + (!beforeRegistration(m, d) && present.has(d) ? 1 : 0), 0)
     const key = m.subgroup || unassigned
     let bucket = byKey.get(key)
     if (!bucket) {
@@ -196,7 +202,8 @@ export function gridSheet(members: Member[], log: LogEntry[], lang: Lang, today:
         i === 0 ? section.subgroup : '',
         r.member.name,
         r.total,
-        ...model.dates.map((d) => (r.present.has(d) ? 'O' : 'X')),
+        // Pre-등록일자 dates are blank — the member wasn't registered yet, so no O/X.
+        ...model.dates.map((d) => (beforeRegistration(r.member, d) ? '' : r.present.has(d) ? 'O' : 'X')),
       ])
     })
     if (section.rows.length) fills.push({ r: firstMemberRow, c: 0, rgb: medium }) // 동산 name cell
@@ -361,7 +368,13 @@ export function reportHtml(members: Member[], log: LogEntry[], opts: ReportOpts)
       const rows = s.rows
         .map((r) => {
           const cells = model.dates
-            .map((d) => (r.present.has(d) ? '<td class="o">O</td>' : '<td class="x">X</td>'))
+            .map((d) =>
+              beforeRegistration(r.member, d)
+                ? '<td></td>'
+                : r.present.has(d)
+                  ? '<td class="o">O</td>'
+                  : '<td class="x">X</td>',
+            )
             .join('')
           return `<tr><td class="name">${escapeHtml(r.member.name)}</td><td class="num">${r.total}</td>${cells}</tr>`
         })

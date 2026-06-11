@@ -87,8 +87,8 @@ describe('KioskNewMemberDialog (새가족 등록)', () => {
     expect(kioskNewMember).toHaveBeenCalledTimes(1)
     const payload = (kioskNewMember as ReturnType<typeof vi.fn>).mock.calls[0][0]
     expect(payload).toMatchObject({ name: '새신자', group: '대학부' })
-    // registrationDate defaults to today (YYYY-MM-DD) when left blank.
-    expect(payload.registrationDate).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    // 등록일자 is stamped server-side with the add date — the kiosk never sends it.
+    expect(payload).not.toHaveProperty('registrationDate')
     expect(await screen.findByText('새신자 새가족 등록 완료')).toBeInTheDocument()
     await waitFor(() => expect(onClose).toHaveBeenCalled())
   })

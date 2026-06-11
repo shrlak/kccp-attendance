@@ -6,7 +6,6 @@ import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
-import { easternNow } from '../../lib/checkinWindow'
 import { kioskNewMember, type NewMemberFields } from '../../lib/api'
 
 const GROUPS = ['대학부', '청년부', 'EM', 'Adult Ministry']
@@ -22,7 +21,6 @@ const EMPTY = {
   baptismStatus: '',
   schoolOrWork: '',
   faithDuration: '',
-  registrationDate: '',
   pastoralVisitRequested: false,
 }
 
@@ -62,7 +60,8 @@ export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose
         baptismStatus: f.baptismStatus,
         schoolOrWork: f.schoolOrWork.trim(),
         faithDuration: f.faithDuration.trim(),
-        registrationDate: f.registrationDate || easternNow().date,
+        // 등록일자 is stamped server-side with the add date — attendance percentages
+        // count from it, so it is not user-editable here.
         pastoralVisitRequested: f.pastoralVisitRequested,
       }
       await kioskNewMember(payload)
@@ -115,9 +114,6 @@ export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose
         </Field>
         <Field label={t('kiosk.newMember.faith')}>
           <Input value={f.faithDuration} onChange={(e) => set('faithDuration', e.target.value)} autoComplete="off" />
-        </Field>
-        <Field label={t('kiosk.newMember.regDate')}>
-          <Input type="date" value={f.registrationDate} onChange={(e) => set('registrationDate', e.target.value)} />
         </Field>
         <label className="flex items-center gap-2 text-sm text-text">
           <input

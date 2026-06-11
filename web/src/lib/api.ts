@@ -391,7 +391,6 @@ export interface NewMemberFields {
   baptismStatus?: string
   schoolOrWork?: string
   faithDuration?: string
-  registrationDate?: string | null
   pastoralVisitRequested?: boolean
 }
 

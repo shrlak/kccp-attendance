@@ -77,7 +77,6 @@
       "baptism": "Baptism",
       "school": "School / Work",
       "faith": "Faith duration",
-      "regDate": "Registration date",
       "pastoralVisit": "Visit requested",
       "submit": "Register & check in",
       "done": "Registered {{name}}",

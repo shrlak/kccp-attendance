@@ -178,11 +178,15 @@ function buildReportHtml(names: string[], dates: string[], members: Record<strin
   let gridRows="";
   for(const name of names) {
     const dids=members[name].devices;
-    const total=dates.filter((d:string)=>logs.find((e:any)=>dids.includes(e.device_id)&&e.date===d)).length;
-    const rate=dates.length?Math.round(total/dates.length*100):0;
+    // Only dates on/after the member's 등록일자 count toward their total and 출석률;
+    // earlier dates render as blank (not absent).
+    const reg=members[name].regDate||"";
+    const mdates=reg?dates.filter((d:string)=>d>=reg):dates;
+    const total=mdates.filter((d:string)=>logs.find((e:any)=>dids.includes(e.device_id)&&e.date===d)).length;
+    const rate=mdates.length?Math.round(total/mdates.length*100):0;
     const rc=rate>=80?"#16a34a":rate>=60?"#d97706":"#dc2626";
     let row='<tr><td class="nc">'+name+'</td><td>'+members[name].group+(members[name].subgroup?' / '+members[name].subgroup:'')+'</td><td class="tc">'+total+'</td><td class="tc" style="color:'+rc+'">'+rate+'%</td>';
-    for(const d of dates) { const e=logs.find((x:any)=>dids.includes(x.device_id)&&x.date===d); row+=e?'<td class="pc">&#x2713;</td>':'<td class="ac">&mdash;</td>'; }
+    for(const d of dates) { if(reg&&d<reg){row+='<td class="ac"></td>';continue;} const e=logs.find((x:any)=>dids.includes(x.device_id)&&x.date===d); row+=e?'<td class="pc">&#x2713;</td>':'<td class="ac">&mdash;</td>'; }
     gridRows+=row+'</tr>';
   }
   const totalRow='<tr class="tot"><td class="nc">TOTAL</td><td></td><td></td><td></td>'+totalByDate.map((n:number)=>'<td class="tc">'+n+'</td>').join('')+'</tr>';
@@ -763,7 +767,9 @@ Deno.serve(async (req: Request) => {
         gender:body.gender||"",phone:body.phone||"",kakao_id:body.kakaoId||"",
         birth_date:body.birthDate||null,baptism_status:body.baptismStatus||"해당없음",
         school_or_work:body.schoolOrWork||"",faith_duration:body.faithDuration||"",
-        registration_date:body.registrationDate||today,pastoral_visit_requested:!!body.pastoralVisitRequested,
+        // 등록일자 is always the date the member is added — attendance percentages count
+        // from this date, so a backdated value would silently change every report.
+        registration_date:today,pastoral_visit_requested:!!body.pastoralVisitRequested,
       }).select("id").single();
       const memberId=(created as {id?:string}|null)?.id||null;
       if(!memberId) return fail(500,"Could not create member");
@@ -846,10 +852,10 @@ Deno.serve(async (req: Request) => {
 
     // Kiosk new member registration (새가족 등록)
     if(req.method==="POST"&&p==="/api/kiosk-new-member") {
-      const {name,group,subgroup,gender,phone,birthDate,baptismStatus,schoolOrWork,faithDuration,registrationDate,pastoralVisitRequested,kakaoId}=body;
+      const {name,group,subgroup,gender,phone,birthDate,baptismStatus,schoolOrWork,faithDuration,pastoralVisitRequested,kakaoId}=body;
       if(!name?.trim()) return fail(400,"name required");
       if(!group) return fail(400,"group required");
-      const regDate=registrationDate||localDate();
+      const regDate=localDate(); // 등록일자 = add date, always
       const newId="NEW-"+Date.now();
       await sb.from("devices").insert({
         id:newId,
@@ -1192,7 +1198,9 @@ Deno.serve(async (req: Request) => {
       const {data:logData}=await lq;
       const logs=logData||[],devices=devData||[];
       const dates=[...new Set(logs.map((e:any)=>e.date as string))].sort();
-      const members: Record<string,{group:string;subgroup:string;devices:string[]}>={}; devices.forEach((d:any)=>{if(!members[d.name])members[d.name]={group:d.group_name||"",subgroup:d.subgroup||"",devices:[]};members[d.name].devices.push(d.id);});
+      // regDate = earliest 등록일자 across the member's device rows; dates before it are
+      // excluded from that member's 출석률 (등록 전 주일은 결석으로 치지 않음).
+      const members: Record<string,{group:string;subgroup:string;devices:string[];regDate:string}>={}; devices.forEach((d:any)=>{if(!members[d.name])members[d.name]={group:d.group_name||"",subgroup:d.subgroup||"",devices:[],regDate:""};members[d.name].devices.push(d.id);const rd=d.registration_date||"";if(rd&&(!members[d.name].regDate||rd<members[d.name].regDate))members[d.name].regDate=rd;});
       const names=Object.keys(members).sort();
       const periodLabel=period==="today"?today:period==="weekly"?"최근 7일":period==="monthly"?today.slice(0,7):(fromP&&toP?fromP+" ~ "+toP:"전체");
       return new Response(buildReportHtml(names,dates,members,logs,periodLabel,gf,sf),{headers:{...CORS,"Content-Type":"text/html; charset=utf-8"}});
