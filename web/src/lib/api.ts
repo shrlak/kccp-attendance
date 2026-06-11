@@ -237,6 +237,18 @@ export const getDongsanLeaders = () =>
 export const setDongsanLeader = (group: string, subgroup: string, leader: string, subLeaders: string[]) =>
   api<{ status: string }>('POST', '/api/admin/dongsan-leaders', { group, subgroup, leader, subLeaders })
 
+// ── 임원 display badge ─────────────────────────────────────────────────────
+// The 임원 (officer, 🎖️) name list in config.officers — a display badge like
+// 동산지기/부동산지기, independent of admin roles.
+
+// Read the officer list (any verified admin). Falls back to [] server-side.
+export const getOfficers = () =>
+  api<{ officers: string[] }>('GET', '/api/admin/officers').then((r) => r.officers)
+
+// Replace the whole officer list (super-admin only). Audited as a config-change.
+export const setOfficers = (officers: string[]) =>
+  api<{ status: string }>('POST', '/api/admin/officers', { officers })
+
 // ── Admins tab (super-admin) ──────────────────────────────────────────────
 export interface AdminRoleRow {
   memberId: string
