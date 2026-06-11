@@ -81,7 +81,11 @@
       "pastoralVisit": "심방 요청",
       "submit": "등록 후 출석",
       "done": "{{name}} 새가족 등록 완료",
-      "nameRequired": "이름과 부서를 입력해주세요"
+      "nameRequired": "이름과 부서를 입력해주세요",
+      "scanAction": "📷 새가족카드 사진으로 자동 입력",
+      "scanning": "카드 읽는 중… (최대 1분)",
+      "scanDone": "카드 인식 완료 — 내용을 확인 후 등록해주세요",
+      "scanFail": "카드 인식에 실패했어요"
     },
     "exitModal": { "title": "키오스크 나가기", "passwordPlaceholder": "관리자 비밀번호", "submit": "나가기", "wrong": "비밀번호가 올바르지 않습니다" }
   },
