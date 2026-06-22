@@ -332,6 +332,11 @@ export const updateMember = (memberId: string, fields: MemberEdit) =>
 export const mergeMembers = (fromId: string, toId: string) =>
   api<{ status: string }>('POST', '/api/admin/merge', { fromId, toId })
 
+// Delete a member entirely (their devices + attendance rows go too). Scoped + audited
+// server-side; pastor read-only. Irreversible.
+export const deleteMember = (memberId: string) =>
+  api<{ status: string }>('POST', '/api/admin/member/delete', { memberId })
+
 export interface MemberCheckinResponse {
   status: 'ok' | 'already'
   time?: string
@@ -403,6 +408,8 @@ export interface NewMemberFields {
   baptismStatus?: string
   schoolOrWork?: string
   faithDuration?: string
+  // 등록일 (registration date). Optional; server defaults to today when omitted.
+  registrationDate?: string | null
   pastoralVisitRequested?: boolean
 }
 

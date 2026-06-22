@@ -7,6 +7,7 @@ import { Select } from '../../components/ui/Select'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
 import { kioskNewMember, type NewMemberFields } from '../../lib/api'
+import { easternNow } from '../../lib/checkinWindow'
 
 const GROUPS = ['대학부', '청년부', 'EM', 'Adult Ministry']
 
@@ -21,8 +22,13 @@ const EMPTY = {
   baptismStatus: '',
   schoolOrWork: '',
   faithDuration: '',
+  registrationDate: '',
   pastoralVisitRequested: false,
 }
+
+// Fresh blank form with 등록일 prefilled to today (Eastern) — computed per open so the
+// kiosk doesn't stamp a stale date if it stays up across midnight.
+const freshForm = () => ({ ...EMPTY, registrationDate: easternNow().date })
 
 // 새가족 (new-family) registration from the kiosk: collects name + group + 동산 + the
 // extended profile fields, then creates the member/device and checks them in for today.
@@ -30,14 +36,14 @@ export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose
   const { t } = useTranslation()
   const qc = useQueryClient()
   const toast = useToast()
-  const [f, setF] = useState({ ...EMPTY })
+  const [f, setF] = useState(freshForm)
   const [busy, setBusy] = useState(false)
 
   function set<K extends keyof typeof EMPTY>(key: K, value: (typeof EMPTY)[K]) {
     setF((prev) => ({ ...prev, [key]: value }))
   }
   function close() {
-    setF({ ...EMPTY })
+    setF(freshForm())
     setBusy(false)
     onClose()
   }
@@ -60,8 +66,8 @@ export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose
         baptismStatus: f.baptismStatus,
         schoolOrWork: f.schoolOrWork.trim(),
         faithDuration: f.faithDuration.trim(),
-        // 등록일자 is stamped server-side with the add date — attendance percentages
-        // count from it, so it is not user-editable here.
+        // 등록일 — operator-editable (prefilled to today); server falls back to today if blank.
+        registrationDate: f.registrationDate || null,
         pastoralVisitRequested: f.pastoralVisitRequested,
       }
       await kioskNewMember(payload)
@@ -114,6 +120,9 @@ export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose
         </Field>
         <Field label={t('kiosk.newMember.faith')}>
           <Input value={f.faithDuration} onChange={(e) => set('faithDuration', e.target.value)} autoComplete="off" />
+        </Field>
+        <Field label={t('kiosk.newMember.registrationDate')}>
+          <Input type="date" value={f.registrationDate} onChange={(e) => set('registrationDate', e.target.value)} />
         </Field>
         <label className="flex items-center gap-2 text-sm text-text">
           <input

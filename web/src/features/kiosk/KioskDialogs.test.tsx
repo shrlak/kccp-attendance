@@ -87,10 +87,25 @@ describe('KioskNewMemberDialog (새가족 등록)', () => {
     expect(kioskNewMember).toHaveBeenCalledTimes(1)
     const payload = (kioskNewMember as ReturnType<typeof vi.fn>).mock.calls[0][0]
     expect(payload).toMatchObject({ name: '새신자', group: '대학부' })
-    // 등록일자 is stamped server-side with the add date — the kiosk never sends it.
-    expect(payload).not.toHaveProperty('registrationDate')
+    // 등록일 is operator-editable and prefilled to today (YYYY-MM-DD), so it's sent.
+    expect(payload.registrationDate).toMatch(/^\d{4}-\d{2}-\d{2}$/)
     expect(await screen.findByText('새신자 새가족 등록 완료')).toBeInTheDocument()
     await waitFor(() => expect(onClose).toHaveBeenCalled())
+  })
+
+  it('sends an operator-edited 등록일 instead of the default', async () => {
+    const { kioskNewMember } = await import('../../lib/api')
+    ;(kioskNewMember as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ok', memberId: 'm1' })
+    renderWithProviders(<KioskNewMemberDialog open onClose={vi.fn()} />)
+
+    await userEvent.type(screen.getByLabelText('이름'), '새신자')
+    const regDate = screen.getByLabelText('등록일')
+    await userEvent.clear(regDate)
+    await userEvent.type(regDate, '2026-01-15')
+    await userEvent.click(screen.getByRole('button', { name: '등록 후 출석' }))
+
+    const payload = (kioskNewMember as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(payload.registrationDate).toBe('2026-01-15')
   })
 
   it('blocks submission without a name and does not call the API', async () => {
