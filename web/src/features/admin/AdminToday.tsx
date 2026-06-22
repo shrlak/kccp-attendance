@@ -12,7 +12,7 @@ import { DongsanBadge } from './DongsanLeaders'
 import { OfficerBadge } from './Officers'
 import { useDongsanRole } from './useDongsanRole'
 import { memberCheckin, type Member, type RosterResponse } from '../../lib/api'
-import { exportTodaySheets, type ImageFormat } from './todaySheetImage'
+import { exportTodaySheets } from './todaySheetImage'
 import { Dialog } from '../../components/ui/Dialog'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
@@ -22,6 +22,7 @@ import { useToast } from '../../components/ui/Toast'
 // a 동산 leader dashboard, and a manual check-in (any admin except pastor).
 export function AdminToday() {
   const { t } = useTranslation()
+  const toast = useToast()
   const { data, isLoading, isError } = useRoster(true)
   const dongsanRole = useDongsanRole()
   const [checkin, setCheckin] = useState(false)
@@ -33,6 +34,22 @@ export function AdminToday() {
   if (!data) return null
 
   const today = easternNow().date
+
+  // Save the 대학부/청년부 sheets as JPGs and copy both pages to the clipboard. Built from
+  // the full visible roster so both 부서 pages populate regardless of the active filter.
+  async function handleExport() {
+    if (!data) return
+    setExporting(true)
+    try {
+      const newMemberNames = new Set(data.members.filter((m) => m.is_new_member).map((m) => m.name))
+      const { copied } = await exportTodaySheets(data.log, today, newMemberNames)
+      toast({ title: copied ? t('admin.today.export.done') : t('admin.today.export.downloadedOnly'), tone: 'ok' })
+    } catch {
+      toast({ title: t('admin.today.export.failed'), tone: 'err' })
+    } finally {
+      setExporting(false)
+    }
+  }
   const members = filterMembers(data.members, filter)
   const log = filterLog(data.log, filter)
   const todays = todaysCheckins(log, today)
@@ -86,8 +103,8 @@ export function AdminToday() {
           {t('admin.today.title')} · {todays.length}
         </span>
         <div className="flex items-center gap-2">
-          <Button variant="secondary" size="sm" onClick={() => setExporting(true)} disabled={data.log.length === 0}>
-            {t('admin.today.export.action')}
+          <Button variant="secondary" size="sm" onClick={handleExport} disabled={exporting || data.log.length === 0}>
+            {exporting ? t('admin.today.export.busy') : t('admin.today.export.action')}
           </Button>
           {canCheckin && (
             <Button variant="secondary" size="sm" onClick={() => setCheckin(true)} disabled={data.members.length === 0}>
@@ -125,87 +142,7 @@ export function AdminToday() {
         </ul>
       )}
       {checkin && <ManualCheckinModal data={data} today={today} onClose={() => setCheckin(false)} />}
-      {exporting && (
-        <SheetExportModal log={data.log} members={data.members} today={today} onClose={() => setExporting(false)} />
-      )}
     </>
-  )
-}
-
-// Export the 대학부/청년부 numbered check-in sheets (1–60, in check-in order) as two
-// Korean image files. Uses the full visible roster so both 부서 pages populate regardless
-// of the active filter, and flags 새가족 (새가족 members) / 방문자 with an icon.
-function SheetExportModal({
-  log,
-  members,
-  today,
-  onClose,
-}: {
-  log: RosterResponse['log']
-  members: Member[]
-  today: string
-  onClose: () => void
-}) {
-  const { t } = useTranslation()
-  const toast = useToast()
-  const [busy, setBusy] = useState(false)
-
-  async function run(format: ImageFormat) {
-    setBusy(true)
-    try {
-      const newMemberNames = new Set(members.filter((m) => m.is_new_member).map((m) => m.name))
-      await exportTodaySheets(log, today, newMemberNames, format)
-      toast({ title: t('admin.today.export.done'), tone: 'ok' })
-      onClose()
-    } catch {
-      toast({ title: t('admin.today.export.failed'), tone: 'err' })
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <Dialog open onOpenChange={(o) => !o && onClose()} title={t('admin.today.export.title')}>
-      <p className="mb-3 text-xs text-muted">{t('admin.today.export.desc')}</p>
-      <div className="flex flex-col gap-2">
-        <SheetExportRow title={t('admin.today.export.png')} desc={t('admin.today.export.pngDesc')} icon="🖼️" onClick={() => run('png')} disabled={busy} />
-        <SheetExportRow title={t('admin.today.export.jpg')} desc={t('admin.today.export.jpgDesc')} icon="📷" onClick={() => run('jpg')} disabled={busy} />
-      </div>
-      <Button variant="secondary" onClick={onClose} className="mt-4 w-full" disabled={busy}>
-        {t('common.close')}
-      </Button>
-    </Dialog>
-  )
-}
-
-function SheetExportRow({
-  title,
-  desc,
-  icon,
-  onClick,
-  disabled,
-}: {
-  title: string
-  desc: string
-  icon: string
-  onClick: () => void
-  disabled?: boolean
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className="flex w-full items-center gap-3 rounded-lg border border-border bg-surface px-4 py-3 text-left transition-colors hover:bg-surface-alt disabled:opacity-50"
-    >
-      <span className="text-xl" aria-hidden>
-        {icon}
-      </span>
-      <span>
-        <span className="block text-sm font-semibold text-text">{title}</span>
-        <span className="block text-xs text-muted">{desc}</span>
-      </span>
-    </button>
   )
 }
 

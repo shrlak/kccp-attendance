@@ -11,12 +11,10 @@ import {
 import { formatHeaderDate } from './exports'
 import type { LogEntry } from '../../lib/api'
 
-// ── Today's check-in sheet → PNG/JPG (Korean) ────────────────────────────────
+// ── Today's check-in sheet → JPG download + clipboard (Korean) ───────────────
 // The DOM side of the sheet export: render a 부서's numbered roll sheet onto a
-// canvas and save it as an image. The sheet is always drawn in Korean. The pure
-// model lives in todaySheet.ts.
-
-export type ImageFormat = 'png' | 'jpg'
+// canvas, download it as a JPG, and copy both pages to the clipboard. The sheet
+// is always drawn in Korean. The pure model lives in todaySheet.ts.
 
 // Per-부서 accent, matching the analytics/kiosk palette (대학부 gold, 청년부 blue);
 // anything else falls back to the brand terracotta.
@@ -187,13 +185,12 @@ export function renderTodaySheet(group: string, entries: TodayRosterEntry[], dat
   return canvas
 }
 
-// Save a canvas to disk as a PNG/JPG download.
-async function downloadCanvas(canvas: HTMLCanvasElement, filename: string, format: ImageFormat): Promise<void> {
-  const type = format === 'jpg' ? 'image/jpeg' : 'image/png'
-  const blob = await new Promise<Blob | null>((resolve) =>
-    canvas.toBlob(resolve, type, format === 'jpg' ? 0.95 : undefined),
-  )
-  if (!blob) throw new Error('canvas.toBlob returned null')
+function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality?: number): Promise<Blob | null> {
+  return new Promise((resolve) => canvas.toBlob(resolve, type, quality))
+}
+
+// Trigger a file download for a blob.
+function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
@@ -204,20 +201,64 @@ async function downloadCanvas(canvas: HTMLCanvasElement, filename: string, forma
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
-// Build and download the 대학부 + 청년부 sheets (two image files) for `today`.
-// `newMemberNames` flags 새가족 (is_new_member) so they get the ✝️ icon.
+// Stack canvases vertically (centered) into one canvas, separated by `gap` px, on white.
+// Used to put both 부서 pages onto the clipboard as a single pasteable image.
+function combineVertical(canvases: HTMLCanvasElement[], gap: number): HTMLCanvasElement {
+  const width = Math.max(...canvases.map((c) => c.width))
+  const height = canvases.reduce((h, c) => h + c.height, 0) + gap * Math.max(0, canvases.length - 1)
+  const combined = document.createElement('canvas')
+  combined.width = width
+  combined.height = height
+  const ctx = combined.getContext('2d')
+  if (!ctx) throw new Error('canvas 2d context unavailable')
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, width, height)
+  let y = 0
+  for (const c of canvases) {
+    ctx.drawImage(c, Math.round((width - c.width) / 2), y)
+    y += c.height + gap
+  }
+  return combined
+}
+
+// Copy a single image to the clipboard. The async Clipboard API only reliably accepts
+// image/png on write, so the clipboard copy is always PNG (downloads stay JPG). Returns
+// false (no throw) when the browser can't do it — e.g. no API, or an insecure context.
+async function copyCanvasToClipboard(canvas: HTMLCanvasElement): Promise<boolean> {
+  if (typeof ClipboardItem === 'undefined' || !navigator.clipboard?.write) return false
+  try {
+    const blob = await canvasToBlob(canvas, 'image/png')
+    if (!blob) return false
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+    return true
+  } catch {
+    return false
+  }
+}
+
+// Build the 대학부 + 청년부 sheets for `today`, download each as a JPG, and also copy
+// both pages (stacked into one image) to the clipboard. `newMemberNames` flags 새가족
+// (is_new_member) so they get the ✝️ icon. Returns whether the clipboard copy succeeded.
 export async function exportTodaySheets(
   log: LogEntry[],
   today: string,
   newMemberNames: Set<string>,
-  format: ImageFormat,
-): Promise<void> {
+): Promise<{ copied: boolean }> {
   await ensureSheetFonts()
-  for (const group of TODAY_SHEET_GROUPS) {
-    const entries = todayGroupRoster(log, today, group, newMemberNames)
-    const canvas = renderTodaySheet(group, entries, today)
-    await downloadCanvas(canvas, todaySheetFilename(group, today, format), format)
+  const canvases = TODAY_SHEET_GROUPS.map((group) =>
+    renderTodaySheet(group, todayGroupRoster(log, today, group, newMemberNames), today),
+  )
+
+  // Copy first — closest to the originating click, so the clipboard write keeps its
+  // transient user activation before the downloads (and their delays) run.
+  const copied = await copyCanvasToClipboard(combineVertical(canvases, 80))
+
+  for (let i = 0; i < TODAY_SHEET_GROUPS.length; i++) {
+    const blob = await canvasToBlob(canvases[i], 'image/jpeg', 0.95)
+    if (blob) downloadBlob(blob, todaySheetFilename(TODAY_SHEET_GROUPS[i], today, 'jpg'))
     // A short gap so the browser accepts the second (back-to-back) download.
     await new Promise((resolve) => setTimeout(resolve, 250))
   }
+
+  return { copied }
 }
