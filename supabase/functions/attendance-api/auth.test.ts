@@ -37,17 +37,17 @@ Deno.test("verifyAdmin: wrong password is rejected (no DB hit)", async () => {
   assertEquals(r, null);
 });
 
-Deno.test("verifyAdmin: master password grants super_admin from an unregistered device", async () => {
-  // A brand-new personal device with no row in `devices` → break-glass super_admin.
+Deno.test("verifyAdmin: master password grants break-glass 'staff' from an unregistered device", async () => {
+  // A brand-new personal device with no row in `devices` → break-glass staff (리더+새가족팀).
   const r = await verifyAdmin(mockSb({ devices: null }), "DEV-UNKNOWN-99", MASTER_PASSWORD);
-  assertEquals(r, { memberId: "", role: "super_admin", group: "", subgroup: "", ministry: "" });
+  assertEquals(r, { memberId: "", role: "staff", group: "", subgroup: "", ministry: "" });
 });
 
-Deno.test("verifyAdmin: master password works on a ROSTER/blank device too", async () => {
+Deno.test("verifyAdmin: master password works on a ROSTER/blank device too (staff)", async () => {
   const r = await verifyAdmin(mockSb({}), "ROSTER-12", MASTER_PASSWORD);
-  assertEquals(r?.role, "super_admin");
+  assertEquals(r?.role, "staff");
   const blank = await verifyAdmin(mockSb({}), "", MASTER_PASSWORD);
-  assertEquals(blank?.role, "super_admin");
+  assertEquals(blank?.role, "staff");
 });
 
 Deno.test("verifyAdmin: a registered device linked to a leader keeps that scope", async () => {
@@ -70,6 +70,12 @@ Deno.test("super_admin sees everything (no filter)", () => {
 Deno.test("pastor sees everything (read-only is enforced elsewhere)", () => {
   const s: Role = { memberId: "m", role: "pastor", group: "", subgroup: "", ministry: "" };
   assertEquals(scopeFilter(s, false), { all: true });
+});
+
+Deno.test("staff (break-glass) sees the whole roster, like super/pastor", () => {
+  const s: Role = { memberId: "", role: "staff", group: "", subgroup: "", ministry: "" };
+  assertEquals(scopeFilter(s, false), { all: true });
+  assertEquals(scopeFilter(s, true), { all: true });
 });
 
 Deno.test("leader is scoped to their group+subgroup in semester mode", () => {

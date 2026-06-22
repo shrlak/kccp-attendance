@@ -79,4 +79,22 @@ describe('AdminApp nav rail', () => {
     fireEvent.blur(todayTab) // focus leaves the rail entirely (relatedTarget null)
     expect(aside.className).toContain('w-16')
   })
+
+  it('staff (break-glass 운영진) sees operational tabs but not super-only ones', () => {
+    useAdminAuth.setState({
+      status: 'authed',
+      identity: { role: 'staff', group: '', subgroup: '', ministry: '' },
+    })
+    renderApp()
+    // 리더+새가족팀 combined: day-to-day tabs + devices/kiosk are available.
+    for (const name of ['오늘', '출석부', '멤버', '통계', '새가족', '기기']) {
+      expect(screen.getByRole('button', { name })).toBeInTheDocument()
+    }
+    // super-only tabs (admins/dongsan/officers/settings) stay hidden.
+    for (const name of ['관리자', '동산', '임원', '설정']) {
+      expect(screen.queryByRole('button', { name })).toBeNull()
+    }
+    // Header shows the 운영진 role label.
+    expect(screen.getByText(/운영진/)).toBeInTheDocument()
+  })
 })

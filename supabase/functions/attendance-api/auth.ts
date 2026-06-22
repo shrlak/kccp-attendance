@@ -18,7 +18,12 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 export const MASTER_PASSWORD = Deno.env.get("MASTER_PASSWORD") ?? "kccpwelcome";
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type AdminRole = "super_admin" | "leader" | "pastor" | "welcoming";
+// Roles. "staff" is the break-glass role granted to a password-only login that isn't tied
+// to a roled device (see verifyAdmin): it combines 리더(leader)+새가족팀(welcoming) access —
+// full-roster visibility and day-to-day write/check-in — but NOT super_admin powers
+// (settings, admin management, 동산지기/임원 assignment, backup). Distinct from a member's
+// is_staff flag, which is unrelated.
+export type AdminRole = "super_admin" | "leader" | "pastor" | "welcoming" | "staff";
 
 export interface Role {
   memberId: string;
@@ -43,7 +48,9 @@ export function isPersonalDevice(deviceId: string): boolean {
 // 봄/가을동산 a 대학부 새가족팀원 sees only 대학부 and a 청년부 새가족팀원 only 청년부.
 // The subgroup always pins to their 동산.
 export function scopeFilter(role: Role, summerMode: boolean): Scope {
-  if (role.role === "super_admin" || role.role === "pastor") return { all: true };
+  // super/pastor see everything; staff (break-glass 리더+새가족팀) also sees the whole
+  // roster — it's an unassigned all-부서 admin, just without super_admin powers.
+  if (role.role === "super_admin" || role.role === "pastor" || role.role === "staff") return { all: true };
   if (role.role === "leader" || role.role === "welcoming") {
     const combined = role.group === "합동" ||
       (summerMode && (role.group === "대학부" || role.group === "청년부"));
@@ -60,7 +67,8 @@ type SB = ReturnType<typeof createClient>;
 // when it matches, access is granted from ANY device — no registration required and the
 // device id is irrelevant (so staff can sign in from a phone, a borrowed laptop, a fresh
 // browser, etc.). If the device happens to be a personal one linked to a member who holds
-// a scoped role, that scope is preserved; otherwise full super_admin access is granted.
+// a scoped role, that scope is preserved; otherwise the login gets the "staff" role —
+// combined 리더+새가족팀 access (full roster + day-to-day writes, no super_admin powers).
 // Returns null only when the password is wrong.
 export async function verifyAdmin(sb: SB, deviceId: string, password: string): Promise<Role | null> {
   if (password !== MASTER_PASSWORD) return null;
@@ -81,10 +89,11 @@ export async function verifyAdmin(sb: SB, deviceId: string, password: string): P
       }
     }
   }
-  // Break-glass: correct master password on a device with no linked admin role → full
-  // super_admin. memberId is empty (no member to attribute) — safe because every
-  // memberId lookup downstream is gated behind a non-super_admin role check.
-  return { memberId: "", role: "super_admin", group: "", subgroup: "", ministry: "" };
+  // Break-glass: correct master password on a device with no linked admin role → "staff"
+  // (리더+새가족팀 combined, all-roster, non-super). memberId is empty (no member to
+  // attribute) — safe because every memberId lookup downstream is gated behind a
+  // non-super_admin role check, and staff is all-access so scope checks never filter it.
+  return { memberId: "", role: "staff", group: "", subgroup: "", ministry: "" };
 }
 
 // Verify via Supabase JWT (Google sign-in path). Resolves email → member → role.
