@@ -169,6 +169,7 @@ export function AdminMembers() {
       {editing && (
         <EditModal
           member={editing}
+          allowDelete={data.role !== 'pastor'}
           onClose={() => setEditing(null)}
           onAttendance={() => {
             setAttendanceFor(editing)

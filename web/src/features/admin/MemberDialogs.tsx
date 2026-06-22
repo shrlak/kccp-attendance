@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   updateMember,
+  deleteMember,
   addMemberAttendance,
   removeAttendance,
   type Member,
@@ -36,10 +37,14 @@ export function EditModal({
   member,
   onClose,
   onAttendance,
+  allowDelete = false,
 }: {
   member: Member
   onClose: () => void
   onAttendance: () => void
+  // When true (Members tab, non-pastor), shows an irreversible delete control. The
+  // server still enforces scope + read-only regardless of this flag.
+  allowDelete?: boolean
 }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
@@ -57,6 +62,8 @@ export function EditModal({
     notes: member.notes,
   })
   const [saving, setSaving] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   function set<K extends keyof MemberEdit>(k: K, v: MemberEdit[K]) {
     setF((cur) => ({ ...cur, [k]: v }))
@@ -73,6 +80,19 @@ export function EditModal({
       toast({ title: t('common.error'), tone: 'err' })
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function del() {
+    setDeleting(true)
+    try {
+      await deleteMember(member.id)
+      await qc.invalidateQueries({ queryKey: ['roster'] })
+      toast({ title: t('admin.members.delete.done', { name: member.name }), tone: 'ok' })
+      onClose()
+    } catch {
+      toast({ title: t('common.error'), tone: 'err' })
+      setDeleting(false)
     }
   }
 
@@ -136,6 +156,28 @@ export function EditModal({
           {saving ? t('common.loading') : t('common.save')}
         </Button>
       </div>
+      {allowDelete &&
+        (confirmDelete ? (
+          <div className="mt-3 rounded-lg border border-danger/30 bg-danger/5 p-3">
+            <p className="mb-2 text-xs text-danger">{t('admin.members.delete.warn')}</p>
+            <div className="flex gap-2">
+              <Button variant="secondary" onClick={() => setConfirmDelete(false)} disabled={deleting} className="flex-1">
+                {t('common.cancel')}
+              </Button>
+              <Button variant="danger" onClick={del} disabled={deleting} className="flex-1">
+                {deleting ? t('common.loading') : t('admin.members.delete.confirm')}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setConfirmDelete(true)}
+            className="mt-3 w-full text-xs font-semibold text-danger hover:underline"
+          >
+            {t('admin.members.delete.action')}
+          </button>
+        ))}
     </Dialog>
   )
 }

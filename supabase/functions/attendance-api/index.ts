@@ -517,6 +517,31 @@ Deno.serve(async (req: Request) => {
       return ok({status:"ok"});
     }
 
+    // Delete a member entirely: removes their attendance rows + the member (devices and
+    // member_roles cascade via FK). Scoped (a leader may only delete members in their own
+    // 동산); pastor read-only; audited. Irreversible.
+    if(req.method==="POST"&&p==="/api/admin/member/delete") {
+      const role=await resolveAdmin(sb,req);
+      if(!role) return fail(401,"Not authorized");
+      if(role.role==="pastor") return fail(403,"Read-only");
+      const {memberId}=body; if(!memberId) return fail(400,"memberId required");
+      const {data:m}=await sb.from("members").select("name,group_name,subgroup").eq("id",memberId).single();
+      if(!m) return fail(404,"Member not found");
+      if(role.role!=="super_admin"){
+        const cfg=await getCfg(sb); const scope=scopeFilter(role,!!cfg.summer_mode);
+        if(!scope.all){
+          if(!scope.groups.includes(m.group_name)) return fail(403,"Out of scope");
+          if(scope.subgroup&&m.subgroup!==scope.subgroup) return fail(403,"Out of scope");
+        }
+      }
+      // attendance_log.member_id is ON DELETE SET NULL, so the member's rows would orphan
+      // (and keep counting) — delete them explicitly. devices + member_roles cascade.
+      await sb.from("attendance_log").delete().eq("member_id",memberId);
+      await sb.from("members").delete().eq("id",memberId);
+      await addAudit(sb,"member-delete",xDev,m.name+" ("+memberId+")");
+      return ok({status:"ok"});
+    }
+
     // Bulk 동산 (subgroup) reassignment: set or clear the 동산 for many members at once.
     // Allowed for super-admin OR a leader who is NOT a 동산지기/부동산지기. Out-of-scope
     // members are dropped server-side; subgroup "" removes them from any 동산. Audited.
@@ -789,9 +814,10 @@ Deno.serve(async (req: Request) => {
         gender:body.gender||"",phone:body.phone||"",kakao_id:body.kakaoId||"",
         birth_date:body.birthDate||null,baptism_status:body.baptismStatus||"해당없음",
         school_or_work:body.schoolOrWork||"",faith_duration:body.faithDuration||"",
-        // 등록일자 is always the date the member is added — attendance percentages count
-        // from this date, so a backdated value would silently change every report.
-        registration_date:today,pastoral_visit_requested:!!body.pastoralVisitRequested,
+        // 등록일자 defaults to the date the member is added but the operator may set it
+        // explicitly (e.g. back-fill someone who joined earlier). Attendance percentages
+        // count from this date.
+        registration_date:(body.registrationDate||"").trim()||today,pastoral_visit_requested:!!body.pastoralVisitRequested,
       }).select("id").single();
       const memberId=(created as {id?:string}|null)?.id||null;
       if(!memberId) return fail(500,"Could not create member");
