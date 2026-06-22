@@ -34,19 +34,21 @@ export function isPersonalDevice(deviceId: string): boolean {
   return !!deviceId && !deviceId.startsWith("ROSTER-");
 }
 
-// Mirror of the legacy browser ACL: super/pastor see everything; a leader is scoped to
-// their 부서 + 동산. A leader whose group is "합동" spans BOTH 대학부·청년부 in EVERY
-// season (the shared 임원 account); in summer mode a 대학부/청년부 leader is likewise
-// promoted to 합동. The subgroup always pins to their 동산.
+// Mirror of the legacy browser ACL: super/pastor see everything; a leader or 새가족팀
+// (welcoming) member is scoped to their 부서 + 동산. A "합동" group spans BOTH 대학부·
+// 청년부 in EVERY season (the shared 임원 account); in summer mode a 대학부/청년부 scope
+// is likewise promoted to 합동 — so during 여름동산 a 새가족팀원 sees both 부서, while in
+// 봄/가을동산 a 대학부 새가족팀원 sees only 대학부 and a 청년부 새가족팀원 only 청년부.
+// The subgroup always pins to their 동산.
 export function scopeFilter(role: Role, summerMode: boolean): Scope {
   if (role.role === "super_admin" || role.role === "pastor") return { all: true };
-  if (role.role === "leader") {
+  if (role.role === "leader" || role.role === "welcoming") {
     const combined = role.group === "합동" ||
       (summerMode && (role.group === "대학부" || role.group === "청년부"));
-    const groups = combined ? ["대학부", "청년부"] : [role.group];
+    const groups = combined ? ["대학부", "청년부"] : [role.group].filter(Boolean);
     return { all: false, groups, subgroup: role.subgroup };
   }
-  // welcoming (새가족팀) and any other scoped role
+  // any other scoped role
   return { all: false, groups: [role.group].filter(Boolean), subgroup: role.subgroup };
 }
 

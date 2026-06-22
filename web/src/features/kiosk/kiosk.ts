@@ -17,11 +17,10 @@ export function presentNamesToday(log: LogEntry[], today: string): Set<string> {
   return new Set(log.filter((e) => e.date === today).map((e) => e.name))
 }
 
-// Unique non-visitor members checked in today — the number shown in the kiosk header.
+// Total people checked in today (members + 방문자) — the number shown in the kiosk
+// header. Visitors count toward the day's head count just like members.
 export function attendanceCount(log: LogEntry[], today: string): number {
-  return new Set(
-    log.filter((e) => e.date === today && e.memberRole !== 'visitor').map((e) => e.name),
-  ).size
+  return new Set(log.filter((e) => e.date === today).map((e) => e.name)).size
 }
 
 // Client-side name filter for the kiosk search bar (case-insensitive, trimmed).

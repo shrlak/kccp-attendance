@@ -8,6 +8,7 @@ import { semesterKey, currentNewFamily, monthlyRegistrations } from './newFamily
 import { GroupFilter } from './GroupFilter'
 import { updateMember, type Member, type MemberEdit } from '../../lib/api'
 import { useToast } from '../../components/ui/Toast'
+import { EditModal, AttendanceModal } from './MemberDialogs'
 
 // 새가족 (new-family) tab: the current-semester new members with inline education
 // tracking, plus a monthly-registrations roll-up. Visible to every admin.
@@ -15,6 +16,8 @@ export function AdminNewFamily() {
   const { t } = useTranslation()
   const { data, isLoading, isError } = useRoster(true)
   const [filter, setFilter] = useState<Filter>(NO_FILTER)
+  const [editing, setEditing] = useState<Member | null>(null)
+  const [attendanceFor, setAttendanceFor] = useState<Member | null>(null)
 
   if (isLoading) return <p className="text-sm text-muted">{t('common.loading')}</p>
   if (isError) return <p className="text-sm text-danger">{t('common.error')}</p>
@@ -44,9 +47,9 @@ export function AdminNewFamily() {
       {list.length === 0 ? (
         <p className="text-sm text-muted">{t('admin.newfamily.empty')}</p>
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className="grid grid-cols-4 gap-2">
           {list.map((m) => (
-            <NewFamilyCard key={m.id} member={m} readOnly={readOnly} />
+            <NewFamilyCard key={m.id} member={m} readOnly={readOnly} onOpen={() => setEditing(m)} />
           ))}
         </ul>
       )}
@@ -75,11 +78,38 @@ export function AdminNewFamily() {
           </div>
         </div>
       )}
+
+      {editing && (
+        <EditModal
+          member={editing}
+          onClose={() => setEditing(null)}
+          onAttendance={() => {
+            setAttendanceFor(editing)
+            setEditing(null)
+          }}
+        />
+      )}
+      {attendanceFor && (
+        <AttendanceModal
+          member={attendanceFor}
+          log={data.log}
+          readOnly={readOnly}
+          onClose={() => setAttendanceFor(null)}
+        />
+      )}
     </>
   )
 }
 
-function NewFamilyCard({ member, readOnly }: { member: Member; readOnly: boolean }) {
+function NewFamilyCard({
+  member,
+  readOnly,
+  onOpen,
+}: {
+  member: Member
+  readOnly: boolean
+  onOpen: () => void
+}) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const toast = useToast()
@@ -98,25 +128,26 @@ function NewFamilyCard({ member, readOnly }: { member: Member; readOnly: boolean
   }
 
   return (
-    <li className="rounded-lg border border-border bg-surface px-4 py-3">
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="text-sm font-semibold text-text">
-            {member.name}
-            {member.pastoral_visit_requested && <span className="ml-1.5 text-xs" title={t('admin.newfamily.pastoralVisit')}>🙏</span>}
-          </div>
-          <div className="text-xs text-muted">{[member.group_name, member.subgroup].filter(Boolean).join(' · ') || '—'}</div>
-          <div className="mt-0.5 text-xs">
-            {member.registration_date ? (
-              <span className="font-mono text-subtle">{member.registration_date}</span>
-            ) : (
-              <span className="font-semibold text-warning">{t('admin.newfamily.noRegDate')}</span>
-            )}
-            {member.phone && <span className="ml-2 text-subtle">{member.phone}</span>}
-          </div>
+    <li className="rounded-lg border border-border bg-surface p-3">
+      {/* Tap the body to open the member's full info/editor (feature parity with 멤버 tab) */}
+      <button type="button" onClick={onOpen} className="block w-full text-left">
+        <div className="text-sm font-semibold text-text">
+          {member.name}
+          {member.pastoral_visit_requested && (
+            <span className="ml-1.5 text-xs" title={t('admin.newfamily.pastoralVisit')}>🙏</span>
+          )}
         </div>
-      </div>
-      <div className="mt-2 flex gap-4">
+        <div className="text-xs text-muted">{[member.group_name, member.subgroup].filter(Boolean).join(' · ') || '—'}</div>
+        <div className="mt-0.5 text-xs">
+          {member.registration_date ? (
+            <span className="font-mono text-subtle">{member.registration_date}</span>
+          ) : (
+            <span className="font-semibold text-warning">{t('admin.newfamily.noRegDate')}</span>
+          )}
+        </div>
+        {member.phone && <div className="text-xs text-subtle">{member.phone}</div>}
+      </button>
+      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
         <EduCheck
           label={t('admin.newfamily.edu1')}
           checked={!!member.new_member_edu_week1}
