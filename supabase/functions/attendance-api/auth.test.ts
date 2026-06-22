@@ -2,17 +2,64 @@
 // (Deno isn't part of the local web toolchain; these run where Deno is available —
 //  local `supabase functions` / CI.)
 import { assertEquals } from "jsr:@std/assert";
-import { isPersonalDevice, scopeFilter, type Role } from "./auth.ts";
+import { isPersonalDevice, scopeFilter, verifyAdmin, MASTER_PASSWORD, type Role } from "./auth.ts";
 
 const leader: Role = {
   memberId: "m", role: "leader", group: "청년부", subgroup: "건영동산", ministry: "KM",
 };
+
+// Minimal chainable Supabase stub: every .from(table)…single() resolves to data[table].
+// deno-lint-ignore no-explicit-any
+function mockSb(data: Record<string, any>): any {
+  return {
+    from(table: string) {
+      // deno-lint-ignore no-explicit-any
+      const chain: any = {
+        select: () => chain,
+        eq: () => chain,
+        ilike: () => chain,
+        single: () => Promise.resolve({ data: data[table] ?? null }),
+      };
+      return chain;
+    },
+  };
+}
 
 Deno.test("isPersonalDevice: ROSTER stubs are not personal", () => {
   assertEquals(isPersonalDevice("ROSTER-44"), false);
   assertEquals(isPersonalDevice("DEV-B5D13150-CCFD0D1F"), true);
   assertEquals(isPersonalDevice("NEW-1780798747776"), true);
   assertEquals(isPersonalDevice(""), false);
+});
+
+Deno.test("verifyAdmin: wrong password is rejected (no DB hit)", async () => {
+  const r = await verifyAdmin(mockSb({}), "DEV-anything", "nope");
+  assertEquals(r, null);
+});
+
+Deno.test("verifyAdmin: master password grants super_admin from an unregistered device", async () => {
+  // A brand-new personal device with no row in `devices` → break-glass super_admin.
+  const r = await verifyAdmin(mockSb({ devices: null }), "DEV-UNKNOWN-99", MASTER_PASSWORD);
+  assertEquals(r, { memberId: "", role: "super_admin", group: "", subgroup: "", ministry: "" });
+});
+
+Deno.test("verifyAdmin: master password works on a ROSTER/blank device too", async () => {
+  const r = await verifyAdmin(mockSb({}), "ROSTER-12", MASTER_PASSWORD);
+  assertEquals(r?.role, "super_admin");
+  const blank = await verifyAdmin(mockSb({}), "", MASTER_PASSWORD);
+  assertEquals(blank?.role, "super_admin");
+});
+
+Deno.test("verifyAdmin: a registered device linked to a leader keeps that scope", async () => {
+  const r = await verifyAdmin(
+    mockSb({
+      devices: { member_id: "m1" },
+      member_roles: { role: "leader", group_name: "청년부", subgroup: "건영동산", ministry: "KM" },
+    }),
+    "DEV-KNOWN-01",
+    MASTER_PASSWORD,
+  );
+  assertEquals(r, { memberId: "m1", role: "leader", group: "청년부", subgroup: "건영동산", ministry: "KM" });
 });
 
 Deno.test("super_admin sees everything (no filter)", () => {
