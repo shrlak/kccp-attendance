@@ -13,7 +13,6 @@ import { OfficerBadge } from './Officers'
 import { useDongsanRole } from './useDongsanRole'
 import { memberCheckin, type Member, type RosterResponse } from '../../lib/api'
 import { exportTodaySheets, type ImageFormat } from './todaySheetImage'
-import type { Lang } from './exports'
 import { Dialog } from '../../components/ui/Dialog'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
@@ -127,24 +126,35 @@ export function AdminToday() {
       )}
       {checkin && <ManualCheckinModal data={data} today={today} onClose={() => setCheckin(false)} />}
       {exporting && (
-        <SheetExportModal log={data.log} today={today} onClose={() => setExporting(false)} />
+        <SheetExportModal log={data.log} members={data.members} today={today} onClose={() => setExporting(false)} />
       )}
     </>
   )
 }
 
 // Export the 대학부/청년부 numbered check-in sheets (1–60, in check-in order) as two
-// image files. Uses the full visible log so both 부서 pages populate regardless of filter.
-function SheetExportModal({ log, today, onClose }: { log: RosterResponse['log']; today: string; onClose: () => void }) {
-  const { t, i18n } = useTranslation()
+// Korean image files. Uses the full visible roster so both 부서 pages populate regardless
+// of the active filter, and flags 새가족 (새가족 members) / 방문자 with an icon.
+function SheetExportModal({
+  log,
+  members,
+  today,
+  onClose,
+}: {
+  log: RosterResponse['log']
+  members: Member[]
+  today: string
+  onClose: () => void
+}) {
+  const { t } = useTranslation()
   const toast = useToast()
   const [busy, setBusy] = useState(false)
-  const lang: Lang = i18n.language === 'en' ? 'en' : 'ko'
 
   async function run(format: ImageFormat) {
     setBusy(true)
     try {
-      await exportTodaySheets(log, today, lang, format)
+      const newMemberNames = new Set(members.filter((m) => m.is_new_member).map((m) => m.name))
+      await exportTodaySheets(log, today, newMemberNames, format)
       toast({ title: t('admin.today.export.done'), tone: 'ok' })
       onClose()
     } catch {

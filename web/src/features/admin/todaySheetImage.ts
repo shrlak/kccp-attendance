@@ -5,13 +5,16 @@ import {
   todayGroupRoster,
   todaySheetFilename,
   todaySheetSlots,
+  type TodayRosterEntry,
+  type TodaySheetTag,
 } from './todaySheet'
-import { formatHeaderDate, type Lang } from './exports'
+import { formatHeaderDate } from './exports'
 import type { LogEntry } from '../../lib/api'
 
-// ── Today's check-in sheet → PNG/JPG ─────────────────────────────────────────
+// ── Today's check-in sheet → PNG/JPG (Korean) ────────────────────────────────
 // The DOM side of the sheet export: render a 부서's numbered roll sheet onto a
-// canvas and save it as an image. The pure model lives in todaySheet.ts.
+// canvas and save it as an image. The sheet is always drawn in Korean. The pure
+// model lives in todaySheet.ts.
 
 export type ImageFormat = 'png' | 'jpg'
 
@@ -20,6 +23,25 @@ export type ImageFormat = 'png' | 'jpg'
 const GROUP_ACCENT: Record<string, string> = { 대학부: '#E0A800', 청년부: '#3B82F6' }
 const DEFAULT_ACCENT = '#D9603D'
 
+// Korean labels — the exported sheet is Korean regardless of the app's UI language.
+const L = {
+  num: '번호',
+  name: '이름',
+  title: '출석부',
+  count: (n: number) => `총 ${n}명 출석`,
+  newFamily: '새가족',
+  visitor: '방문자',
+}
+
+// Status icon shown next to a name (matches the kiosk's ✝️ 새가족 / 👋 방문자 actions).
+const TAG_ICON: Record<Exclude<TodaySheetTag, null>, string> = { newFamily: '✝️', visitor: '👋' }
+
+// A name with its status icon appended, e.g. "홍길동 ✝️"; plain name when untagged.
+export function slotLabel(name: string, tag: TodaySheetTag): string {
+  if (!name || !tag) return name
+  return `${name} ${TAG_ICON[tag]}`
+}
+
 // Logical-pixel layout; the canvas is rendered at SCALE× for a crisp raster.
 const SCALE = 2
 const MARGIN = 40
@@ -27,19 +49,14 @@ const TITLE_H = 52
 const GAP = 22
 const HEADER_H = 36
 const ROW_H = 44
+const LEGEND_H = 34
 const NUM_W = 48
 const NAME_W = 188
 const COL_W = NUM_W + NAME_W
 const GRID_W = COL_W * TODAY_SHEET_COLUMNS
 const GRID_H = HEADER_H + ROW_H * TODAY_SHEET_ROWS
 const W = MARGIN * 2 + GRID_W
-const H = MARGIN + TITLE_H + GAP + GRID_H + MARGIN
-
-function labels(lang: Lang) {
-  return lang === 'ko'
-    ? { num: '번호', name: '이름', title: '출석부', count: (n: number) => `총 ${n}명 출석` }
-    : { num: 'No.', name: 'Name', title: 'Attendance', count: (n: number) => `${n} present` }
-}
+const H = MARGIN + TITLE_H + GAP + GRID_H + LEGEND_H + MARGIN
 
 // Make sure the Jua/Gowun Dodum web fonts are loaded so the canvas rasterizes them
 // (instead of a system fallback). Best-effort — drawing still succeeds on failure.
@@ -82,8 +99,7 @@ function truncate(ctx: CanvasRenderingContext2D, text: string, maxW: number): st
 }
 
 // Draw one 부서's 60-slot sheet onto a fresh canvas and return it.
-export function renderTodaySheet(group: string, names: string[], date: string, lang: Lang): HTMLCanvasElement {
-  const L = labels(lang)
+export function renderTodaySheet(group: string, entries: TodayRosterEntry[], date: string): HTMLCanvasElement {
   const accent = GROUP_ACCENT[group] ?? DEFAULT_ACCENT
   const canvas = document.createElement('canvas')
   canvas.width = W * SCALE
@@ -105,11 +121,11 @@ export function renderTodaySheet(group: string, names: string[], date: string, l
   ctx.fillStyle = '#6b7280'
   ctx.font = '400 17px "Gowun Dodum", sans-serif'
   ctx.textAlign = 'right'
-  ctx.fillText(`${formatHeaderDate(date, lang)} · ${L.count(names.length)}`, W - MARGIN, MARGIN + TITLE_H / 2)
+  ctx.fillText(`${formatHeaderDate(date, 'ko')} · ${L.count(entries.length)}`, W - MARGIN, MARGIN + TITLE_H / 2)
 
   const gridTop = MARGIN + TITLE_H + GAP
   const gridLeft = MARGIN
-  const slots = todaySheetSlots(names)
+  const slots = todaySheetSlots(entries)
 
   // Cell fills + text
   for (let c = 0; c < TODAY_SHEET_COLUMNS; c++) {
@@ -133,12 +149,12 @@ export function renderTodaySheet(group: string, names: string[], date: string, l
       ctx.textAlign = 'center'
       ctx.font = '700 15px "Gowun Dodum", sans-serif'
       ctx.fillText(String(slot.num), x + NUM_W / 2, y + ROW_H / 2)
-      // Name cell
+      // Name cell (+ 새가족/방문자 icon)
       if (slot.name) {
         ctx.fillStyle = '#1f2937'
         ctx.textAlign = 'left'
         ctx.font = '400 18px "Gowun Dodum", sans-serif'
-        ctx.fillText(truncate(ctx, slot.name, NAME_W - 22), x + NUM_W + 12, y + ROW_H / 2)
+        ctx.fillText(truncate(ctx, slotLabel(slot.name, slot.tag), NAME_W - 22), x + NUM_W + 12, y + ROW_H / 2)
       }
     }
   }
@@ -157,6 +173,16 @@ export function renderTodaySheet(group: string, names: string[], date: string, l
     line(ctx, x + NUM_W, gridTop, x + NUM_W, gridTop + GRID_H) // 번호/이름 divider
   }
   line(ctx, gridLeft + GRID_W, gridTop, gridLeft + GRID_W, gridTop + GRID_H) // right edge
+
+  // Legend (icon key): ✝️ 새가족   👋 방문자
+  ctx.textBaseline = 'middle'
+  ctx.textAlign = 'left'
+  ctx.font = '400 15px "Gowun Dodum", sans-serif'
+  ctx.fillStyle = '#6b7280'
+  const legendY = gridTop + GRID_H + LEGEND_H / 2 + 4
+  const newFamilyText = `${TAG_ICON.newFamily} ${L.newFamily}`
+  ctx.fillText(newFamilyText, gridLeft, legendY)
+  ctx.fillText(`${TAG_ICON.visitor} ${L.visitor}`, gridLeft + ctx.measureText(newFamilyText).width + 28, legendY)
 
   return canvas
 }
@@ -179,11 +205,17 @@ async function downloadCanvas(canvas: HTMLCanvasElement, filename: string, forma
 }
 
 // Build and download the 대학부 + 청년부 sheets (two image files) for `today`.
-export async function exportTodaySheets(log: LogEntry[], today: string, lang: Lang, format: ImageFormat): Promise<void> {
+// `newMemberNames` flags 새가족 (is_new_member) so they get the ✝️ icon.
+export async function exportTodaySheets(
+  log: LogEntry[],
+  today: string,
+  newMemberNames: Set<string>,
+  format: ImageFormat,
+): Promise<void> {
   await ensureSheetFonts()
   for (const group of TODAY_SHEET_GROUPS) {
-    const names = todayGroupRoster(log, today, group)
-    const canvas = renderTodaySheet(group, names, today, lang)
+    const entries = todayGroupRoster(log, today, group, newMemberNames)
+    const canvas = renderTodaySheet(group, entries, today)
     await downloadCanvas(canvas, todaySheetFilename(group, today, format), format)
     // A short gap so the browser accepts the second (back-to-back) download.
     await new Promise((resolve) => setTimeout(resolve, 250))

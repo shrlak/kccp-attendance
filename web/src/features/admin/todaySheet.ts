@@ -12,28 +12,54 @@ export const TODAY_SHEET_SLOTS = 60
 export const TODAY_SHEET_COLUMNS = 4
 export const TODAY_SHEET_ROWS = TODAY_SHEET_SLOTS / TODAY_SHEET_COLUMNS // 15
 
-// Names that checked in today for `group`, in order of check-in (earliest first),
-// deduped — a member who checked in twice keeps their first (earliest) slot.
-export function todayGroupRoster(log: LogEntry[], today: string, group: string): string[] {
+// A check-in's special status, surfaced with an icon on the sheet: 새가족 (new family
+// member) or 방문자 (guest/visitor). Regular members carry no tag.
+export type TodaySheetTag = 'newFamily' | 'visitor' | null
+
+export interface TodayRosterEntry {
+  name: string
+  tag: TodaySheetTag
+}
+
+// The people who checked in today for `group`, in order of check-in (earliest first),
+// deduped — a member who checked in twice keeps their first (earliest) slot. Each entry
+// is tagged 방문자 (a visitor/guest role) or 새가족 (their name is in `newMemberNames`).
+export function todayGroupRoster(
+  log: LogEntry[],
+  today: string,
+  group: string,
+  newMemberNames: Set<string>,
+): TodayRosterEntry[] {
   const seen = new Set<string>()
-  const names: string[] = []
+  const entries: TodayRosterEntry[] = []
   for (const e of log.filter((e) => e.date === today && e.group === group).sort((a, b) => a.ts - b.ts)) {
     if (!e.name || seen.has(e.name)) continue
     seen.add(e.name)
-    names.push(e.name)
+    const tag: TodaySheetTag =
+      e.memberRole === 'visitor' || e.memberRole === 'guest'
+        ? 'visitor'
+        : newMemberNames.has(e.name)
+          ? 'newFamily'
+          : null
+    entries.push({ name: e.name, tag })
   }
-  return names
+  return entries
 }
 
 export interface TodaySheetSlot {
   num: number
   name: string
+  tag: TodaySheetTag
 }
 
 // The 60 numbered slots filled column-major: slots 1–15 run down the first column,
-// 16–30 the second, and so on. `name` is '' for an empty (not-yet-checked-in) slot.
-export function todaySheetSlots(names: string[]): TodaySheetSlot[] {
-  return Array.from({ length: TODAY_SHEET_SLOTS }, (_, i) => ({ num: i + 1, name: names[i] ?? '' }))
+// 16–30 the second, and so on. Empty (not-yet-checked-in) slots have name '' and no tag.
+export function todaySheetSlots(entries: TodayRosterEntry[]): TodaySheetSlot[] {
+  return Array.from({ length: TODAY_SHEET_SLOTS }, (_, i) => ({
+    num: i + 1,
+    name: entries[i]?.name ?? '',
+    tag: entries[i]?.tag ?? null,
+  }))
 }
 
 // Image filename: kccp-today-{group}-{YYYY-MM-DD}.{ext}.
