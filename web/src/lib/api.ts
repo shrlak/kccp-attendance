@@ -97,7 +97,7 @@ export interface SelfRegisterResponse {
 export const selfRegister = (name: string, group: string, subgroup = '') =>
   api<SelfRegisterResponse>('POST', '/api/self-register', { deviceId: getDeviceId(), name, group, subgroup })
 
-// ── Admin (hardened: personal device + master password) ───────────────────
+// ── Admin (hardened: Google JWT, or the master password from any device) ───
 export type AdminRole = 'super_admin' | 'leader' | 'pastor' | 'welcoming'
 
 export interface AdminIdentity {
@@ -107,7 +107,8 @@ export interface AdminIdentity {
   ministry: string
 }
 
-// Verify the master password against this device's role (break-glass path).
+// Verify the master password (break-glass): works from any device. A device linked to a
+// roled member keeps that scope; any other device is granted super_admin.
 export const adminVerify = (password: string) =>
   api<AdminIdentity>('POST', '/api/admin/verify', undefined, { 'X-Admin-Password': password })
 
