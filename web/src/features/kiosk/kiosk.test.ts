@@ -82,15 +82,15 @@ describe('presentNamesToday', () => {
 })
 
 describe('attendanceCount', () => {
-  it('counts unique non-visitor members for today', () => {
+  it('counts unique people for today, including visitors', () => {
     const entries = [
       log('A', '2026-06-07'),
       log('A', '2026-06-07'), // duplicate name → counted once
       log('B', '2026-06-07'),
-      log('G', '2026-06-07', 'visitor'), // visitor → excluded
+      log('G', '2026-06-07', 'visitor'), // visitor → included in the head count
       log('C', '2026-05-31'), // other day → excluded
     ]
-    expect(attendanceCount(entries, '2026-06-07')).toBe(2)
+    expect(attendanceCount(entries, '2026-06-07')).toBe(3)
   })
 })
 
