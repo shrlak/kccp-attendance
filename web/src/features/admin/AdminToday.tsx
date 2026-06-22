@@ -12,6 +12,7 @@ import { DongsanBadge } from './DongsanLeaders'
 import { OfficerBadge } from './Officers'
 import { useDongsanRole } from './useDongsanRole'
 import { memberCheckin, type Member, type RosterResponse } from '../../lib/api'
+import { exportTodaySheets, type ImageFormat } from './todaySheetImage'
 import { Dialog } from '../../components/ui/Dialog'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
@@ -24,6 +25,7 @@ export function AdminToday() {
   const { data, isLoading, isError } = useRoster(true)
   const dongsanRole = useDongsanRole()
   const [checkin, setCheckin] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [filter, setFilter] = useState<Filter>(NO_FILTER)
 
   if (isLoading) return <p className="text-sm text-muted">{t('common.loading')}</p>
@@ -79,15 +81,20 @@ export function AdminToday() {
         </div>
       )}
 
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-3 flex items-center justify-between gap-2">
         <span className="font-mono text-xs uppercase tracking-wide text-subtle">
           {t('admin.today.title')} · {todays.length}
         </span>
-        {canCheckin && (
-          <Button variant="secondary" size="sm" onClick={() => setCheckin(true)} disabled={data.members.length === 0}>
-            {t('admin.today.manualCheckin.action')}
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" size="sm" onClick={() => setExporting(true)} disabled={data.log.length === 0}>
+            {t('admin.today.export.action')}
           </Button>
-        )}
+          {canCheckin && (
+            <Button variant="secondary" size="sm" onClick={() => setCheckin(true)} disabled={data.members.length === 0}>
+              {t('admin.today.manualCheckin.action')}
+            </Button>
+          )}
+        </div>
       </div>
       {todays.length === 0 ? (
         <p className="text-sm text-muted">{t('admin.today.none')}</p>
@@ -118,7 +125,87 @@ export function AdminToday() {
         </ul>
       )}
       {checkin && <ManualCheckinModal data={data} today={today} onClose={() => setCheckin(false)} />}
+      {exporting && (
+        <SheetExportModal log={data.log} members={data.members} today={today} onClose={() => setExporting(false)} />
+      )}
     </>
+  )
+}
+
+// Export the 대학부/청년부 numbered check-in sheets (1–60, in check-in order) as two
+// Korean image files. Uses the full visible roster so both 부서 pages populate regardless
+// of the active filter, and flags 새가족 (새가족 members) / 방문자 with an icon.
+function SheetExportModal({
+  log,
+  members,
+  today,
+  onClose,
+}: {
+  log: RosterResponse['log']
+  members: Member[]
+  today: string
+  onClose: () => void
+}) {
+  const { t } = useTranslation()
+  const toast = useToast()
+  const [busy, setBusy] = useState(false)
+
+  async function run(format: ImageFormat) {
+    setBusy(true)
+    try {
+      const newMemberNames = new Set(members.filter((m) => m.is_new_member).map((m) => m.name))
+      await exportTodaySheets(log, today, newMemberNames, format)
+      toast({ title: t('admin.today.export.done'), tone: 'ok' })
+      onClose()
+    } catch {
+      toast({ title: t('admin.today.export.failed'), tone: 'err' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()} title={t('admin.today.export.title')}>
+      <p className="mb-3 text-xs text-muted">{t('admin.today.export.desc')}</p>
+      <div className="flex flex-col gap-2">
+        <SheetExportRow title={t('admin.today.export.png')} desc={t('admin.today.export.pngDesc')} icon="🖼️" onClick={() => run('png')} disabled={busy} />
+        <SheetExportRow title={t('admin.today.export.jpg')} desc={t('admin.today.export.jpgDesc')} icon="📷" onClick={() => run('jpg')} disabled={busy} />
+      </div>
+      <Button variant="secondary" onClick={onClose} className="mt-4 w-full" disabled={busy}>
+        {t('common.close')}
+      </Button>
+    </Dialog>
+  )
+}
+
+function SheetExportRow({
+  title,
+  desc,
+  icon,
+  onClick,
+  disabled,
+}: {
+  title: string
+  desc: string
+  icon: string
+  onClick: () => void
+  disabled?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="flex w-full items-center gap-3 rounded-lg border border-border bg-surface px-4 py-3 text-left transition-colors hover:bg-surface-alt disabled:opacity-50"
+    >
+      <span className="text-xl" aria-hidden>
+        {icon}
+      </span>
+      <span>
+        <span className="block text-sm font-semibold text-text">{title}</span>
+        <span className="block text-xs text-muted">{desc}</span>
+      </span>
+    </button>
   )
 }
 
