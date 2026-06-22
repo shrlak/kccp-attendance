@@ -223,7 +223,7 @@ Deno.serve(async (req: Request) => {
       return ok({devices,log:(logData||[]).map(rowToLog)});
     }
 
-    // ── Hardened admin auth: personal (non-ROSTER) device + master password; member_roles model ──
+    // ── Hardened admin auth: Google JWT, or the master password from ANY device (break-glass) ──
     if(req.method==="POST"&&p==="/api/admin/verify") {
       const role=await resolveAdmin(sb,req);
       if(!role) return fail(401,"Not authorized");
@@ -240,7 +240,12 @@ Deno.serve(async (req: Request) => {
       if(!scope.all){mq=mq.in("group_name",scope.groups);if(scope.subgroup)mq=mq.eq("subgroup",scope.subgroup);}
       const {data:members}=await mq;
       const ids=(members||[]).map((m:any)=>m.id);
-      const {data:logs}=ids.length?await sb.from("attendance_log").select("*").in("member_id",ids).order("ts",{ascending:false}):{data:[] as any[]};
+      const {data:md}=ids.length?await sb.from("attendance_log").select("*").in("member_id",ids).order("ts",{ascending:false}):{data:[] as any[]};
+      let logs:any[]=md||[];
+      // 방문자(guests) have no member_id and no 부서/동산, so the member-id filter above
+      // drops them. Fold them in for unscoped admins (super/pastor) so they appear in — and
+      // count toward — the 오늘 tab; scoped leaders keep just their 동산 (guests aren't theirs).
+      if(scope.all){const {data:gd}=await sb.from("attendance_log").select("*").eq("is_guest",true).order("ts",{ascending:false});if(gd&&gd.length)logs=logs.concat(gd);}
       // Bulk 동산 reassignment: super-admins + leaders who are NOT 동산지기/부동산지기.
       // Clear-all-attendance: super-admins (direct) + leader/welcoming non-동산지기 (request).
       let canBulkSubgroup=role.role==="super_admin";
