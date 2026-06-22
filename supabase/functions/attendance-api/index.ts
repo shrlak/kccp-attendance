@@ -246,10 +246,11 @@ Deno.serve(async (req: Request) => {
       // drops them. Fold them in for unscoped admins (super/pastor) so they appear in — and
       // count toward — the 오늘 tab; scoped leaders keep just their 동산 (guests aren't theirs).
       if(scope.all){const {data:gd}=await sb.from("attendance_log").select("*").eq("is_guest",true).order("ts",{ascending:false});if(gd&&gd.length)logs=logs.concat(gd);}
-      // Bulk 동산 reassignment: super-admins + leaders who are NOT 동산지기/부동산지기.
-      // Clear-all-attendance: super-admins (direct) + leader/welcoming non-동산지기 (request).
-      let canBulkSubgroup=role.role==="super_admin";
-      let canClearAttendance=role.role==="super_admin";
+      // Bulk 동산 reassignment: super-admins + staff + leaders who are NOT 동산지기/부동산지기.
+      // Clear-all-attendance: super (direct) + staff/leader/welcoming non-동산지기 (request).
+      // staff (break-glass 리더+새가족팀) has no 동산지기 tag, so it gets both.
+      let canBulkSubgroup=role.role==="super_admin"||role.role==="staff";
+      let canClearAttendance=role.role==="super_admin"||role.role==="staff";
       if(role.role==="leader"||role.role==="welcoming"){
         const {data:me}=await sb.from("members").select("name").eq("id",role.memberId).single();
         const tag=isDongsanLeaderName((me as any)?.name||"",role.group,role.subgroup,cfg.dongsan_leaders,!!cfg.summer_mode);
@@ -554,7 +555,9 @@ Deno.serve(async (req: Request) => {
       const role=await resolveAdmin(sb,req);
       if(!role) return fail(401,"Not authorized");
       const cfg=await getCfg(sb);
-      if(role.role!=="super_admin"){
+      // super + staff (break-glass, all-access) may bulk-transfer freely; a leader may too
+      // unless they're a 동산지기/부동산지기. Everyone else is rejected.
+      if(role.role!=="super_admin"&&role.role!=="staff"){
         if(role.role!=="leader") return fail(403,"Not authorized");
         const {data:me}=await sb.from("members").select("name").eq("id",role.memberId).single();
         if(isDongsanLeaderName((me as any)?.name||"",role.group,role.subgroup,cfg.dongsan_leaders,!!cfg.summer_mode)) return fail(403,"동산지기/부동산지기는 사용할 수 없습니다");
@@ -590,7 +593,9 @@ Deno.serve(async (req: Request) => {
         await addAudit(sb,"clear-attendance",xDev,"모든 출석 기록 삭제");
         return ok({status:"cleared"});
       }
-      if(role.role!=="leader"&&role.role!=="welcoming") return fail(403,"Not authorized");
+      // staff (break-glass 리더+새가족팀) is non-super, so like leader/welcoming it files a
+      // request for super approval rather than clearing directly.
+      if(role.role!=="leader"&&role.role!=="welcoming"&&role.role!=="staff") return fail(403,"Not authorized");
       const cfg=await getCfg(sb);
       const {data:me}=await sb.from("members").select("name").eq("id",role.memberId).single();
       if(isDongsanLeaderName((me as any)?.name||"",role.group,role.subgroup,cfg.dongsan_leaders,!!cfg.summer_mode)) return fail(403,"동산지기/부동산지기는 사용할 수 없습니다");

@@ -1,6 +1,8 @@
 import type { AdminRoleRow, AdminRole } from '../../lib/api'
 
-const RANK: Record<AdminRole, number> = { super_admin: 0, pastor: 1, leader: 2, welcoming: 3 }
+// 'staff' is a synthetic break-glass role, never stored as an admin row, so its rank only
+// satisfies the exhaustive Record type; it won't actually appear in the admins list.
+const RANK: Record<AdminRole, number> = { super_admin: 0, pastor: 1, leader: 2, welcoming: 3, staff: 4 }
 
 // Admin grants ordered by role seniority, then by name.
 export function sortAdminRoles(rows: AdminRoleRow[]): AdminRoleRow[] {

@@ -101,7 +101,7 @@
     "roster": "Roster",
     "noMembers": "No members to show",
     "scopeAll": "All",
-    "roles": { "super_admin": "Super admin", "leader": "Leader", "pastor": "Pastor", "welcoming": "Welcome team" },
+    "roles": { "super_admin": "Super admin", "leader": "Leader", "pastor": "Pastor", "welcoming": "Welcome team", "staff": "Staff" },
     "nav": { "today": "Today", "sheet": "Sheet", "members": "Members", "analytics": "Analytics", "newfamily": "New family", "devices": "Devices", "admins": "Admins", "dongsan": "동산", "officers": "임원", "settings": "Settings" },
     "filter": { "all": "All" },
     "dongsanRole": { "leader": "Leader", "subleader": "Sub-leader", "officer": "Officer" },

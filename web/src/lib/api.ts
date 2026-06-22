@@ -98,7 +98,10 @@ export const selfRegister = (name: string, group: string, subgroup = '') =>
   api<SelfRegisterResponse>('POST', '/api/self-register', { deviceId: getDeviceId(), name, group, subgroup })
 
 // ── Admin (hardened: Google JWT, or the master password from any device) ───
-export type AdminRole = 'super_admin' | 'leader' | 'pastor' | 'welcoming'
+// 'staff' is the break-glass role for a password-only login on an unroled device:
+// combined 리더+새가족팀 access (full roster + day-to-day writes, no super_admin powers).
+// It's never assignable to a member — the server synthesizes it (see auth.ts verifyAdmin).
+export type AdminRole = 'super_admin' | 'leader' | 'pastor' | 'welcoming' | 'staff'
 
 export interface AdminIdentity {
   role: AdminRole

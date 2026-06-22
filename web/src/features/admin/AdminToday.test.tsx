@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeAll } from 'vitest'
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query'
 import { i18n } from '../../lib/i18n'
 import { ToastProvider } from '../../components/ui/Toast'
+import { easternNow } from '../../lib/checkinWindow'
 import type { LogEntry, Member, RosterResponse } from '../../lib/api'
 
 // Isolate AdminToday from its data hooks / badge widgets (which run their own queries).
@@ -43,7 +44,9 @@ const memberRow = (m: Member, date: string, ts: number): LogEntry => ({
 
 describe('AdminToday — 방문자(guests) in the 오늘 tab', () => {
   it('shows guest names and counts them in the total alongside members', () => {
-    const today = '2026-06-21'
+    // Use the same "today" source AdminToday does, so the rows always land on today
+    // regardless of when the suite runs.
+    const today = easternNow().date
     const m1 = member('m1', '김지체')
     rosterData.data = {
       role: 'super_admin',
