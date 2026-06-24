@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { Chart as ChartType, ChartConfiguration } from 'chart.js'
+import type { Chart as ChartType, ChartConfiguration, Plugin } from 'chart.js'
 import { useTheme } from '../../stores/useTheme'
 import { shortDate } from './sheet'
 import { trendSeries, groupSeries } from './analytics'
@@ -15,6 +15,30 @@ const GROUP_COLORS: Record<string, string> = {
 }
 const FALLBACK = ['#D9603D', '#0EA5E9', '#F97316', '#84CC16', '#EC4899']
 const colorFor = (group: string, i: number) => GROUP_COLORS[group] ?? FALLBACK[i % FALLBACK.length]
+
+// Inline plugin that prints each datapoint's value just above its dot on the trend
+// line. `tick` is the theme-aware label color already resolved for the axes.
+function pointValueLabels(tick: string): Plugin {
+  return {
+    id: 'pointValueLabels',
+    afterDatasetsDraw(chart) {
+      const { ctx } = chart
+      const meta = chart.getDatasetMeta(0)
+      const data = chart.data.datasets[0]?.data ?? []
+      ctx.save()
+      ctx.font = '600 11px ui-sans-serif, system-ui, sans-serif'
+      ctx.fillStyle = tick
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'bottom'
+      meta.data.forEach((point, i) => {
+        const value = data[i]
+        if (value == null) return
+        ctx.fillText(String(value), point.x, point.y - 6)
+      })
+      ctx.restore()
+    },
+  }
+}
 
 // Chart.js is loaded once, lazily, on first chart mount — it must never be in the
 // initial bundle. registerables wires up the line/bar controllers, scales, etc.
@@ -84,12 +108,16 @@ export function AnalyticsCharts({ members, log }: { members: Member[]; log: LogE
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        // Headroom so the label drawn above the topmost point isn't clipped.
+        layout: { padding: { top: 16 } },
         plugins: { legend: { display: false } },
         scales: {
           x: { ticks: { color: tick }, grid: { color: grid } },
           y: { beginAtZero: true, ticks: { color: tick, precision: 0 }, grid: { color: grid } },
         },
       },
+      // Inline plugin: draw each point's count just above its dot.
+      plugins: [pointValueLabels(tick)],
     }),
     [trend, t],
   )
