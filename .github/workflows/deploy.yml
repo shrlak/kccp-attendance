@@ -5,10 +5,17 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# Allow only one concurrent Pages deployment; let an in-progress run finish.
+# One Pages deployment at a time, and a newer push to main supersedes an older, still-
+# running one. With cancel-in-progress: false, two commits landing close together both
+# reach actions/deploy-pages, but GitHub Pages allows only one in-progress deployment per
+# environment — so the loser fails with a 400 ("Deployment request failed … due to in
+# progress deployment. Please cancel <sha> first or wait"), leaving a spurious red ❌ even
+# though the newer deploy wins. We only ever want the latest commit live, so cancelling the
+# superseded run is the correct behavior (the edge-function deploy is idempotent, so the
+# newer run redeploys it).
 concurrency:
   group: pages
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   deploy:
