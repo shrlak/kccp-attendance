@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useAdminAuth } from '../../stores/useAdminAuth'
 import { getPending } from '../../lib/api'
 import { Button } from '../../components/ui/Button'
+import { Tag } from '../../components/ui/Tag'
 import {
   type LucideIcon,
   CalendarCheck,
@@ -67,6 +68,9 @@ export function AdminApp() {
     navigate('/')
   }
   const isSuper = identity?.role === 'super_admin'
+  // A password-only (break-glass) login on an unroled device resolves to the 'staff'
+  // role — surfaced as a plain badge in the header so it's clear this is a limited login.
+  const isStaff = identity?.role === 'staff'
   const canDevices = identity?.role !== 'pastor'
   // Pastors are read-only and can't check anyone in, so they don't get the kiosk.
   const canKiosk = identity?.role !== 'pastor'
@@ -146,10 +150,16 @@ export function AdminApp() {
         <header className="sticky top-0 z-10 border-b border-border bg-canvas/90 px-5 py-3 pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <div className="truncate font-display text-lg font-semibold text-text">{t(`admin.nav.${tab}`)}</div>
+              <div className="flex items-center gap-2">
+                <div className="truncate font-display text-lg font-semibold text-text">{t(`admin.nav.${tab}`)}</div>
+                {isStaff && (
+                  <Tag tone="info" className="shrink-0">
+                    {t('admin.roles.staff')}
+                  </Tag>
+                )}
+              </div>
               <div className="truncate text-xs text-muted">
-                {identity ? t(`admin.roles.${identity.role}`) : ''}
-                {identity ? ' · ' : ''}
+                {identity && !isStaff ? `${t(`admin.roles.${identity.role}`)} · ` : ''}
                 {scopeLabel}
               </div>
             </div>
