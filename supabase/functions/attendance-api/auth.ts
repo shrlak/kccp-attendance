@@ -4,7 +4,7 @@
 //   1. Google JWT (Bearer token): email → members.email → member_roles → role/scope.
 //   2. Break-glass: the master password alone — works on ANY device, registered or not.
 //      A device that happens to be linked to a roled member keeps that member's scope;
-//      any other device gets full super_admin access.
+//      any other device gets the "staff" role (combined 리더+새가족팀, no super_admin powers).
 // Public check-in stays anonymous and PII-free.
 //
 // Wired into index.ts (imports resolveAdmin + scopeFilter) and unit-tested (auth.test.ts).

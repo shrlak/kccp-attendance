@@ -111,7 +111,8 @@ export interface AdminIdentity {
 }
 
 // Verify the master password (break-glass): works from any device. A device linked to a
-// roled member keeps that scope; any other device is granted super_admin.
+// roled member keeps that scope; any other device is granted the 'staff' role
+// (combined 리더+새가족팀 access, no super_admin powers — see auth.ts verifyAdmin).
 export const adminVerify = (password: string) =>
   api<AdminIdentity>('POST', '/api/admin/verify', undefined, { 'X-Admin-Password': password })
 
