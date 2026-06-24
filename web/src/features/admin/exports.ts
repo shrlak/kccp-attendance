@@ -1,6 +1,6 @@
 import type { Member, LogEntry } from '../../lib/api'
 import { buildGrid } from './sheet'
-import { semesterBounds, semesterSundays } from './newFamily'
+import { semesterBounds, semesterKey, semesterSundays } from './newFamily'
 
 // ── Pure export helpers ──────────────────────────────────────────────────────
 // Everything here is side-effect free so it can be unit-tested. The thin DOM bits
@@ -32,6 +32,23 @@ function logNotes(e: LogEntry, lang: Lang): string {
 export function formatGridDate(iso: string): string {
   const [y, m, d] = iso.split('-')
   return `${m}/${d}/${y}`
+}
+
+// A 동산 term can form after its semester begins. The 2026 여름동산 groups were assigned on
+// 2026-06-07, so the summer export starts there — the earlier summer Sundays (05/10–05/31)
+// predate the 동산 assignments and are dropped. Keyed by semesterKey so it self-limits to
+// this one term; every other term uses the full semester window.
+const TERM_START_OVERRIDES: Record<string, string> = {
+  '2026-summer': '2026-06-07',
+}
+
+// Worship Sundays shown in the export for the term containing `today`: the semester Sundays
+// (semesterSundays), clamped to the term's effective start when it differs from the semester
+// boundary (see TERM_START_OVERRIDES). ISO ascending.
+export function exportSundays(today: string): string[] {
+  const dates = semesterSundays(today)
+  const start = TERM_START_OVERRIDES[semesterKey(today)]
+  return start ? dates.filter((d) => d >= start) : dates
 }
 
 // A cell-merge range in SheetJS form ({s}tart/{e}nd, 0-based row/col). Mirrors XLSX.Range
@@ -161,19 +178,19 @@ export function cssColor(argb: string): string {
 }
 
 // Sheet 1 - "Attendance". Reproduces the church's legacy spreadsheet: members are split
-// into 동산 (subgroup) blocks; each block has a two-row header (date row + 예배 label row),
-// O = present / X = absent cells, a per-member 예배 총 출석 count and a 총 출석 totals row.
-// A KEY legend (O 출석 / X 결석) closes the sheet. Date columns are the current semester's
-// Sundays through `today` (the original's 동산모임 column is dropped - the system only records
-// 예배 worship check-ins). Returns the array-of-rows, the header/totals cell-merges and the
-// per-동산 header fills (ARGB).
+// into 동산 (subgroup) blocks; each block has a single date-header row, O = present / X =
+// absent cells, a per-member 예배 총 출석 count and a 총 출석 totals row. A KEY legend
+// (O 출석 / X 결석) closes the sheet. Date columns are the term's worship Sundays through
+// `today` (see exportSundays — the summer term starts at the 동산 formation date; the
+// original's 동산모임 column is dropped, the system only records 예배 worship check-ins).
+// Returns the array-of-rows, the 총 출석 cell-merges and the per-동산 header fills (ARGB).
 export function gridSheet(members: Member[], log: LogEntry[], lang: Lang, today: string): SheetData {
   const L =
     lang === 'ko'
-      ? { name: '이름', memberTotal: '예배 총 출석', worship: '예배', total: '총 출석', key: 'KEY', present: '출석', absent: '결석', unassigned: '동산 미지정' }
-      : { name: 'Name', memberTotal: 'Worship Total', worship: 'Worship', total: 'Total', key: 'KEY', present: 'Present', absent: 'Absent', unassigned: 'Unassigned' }
+      ? { name: '이름', memberTotal: '예배 총 출석', total: '총 출석', key: 'KEY', present: '출석', absent: '결석', unassigned: '동산 미지정' }
+      : { name: 'Name', memberTotal: 'Worship Total', total: 'Total', key: 'KEY', present: 'Present', absent: 'Absent', unassigned: 'Unassigned' }
 
-  const model = buildAttendanceModel(members, log, semesterSundays(today), L.unassigned)
+  const model = buildAttendanceModel(members, log, exportSundays(today), L.unassigned)
   const nDates = model.dates.length
 
   const aoa: (string | number)[][] = []
@@ -184,16 +201,15 @@ export function gridSheet(members: Member[], log: LogEntry[], lang: Lang, today:
     if (si > 0) aoa.push([]) // blank row between 동산 blocks
     const { light, medium } = blockColors(si)
 
-    const top = aoa.length
-    aoa.push(['', L.name, L.memberTotal, ...model.dateLabels]) // header row 1: labels + dates
-    aoa.push(['', '', '', ...model.dates.map(() => L.worship)]) // header row 2: 예배 per date
-    // The empty corner / 이름 / 예배 총 출석 each span both header rows.
-    for (let c = 0; c < 3; c++) merges.push({ s: { r: top, c }, e: { r: top + 1, c } })
+    const headerRow = aoa.length
+    aoa.push(['', L.name, L.memberTotal, ...model.dateLabels]) // single header row: labels + dates
     // Color the header band: 이름 labels light, 예배 총 출석 pink, date columns medium.
-    for (const r of [top, top + 1]) {
-      fills.push({ r, c: 0, rgb: light }, { r, c: 1, rgb: light }, { r, c: 2, rgb: HEADER_TOTAL_FILL })
-      for (let c = 3; c < 3 + nDates; c++) fills.push({ r, c, rgb: medium })
-    }
+    fills.push(
+      { r: headerRow, c: 0, rgb: light },
+      { r: headerRow, c: 1, rgb: light },
+      { r: headerRow, c: 2, rgb: HEADER_TOTAL_FILL },
+    )
+    for (let c = 3; c < 3 + nDates; c++) fills.push({ r: headerRow, c, rgb: medium })
 
     // Member rows - 동산 name sits in column A of the first member (as in the sample).
     const firstMemberRow = aoa.length
@@ -344,18 +360,18 @@ function escapeHtml(s: string): string {
 }
 
 // Full standalone HTML document for the PDF report. Mirrors the Excel "Attendance" sheet:
-// one color-coded table per 동산 (two-row header: date row + 예배 row), O = present / X = absent
-// cells, a per-member 예배 총 출석 count and a 총 출석 totals row, then a KEY legend. Date columns
-// are the current semester's Sundays through `today`; per-동산 colors match the legacy sheet.
-// Self-contained (inline CSS), client-rendered; opens the print / Save-as-PDF dialog on load.
+// one color-coded table per 동산 (single date-header row), O = present / X = absent cells, a
+// per-member 예배 총 출석 count and a 총 출석 totals row, then a KEY legend. Date columns are the
+// term's worship Sundays through `today` (see exportSundays); per-동산 colors match the legacy
+// sheet. Self-contained (inline CSS), client-rendered; opens the print / Save-as-PDF dialog on load.
 export function reportHtml(members: Member[], log: LogEntry[], opts: ReportOpts): string {
   const { lang } = opts
   const L =
     lang === 'ko'
-      ? { title: 'KCCP 출석부', name: '이름', memberTotal: '예배 총 출석', worship: '예배', total: '총 출석', key: 'KEY', present: '출석', absent: '결석', unassigned: '동산 미지정', save: 'PDF로 저장', empty: '출석 기록이 없습니다' }
-      : { title: 'KCCP Attendance', name: 'Name', memberTotal: 'Worship Total', worship: 'Worship', total: 'Total', key: 'KEY', present: 'Present', absent: 'Absent', unassigned: 'Unassigned', save: 'Save as PDF', empty: 'No attendance records' }
+      ? { title: 'KCCP 출석부', name: '이름', memberTotal: '예배 총 출석', total: '총 출석', key: 'KEY', present: '출석', absent: '결석', unassigned: '동산 미지정', save: 'PDF로 저장', empty: '출석 기록이 없습니다' }
+      : { title: 'KCCP Attendance', name: 'Name', memberTotal: 'Worship Total', total: 'Total', key: 'KEY', present: 'Present', absent: 'Absent', unassigned: 'Unassigned', save: 'Save as PDF', empty: 'No attendance records' }
 
-  const model = buildAttendanceModel(members, log, semesterSundays(opts.today), L.unassigned)
+  const model = buildAttendanceModel(members, log, exportSundays(opts.today), L.unassigned)
   const pink = cssColor(HEADER_TOTAL_FILL)
 
   const blocks = model.sections
@@ -364,7 +380,6 @@ export function reportHtml(members: Member[], log: LogEntry[], opts: ReportOpts)
       const light = cssColor(lightArgb)
       const medium = cssColor(mediumArgb)
       const dateHead = model.dateLabels.map((d) => `<th style="background:${medium}">${escapeHtml(d)}</th>`).join('')
-      const worshipHead = model.dates.map(() => `<th style="background:${medium}">${escapeHtml(L.worship)}</th>`).join('')
       const rows = s.rows
         .map((r) => {
           const cells = model.dates
@@ -384,8 +399,7 @@ export function reportHtml(members: Member[], log: LogEntry[], opts: ReportOpts)
   <h2 style="background:${medium}">${escapeHtml(s.subgroup)}</h2>
   <table>
     <thead>
-      <tr><th class="name" rowspan="2" style="background:${light}">${escapeHtml(L.name)}</th><th class="num" rowspan="2" style="background:${pink}">${escapeHtml(L.memberTotal)}</th>${dateHead}</tr>
-      <tr>${worshipHead}</tr>
+      <tr><th class="name" style="background:${light}">${escapeHtml(L.name)}</th><th class="num" style="background:${pink}">${escapeHtml(L.memberTotal)}</th>${dateHead}</tr>
     </thead>
     <tbody>${rows}</tbody>
     <tfoot><tr><td class="total" colspan="2" style="background:${medium}">${escapeHtml(L.total)}</td>${totals}</tr></tfoot>
