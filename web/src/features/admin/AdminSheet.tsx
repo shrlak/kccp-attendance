@@ -2,8 +2,19 @@ import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import { useRoster } from './useRoster'
-import { buildGrid, shortDate, type Grid } from './sheet'
-import { addBulkAttendance, clearAttendance, type LogEntry, type RosterResponse } from '../../lib/api'
+import {
+  buildAttendanceModel,
+  blockColors,
+  cssColor,
+  beforeRegistration,
+  exportSundays,
+  semesterLabel,
+  filterLabel,
+  HEADER_TOTAL_FILL,
+  KEY_FILL,
+  type Lang,
+} from './exports'
+import { addBulkAttendance, clearAttendance, type LogEntry, type Member, type RosterResponse } from '../../lib/api'
 import { easternNow } from '../../lib/checkinWindow'
 import { checkinCandidates } from './today'
 import { memberIdsPresentOn, toggleId } from './bulk'
@@ -17,10 +28,11 @@ import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
 
-// Attendance spreadsheet: grid (members × dates) or reverse-chronological log, plus a
-// bulk attendance entry (any admin except pastor).
+// Attendance spreadsheet: the Excel-style 출석부 grid (an on-screen replica of the exported
+// "Attendance" sheet — color-coded 동산 blocks, O/X cells, 예배 총 출석 + 총 출석 rows) or a
+// reverse-chronological log, plus a bulk attendance entry (any admin except pastor).
 export function AdminSheet() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [view, setView] = useState<'grid' | 'log'>('grid')
   const [bulk, setBulk] = useState(false)
   const [clearing, setClearing] = useState(false)
@@ -31,9 +43,10 @@ export function AdminSheet() {
   if (isError) return <p className="text-sm text-danger">{t('common.error')}</p>
   if (!data) return null
 
+  const lang: Lang = i18n.language === 'en' ? 'en' : 'ko'
+  const today = easternNow().date
   const members = filterMembers(data.members, filter)
   const fLog = filterLog(data.log, filter)
-  const grid = buildGrid(members, fLog)
   const log = [...fLog].sort((a, b) => b.ts - a.ts)
   const canBulk = data.role !== 'pastor'
 
@@ -64,7 +77,11 @@ export function AdminSheet() {
           )}
         </div>
       </div>
-      {view === 'grid' ? <GridView grid={grid} empty={t('admin.sheet.empty')} totalLabel={t('admin.sheet.total')} /> : <LogView log={log} empty={t('admin.sheet.empty')} />}
+      {view === 'grid' ? (
+        <GridView members={members} log={fLog} lang={lang} today={today} filter={filter} />
+      ) : (
+        <LogView log={log} empty={t('admin.sheet.empty')} />
+      )}
       {bulk && <BulkModal data={data} onClose={() => setBulk(false)} />}
       {clearing && <ClearDialog isSuper={data.role === 'super_admin'} onClose={() => setClearing(false)} />}
     </>
@@ -212,36 +229,88 @@ function BulkModal({ data, onClose }: { data: RosterResponse; onClose: () => voi
   )
 }
 
-function GridView({ grid, empty, totalLabel }: { grid: Grid; empty: string; totalLabel: string }) {
-  if (grid.dates.length === 0) return <p className="text-sm text-muted">{empty}</p>
+// On-screen 출석부: an exact preview of the exported "Attendance" sheet. Members are split
+// into color-coded 동산 blocks (green → blue → yellow → red), each a single date-header row
+// over O = 출석 (green) / X = 결석 (red) cells, a per-member 예배 총 출석 count and a 총 출석
+// totals row, closed by the KEY legend — see exports.ts (gridSheet / reportHtml) for the
+// shared spine. Date columns are the term's worship Sundays through `today`.
+const CELL = 'whitespace-nowrap border border-[#b7b7b7] px-2 py-1'
+const DARK = '#1f2937'
+
+function GridView({ members, log, lang, today, filter }: { members: Member[]; log: LogEntry[]; lang: Lang; today: string; filter: Filter }) {
+  const L =
+    lang === 'ko'
+      ? { name: '이름', memberTotal: '예배 총 출석', total: '총 출석', key: 'KEY', present: '출석', absent: '결석', unassigned: '동산 미지정', empty: '출석 기록이 없습니다' }
+      : { name: 'Name', memberTotal: 'Worship Total', total: 'Total', key: 'KEY', present: 'Present', absent: 'Absent', unassigned: 'Unassigned', empty: 'No attendance records' }
+
+  const model = buildAttendanceModel(members, log, exportSundays(today), L.unassigned)
+  const pink = cssColor(HEADER_TOTAL_FILL)
+
+  if (model.sections.length === 0) return <p className="text-sm text-muted">{L.empty}</p>
+
   return (
     <div className="overflow-x-auto">
-      <table className="w-full border-collapse text-sm">
-        <thead>
-          <tr>
-            <th className="sticky left-0 z-10 bg-canvas px-2 py-1.5 text-left font-semibold text-muted">{' '}</th>
-            {grid.dates.map((d) => (
-              <th key={d} className="px-2 py-1.5 font-mono text-[11px] font-medium text-subtle">
-                {shortDate(d)}
-              </th>
-            ))}
-            <th className="px-2 py-1.5 text-xs font-semibold text-muted">{totalLabel}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {grid.rows.map((r) => (
-            <tr key={r.member.id} className="border-t border-border">
-              <td className="sticky left-0 z-10 bg-canvas px-2 py-1.5 font-medium text-text">{r.member.name}</td>
-              {grid.dates.map((d) => (
-                <td key={d} className="px-2 py-1.5 text-center">
-                  {r.present.has(d) ? <span className="text-success">✓</span> : <span className="text-subtle">·</span>}
-                </td>
-              ))}
-              <td className="px-2 py-1.5 text-center font-bold text-primary">{r.total}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <p className="mb-3 text-xs text-muted">
+        {semesterLabel(today, lang)} · {filterLabel(filter.group, filter.subgroup, lang)}
+      </p>
+      <div className="flex flex-col gap-6 text-[11px]" style={{ color: DARK }}>
+        {model.sections.map((s, si) => {
+          const { light: lightArgb, medium: mediumArgb } = blockColors(si)
+          const light = cssColor(lightArgb)
+          const medium = cssColor(mediumArgb)
+          return (
+            <section key={s.subgroup} className="w-max">
+              <h3 className="mb-1.5 inline-block rounded px-3 py-1 text-[13px] font-bold" style={{ background: medium, color: DARK }}>
+                {s.subgroup}
+              </h3>
+              <table className="border-collapse">
+                <thead>
+                  <tr>
+                    <th className={`${CELL} text-left font-bold`} style={{ background: light }}>{L.name}</th>
+                    <th className={`${CELL} text-center font-bold`} style={{ background: pink }}>{L.memberTotal}</th>
+                    {model.dateLabels.map((d) => (
+                      <th key={d} className={`${CELL} text-center font-bold`} style={{ background: medium }}>{d}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {s.rows.map((r) => (
+                    <tr key={r.member.id}>
+                      <td className={`${CELL} bg-white text-left font-medium`}>{r.member.name}</td>
+                      <td className={`${CELL} bg-white text-center font-bold`}>{r.total}</td>
+                      {model.dates.map((d) => {
+                        if (beforeRegistration(r.member, d)) return <td key={d} className={`${CELL} bg-white`} />
+                        const here = r.present.has(d)
+                        return (
+                          <td
+                            key={d}
+                            className={`${CELL} bg-white text-center ${here ? 'font-bold text-[#16a34a]' : 'text-[#dc2626]'}`}
+                          >
+                            {here ? 'O' : 'X'}
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td colSpan={2} className={`${CELL} text-left font-bold`} style={{ background: medium }}>{L.total}</td>
+                    {s.totals.map((tot, i) => (
+                      <td key={i} className={`${CELL} bg-white text-center font-bold`}>{tot}</td>
+                    ))}
+                  </tr>
+                </tfoot>
+              </table>
+            </section>
+          )
+        })}
+      </div>
+      <div className="mt-4 flex flex-wrap items-center gap-4 text-xs" style={{ color: '#374151' }}>
+        <b className="rounded px-2.5 py-0.5 text-white" style={{ background: cssColor(KEY_FILL) }}>{L.key}</b>
+        <span><b>O</b> {L.present}</span>
+        <span><b>X</b> {L.absent}</span>
+      </div>
     </div>
   )
 }
