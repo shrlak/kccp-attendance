@@ -4,9 +4,8 @@ import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { getConfig, type AppConfig, type SelfRegisterResponse } from '../../lib/api'
 import { isCheckinOpen, formatMinutes } from '../../lib/checkinWindow'
-import { useTheme } from '../../stores/useTheme'
-import { useLang } from '../../stores/useLang'
 import { Button } from '../../components/ui/Button'
+import { ThemeLangToggle, iconBtnClass } from '../../components/ui/ThemeLangToggle'
 import { KccpMark } from './KccpMark'
 import { KccpLogo } from './KccpLogo'
 import { CheckinResult } from './CheckinResult'
@@ -42,12 +41,6 @@ function Backdrop() {
 
 function TopBar() {
   const { t } = useTranslation()
-  const theme = useTheme((s) => s.theme)
-  const toggleTheme = useTheme((s) => s.toggle)
-  const lang = useLang((s) => s.lang)
-  const toggleLang = useLang((s) => s.toggle)
-  const iconBtn =
-    'min-h-9 min-w-9 inline-flex items-center justify-center rounded-md text-muted hover:text-text hover:bg-surface-alt text-sm font-medium font-mono transition-colors'
   return (
     <header className="flex items-center justify-between px-5 pt-[calc(1rem+env(safe-area-inset-top))]">
       <div className="flex items-center gap-2 text-primary">
@@ -58,13 +51,8 @@ function TopBar() {
         <span className="font-display text-base font-semibold tracking-tight">KCCP</span>
       </div>
       <div className="flex items-center gap-1">
-        <button type="button" onClick={toggleTheme} className={iconBtn} aria-label="Toggle theme">
-          {theme === 'dark' ? '☀' : '☾'}
-        </button>
-        <button type="button" onClick={toggleLang} className={iconBtn} aria-label="Toggle language">
-          {lang === 'ko' ? 'EN' : 'KO'}
-        </button>
-        <Link to="/admin" className={iconBtn + ' px-2'}>
+        <ThemeLangToggle />
+        <Link to="/admin" className={iconBtnClass + ' px-2'}>
           {t('checkin.admin')}
         </Link>
       </div>

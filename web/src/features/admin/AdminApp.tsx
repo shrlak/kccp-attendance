@@ -6,6 +6,7 @@ import { useAdminAuth } from '../../stores/useAdminAuth'
 import { getPending } from '../../lib/api'
 import { Button } from '../../components/ui/Button'
 import { Tag } from '../../components/ui/Tag'
+import { ThemeLangToggle } from '../../components/ui/ThemeLangToggle'
 import {
   type LucideIcon,
   CalendarCheck,
@@ -164,6 +165,7 @@ export function AdminApp() {
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-1">
+              <ThemeLangToggle />
               {canKiosk && (
                 <Button variant="secondary" size="sm" onClick={() => setKiosk(true)}>
                   {t('kiosk.enter')}
