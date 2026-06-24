@@ -25,8 +25,10 @@ export function semesterKey(dateStr: string): string {
 }
 
 // Sundays (worship dates) of the semester containing `today`, from the semester start
-// through `today` inclusive; future Sundays are excluded. ISO ascending.
-export function semesterSundays(today: string): string[] {
+// through `through` (inclusive). `through` defaults to `today` (future Sundays excluded);
+// pass a later date to include upcoming Sundays — e.g. the export's fixed term columns,
+// which show every worship date through the term end and fill in as they pass. ISO ascending.
+export function semesterSundays(today: string, through: string = today): string[] {
   const { start } = semesterBounds(today)
   const DAY = 86_400_000
   const toUTC = (s: string) => {
@@ -37,7 +39,7 @@ export function semesterSundays(today: string): string[] {
   let t = toUTC(start)
   const dow = new Date(t).getUTCDay()
   if (dow !== 0) t += (7 - dow) * DAY
-  const endT = toUTC(today)
+  const endT = toUTC(through)
   const out: string[] = []
   for (; t <= endT; t += 7 * DAY) {
     const dt = new Date(t)
