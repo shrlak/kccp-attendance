@@ -42,13 +42,33 @@ const TERM_START_OVERRIDES: Record<string, string> = {
   '2026-summer': '2026-06-07',
 }
 
+// Some terms close their attendance sheet before the semester boundary. 2026 여름 worship runs
+// through 8/2, so the summer columns end there (the later 8/9 Sunday is dropped). When an end
+// override is set the export shows the term's *full* column set up to that date — including
+// Sundays still in the future, which render blank (see isFutureDate) and fill in with O/X as
+// each date passes. Terms without an override stay clamped to `today` as before. Keyed by
+// semesterKey.
+const TERM_END_OVERRIDES: Record<string, string> = {
+  '2026-summer': '2026-08-02',
+}
+
 // Worship Sundays shown in the export for the term containing `today`: the semester Sundays
-// (semesterSundays), clamped to the term's effective start when it differs from the semester
-// boundary (see TERM_START_OVERRIDES). ISO ascending.
+// (semesterSundays), clamped to the term's effective start (TERM_START_OVERRIDES) and run
+// through the term-end override when set — otherwise only through `today`. ISO ascending.
 export function exportSundays(today: string): string[] {
-  const dates = semesterSundays(today)
-  const start = TERM_START_OVERRIDES[semesterKey(today)]
+  const key = semesterKey(today)
+  // With an end override the columns are fixed for the whole term (upcoming Sundays included,
+  // shown blank); without one they run only through today.
+  const end = TERM_END_OVERRIDES[key] ?? today
+  const dates = semesterSundays(today, end)
+  const start = TERM_START_OVERRIDES[key]
   return start ? dates.filter((d) => d >= start) : dates
+}
+
+// A worship Sunday after `today` hasn't happened yet: its O/X cell and its 총 출석 stay blank
+// until the date passes and attendance comes in. ISO date strings compare lexicographically.
+export function isFutureDate(date: string, today: string): boolean {
+  return date > today
 }
 
 // A cell-merge range in SheetJS form ({s}tart/{e}nd, 0-based row/col). Mirrors XLSX.Range
@@ -218,15 +238,19 @@ export function gridSheet(members: Member[], log: LogEntry[], lang: Lang, today:
         i === 0 ? section.subgroup : '',
         r.member.name,
         r.total,
-        // Pre-등록일자 dates are blank — the member wasn't registered yet, so no O/X.
-        ...model.dates.map((d) => (beforeRegistration(r.member, d) ? '' : r.present.has(d) ? 'O' : 'X')),
+        // Pre-등록일자 dates (member not yet registered) and upcoming Sundays are blank — no O/X.
+        ...model.dates.map((d) =>
+          beforeRegistration(r.member, d) || isFutureDate(d, today) ? '' : r.present.has(d) ? 'O' : 'X',
+        ),
       ])
     })
     if (section.rows.length) fills.push({ r: firstMemberRow, c: 0, rgb: medium }) // 동산 name cell
 
     aoa.push([]) // blank spacer before the totals row
     const totalsAt = aoa.length
-    aoa.push([L.total, '', '', ...section.totals]) // 총 출석: present count per date
+    // 총 출석: present count per date; upcoming Sundays stay blank until they pass.
+    const totals = model.dates.map((d, i) => (isFutureDate(d, today) ? '' : section.totals[i]))
+    aoa.push([L.total, '', '', ...totals])
     merges.push({ s: { r: totalsAt, c: 0 }, e: { r: totalsAt, c: 1 } }) // 총 출석 label spans A:B
     fills.push({ r: totalsAt, c: 0, rgb: medium }, { r: totalsAt, c: 1, rgb: medium })
   })
@@ -384,7 +408,7 @@ export function reportHtml(members: Member[], log: LogEntry[], opts: ReportOpts)
         .map((r) => {
           const cells = model.dates
             .map((d) =>
-              beforeRegistration(r.member, d)
+              beforeRegistration(r.member, d) || isFutureDate(d, opts.today)
                 ? '<td></td>'
                 : r.present.has(d)
                   ? '<td class="o">O</td>'
@@ -394,7 +418,9 @@ export function reportHtml(members: Member[], log: LogEntry[], opts: ReportOpts)
           return `<tr><td class="name">${escapeHtml(r.member.name)}</td><td class="num">${r.total}</td>${cells}</tr>`
         })
         .join('')
-      const totals = s.totals.map((t) => `<td class="num">${t}</td>`).join('')
+      const totals = model.dates
+        .map((d, i) => `<td class="num">${isFutureDate(d, opts.today) ? '' : s.totals[i]}</td>`)
+        .join('')
       return `<section class="block">
   <h2 style="background:${medium}">${escapeHtml(s.subgroup)}</h2>
   <table>

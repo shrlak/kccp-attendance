@@ -7,6 +7,7 @@ import {
   blockColors,
   cssColor,
   beforeRegistration,
+  isFutureDate,
   exportSundays,
   semesterLabel,
   filterLabel,
@@ -279,7 +280,8 @@ function GridView({ members, log, lang, today, filter }: { members: Member[]; lo
                       <td className={`${CELL} bg-white text-left font-medium`}>{r.member.name}</td>
                       <td className={`${CELL} bg-white text-center font-bold`}>{r.total}</td>
                       {model.dates.map((d) => {
-                        if (beforeRegistration(r.member, d)) return <td key={d} className={`${CELL} bg-white`} />
+                        // Pre-등록일자 and upcoming Sundays render blank (fill in as dates pass).
+                        if (beforeRegistration(r.member, d) || isFutureDate(d, today)) return <td key={d} className={`${CELL} bg-white`} />
                         const here = r.present.has(d)
                         return (
                           <td
@@ -296,8 +298,10 @@ function GridView({ members, log, lang, today, filter }: { members: Member[]; lo
                 <tfoot>
                   <tr>
                     <td colSpan={2} className={`${CELL} text-left font-bold`} style={{ background: medium }}>{L.total}</td>
-                    {s.totals.map((tot, i) => (
-                      <td key={i} className={`${CELL} bg-white text-center font-bold`}>{tot}</td>
+                    {model.dates.map((d, i) => (
+                      <td key={d} className={`${CELL} bg-white text-center font-bold`}>
+                        {isFutureDate(d, today) ? '' : s.totals[i]}
+                      </td>
                     ))}
                   </tr>
                 </tfoot>

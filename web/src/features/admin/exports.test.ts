@@ -120,13 +120,19 @@ describe('formatGridDate', () => {
 })
 
 describe('exportSundays', () => {
-  it('clamps the 2026 여름 term to the 06/07 동산 start, dropping the May Sundays', () => {
-    expect(exportSundays('2026-07-05')).toEqual(['2026-06-07', '2026-06-14', '2026-06-21', '2026-06-28', '2026-07-05'])
-    expect(exportSundays('2026-06-07')).toEqual(['2026-06-07'])
-    // a date before the 동산 start still shows nothing earlier than 06/07
-    expect(exportSundays('2026-06-21')).toEqual(['2026-06-07', '2026-06-14', '2026-06-21'])
+  // 2026 여름: fixed columns from the 06/07 동산 start through the 08/02 term end — the May
+  // Sundays and the later 08/09 Sunday are dropped, and upcoming Sundays are included so they
+  // fill in as they pass. The set no longer depends on where `today` lands within the term.
+  const summer = [
+    '2026-06-07', '2026-06-14', '2026-06-21', '2026-06-28',
+    '2026-07-05', '2026-07-12', '2026-07-19', '2026-07-26', '2026-08-02',
+  ]
+  it('spans the 2026 여름 term from the 06/07 동산 start to the 08/02 end, upcoming Sundays included', () => {
+    expect(exportSundays('2026-07-05')).toEqual(summer)
+    expect(exportSundays('2026-06-07')).toEqual(summer)
+    expect(exportSundays('2026-06-21')).toEqual(summer)
   })
-  it('falls back to the full semester Sundays outside the 2026 여름 term', () => {
+  it('falls back to the semester Sundays through today outside the 2026 여름 term', () => {
     const fall = '2026-09-06'
     expect(exportSundays(fall)).toEqual(semesterSundays(fall))
     expect(exportSundays('2026-01-10')).toEqual(['2026-01-04'])
@@ -134,8 +140,8 @@ describe('exportSundays', () => {
 })
 
 describe('gridSheet', () => {
-  // 2026 여름동산: the export starts at the 06/07 동산 formation date (05/10–05/31 dropped),
-  // so for a 07/05 run the shown Sundays are 06/07, 06/14, 06/21, 06/28, 07/05.
+  // 2026 여름동산: columns run from the 06/07 동산 formation date to the 08/02 term end. For a
+  // 07/05 run the past Sundays (06/07–07/05) carry O/X; the upcoming ones (07/12–08/02) are blank.
   const today = '2026-07-05'
   const dates = exportSundays(today)
   const members = [member('1', 'A'), member('2', 'B')]
@@ -146,29 +152,29 @@ describe('gridSheet', () => {
     expect(aoa[0]).toEqual(['', '이름', '예배 총 출석', ...dates.map(formatGridDate)])
     expect(aoa[1].slice(0, 3)).toEqual(['건영동산', 'A', 2]) // first member row, no 예배 row between
   })
-  it('marks O present / X absent across the term Sundays with 동산 name + worship total', () => {
+  it('marks O present / X absent across past Sundays, blanks upcoming ones, with 동산 name + worship total', () => {
     const { aoa } = gridSheet(members, log, 'ko', today)
     const aRow = aoa[1]
     expect(aRow.slice(0, 3)).toEqual(['건영동산', 'A', 2]) // A attended 2 of the shown Sundays
     expect(aRow[3]).toBe('X') // 06/07 absent
-    expect(aRow.slice(-2)).toEqual(['O', 'O']) // 06/28 + 07/05 present
-    // B: col A blank, present only 07/05
+    expect(aRow.slice(6, 8)).toEqual(['O', 'O']) // 06/28 + 07/05 present
+    expect(aRow.slice(8)).toEqual(['', '', '', '']) // 07/12–08/02 upcoming → blank
+    // B: col A blank, present only 07/05, the rest absent/upcoming
     expect(aoa[2].slice(0, 3)).toEqual(['', 'B', 1])
-    expect(aoa[2].slice(-2)).toEqual(['X', 'O'])
+    expect(aoa[2].slice(3)).toEqual(['X', 'X', 'X', 'X', 'O', '', '', '', ''])
   })
-  it('leaves pre-등록일자 dates blank instead of X', () => {
+  it('leaves pre-등록일자 and upcoming dates blank instead of X', () => {
     const ms = [member('1', 'A'), { ...member('2', 'B'), registration_date: today }]
     const { aoa } = gridSheet(ms, log, 'ko', today)
-    // B registered on the last shown Sunday: earlier date cells are blank (not absences).
-    const bRow = aoa[2]
-    expect(bRow.slice(3, -1)).toEqual(['', '', '', ''])
-    expect(bRow[bRow.length - 1]).toBe('O')
+    // B registered on 07/05: earlier cells blank (pre-reg), 07/05 = O, later Sundays blank (upcoming).
+    expect(aoa[2].slice(3)).toEqual(['', '', '', '', 'O', '', '', '', ''])
   })
-  it('adds a blank spacer, a 총 출석 row counting present per date, and a KEY legend', () => {
+  it('adds a blank spacer, a 총 출석 row counting present per date (upcoming blank), and a KEY legend', () => {
     const { aoa } = gridSheet(members, log, 'ko', today)
     expect(aoa[3]).toEqual([])
     expect(aoa[4][0]).toBe('총 출석')
-    expect(aoa[4].slice(-2)).toEqual([1, 2]) // 06/28: A; 07/05: A + B
+    expect(aoa[4].slice(6, 8)).toEqual([1, 2]) // 06/28: A; 07/05: A + B
+    expect(aoa[4].slice(8)).toEqual(['', '', '', '']) // upcoming Sundays blank in the totals too
     expect(aoa.slice(-3)).toEqual([['KEY'], ['O', '출석'], ['X', '결석']])
   })
   it('merges only the 총 출석 label across A:B (no header merges without the 예배 sub-row)', () => {

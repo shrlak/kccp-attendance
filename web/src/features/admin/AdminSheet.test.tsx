@@ -18,8 +18,8 @@ function entry(name: string, subgroup: string, date: string, ts: number): LogEnt
   return { name, group: '청년부', subgroup, date, time: '10:00', ts }
 }
 
-// 두 동산, A는 6/7·6/21 출석(6/14 결석), B는 결석. easternNow() 기준 2026-06-21 →
-// 표시되는 예배 주일은 06/07·06/14·06/21 (exportSundays, 여름학기 시작 6/7).
+// 두 동산, A는 6/7·6/21 출석(6/14 결석), B는 결석. easternNow() 기준 2026-06-21 → 열은 여름학기
+// 전체(06/07–08/02, exportSundays). 지난 주일은 O/X, 다가오는 주일(06/28~)은 빈칸으로 채워짐.
 const members: Member[] = [
   member('1', 'A', '믿음동산'),
   member('2', 'B', '소망동산'),
@@ -60,10 +60,10 @@ describe('AdminSheet 출석부 (Excel-style grid)', () => {
     expect(screen.getAllByText('예배 총 출석').length).toBeGreaterThan(0)
     expect(screen.getAllByText('총 출석').length).toBeGreaterThan(0)
 
-    // Worship Sundays of the summer term through 2026-06-21, formatted MM/DD/YYYY.
+    // Columns span the whole summer term — past Sundays and the future 08/02 alike.
     expect(screen.getAllByText('06/07/2026').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('06/14/2026').length).toBeGreaterThan(0)
     expect(screen.getAllByText('06/21/2026').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('08/02/2026').length).toBeGreaterThan(0) // upcoming Sunday column
 
     // O = present / X = absent cells, and the KEY legend that closes the sheet.
     expect(screen.getAllByText('O').length).toBeGreaterThan(0)
@@ -71,17 +71,17 @@ describe('AdminSheet 출석부 (Excel-style grid)', () => {
     expect(screen.getByText('KEY')).toBeInTheDocument()
   })
 
-  it('counts each member\'s 예배 총 출석 across the shown Sundays', async () => {
+  it('marks past Sundays O/X and leaves upcoming ones blank, counting 예배 총 출석', async () => {
     const { container } = renderSheet()
     await screen.findByRole('heading', { name: '믿음동산' })
 
-    // A attended 2 of the 3 shown Sundays → 예배 총 출석 = 2.
+    // A attended 2 of the past Sundays → 예배 총 출석 = 2; 06/28–08/02 are still upcoming → blank.
     const aRow = await waitFor(() => {
       const cell = [...container.querySelectorAll('td')].find((td) => td.textContent === 'A')
       expect(cell).toBeTruthy()
       return cell!.parentElement!
     })
     const cells = [...aRow.querySelectorAll('td')].map((td) => td.textContent)
-    expect(cells).toEqual(['A', '2', 'O', 'X', 'O'])
+    expect(cells).toEqual(['A', '2', 'O', 'X', 'O', '', '', '', '', '', ''])
   })
 })
