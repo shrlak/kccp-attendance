@@ -1,0 +1,27 @@
+import { useTheme } from '../../stores/useTheme'
+import { useLang } from '../../stores/useLang'
+
+// Shared button styling so the toggles (and any sibling control, e.g. the landing
+// page's 관리자 link) look identical everywhere they appear.
+export const iconBtnClass =
+  'min-h-9 min-w-9 inline-flex items-center justify-center rounded-md text-muted hover:text-text hover:bg-surface-alt text-sm font-medium font-mono transition-colors'
+
+// Theme (light/dark) + language (ko/en) toggle buttons. Rendered as a fragment so the
+// caller controls the surrounding layout; used on the landing page, the kiosk, and the
+// admin panel so the same controls are available everywhere.
+export function ThemeLangToggle() {
+  const theme = useTheme((s) => s.theme)
+  const toggleTheme = useTheme((s) => s.toggle)
+  const lang = useLang((s) => s.lang)
+  const toggleLang = useLang((s) => s.toggle)
+  return (
+    <>
+      <button type="button" onClick={toggleTheme} className={iconBtnClass} aria-label="Toggle theme">
+        {theme === 'dark' ? '☀' : '☾'}
+      </button>
+      <button type="button" onClick={toggleLang} className={iconBtnClass} aria-label="Toggle language">
+        {lang === 'ko' ? 'EN' : 'KO'}
+      </button>
+    </>
+  )
+}

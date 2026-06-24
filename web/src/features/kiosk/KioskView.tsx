@@ -14,6 +14,7 @@ import {
 import { KioskGuestDialog } from './KioskGuestDialog'
 import { KioskNewMemberDialog } from './KioskNewMemberDialog'
 import { KioskExitDialog } from './KioskExitDialog'
+import { ThemeLangToggle } from '../../components/ui/ThemeLangToggle'
 
 const DEPT_STYLE: Record<KioskDept, { color: string; tile: string }> = {
   대학부: { color: '#FBBF24', tile: 'border-[#FBBF24]/40 bg-[#FBBF24]/10 text-text hover:bg-[#FBBF24]/20' },
@@ -96,13 +97,16 @@ export function KioskView({ onExit }: { onExit: () => void }) {
           <div className="font-display text-lg font-semibold text-text">{t('kiosk.title')}</div>
           <div className="font-mono text-xs text-muted">{t('kiosk.count', { n: count })}</div>
         </div>
-        <button
-          type="button"
-          onClick={() => setDialog('exit')}
-          className="min-h-11 rounded-md bg-surface px-4 text-sm font-semibold text-muted hover:bg-surface-alt"
-        >
-          {t('kiosk.exit')}
-        </button>
+        <div className="flex items-center gap-1">
+          <ThemeLangToggle />
+          <button
+            type="button"
+            onClick={() => setDialog('exit')}
+            className="min-h-11 rounded-md bg-surface px-4 text-sm font-semibold text-muted hover:bg-surface-alt"
+          >
+            {t('kiosk.exit')}
+          </button>
+        </div>
       </header>
 
       <input

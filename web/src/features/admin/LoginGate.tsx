@@ -4,6 +4,7 @@ import { useAdminAuth } from '../../stores/useAdminAuth'
 import { KccpMark } from '../checkin/KccpMark'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
+import { ThemeLangToggle } from '../../components/ui/ThemeLangToggle'
 
 export function LoginGate() {
   const { t } = useTranslation()
@@ -16,6 +17,9 @@ export function LoginGate() {
 
   return (
     <main className="grid min-h-dvh place-items-center px-6">
+      <div className="absolute right-4 top-4 flex items-center gap-1 pt-[env(safe-area-inset-top)]">
+        <ThemeLangToggle />
+      </div>
       <div className="w-full max-w-xs text-center">
         <KccpMark size={56} className="mx-auto mb-5 text-primary" />
         <h1 className="mb-1 font-display text-2xl font-semibold text-text">{t('admin.title')}</h1>
