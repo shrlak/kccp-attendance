@@ -2,7 +2,16 @@
 // (Deno isn't part of the local web toolchain; these run where Deno is available —
 //  local `supabase functions` / CI.)
 import { assertEquals } from "jsr:@std/assert";
-import { isPersonalDevice, scopeFilter, verifyAdmin, MASTER_PASSWORD, type Role } from "./auth.ts";
+import {
+  isPersonalDevice,
+  scopeFilter,
+  verifyAdmin,
+  passwordRole,
+  LEADER_PASSWORD,
+  WELCOMING_PASSWORD,
+  MASTER_PASSWORD,
+  type Role,
+} from "./auth.ts";
 
 const leader: Role = {
   memberId: "m", role: "leader", group: "청년부", subgroup: "건영동산", ministry: "KM",
@@ -32,22 +41,35 @@ Deno.test("isPersonalDevice: ROSTER stubs are not personal", () => {
   assertEquals(isPersonalDevice(""), false);
 });
 
+Deno.test("passwordRole: maps each password to its break-glass role", () => {
+  assertEquals(passwordRole(LEADER_PASSWORD), "leader");
+  assertEquals(passwordRole(WELCOMING_PASSWORD), "welcoming");
+  assertEquals(passwordRole("nope"), null);
+  assertEquals(passwordRole(""), null);
+});
+
+Deno.test("MASTER_PASSWORD aliases the welcoming password (back-compat)", () => {
+  assertEquals(MASTER_PASSWORD, WELCOMING_PASSWORD);
+});
+
 Deno.test("verifyAdmin: wrong password is rejected (no DB hit)", async () => {
   const r = await verifyAdmin(mockSb({}), "DEV-anything", "nope");
   assertEquals(r, null);
 });
 
-Deno.test("verifyAdmin: master password grants break-glass 'staff' from an unregistered device", async () => {
-  // A brand-new personal device with no row in `devices` → break-glass staff (리더+새가족팀).
-  const r = await verifyAdmin(mockSb({ devices: null }), "DEV-UNKNOWN-99", MASTER_PASSWORD);
-  assertEquals(r, { memberId: "", role: "staff", group: "", subgroup: "", ministry: "" });
+Deno.test("verifyAdmin: leader password grants break-glass 'leader' from an unregistered device", async () => {
+  const r = await verifyAdmin(mockSb({ devices: null }), "DEV-UNKNOWN-99", LEADER_PASSWORD);
+  assertEquals(r, { memberId: "", role: "leader", group: "", subgroup: "", ministry: "" });
 });
 
-Deno.test("verifyAdmin: master password works on a ROSTER/blank device too (staff)", async () => {
-  const r = await verifyAdmin(mockSb({}), "ROSTER-12", MASTER_PASSWORD);
-  assertEquals(r?.role, "staff");
-  const blank = await verifyAdmin(mockSb({}), "", MASTER_PASSWORD);
-  assertEquals(blank?.role, "staff");
+Deno.test("verifyAdmin: welcoming password grants break-glass 'welcoming' from an unregistered device", async () => {
+  const r = await verifyAdmin(mockSb({ devices: null }), "DEV-UNKNOWN-99", WELCOMING_PASSWORD);
+  assertEquals(r, { memberId: "", role: "welcoming", group: "", subgroup: "", ministry: "" });
+});
+
+Deno.test("verifyAdmin: either password works on a ROSTER/blank device too", async () => {
+  assertEquals((await verifyAdmin(mockSb({}), "ROSTER-12", LEADER_PASSWORD))?.role, "leader");
+  assertEquals((await verifyAdmin(mockSb({}), "", WELCOMING_PASSWORD))?.role, "welcoming");
 });
 
 Deno.test("verifyAdmin: a registered device linked to a leader keeps that scope", async () => {
@@ -76,6 +98,15 @@ Deno.test("staff (break-glass) sees the whole roster, like super/pastor", () => 
   const s: Role = { memberId: "", role: "staff", group: "", subgroup: "", ministry: "" };
   assertEquals(scopeFilter(s, false), { all: true });
   assertEquals(scopeFilter(s, true), { all: true });
+});
+
+Deno.test("break-glass leader/welcoming (no memberId) see the whole roster", () => {
+  const bgLeader: Role = { memberId: "", role: "leader", group: "", subgroup: "", ministry: "" };
+  const bgWelcoming: Role = { memberId: "", role: "welcoming", group: "", subgroup: "", ministry: "" };
+  assertEquals(scopeFilter(bgLeader, false), { all: true });
+  assertEquals(scopeFilter(bgLeader, true), { all: true });
+  assertEquals(scopeFilter(bgWelcoming, false), { all: true });
+  assertEquals(scopeFilter(bgWelcoming, true), { all: true });
 });
 
 Deno.test("leader is scoped to their group+subgroup in semester mode", () => {

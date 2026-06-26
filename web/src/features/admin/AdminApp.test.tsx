@@ -97,4 +97,35 @@ describe('AdminApp nav rail', () => {
     // Header shows the 운영진 role label.
     expect(screen.getByText(/운영진/)).toBeInTheDocument()
   })
+
+  it('break-glass leader password lands on the 리더 dashboard (all-roster, no super tabs)', () => {
+    useAdminAuth.setState({
+      status: 'authed',
+      identity: { role: 'leader', group: '', subgroup: '', ministry: '' },
+    })
+    renderApp()
+    for (const name of ['오늘', '출석부', '멤버', '통계', '새가족', '기기']) {
+      expect(screen.getByRole('button', { name })).toBeInTheDocument()
+    }
+    for (const name of ['관리자', '동산', '임원', '설정']) {
+      expect(screen.queryByRole('button', { name })).toBeNull()
+    }
+    // Role label + "전체" scope (a group-less break-glass leader sees everyone).
+    expect(screen.getByText(/리더 · 전체/)).toBeInTheDocument()
+  })
+
+  it('break-glass welcoming password lands on the 새가족팀 dashboard', () => {
+    useAdminAuth.setState({
+      status: 'authed',
+      identity: { role: 'welcoming', group: '', subgroup: '', ministry: '' },
+    })
+    renderApp()
+    for (const name of ['오늘', '출석부', '멤버', '통계', '새가족', '기기']) {
+      expect(screen.getByRole('button', { name })).toBeInTheDocument()
+    }
+    for (const name of ['관리자', '동산', '임원', '설정']) {
+      expect(screen.queryByRole('button', { name })).toBeNull()
+    }
+    expect(screen.getByText(/새가족팀 · 전체/)).toBeInTheDocument()
+  })
 })
