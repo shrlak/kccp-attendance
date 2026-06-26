@@ -13,8 +13,11 @@ Korean church (한국중앙교회 피츠버그 대학·청년부) attendance sys
 - `supabase/migrations/` — schema. Prod project ref: `loovulhchmmwagtvjnhc`.
 
 ## Auth / data model (post-cutover)
-- **Admin auth = a personal (non-`ROSTER-##`) device + master password `kccpwelcome`**
-  (in `auth.ts` `MASTER_PASSWORD`, or env override). No email/Supabase Auth.
+- **Admin auth = a shared team password (works from ANY device)**: `kccpleaders` →
+  `leader` dashboard, `kccpwelcome` → `welcoming` dashboard (in `auth.ts` `LEADER_PASSWORD`
+  / `WELCOMING_PASSWORD`, or env overrides; `passwordRole()` maps password→role). Both are
+  all-roster, non-super break-glass logins; a password typed on a personal device that's
+  linked to a roled member keeps that member's scope instead. No email/Supabase Auth.
 - `members` (UUID identity) ⟵ `devices.member_id` / `attendance_log.member_id`; roles in
   `member_roles` (super_admin / leader / pastor / welcoming). Leaders are scoped by group+동산
   (summer mode: KM leaders span 대학부+청년부 = 합동). Pastor is read-only.

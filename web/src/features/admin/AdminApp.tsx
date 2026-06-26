@@ -78,8 +78,10 @@ export function AdminApp() {
   const { data: pending } = useQuery({ queryKey: ['pending'], queryFn: getPending, enabled: isSuper })
   const pendingCount = pending?.pending.length ?? 0
 
+  // A scoped (roled-device) leader shows their 부서·동산; a break-glass leader/welcoming
+  // password login has no group/동산 and sees the whole roster, so it shows "All".
   const scopeLabel =
-    identity && identity.role === 'leader'
+    identity && identity.role === 'leader' && identity.group
       ? [identity.group, identity.subgroup].filter(Boolean).join(' · ')
       : t('admin.scopeAll')
 
