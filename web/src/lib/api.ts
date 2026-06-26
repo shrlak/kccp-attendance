@@ -98,11 +98,11 @@ export const selfRegister = (name: string, group: string, subgroup = '') =>
   api<SelfRegisterResponse>('POST', '/api/self-register', { deviceId: getDeviceId(), name, group, subgroup })
 
 // ── Admin (hardened: Google JWT, or a shared team password from any device) ───
-// Two break-glass passwords route a password-only login on an unroled device to a role:
-// the leader password → 'leader' (리더 dashboard), the welcoming password → 'welcoming'
-// (새가족팀 dashboard). Both get full-roster + day-to-day writes, no super_admin powers,
-// and the server synthesizes them (see auth.ts verifyAdmin). 'staff' is the legacy combined
-// break-glass role, kept for back-compat.
+// Three break-glass passwords route a password-only login on an unroled device to a role:
+// the super password → 'super_admin' (full panel), the leader password → 'leader' (리더
+// dashboard), the welcoming password → 'welcoming' (새가족팀 dashboard). All get full-roster
+// visibility; the server synthesizes them (see auth.ts verifyAdmin). 'staff' is the legacy
+// combined break-glass role, kept for back-compat.
 export type AdminRole = 'super_admin' | 'leader' | 'pastor' | 'welcoming' | 'staff'
 
 export interface AdminIdentity {
@@ -114,7 +114,7 @@ export interface AdminIdentity {
 
 // Verify a shared team password (break-glass): works from any device. A device linked to a
 // roled member keeps that scope; any other device is granted the role the password maps to
-// — 'leader' or 'welcoming', full roster, no super_admin powers (see auth.ts verifyAdmin).
+// — 'super_admin', 'leader', or 'welcoming', full roster (see auth.ts verifyAdmin).
 export const adminVerify = (password: string) =>
   api<AdminIdentity>('POST', '/api/admin/verify', undefined, { 'X-Admin-Password': password })
 

@@ -7,6 +7,7 @@ import {
   scopeFilter,
   verifyAdmin,
   passwordRole,
+  SUPER_PASSWORD,
   LEADER_PASSWORD,
   WELCOMING_PASSWORD,
   MASTER_PASSWORD,
@@ -42,6 +43,7 @@ Deno.test("isPersonalDevice: ROSTER stubs are not personal", () => {
 });
 
 Deno.test("passwordRole: maps each password to its break-glass role", () => {
+  assertEquals(passwordRole(SUPER_PASSWORD), "super_admin");
   assertEquals(passwordRole(LEADER_PASSWORD), "leader");
   assertEquals(passwordRole(WELCOMING_PASSWORD), "welcoming");
   assertEquals(passwordRole("nope"), null);
@@ -55,6 +57,11 @@ Deno.test("MASTER_PASSWORD aliases the welcoming password (back-compat)", () => 
 Deno.test("verifyAdmin: wrong password is rejected (no DB hit)", async () => {
   const r = await verifyAdmin(mockSb({}), "DEV-anything", "nope");
   assertEquals(r, null);
+});
+
+Deno.test("verifyAdmin: super password grants break-glass 'super_admin' from an unregistered device", async () => {
+  const r = await verifyAdmin(mockSb({ devices: null }), "DEV-UNKNOWN-99", SUPER_PASSWORD);
+  assertEquals(r, { memberId: "", role: "super_admin", group: "", subgroup: "", ministry: "" });
 });
 
 Deno.test("verifyAdmin: leader password grants break-glass 'leader' from an unregistered device", async () => {
