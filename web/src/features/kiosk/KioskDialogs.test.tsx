@@ -26,16 +26,17 @@ function renderWithProviders(ui: React.ReactElement) {
 }
 
 describe('KioskGuestDialog (방문자 체크인)', () => {
-  it('checks in a guest: calls guestCheckin with the trimmed name, toasts success, closes', async () => {
+  it('checks in a guest: calls guestCheckin with the trimmed name + 부서, toasts success, closes', async () => {
     const { guestCheckin } = await import('../../lib/api')
     ;(guestCheckin as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ok', time: '12:00', name: '김방문' })
     const onClose = vi.fn()
     renderWithProviders(<KioskGuestDialog open onClose={onClose} />)
 
     await userEvent.type(screen.getByLabelText('방문자 이름'), '  김방문  ')
+    await userEvent.click(screen.getByRole('button', { name: '청년부' }))
     await userEvent.click(screen.getByRole('button', { name: '체크인' }))
 
-    expect(guestCheckin).toHaveBeenCalledWith('김방문')
+    expect(guestCheckin).toHaveBeenCalledWith('김방문', '청년부')
     expect(await screen.findByText('김방문 체크인되었습니다')).toBeInTheDocument()
     await waitFor(() => expect(onClose).toHaveBeenCalled())
   })
@@ -46,6 +47,7 @@ describe('KioskGuestDialog (방문자 체크인)', () => {
     renderWithProviders(<KioskGuestDialog open onClose={vi.fn()} />)
 
     await userEvent.type(screen.getByLabelText('방문자 이름'), '박방문')
+    await userEvent.click(screen.getByRole('button', { name: '대학부' }))
     await userEvent.click(screen.getByRole('button', { name: '체크인' }))
 
     expect(await screen.findByText('박방문 님은 이미 체크인했습니다')).toBeInTheDocument()
@@ -58,6 +60,18 @@ describe('KioskGuestDialog (방문자 체크인)', () => {
     expect(guestCheckin).not.toHaveBeenCalled()
   })
 
+  it('keeps submit disabled until a 부서 is chosen', async () => {
+    const { guestCheckin } = await import('../../lib/api')
+    renderWithProviders(<KioskGuestDialog open onClose={vi.fn()} />)
+
+    await userEvent.type(screen.getByLabelText('방문자 이름'), '무부서')
+    expect(screen.getByRole('button', { name: '체크인' })).toBeDisabled()
+    expect(guestCheckin).not.toHaveBeenCalled()
+
+    await userEvent.click(screen.getByRole('button', { name: '청년부' }))
+    expect(screen.getByRole('button', { name: '체크인' })).toBeEnabled()
+  })
+
   it('keeps the dialog open and surfaces the real error message when the API rejects', async () => {
     const { guestCheckin } = await import('../../lib/api')
     ;(guestCheckin as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Not authorized'))
@@ -65,6 +79,7 @@ describe('KioskGuestDialog (방문자 체크인)', () => {
     renderWithProviders(<KioskGuestDialog open onClose={onClose} />)
 
     await userEvent.type(screen.getByLabelText('방문자 이름'), '오류방문')
+    await userEvent.click(screen.getByRole('button', { name: '청년부' }))
     await userEvent.click(screen.getByRole('button', { name: '체크인' }))
 
     // The actual failure reason is shown (not a generic "연결 오류"), so a broken

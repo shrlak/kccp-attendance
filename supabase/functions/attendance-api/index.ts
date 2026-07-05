@@ -795,16 +795,19 @@ Deno.serve(async (req: Request) => {
     // Kiosk guest (방문자) check-in (Phase 3.7): the kiosk runs on a verified admin
     // device, so this is hardened (verifyAdmin) and bypasses day/time/location. Records a
     // visitor attendance row for today; deduped by name+date; pastor read-only; audited.
+    // `group` (대학부/청년부) puts the visitor on that 부서's 오늘 sheet / 출석부 이미지;
+    // anything else is stored as "" (unassigned) like the pre-group rows.
     if(req.method==="POST"&&p==="/api/admin/guest-checkin") {
       const role=await resolveAdmin(sb,req);
       if(!role) return fail(401,"Not authorized");
       if(role.role==="pastor") return fail(403,"Read-only");
       const name=(body.name||"").trim(); if(!name) return fail(400,"name required");
+      const group=body.group==="대학부"||body.group==="청년부"?body.group:"";
       const today=localDate(),time=localTime();
       const {data:exist}=await sb.from("attendance_log").select("time_str").eq("name",name).eq("date",today).eq("is_guest",true).limit(1);
       if(exist&&exist.length) return ok({status:"already",time:exist[0].time_str,name});
-      await sb.from("attendance_log").insert({device_id:"GUEST-"+Date.now(),name,group_name:"",subgroup:"",date:today,time_str:time,ts:Date.now(),is_manual:true,is_guest:true,member_role:"visitor"});
-      await addAudit(sb,"guest-checkin",xDev,name+" | "+today);
+      await sb.from("attendance_log").insert({device_id:"GUEST-"+Date.now(),name,group_name:group,subgroup:"",date:today,time_str:time,ts:Date.now(),is_manual:true,is_guest:true,member_role:"visitor"});
+      await addAudit(sb,"guest-checkin",xDev,name+(group?" | "+group:"")+" | "+today);
       return ok({status:"ok",time,name});
     }
 

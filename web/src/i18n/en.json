@@ -72,7 +72,7 @@
       "wrong": "Wrong password"
     },
     "total": "Total {{n}}",
-    "guest": { "action": "👋 Guest check-in", "title": "Guest check-in", "namePlaceholder": "Guest name", "submit": "Check in", "done": "Checked in {{name}}", "already": "{{name}} is already checked in" },
+    "guest": { "action": "👋 Guest check-in", "title": "Guest check-in", "namePlaceholder": "Guest name", "group": "Group", "submit": "Check in", "done": "Checked in {{name}}", "already": "{{name}} is already checked in" },
     "newMember": {
       "action": "✝️ New family",
       "title": "New family registration",

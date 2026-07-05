@@ -72,7 +72,7 @@
       "wrong": "비밀번호가 올바르지 않습니다"
     },
     "total": "총 {{n}}회",
-    "guest": { "action": "👋 방문자 체크인", "title": "방문자 체크인", "namePlaceholder": "방문자 이름", "submit": "체크인", "done": "{{name}} 체크인되었습니다", "already": "{{name}} 님은 이미 체크인했습니다" },
+    "guest": { "action": "👋 방문자 체크인", "title": "방문자 체크인", "namePlaceholder": "방문자 이름", "group": "부서", "submit": "체크인", "done": "{{name}} 체크인되었습니다", "already": "{{name}} 님은 이미 체크인했습니다" },
     "newMember": {
       "action": "✝️ 새가족 등록",
       "title": "새가족 등록",
