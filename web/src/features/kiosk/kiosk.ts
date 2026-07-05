@@ -29,6 +29,24 @@ export function filterByName(members: Member[], query: string): Member[] {
   return q ? members.filter((m) => m.name.toLowerCase().includes(q)) : members
 }
 
+// Today's log entry backing a member's green tile — used to undo attendance when a
+// checked-in tile is tapped again. Prefer the member-id match; fall back to a
+// name-only match for rows without one (legacy/guest rows).
+export function todayEntryFor(log: LogEntry[], today: string, m: Member): LogEntry | undefined {
+  const rows = log.filter((e) => e.date === today)
+  return rows.find((e) => e.memberId === m.id) ?? rows.find((e) => !e.memberId && e.name === m.name)
+}
+
+// Members marked 이주 / (한국) 귀국 are hidden from the kiosk while their status span
+// covers today: status_start → status_end, open-ended when status_end is null — the
+// same covering rule the 출석부 uses. Other notes (e.g. 돌아옴) never hide anyone.
+export function hiddenByStatus(m: Member, today: string): boolean {
+  if (!m.status_note || !m.status_start) return false
+  if (today < m.status_start) return false
+  if (m.status_end && today > m.status_end) return false
+  return m.status_note.includes('이주') || m.status_note.includes('귀국')
+}
+
 export interface KioskColumns {
   // One entry per department, in KIOSK_DEPTS order. `thirds` is always length 3
   // (the three columns); `total` is the department's member count for the header.

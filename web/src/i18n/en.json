@@ -47,7 +47,8 @@
   "landing": {
     "title": "KCCP Attendance System",
     "subtitle": "Korean Central Church of Pittsburgh · College & Young Adult",
-    "kioskNote": "Check in at the church kiosk"
+    "kioskNote": "Check in at the church kiosk",
+    "kioskButton": "Attendance Kiosk"
   },
   "kiosk": {
     "title": "Attendance Kiosk",
@@ -61,7 +62,15 @@
     "loading": "Working...",
     "success": "Checked in!",
     "already": "Already checked in",
+    "undone": "Check-in removed",
     "fail": "Check-in failed",
+    "gate": {
+      "title": "Attendance Kiosk",
+      "subtitle": "Enter the welcome-team password",
+      "passwordPlaceholder": "Kiosk password",
+      "submit": "Start kiosk",
+      "wrong": "Wrong password"
+    },
     "total": "Total {{n}}",
     "guest": { "action": "👋 Guest check-in", "title": "Guest check-in", "namePlaceholder": "Guest name", "submit": "Check in", "done": "Checked in {{name}}", "already": "{{name}} is already checked in" },
     "newMember": {

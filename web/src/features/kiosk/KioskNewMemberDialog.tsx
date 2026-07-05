@@ -8,6 +8,7 @@ import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
 import { kioskNewMember, type NewMemberFields } from '../../lib/api'
 import { easternNow } from '../../lib/checkinWindow'
+import { broadcastKioskChange } from './live'
 
 const GROUPS = ['대학부', '청년부', 'EM', 'Adult Ministry']
 
@@ -71,6 +72,7 @@ export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose
         pastoralVisitRequested: f.pastoralVisitRequested,
       }
       await kioskNewMember(payload)
+      broadcastKioskChange()
       await qc.invalidateQueries({ queryKey: ['roster'] })
       toast({ title: t('kiosk.newMember.done', { name: payload.name }), tone: 'ok' })
       close()

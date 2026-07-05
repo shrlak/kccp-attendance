@@ -6,6 +6,7 @@ import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
 import { guestCheckin } from '../../lib/api'
+import { broadcastKioskChange } from './live'
 
 // 방문자 (guest) check-in from the kiosk: name only → hardened guest endpoint.
 export function KioskGuestDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -27,6 +28,7 @@ export function KioskGuestDialog({ open, onClose }: { open: boolean; onClose: ()
     setBusy(true)
     try {
       const res = await guestCheckin(n)
+      broadcastKioskChange()
       await qc.invalidateQueries({ queryKey: ['roster'] })
       toast(
         res.status === 'already'

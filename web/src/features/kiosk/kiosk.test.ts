@@ -5,10 +5,12 @@ import {
   filterByName,
   splitThirds,
   kioskColumns,
+  todayEntryFor,
+  hiddenByStatus,
 } from './kiosk'
 import type { LogEntry, Member } from '../../lib/api'
 
-const member = (name: string, group: string, role = ''): Member => ({
+const member = (name: string, group: string, role = '', extra: Partial<Member> = {}): Member => ({
   id: name,
   name,
   group_name: group,
@@ -20,9 +22,10 @@ const member = (name: string, group: string, role = ''): Member => ({
   kakao_id: '',
   is_new_member: false,
   notes: '',
+  ...extra,
 })
 
-const log = (name: string, date: string, role?: string): LogEntry => ({
+const log = (name: string, date: string, role?: string, extra: Partial<LogEntry> = {}): LogEntry => ({
   name,
   group: '',
   subgroup: '',
@@ -30,6 +33,7 @@ const log = (name: string, date: string, role?: string): LogEntry => ({
   time: '',
   ts: 0,
   memberRole: role,
+  ...extra,
 })
 
 describe('splitThirds', () => {
@@ -101,5 +105,46 @@ describe('filterByName', () => {
   })
   it('filters case-insensitively by substring', () => {
     expect(filterByName(members, 'an').map((m) => m.name)).toEqual(['Anna', 'Chan'])
+  })
+})
+
+describe('todayEntryFor (tap-to-undo lookup)', () => {
+  const m = member('A', '대학부')
+  it("finds today's entry by member id, ignoring other days", () => {
+    const entries = [
+      log('A', '2026-06-28', undefined, { id: 1, memberId: 'A' }),
+      log('A', '2026-07-05', undefined, { id: 2, memberId: 'A' }),
+    ]
+    expect(todayEntryFor(entries, '2026-07-05', m)?.id).toBe(2)
+  })
+  it('falls back to a name match only for rows without a member id', () => {
+    const entries = [
+      log('A', '2026-07-05', undefined, { id: 3, memberId: 'someone-else' }),
+      log('A', '2026-07-05', undefined, { id: 4, memberId: null }),
+    ]
+    expect(todayEntryFor(entries, '2026-07-05', m)?.id).toBe(4)
+  })
+  it('returns undefined when the member has no entry today', () => {
+    const entries = [log('B', '2026-07-05', undefined, { id: 5, memberId: 'B' })]
+    expect(todayEntryFor(entries, '2026-07-05', m)).toBeUndefined()
+  })
+})
+
+describe('hiddenByStatus (이주/한국 귀국 hidden from the kiosk)', () => {
+  const today = '2026-07-05'
+  it('hides 한국 귀국 and 이주 while the span covers today (open-ended end)', () => {
+    expect(hiddenByStatus(member('A', '대학부', '', { status_note: '한국 귀국', status_start: '2026-06-21', status_end: null }), today)).toBe(true)
+    expect(hiddenByStatus(member('B', '대학부', '', { status_note: '이주(방문자)', status_start: '2026-06-21', status_end: '2026-07-19' }), today)).toBe(true)
+  })
+  it('shows them again outside the span', () => {
+    expect(hiddenByStatus(member('A', '대학부', '', { status_note: '한국 귀국', status_start: '2026-07-12', status_end: null }), today)).toBe(false)
+    expect(hiddenByStatus(member('B', '대학부', '', { status_note: '이주', status_start: '2026-06-01', status_end: '2026-06-28' }), today)).toBe(false)
+  })
+  it('never hides other notes (돌아옴) or members without a status', () => {
+    expect(hiddenByStatus(member('C', '대학부', '', { status_note: '돌아옴', status_start: '2026-06-07', status_end: '2026-07-12' }), today)).toBe(false)
+    expect(hiddenByStatus(member('D', '대학부'), today)).toBe(false)
+  })
+  it('ignores a note without a start date (mirrors the 출석부 rule)', () => {
+    expect(hiddenByStatus(member('E', '대학부', '', { status_note: '이주' }), today)).toBe(false)
   })
 })

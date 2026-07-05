@@ -1,13 +1,18 @@
-import { useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate } from 'react-router-dom'
 import { useAdminAuth } from '../../stores/useAdminAuth'
-import { LoginGate } from '../admin/LoginGate'
+import { KioskGate } from './KioskGate'
 import { KioskView } from './KioskView'
 
-// The /kiosk route: the kiosk runs on a verified admin device, so gate on admin auth
-// (reusing the admin login). Exiting returns to the admin panel.
+// The /kiosk route, reachable straight from the landing page. Unauthenticated visitors
+// get the kiosk password gate, which only unlocks with the welcoming-team password
+// (role 'welcoming'). A session holding any other admin role is sent to the admin
+// panel instead — admins launch the kiosk from there (AdminApp's 키오스크 button),
+// and the read-only pastor role can't run a kiosk at all. Exiting returns to /admin.
 export function KioskShell() {
   const status = useAdminAuth((s) => s.status)
+  const role = useAdminAuth((s) => s.identity?.role)
   const navigate = useNavigate()
-  if (status !== 'authed') return <LoginGate />
+  if (status !== 'authed') return <KioskGate />
+  if (role !== 'welcoming') return <Navigate to="/admin" replace />
   return <KioskView onExit={() => navigate('/admin')} />
 }
