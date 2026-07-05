@@ -67,6 +67,9 @@
     "newMember": {
       "action": "✝️ 새가족 등록",
       "title": "새가족 등록",
+      "sectionPersonal": "인적 사항",
+      "sectionFaith": "신앙",
+      "sectionChurch": "등록 정보",
       "name": "이름",
       "group": "부서",
       "subgroup": "동산",
