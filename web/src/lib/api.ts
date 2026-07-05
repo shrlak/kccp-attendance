@@ -138,6 +138,10 @@ export interface Member {
   new_member_edu_week1?: boolean
   new_member_edu_week2?: boolean
   pastoral_visit_requested?: boolean
+  // 새가족 등록 카드 fields (stored on members; /api/roster returns them via select *).
+  baptism_status?: string
+  school_or_work?: string
+  faith_duration?: string
   is_staff?: boolean
   // 상태 표기 (master-sheet grey marks: 한국 귀국 / 이주 / 돌아옴 …). The 출석부 renders the
   // note as a grey cell spanning status_start → status_end (null = the term's last Sunday).

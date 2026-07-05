@@ -4,9 +4,11 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useRoster } from './useRoster'
 import { easternNow } from '../../lib/checkinWindow'
 import { filterMembers, NO_FILTER, type Filter } from './filters'
-import { semesterKey, newFamilyByDate, monthlyRegistrations } from './newFamily'
+import { semesterKey, newFamilyByDate, monthlyRegistrations, registeredOnDate } from './newFamily'
+import { exportNewFamilyCards } from './newFamilyCardImage'
 import { GroupFilter } from './GroupFilter'
 import { updateMember, type Member, type MemberEdit } from '../../lib/api'
+import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
 import { EditModal, AttendanceModal } from './MemberDialogs'
 
@@ -14,10 +16,12 @@ import { EditModal, AttendanceModal } from './MemberDialogs'
 // tracking, plus a monthly-registrations roll-up. Visible to every admin.
 export function AdminNewFamily() {
   const { t } = useTranslation()
+  const toast = useToast()
   const { data, isLoading, isError } = useRoster(true)
   const [filter, setFilter] = useState<Filter>(NO_FILTER)
   const [editing, setEditing] = useState<Member | null>(null)
   const [attendanceFor, setAttendanceFor] = useState<Member | null>(null)
+  const [exporting, setExporting] = useState(false)
 
   if (isLoading) return <p className="text-sm text-muted">{t('common.loading')}</p>
   if (isError) return <p className="text-sm text-danger">{t('common.error')}</p>
@@ -32,6 +36,28 @@ export function AdminNewFamily() {
   const year = semesterKey(today).split('-')[0]
   const readOnly = data.role === 'pastor'
 
+  // Export today's registrations as 등록 카드 images — one JPG with every card
+  // registered on the export date (kiosk-dialog layout, drawn on canvas).
+  async function exportCards() {
+    const todays = registeredOnDate(scopedMembers, today)
+    if (!todays.length) {
+      toast({ title: t('admin.newfamily.export.none'), tone: 'warn' })
+      return
+    }
+    setExporting(true)
+    try {
+      const { copied } = await exportNewFamilyCards(todays, today)
+      toast({
+        title: t(copied ? 'admin.newfamily.export.done' : 'admin.newfamily.export.downloadedOnly'),
+        tone: 'ok',
+      })
+    } catch {
+      toast({ title: t('admin.newfamily.export.failed'), tone: 'err' })
+    } finally {
+      setExporting(false)
+    }
+  }
+
   return (
     <>
       <GroupFilter members={data.members} value={filter} onChange={setFilter} />
@@ -43,6 +69,9 @@ export function AdminNewFamily() {
         <span className="font-mono text-xs uppercase tracking-wide text-subtle">
           {t('admin.newfamily.title')} · {total}
         </span>
+        <Button variant="secondary" size="sm" className="ml-auto" disabled={exporting} onClick={() => void exportCards()}>
+          {exporting ? t('admin.newfamily.export.busy') : t('admin.newfamily.export.action')}
+        </Button>
       </div>
 
       {dateGroups.length === 0 ? (
