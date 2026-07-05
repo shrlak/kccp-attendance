@@ -96,6 +96,26 @@ function truncate(ctx: CanvasRenderingContext2D, text: string, maxW: number): st
   return t + '…'
 }
 
+// Font size (px) that fits `text` within `maxW` at the given weight/family, starting
+// from `basePx` and shrinking down to `minPx` — long names get a smaller font instead
+// of an ellipsis. Text width scales linearly with font size, so one measurement at
+// `basePx` is enough. Leaves ctx.font set to the returned size.
+export function fitFontPx(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxW: number,
+  basePx: number,
+  minPx: number,
+  font: (px: number) => string,
+): number {
+  ctx.font = font(basePx)
+  const width = ctx.measureText(text).width
+  if (width <= maxW) return basePx
+  const px = Math.max(minPx, Math.floor((basePx * maxW) / width))
+  ctx.font = font(px)
+  return px
+}
+
 // Draw one 부서's 60-slot sheet onto a fresh canvas and return it.
 export function renderTodaySheet(group: string, entries: TodayRosterEntry[], date: string): HTMLCanvasElement {
   const accent = GROUP_ACCENT[group] ?? DEFAULT_ACCENT
@@ -147,12 +167,15 @@ export function renderTodaySheet(group: string, entries: TodayRosterEntry[], dat
       ctx.textAlign = 'center'
       ctx.font = '700 15px "Gowun Dodum", sans-serif'
       ctx.fillText(String(slot.num), x + NUM_W / 2, y + ROW_H / 2)
-      // Name cell (+ 새가족/방문자 icon)
+      // Name cell (+ 새가족/방문자 icon) — long names shrink to fit the cell (down to
+      // 11px); the ellipsis only kicks in if even the smallest size can't hold them.
       if (slot.name) {
         ctx.fillStyle = '#1f2937'
         ctx.textAlign = 'left'
-        ctx.font = '400 18px "Gowun Dodum", sans-serif'
-        ctx.fillText(truncate(ctx, slotLabel(slot.name, slot.tag), NAME_W - 22), x + NUM_W + 12, y + ROW_H / 2)
+        const label = slotLabel(slot.name, slot.tag)
+        const maxW = NAME_W - 22
+        fitFontPx(ctx, label, maxW, 18, 11, (px) => `400 ${px}px "Gowun Dodum", sans-serif`)
+        ctx.fillText(truncate(ctx, label, maxW), x + NUM_W + 12, y + ROW_H / 2)
       }
     }
   }
