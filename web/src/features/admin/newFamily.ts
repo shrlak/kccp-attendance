@@ -80,6 +80,14 @@ export function newFamilyByDate(members: Member[], today: string): DateGroup[] {
   return out
 }
 
+// 새가족 registered exactly on `date` — the set the 등록 카드 JPG export ships
+// ("export only the 새가족 registered at the date of the export"). Name-ordered.
+export function registeredOnDate(members: Member[], date: string): Member[] {
+  return members
+    .filter((m) => m.is_new_member && m.registration_date === date)
+    .sort((a, b) => a.name.localeCompare(b.name))
+}
+
 export interface MonthGroup {
   month: string // "YYYY-MM"
   members: Member[]

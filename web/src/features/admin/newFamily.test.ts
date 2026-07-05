@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { semesterKey, semesterBounds, semesterSundays, currentNewFamily, newFamilyByDate, monthlyRegistrations } from './newFamily'
+import { semesterKey, semesterBounds, semesterSundays, currentNewFamily, newFamilyByDate, monthlyRegistrations, registeredOnDate } from './newFamily'
 import type { Member } from '../../lib/api'
 
 const m = (id: string, isNew: boolean, reg: string | null): Member => ({
@@ -70,6 +70,22 @@ describe('newFamilyByDate', () => {
   })
   it('returns no groups when nothing is in scope', () => {
     expect(newFamilyByDate([m('old', true, '2026-02-01')], '2026-06-08')).toEqual([])
+  })
+})
+
+describe('registeredOnDate (등록 카드 export set)', () => {
+  const members = [
+    m('b-today', true, '2026-07-05'),
+    m('a-today', true, '2026-07-05'),
+    m('yesterday', true, '2026-07-04'),
+    m('undated', true, null),
+    m('not-new', false, '2026-07-05'), // registered today but not flagged 새가족
+  ]
+  it('keeps only 새가족 registered exactly on the export date, name-ordered', () => {
+    expect(registeredOnDate(members, '2026-07-05').map((x) => x.id)).toEqual(['a-today', 'b-today'])
+  })
+  it('returns empty when nobody registered that day', () => {
+    expect(registeredOnDate(members, '2026-07-06')).toEqual([])
   })
 })
 

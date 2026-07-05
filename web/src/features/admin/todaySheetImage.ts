@@ -185,12 +185,12 @@ export function renderTodaySheet(group: string, entries: TodayRosterEntry[], dat
   return canvas
 }
 
-function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality?: number): Promise<Blob | null> {
+export function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality?: number): Promise<Blob | null> {
   return new Promise((resolve) => canvas.toBlob(resolve, type, quality))
 }
 
 // Trigger a file download for a blob.
-function downloadBlob(blob: Blob, filename: string): void {
+export function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
@@ -202,8 +202,9 @@ function downloadBlob(blob: Blob, filename: string): void {
 }
 
 // Stack canvases vertically (centered) into one canvas, separated by `gap` px, on white.
-// Used to put both 부서 pages onto the clipboard as a single pasteable image.
-function combineVertical(canvases: HTMLCanvasElement[], gap: number): HTMLCanvasElement {
+// Used to put both 부서 pages onto the clipboard as a single pasteable image, and by the
+// 새가족 등록 카드 export to ship all of today's cards as one image.
+export function combineVertical(canvases: HTMLCanvasElement[], gap: number): HTMLCanvasElement {
   const width = Math.max(...canvases.map((c) => c.width))
   const height = canvases.reduce((h, c) => h + c.height, 0) + gap * Math.max(0, canvases.length - 1)
   const combined = document.createElement('canvas')
@@ -224,7 +225,7 @@ function combineVertical(canvases: HTMLCanvasElement[], gap: number): HTMLCanvas
 // Copy a single image to the clipboard. The async Clipboard API only reliably accepts
 // image/png on write, so the clipboard copy is always PNG (downloads stay JPG). Returns
 // false (no throw) when the browser can't do it — e.g. no API, or an insecure context.
-async function copyCanvasToClipboard(canvas: HTMLCanvasElement): Promise<boolean> {
+export async function copyCanvasToClipboard(canvas: HTMLCanvasElement): Promise<boolean> {
   if (typeof ClipboardItem === 'undefined' || !navigator.clipboard?.write) return false
   try {
     const blob = await canvasToBlob(canvas, 'image/png')
