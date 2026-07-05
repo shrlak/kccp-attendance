@@ -3,17 +3,19 @@ import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import { useRoster } from '../admin/useRoster'
 import { easternNow } from '../../lib/checkinWindow'
-import { memberCheckin, type Member } from '../../lib/api'
+import { memberCheckin, removeAttendance, type Member } from '../../lib/api'
 import {
   kioskColumns,
   filterByName,
   presentNamesToday,
   attendanceCount,
+  todayEntryFor,
+  hiddenByStatus,
   type KioskDept,
 } from './kiosk'
+import { useKioskLive, broadcastKioskChange } from './live'
 import { KioskGuestDialog } from './KioskGuestDialog'
 import { KioskNewMemberDialog } from './KioskNewMemberDialog'
-import { KioskExitDialog } from './KioskExitDialog'
 import { ThemeLangToggle } from '../../components/ui/ThemeLangToggle'
 
 const DEPT_STYLE: Record<KioskDept, { color: string; tile: string }> = {
@@ -30,15 +32,19 @@ export function KioskView({ onExit }: { onExit: () => void }) {
   const qc = useQueryClient()
   const { data, isLoading } = useRoster(true)
   const [search, setSearch] = useState('')
-  const [overlay, setOverlay] = useState<{ tone: 'loading' | 'ok' | 'already' | 'error'; name: string; detail?: string } | null>(null)
-  const [dialog, setDialog] = useState<'guest' | 'newMember' | 'exit' | null>(null)
+  const [overlay, setOverlay] = useState<{ tone: OverlayTone; name: string; detail?: string } | null>(null)
+  const [dialog, setDialog] = useState<'guest' | 'newMember' | null>(null)
   const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // 30-second roster auto-refresh; cleared on unmount (which includes exit).
+  // Live cross-device sync: other kiosks' check-ins/undos arrive as broadcast pings.
+  useKioskLive()
+
+  // 15-second roster auto-refresh as the fallback for changes made outside a kiosk
+  // (admin panel, self check-in); cleared on unmount (which includes exit).
   useEffect(() => {
     const id = setInterval(() => {
       void qc.invalidateQueries({ queryKey: ['roster'] })
-    }, 30_000)
+    }, 15_000)
     return () => clearInterval(id)
   }, [qc])
 
@@ -49,22 +55,32 @@ export function KioskView({ onExit }: { onExit: () => void }) {
   const log = data?.log ?? []
   const present = presentNamesToday(log, today)
   const count = attendanceCount(log, today)
-  const visible = filterByName(members, search)
+  // 이주/한국 귀국 members whose status covers today never show as tiles.
+  const visible = filterByName(members.filter((m) => !hiddenByStatus(m, today)), search)
   const cols = kioskColumns(visible)
   const hasAnyResult = cols.depts.some((d) => d.total > 0) || cols.others.length > 0
 
+  // Tiles toggle: tapping an unchecked member checks them in; tapping their green
+  // (already checked-in) tile undoes today's attendance entry.
   async function tap(m: Member) {
     if (dismissTimer.current) clearTimeout(dismissTimer.current)
+    const entry = present.has(m.name) ? todayEntryFor(log, today, m) : undefined
     setOverlay({ tone: 'loading', name: m.name })
     let hold = 1000
     try {
-      const res = await memberCheckin(m.id)
+      if (entry?.id != null) {
+        await removeAttendance(entry.id)
+        setOverlay({ tone: 'undone', name: m.name })
+      } else {
+        const res = await memberCheckin(m.id)
+        setOverlay(
+          res.status === 'already'
+            ? { tone: 'already', name: m.name }
+            : { tone: 'ok', name: m.name },
+        )
+      }
+      broadcastKioskChange()
       void qc.invalidateQueries({ queryKey: ['roster'] })
-      setOverlay(
-        res.status === 'already'
-          ? { tone: 'already', name: m.name }
-          : { tone: 'ok', name: m.name },
-      )
     } catch (e) {
       // A real failure (auth/network) — show it as an error, not a misleading "already".
       setOverlay({ tone: 'error', name: m.name, detail: (e as Error)?.message })
@@ -99,9 +115,11 @@ export function KioskView({ onExit }: { onExit: () => void }) {
         </div>
         <div className="flex items-center gap-1">
           <ThemeLangToggle />
+          {/* One-tap exit, no confirmation — leaving the /kiosk route signs the session
+              out to the landing page (KioskShell), so a stray tap costs one password entry. */}
           <button
             type="button"
-            onClick={() => setDialog('exit')}
+            onClick={onExit}
             className="min-h-11 rounded-md bg-surface px-4 text-sm font-semibold text-muted hover:bg-surface-alt"
           >
             {t('kiosk.exit')}
@@ -192,17 +210,25 @@ export function KioskView({ onExit }: { onExit: () => void }) {
 
       <KioskGuestDialog open={dialog === 'guest'} onClose={() => setDialog(null)} />
       <KioskNewMemberDialog open={dialog === 'newMember'} onClose={() => setDialog(null)} />
-      <KioskExitDialog open={dialog === 'exit'} onClose={() => setDialog(null)} onExit={onExit} />
     </div>
   )
 }
 
-// Full-screen feedback overlay: green check for success, amber for already, red for a
-// real failure (with the underlying reason so a broken kiosk is diagnosable on-screen).
-function SuccessOverlay({ tone, name, detail }: { tone: 'loading' | 'ok' | 'already' | 'error'; name: string; detail?: string }) {
+type OverlayTone = 'loading' | 'ok' | 'already' | 'undone' | 'error'
+
+// Full-screen feedback overlay: green check for success, amber for already, blue for an
+// undone check-in, red for a real failure (with the underlying reason so a broken kiosk
+// is diagnosable on-screen).
+function SuccessOverlay({ tone, name, detail }: { tone: OverlayTone; name: string; detail?: string }) {
   const { t } = useTranslation()
   const color =
-    tone === 'already' ? 'var(--warning)' : tone === 'error' ? 'var(--danger)' : 'var(--success)'
+    tone === 'already'
+      ? 'var(--warning)'
+      : tone === 'undone'
+        ? 'var(--info)'
+        : tone === 'error'
+          ? 'var(--danger)'
+          : 'var(--success)'
   return (
     <div
       role="status"
@@ -213,16 +239,18 @@ function SuccessOverlay({ tone, name, detail }: { tone: 'loading' | 'ok' | 'alre
         className="mb-5 flex h-28 w-28 items-center justify-center rounded-full text-5xl"
         style={{ background: `color-mix(in oklab, ${color} 16%, transparent)`, border: `2px solid ${color}` }}
       >
-        {tone === 'loading' ? '⏳' : tone === 'already' ? '📋' : tone === 'error' ? '⚠️' : '✓'}
+        {tone === 'loading' ? '⏳' : tone === 'already' ? '📋' : tone === 'undone' ? '↩️' : tone === 'error' ? '⚠️' : '✓'}
       </div>
       <div className="font-display text-2xl font-bold" style={{ color }}>
         {tone === 'loading'
           ? t('kiosk.loading')
           : tone === 'already'
             ? t('kiosk.already')
-            : tone === 'error'
-              ? t('kiosk.fail')
-              : t('kiosk.success')}
+            : tone === 'undone'
+              ? t('kiosk.undone')
+              : tone === 'error'
+                ? t('kiosk.fail')
+                : t('kiosk.success')}
       </div>
       <div className="mt-1 text-base font-medium text-text">{name}</div>
       {tone === 'error' && detail && <div className="mt-2 max-w-xs text-xs text-muted">{detail}</div>}

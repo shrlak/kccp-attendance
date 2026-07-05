@@ -151,6 +151,14 @@ export function CheckinScreen() {
             ) : (
               <p className="fx-rise text-xs text-subtle">{t('landing.kioskNote')}</p>
             )}
+            {/* Kiosk entry for the church tablet — gated behind the welcoming-team
+                password at /kiosk (KioskGate), so it's safe to surface publicly. */}
+            <Link
+              to="/kiosk"
+              className="fx-rise inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-border bg-surface px-5 py-2.5 text-sm font-semibold text-text transition-colors hover:bg-surface-alt"
+            >
+              🖥️ {t('landing.kioskButton')}
+            </Link>
           </div>
         </>
       )}

@@ -47,7 +47,8 @@
   "landing": {
     "title": "KCCP 출석 시스템",
     "subtitle": "피츠버그 한인중앙교회 · 대학청년부",
-    "kioskNote": "출석은 교회 키오스크에서 진행됩니다"
+    "kioskNote": "출석은 교회 키오스크에서 진행됩니다",
+    "kioskButton": "출석 키오스크"
   },
   "kiosk": {
     "title": "출석 키오스크",
@@ -61,7 +62,15 @@
     "loading": "처리 중...",
     "success": "출석 완료!",
     "already": "이미 출석했습니다",
+    "undone": "출석이 취소되었습니다",
     "fail": "출석에 실패했습니다",
+    "gate": {
+      "title": "출석 키오스크",
+      "subtitle": "새가족팀 비밀번호를 입력해주세요",
+      "passwordPlaceholder": "키오스크 비밀번호",
+      "submit": "키오스크 시작",
+      "wrong": "비밀번호가 올바르지 않습니다"
+    },
     "total": "총 {{n}}회",
     "guest": { "action": "👋 방문자 체크인", "title": "방문자 체크인", "namePlaceholder": "방문자 이름", "submit": "체크인", "done": "{{name}} 체크인되었습니다", "already": "{{name}} 님은 이미 체크인했습니다" },
     "newMember": {
@@ -85,8 +94,7 @@
       "submit": "등록 후 출석",
       "done": "{{name}} 새가족 등록 완료",
       "nameRequired": "이름과 부서를 입력해주세요"
-    },
-    "exitModal": { "title": "키오스크 나가기", "passwordPlaceholder": "관리자 비밀번호", "submit": "나가기", "wrong": "비밀번호가 올바르지 않습니다" }
+    }
   },
   "common": { "cancel": "취소", "save": "저장", "loading": "불러오는 중…", "error": "연결 오류", "retry": "다시 시도", "close": "닫기" },
   "notFound": { "message": "페이지를 찾을 수 없습니다", "home": "홈으로 돌아가기" },
