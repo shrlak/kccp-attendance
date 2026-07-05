@@ -3,13 +3,14 @@
 // Two auth paths, tried in order by resolveAdmin():
 //   1. Google JWT (Bearer token): email → members.email → member_roles → role/scope.
 //   2. Break-glass: a shared team password alone — works on ANY device, registered or not.
-//      There are two passwords, each landing on a different dashboard:
-//        • LEADER_PASSWORD     → "leader"    role (리더 dashboard)
-//        • WELCOMING_PASSWORD  → "welcoming" role (새가족팀 dashboard)
+//      There are three passwords, each landing on a different dashboard:
+//        • SUPER_PASSWORD      → "super_admin" role (full panel: settings, admins, backup…)
+//        • LEADER_PASSWORD     → "leader"      role (리더 dashboard)
+//        • WELCOMING_PASSWORD  → "welcoming"   role (새가족팀 dashboard)
 //      A device that happens to be linked to a roled member keeps that member's scope;
-//      otherwise the login gets the password's break-glass role. Break-glass leader/
-//      welcoming logins see the whole roster (a shared password can't pin to one 동산) but
-//      have NO super_admin powers (settings, admin management, 동산지기/임원, backup).
+//      otherwise the login gets the password's break-glass role. All three see the whole
+//      roster (a shared password can't pin to one 동산); only SUPER_PASSWORD grants the
+//      super_admin powers (settings, admin management, 동산지기/임원, backup).
 // Public check-in stays anonymous and PII-free.
 //
 // Wired into index.ts (imports resolveAdmin + scopeFilter) and unit-tested (auth.test.ts).
@@ -20,8 +21,10 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 //  SHARED TEAM PASSWORDS — change these lines to rotate them (or set the matching env
 //  vars to override without editing code). Each grants admin access from ANY device and
 //  lands on its own dashboard, so treat them as secrets and rotate if leaked:
+//    • SUPER_PASSWORD     → the full super-admin panel
 //    • LEADER_PASSWORD    → the 리더(leader) dashboard
 //    • WELCOMING_PASSWORD → the 새가족팀(welcoming) dashboard
+export const SUPER_PASSWORD = Deno.env.get("SUPER_PASSWORD") ?? "kccpadmin";
 export const LEADER_PASSWORD = Deno.env.get("LEADER_PASSWORD") ?? "kccpleaders";
 export const WELCOMING_PASSWORD =
   Deno.env.get("WELCOMING_PASSWORD") ?? Deno.env.get("MASTER_PASSWORD") ?? "kccpwelcome";
@@ -31,10 +34,13 @@ export const MASTER_PASSWORD = WELCOMING_PASSWORD;
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Map a typed password to the break-glass role it grants, or null if it matches none.
-// Leader is checked first so it wins if both passwords are (mis)configured identically.
-export function passwordRole(password: string): "leader" | "welcoming" | null {
-  if (password && password === LEADER_PASSWORD) return "leader";
-  if (password && password === WELCOMING_PASSWORD) return "welcoming";
+// Checked super → leader → welcoming so the higher-privilege match wins if two passwords
+// are (mis)configured identically.
+export function passwordRole(password: string): "super_admin" | "leader" | "welcoming" | null {
+  if (!password) return null;
+  if (password === SUPER_PASSWORD) return "super_admin";
+  if (password === LEADER_PASSWORD) return "leader";
+  if (password === WELCOMING_PASSWORD) return "welcoming";
   return null;
 }
 
@@ -88,9 +94,9 @@ type SB = ReturnType<typeof createClient>;
 // from ANY device — no registration required and the device id is irrelevant (so staff can
 // sign in from a phone, a borrowed laptop, a fresh browser, etc.). If the device happens to
 // be a personal one linked to a member who holds a scoped role, that member's scope is
-// preserved; otherwise the login gets the role the password maps to (LEADER_PASSWORD →
-// "leader", WELCOMING_PASSWORD → "welcoming"), with full-roster visibility and day-to-day
-// writes but no super_admin powers. Returns null only when the password matches neither.
+// preserved; otherwise the login gets the role the password maps to (SUPER_PASSWORD →
+// "super_admin", LEADER_PASSWORD → "leader", WELCOMING_PASSWORD → "welcoming"), all with
+// full-roster visibility. Returns null only when the password matches none of the three.
 export async function verifyAdmin(sb: SB, deviceId: string, password: string): Promise<Role | null> {
   const bgRole = passwordRole(password);
   if (!bgRole) return null;
@@ -112,10 +118,11 @@ export async function verifyAdmin(sb: SB, deviceId: string, password: string): P
     }
   }
   // Break-glass: correct team password on a device with no linked admin role → the role the
-  // password maps to ("leader" or "welcoming"), all-roster, non-super. memberId is empty (no
-  // member to attribute) — safe because every memberId lookup downstream is gated behind a
-  // non-super_admin role check, and an empty-memberId leader/welcoming is all-access in
-  // scopeFilter so scope checks never filter it.
+  // password maps to ("super_admin", "leader", or "welcoming"), all-roster. memberId is
+  // empty (no member to attribute) — safe because every role.memberId lookup downstream is
+  // gated behind a leader/welcoming/staff role check (super_admin paths key off role.role
+  // and audit via the device id), and super_admin / empty-memberId leader/welcoming are all
+  // all-access in scopeFilter so scope checks never filter them.
   return { memberId: "", role: bgRole, group: "", subgroup: "", ministry: "" };
 }
 

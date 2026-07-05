@@ -98,6 +98,17 @@ describe('AdminApp nav rail', () => {
     expect(screen.getByText(/운영진/)).toBeInTheDocument()
   })
 
+  it('break-glass super password lands on the full panel (super-only tabs visible)', () => {
+    useAdminAuth.setState({
+      status: 'authed',
+      identity: { role: 'super_admin', group: '', subgroup: '', ministry: '' },
+    })
+    renderApp()
+    for (const name of ['오늘', '출석부', '멤버', '통계', '새가족', '기기', '관리자', '동산', '임원', '설정']) {
+      expect(screen.getByRole('button', { name })).toBeInTheDocument()
+    }
+  })
+
   it('break-glass leader password lands on the 리더 dashboard (all-roster, no super tabs)', () => {
     useAdminAuth.setState({
       status: 'authed',
