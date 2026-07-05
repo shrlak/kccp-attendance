@@ -60,6 +60,9 @@ export function EditModal({
     kakaoId: member.kakao_id,
     birthDate: member.birth_date,
     notes: member.notes,
+    statusNote: member.status_note ?? '',
+    statusStart: member.status_start ?? null,
+    statusEnd: member.status_end ?? null,
   })
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -147,6 +150,17 @@ export function EditModal({
           <input type="checkbox" checked={f.isNewMember ?? false} onChange={(e) => set('isNewMember', e.target.checked)} />
           {t('admin.members.isNewMember')}
         </label>
+        {/* 상태 표기: the 출석부 shows this as a grey cell from the start date to the end
+            date (or the term's end) instead of O/X — e.g. 한국 귀국, 이주(방문자), 돌아옴. */}
+        <Field label={t('admin.members.statusNote')}>
+          <Input value={f.statusNote ?? ''} onChange={(e) => set('statusNote', e.target.value)} />
+        </Field>
+        <Field label={t('admin.members.statusStart')}>
+          <Input type="date" value={f.statusStart ?? ''} onChange={(e) => set('statusStart', e.target.value)} />
+        </Field>
+        <Field label={t('admin.members.statusEnd')}>
+          <Input type="date" value={f.statusEnd ?? ''} onChange={(e) => set('statusEnd', e.target.value)} />
+        </Field>
       </div>
       <div className="mt-4 flex gap-2">
         <Button variant="secondary" onClick={onAttendance} className="flex-1">

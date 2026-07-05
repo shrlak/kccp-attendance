@@ -139,6 +139,11 @@ export interface Member {
   new_member_edu_week2?: boolean
   pastoral_visit_requested?: boolean
   is_staff?: boolean
+  // 상태 표기 (master-sheet grey marks: 한국 귀국 / 이주 / 돌아옴 …). The 출석부 renders the
+  // note as a grey cell spanning status_start → status_end (null = the term's last Sunday).
+  status_note?: string
+  status_start?: string | null
+  status_end?: string | null
 }
 
 export interface LogEntry {
@@ -328,6 +333,9 @@ export interface MemberEdit {
   registrationDate?: string | null
   newMemberEduWeek1?: boolean
   newMemberEduWeek2?: boolean
+  statusNote?: string
+  statusStart?: string | null
+  statusEnd?: string | null
 }
 
 // Edit a member (scoped server-side: leaders only their 동산; pastor read-only).

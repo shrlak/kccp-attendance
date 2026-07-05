@@ -91,11 +91,23 @@ export interface SheetData {
   fills: CellFill[]
 }
 
-// One member row inside an attendance block: their attended dates (by name) and the count
-// of *shown* dates they attended (예배 총 출석).
+// How one member × date cell renders, master-sheet style. 'note' opens a grey marked-out
+// run (한국 귀국 / 이주 / 돌아옴 / 새가족 …) spanning `span` columns; the covered cells that
+// follow are 'inNote' so renderers can merge them. 'blank' = pre-등록일자, upcoming, or a
+// date the 동산 has no data for yet.
+export type CellMark =
+  | { kind: 'present' }
+  | { kind: 'absent' }
+  | { kind: 'blank' }
+  | { kind: 'note'; note: string; span: number }
+  | { kind: 'inNote' }
+
+// One member row inside an attendance block: their attended dates (by name), per-date cell
+// marks, and the count of shown dates they attended (예배 총 출석).
 export interface AttendanceMemberRow {
   member: Member
   present: Set<string>
+  marks: CellMark[]
   total: number
 }
 
@@ -105,10 +117,21 @@ export function beforeRegistration(m: Member, date: string): boolean {
   return !!m.registration_date && date < m.registration_date
 }
 
+// The member's stored status mark (한국 귀국 등) if it covers `date`: from status_start
+// through status_end, or open-ended (through the last shown Sunday) when status_end is null.
+function statusNote(m: Member, date: string): string | null {
+  if (!m.status_note || !m.status_start) return null
+  if (date < m.status_start) return null
+  if (m.status_end && date > m.status_end) return null
+  return m.status_note
+}
+
 export interface AttendanceSection {
   subgroup: string
   rows: AttendanceMemberRow[]
-  totals: number[] // present count per shown date
+  // Present count per shown date; '' when the date is upcoming or the 동산 has no data
+  // for it yet (attendance not taken) — the column stays blank until data comes in.
+  totals: (number | '')[]
 }
 
 export interface AttendanceModel {
@@ -117,14 +140,23 @@ export interface AttendanceModel {
   sections: AttendanceSection[]
 }
 
-// Shared spine of the Excel sheet and the PDF report: the roster split into 동산 blocks and
-// scored against an explicit list of `dates` (the current semester's Sundays). Members without
-// a 동산 bucket last, under `unassigned`. Roster order is preserved.
+export interface AttendanceLabels {
+  unassigned: string
+  newFamily: string // 새가족 — the derived pre-registration note for new members
+}
+
+// Shared spine of the Excel sheet, the PDF report and the on-screen grid: the roster split
+// into 동산 blocks and scored against an explicit list of `dates` (the current semester's
+// Sundays). Members without a 동산 bucket last, under `unassigned`. Roster order is preserved.
+// `today` drives the blank-until-data rules: upcoming Sundays and Sundays where the 동산 has
+// no check-ins yet render blank (no O/X) — so e.g. today's column stays empty until the
+// afternoon's check-ins actually land — while status-mark spans render even across them.
 export function buildAttendanceModel(
   members: Member[],
   log: LogEntry[],
   dates: string[],
-  unassigned: string,
+  today: string,
+  labels: AttendanceLabels,
 ): AttendanceModel {
   // name -> every date that name attended (the denormalized log carries the name).
   const attended = new Map<string, Set<string>>()
@@ -138,23 +170,54 @@ export function buildAttendanceModel(
   }
 
   const order: string[] = []
-  const byKey = new Map<string, AttendanceMemberRow[]>()
+  const byKey = new Map<string, Member[]>()
   for (const m of members) {
-    const present = attended.get(m.name) ?? new Set<string>()
-    const total = dates.reduce((n, d) => n + (!beforeRegistration(m, d) && present.has(d) ? 1 : 0), 0)
-    const key = m.subgroup || unassigned
+    const key = m.subgroup || labels.unassigned
     let bucket = byKey.get(key)
     if (!bucket) {
       bucket = []
       byKey.set(key, bucket)
       order.push(key)
     }
-    bucket.push({ member: m, present, total })
+    bucket.push(m)
   }
 
   const sections = order.map((subgroup) => {
-    const rows = byKey.get(subgroup)!
-    const totals = dates.map((d) => rows.reduce((n, r) => n + (r.present.has(d) ? 1 : 0), 0))
+    const sectionMembers = byKey.get(subgroup)!
+    const presents = sectionMembers.map((m) => attended.get(m.name) ?? new Set<string>())
+    // A date with zero check-ins across the 동산 = attendance not taken (yet) → blank column.
+    const hasData = dates.map((d) => presents.some((p) => p.has(d)))
+
+    const rows: AttendanceMemberRow[] = sectionMembers.map((m, mi) => {
+      const present = presents[mi]
+      const marks: CellMark[] = dates.map((d, di) => {
+        const note = statusNote(m, d) ?? (m.is_new_member && beforeRegistration(m, d) ? labels.newFamily : null)
+        if (note) return { kind: 'note', note, span: 1 }
+        if (beforeRegistration(m, d)) return { kind: 'blank' }
+        if (isFutureDate(d, today) || !hasData[di]) return { kind: 'blank' }
+        return present.has(d) ? { kind: 'present' } : { kind: 'absent' }
+      })
+      // Coalesce consecutive same-note cells into one span (the master sheet's merged grey cell).
+      for (let i = 0; i < marks.length; i++) {
+        const head = marks[i]
+        if (head.kind !== 'note') continue
+        let j = i + 1
+        while (j < marks.length) {
+          const next = marks[j]
+          if (next.kind !== 'note' || next.note !== head.note) break
+          marks[j] = { kind: 'inNote' }
+          j++
+        }
+        head.span = j - i
+        i = j - 1
+      }
+      const total = marks.reduce((n, c) => n + (c.kind === 'present' ? 1 : 0), 0)
+      return { member: m, present, marks, total }
+    })
+
+    const totals = dates.map((d, i): number | '' =>
+      isFutureDate(d, today) || !hasData[i] ? '' : rows.reduce((n, r) => n + (r.marks[i].kind === 'present' ? 1 : 0), 0),
+    )
     return { subgroup, rows, totals }
   })
   return { dates, dateLabels: dates.map(formatGridDate), sections }
@@ -186,6 +249,7 @@ const COLOR_FAMILIES: BlockColors[] = [
 ]
 export const HEADER_TOTAL_FILL = 'FFEAD1DC' // 예배 총 출석 column header
 export const KEY_FILL = 'FF76A5AF' // KEY legend label
+export const NOTE_FILL = 'FFCCCCCC' // grey marked-out status cells (한국 귀국 / 이주 / 새가족 / 기타)
 
 // The color family for the nth 동산 block (cycles through the palette).
 export function blockColors(index: number): BlockColors {
@@ -199,18 +263,19 @@ export function cssColor(argb: string): string {
 
 // Sheet 1 - "Attendance". Reproduces the church's legacy spreadsheet: members are split
 // into 동산 (subgroup) blocks; each block has a single date-header row, O = present / X =
-// absent cells, a per-member 예배 총 출석 count and a 총 출석 totals row. A KEY legend
-// (O 출석 / X 결석) closes the sheet. Date columns are the term's worship Sundays through
-// `today` (see exportSundays — the summer term starts at the 동산 formation date; the
-// original's 동산모임 column is dropped, the system only records 예배 worship check-ins).
-// Returns the array-of-rows, the 총 출석 cell-merges and the per-동산 header fills (ARGB).
+// absent cells — with status marks (한국 귀국 / 이주 / 새가족 …) as grey merged note cells,
+// exactly like the master sheet — a per-member 예배 총 출석 count and a 총 출석 totals row.
+// A KEY legend (O 출석 / X 결석 / grey 기타) closes the sheet. Date columns are the term's
+// worship Sundays (see exportSundays — the summer term starts at the 동산 formation date;
+// the original's 동산모임 column is dropped, the system only records 예배 worship check-ins).
+// Returns the array-of-rows, the cell-merges and the header/note fills (ARGB).
 export function gridSheet(members: Member[], log: LogEntry[], lang: Lang, today: string): SheetData {
   const L =
     lang === 'ko'
-      ? { name: '이름', memberTotal: '예배 총 출석', total: '총 출석', key: 'KEY', present: '출석', absent: '결석', unassigned: '동산 미지정' }
-      : { name: 'Name', memberTotal: 'Worship Total', total: 'Total', key: 'KEY', present: 'Present', absent: 'Absent', unassigned: 'Unassigned' }
+      ? { name: '이름', memberTotal: '예배 총 출석', total: '총 출석', key: 'KEY', present: '출석', absent: '결석', etc: '기타', unassigned: '동산 미지정', newFamily: '새가족' }
+      : { name: 'Name', memberTotal: 'Worship Total', total: 'Total', key: 'KEY', present: 'Present', absent: 'Absent', etc: 'Other', unassigned: 'Unassigned', newFamily: 'New family' }
 
-  const model = buildAttendanceModel(members, log, exportSundays(today), L.unassigned)
+  const model = buildAttendanceModel(members, log, exportSundays(today), today, { unassigned: L.unassigned, newFamily: L.newFamily })
   const nDates = model.dates.length
 
   const aoa: (string | number)[][] = []
@@ -234,31 +299,34 @@ export function gridSheet(members: Member[], log: LogEntry[], lang: Lang, today:
     // Member rows - 동산 name sits in column A of the first member (as in the sample).
     const firstMemberRow = aoa.length
     section.rows.forEach((r, i) => {
+      const rowAt = aoa.length
       aoa.push([
         i === 0 ? section.subgroup : '',
         r.member.name,
         r.total,
-        // Pre-등록일자 dates (member not yet registered) and upcoming Sundays are blank — no O/X.
-        ...model.dates.map((d) =>
-          beforeRegistration(r.member, d) || isFutureDate(d, today) ? '' : r.present.has(d) ? 'O' : 'X',
-        ),
+        ...r.marks.map((c) => (c.kind === 'present' ? 'O' : c.kind === 'absent' ? 'X' : c.kind === 'note' ? c.note : '')),
       ])
+      // Status marks: one grey cell merged across the dates the note covers.
+      r.marks.forEach((c, di) => {
+        if (c.kind !== 'note') return
+        if (c.span > 1) merges.push({ s: { r: rowAt, c: 3 + di }, e: { r: rowAt, c: 3 + di + c.span - 1 } })
+        for (let k = 0; k < c.span; k++) fills.push({ r: rowAt, c: 3 + di + k, rgb: NOTE_FILL })
+      })
     })
     if (section.rows.length) fills.push({ r: firstMemberRow, c: 0, rgb: medium }) // 동산 name cell
 
     aoa.push([]) // blank spacer before the totals row
     const totalsAt = aoa.length
-    // 총 출석: present count per date; upcoming Sundays stay blank until they pass.
-    const totals = model.dates.map((d, i) => (isFutureDate(d, today) ? '' : section.totals[i]))
-    aoa.push([L.total, '', '', ...totals])
+    // 총 출석: present count per date; upcoming / no-data-yet Sundays stay blank.
+    aoa.push([L.total, '', '', ...section.totals])
     merges.push({ s: { r: totalsAt, c: 0 }, e: { r: totalsAt, c: 1 } }) // 총 출석 label spans A:B
     fills.push({ r: totalsAt, c: 0, rgb: medium }, { r: totalsAt, c: 1, rgb: medium })
   })
 
-  // KEY legend: O = 출석, X = 결석.
+  // KEY legend: O = 출석, X = 결석, grey = 기타 (status marks).
   const keyRow = aoa.length + 2
-  aoa.push([], [], [L.key], ['O', L.present], ['X', L.absent])
-  fills.push({ r: keyRow, c: 0, rgb: KEY_FILL })
+  aoa.push([], [], [L.key], ['O', L.present], ['X', L.absent], ['', L.etc])
+  fills.push({ r: keyRow, c: 0, rgb: KEY_FILL }, { r: keyRow + 3, c: 0, rgb: NOTE_FILL })
 
   return { aoa, merges, fills }
 }
@@ -392,10 +460,10 @@ export function reportHtml(members: Member[], log: LogEntry[], opts: ReportOpts)
   const { lang } = opts
   const L =
     lang === 'ko'
-      ? { title: 'KCCP 출석부', name: '이름', memberTotal: '예배 총 출석', total: '총 출석', key: 'KEY', present: '출석', absent: '결석', unassigned: '동산 미지정', save: 'PDF로 저장', empty: '출석 기록이 없습니다' }
-      : { title: 'KCCP Attendance', name: 'Name', memberTotal: 'Worship Total', total: 'Total', key: 'KEY', present: 'Present', absent: 'Absent', unassigned: 'Unassigned', save: 'Save as PDF', empty: 'No attendance records' }
+      ? { title: 'KCCP 출석부', name: '이름', memberTotal: '예배 총 출석', total: '총 출석', key: 'KEY', present: '출석', absent: '결석', etc: '기타', unassigned: '동산 미지정', newFamily: '새가족', save: 'PDF로 저장', empty: '출석 기록이 없습니다' }
+      : { title: 'KCCP Attendance', name: 'Name', memberTotal: 'Worship Total', total: 'Total', key: 'KEY', present: 'Present', absent: 'Absent', etc: 'Other', unassigned: 'Unassigned', newFamily: 'New family', save: 'Save as PDF', empty: 'No attendance records' }
 
-  const model = buildAttendanceModel(members, log, exportSundays(opts.today), L.unassigned)
+  const model = buildAttendanceModel(members, log, exportSundays(opts.today), opts.today, { unassigned: L.unassigned, newFamily: L.newFamily })
   const pink = cssColor(HEADER_TOTAL_FILL)
 
   const blocks = model.sections
@@ -406,21 +474,19 @@ export function reportHtml(members: Member[], log: LogEntry[], opts: ReportOpts)
       const dateHead = model.dateLabels.map((d) => `<th style="background:${medium}">${escapeHtml(d)}</th>`).join('')
       const rows = s.rows
         .map((r) => {
-          const cells = model.dates
-            .map((d) =>
-              beforeRegistration(r.member, d) || isFutureDate(d, opts.today)
-                ? '<td></td>'
-                : r.present.has(d)
-                  ? '<td class="o">O</td>'
-                  : '<td class="x">X</td>',
-            )
+          const cells = r.marks
+            .map((c) => {
+              if (c.kind === 'note') return `<td class="etc" colspan="${c.span}">${escapeHtml(c.note)}</td>`
+              if (c.kind === 'inNote') return ''
+              if (c.kind === 'present') return '<td class="o">O</td>'
+              if (c.kind === 'absent') return '<td class="x">X</td>'
+              return '<td></td>'
+            })
             .join('')
           return `<tr><td class="name">${escapeHtml(r.member.name)}</td><td class="num">${r.total}</td>${cells}</tr>`
         })
         .join('')
-      const totals = model.dates
-        .map((d, i) => `<td class="num">${isFutureDate(d, opts.today) ? '' : s.totals[i]}</td>`)
-        .join('')
+      const totals = s.totals.map((n) => `<td class="num">${n}</td>`).join('')
       return `<section class="block">
   <h2 style="background:${medium}">${escapeHtml(s.subgroup)}</h2>
   <table>
@@ -456,6 +522,7 @@ export function reportHtml(members: Member[], log: LogEntry[], opts: ReportOpts)
   td.num, th.num { font-weight: 700; }
   td.o { color: #16a34a; font-weight: 700; }
   td.x { color: #dc2626; }
+  td.etc { background: #CCCCCC; }
   td.total { text-align: left; font-weight: 700; }
   tfoot td.num { background: #fff; }
   tr { break-inside: avoid; }
@@ -473,7 +540,7 @@ export function reportHtml(members: Member[], log: LogEntry[], opts: ReportOpts)
   <h1>${escapeHtml(L.title)}</h1>
   <div class="sub">${escapeHtml(semesterLabel(opts.today, lang))} · ${escapeHtml(formatHeaderDate(opts.today, lang))} · ${escapeHtml(filterLabel(opts.group, opts.subgroup, lang))}</div>
   ${content}
-  <div class="key"><b class="kchip" style="background:${cssColor(KEY_FILL)}">${escapeHtml(L.key)}</b><span><b>O</b> ${escapeHtml(L.present)}</span><span><b>X</b> ${escapeHtml(L.absent)}</span></div>
+  <div class="key"><b class="kchip" style="background:${cssColor(KEY_FILL)}">${escapeHtml(L.key)}</b><span><b>O</b> ${escapeHtml(L.present)}</span><span><b>X</b> ${escapeHtml(L.absent)}</span><span><b class="kchip" style="background:${cssColor(NOTE_FILL)};color:#1f2937">&nbsp;&nbsp;&nbsp;</b> ${escapeHtml(L.etc)}</span></div>
   <script>window.addEventListener('load', function () { setTimeout(function () { window.print() }, 350) })</script>
 </body>
 </html>`

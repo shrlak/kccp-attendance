@@ -6,13 +6,12 @@ import {
   buildAttendanceModel,
   blockColors,
   cssColor,
-  beforeRegistration,
-  isFutureDate,
   exportSundays,
   semesterLabel,
   filterLabel,
   HEADER_TOTAL_FILL,
   KEY_FILL,
+  NOTE_FILL,
   type Lang,
 } from './exports'
 import { addBulkAttendance, clearAttendance, type LogEntry, type Member, type RosterResponse } from '../../lib/api'
@@ -232,20 +231,22 @@ function BulkModal({ data, onClose }: { data: RosterResponse; onClose: () => voi
 
 // On-screen 출석부: an exact preview of the exported "Attendance" sheet. Members are split
 // into color-coded 동산 blocks (green → blue → yellow → red), each a single date-header row
-// over O = 출석 (green) / X = 결석 (red) cells, a per-member 예배 총 출석 count and a 총 출석
-// totals row, closed by the KEY legend — see exports.ts (gridSheet / reportHtml) for the
-// shared spine. Date columns are the term's worship Sundays through `today`.
+// over O = 출석 (green) / X = 결석 (red) cells — status marks (한국 귀국 / 이주 / 새가족 …)
+// render as grey cells spanning the dates they cover, like the master sheet — a per-member
+// 예배 총 출석 count and a 총 출석 totals row, closed by the KEY legend — see exports.ts
+// (gridSheet / reportHtml) for the shared spine. Date columns are the term's worship Sundays.
 const CELL = 'whitespace-nowrap border border-[#b7b7b7] px-2 py-1'
 const DARK = '#1f2937'
 
 function GridView({ members, log, lang, today, filter }: { members: Member[]; log: LogEntry[]; lang: Lang; today: string; filter: Filter }) {
   const L =
     lang === 'ko'
-      ? { name: '이름', memberTotal: '예배 총 출석', total: '총 출석', key: 'KEY', present: '출석', absent: '결석', unassigned: '동산 미지정', empty: '출석 기록이 없습니다' }
-      : { name: 'Name', memberTotal: 'Worship Total', total: 'Total', key: 'KEY', present: 'Present', absent: 'Absent', unassigned: 'Unassigned', empty: 'No attendance records' }
+      ? { name: '이름', memberTotal: '예배 총 출석', total: '총 출석', key: 'KEY', present: '출석', absent: '결석', etc: '기타', unassigned: '동산 미지정', newFamily: '새가족', empty: '출석 기록이 없습니다' }
+      : { name: 'Name', memberTotal: 'Worship Total', total: 'Total', key: 'KEY', present: 'Present', absent: 'Absent', etc: 'Other', unassigned: 'Unassigned', newFamily: 'New family', empty: 'No attendance records' }
 
-  const model = buildAttendanceModel(members, log, exportSundays(today), L.unassigned)
+  const model = buildAttendanceModel(members, log, exportSundays(today), today, { unassigned: L.unassigned, newFamily: L.newFamily })
   const pink = cssColor(HEADER_TOTAL_FILL)
+  const grey = cssColor(NOTE_FILL)
 
   if (model.sections.length === 0) return <p className="text-sm text-muted">{L.empty}</p>
 
@@ -279,10 +280,19 @@ function GridView({ members, log, lang, today, filter }: { members: Member[]; lo
                     <tr key={r.member.id}>
                       <td className={`${CELL} bg-white text-left font-medium`}>{r.member.name}</td>
                       <td className={`${CELL} bg-white text-center font-bold`}>{r.total}</td>
-                      {model.dates.map((d) => {
-                        // Pre-등록일자 and upcoming Sundays render blank (fill in as dates pass).
-                        if (beforeRegistration(r.member, d) || isFutureDate(d, today)) return <td key={d} className={`${CELL} bg-white`} />
-                        const here = r.present.has(d)
+                      {r.marks.map((c, di) => {
+                        const d = model.dates[di]
+                        // Status marks: one grey cell spanning the covered dates (master-sheet style).
+                        if (c.kind === 'note')
+                          return (
+                            <td key={d} colSpan={c.span} className={`${CELL} text-center`} style={{ background: grey }}>
+                              {c.note}
+                            </td>
+                          )
+                        if (c.kind === 'inNote') return null
+                        // Pre-등록일자, upcoming Sundays and not-yet-entered dates render blank.
+                        if (c.kind === 'blank') return <td key={d} className={`${CELL} bg-white`} />
+                        const here = c.kind === 'present'
                         return (
                           <td
                             key={d}
@@ -300,7 +310,7 @@ function GridView({ members, log, lang, today, filter }: { members: Member[]; lo
                     <td colSpan={2} className={`${CELL} text-left font-bold`} style={{ background: medium }}>{L.total}</td>
                     {model.dates.map((d, i) => (
                       <td key={d} className={`${CELL} bg-white text-center font-bold`}>
-                        {isFutureDate(d, today) ? '' : s.totals[i]}
+                        {s.totals[i]}
                       </td>
                     ))}
                   </tr>
@@ -314,6 +324,10 @@ function GridView({ members, log, lang, today, filter }: { members: Member[]; lo
         <b className="rounded px-2.5 py-0.5 text-white" style={{ background: cssColor(KEY_FILL) }}>{L.key}</b>
         <span><b>O</b> {L.present}</span>
         <span><b>X</b> {L.absent}</span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block h-3.5 w-5 rounded-sm" style={{ background: grey }} />
+          {L.etc}
+        </span>
       </div>
     </div>
   )
