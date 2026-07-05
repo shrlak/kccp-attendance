@@ -481,9 +481,10 @@ Deno.serve(async (req: Request) => {
           if(scope.subgroup&&m.subgroup!==scope.subgroup) return fail(403,"Out of scope");
         }
       }
-      const COLS: Record<string,string>={name:"name",group:"group_name",subgroup:"subgroup",notes:"notes",memberRole:"member_role",gender:"gender",phone:"phone",birthDate:"birth_date",baptismStatus:"baptism_status",schoolOrWork:"school_or_work",faithDuration:"faith_duration",registrationDate:"registration_date",pastoralVisitRequested:"pastoral_visit_requested",isNewMember:"is_new_member",newMemberEduWeek1:"new_member_edu_week1",newMemberEduWeek2:"new_member_edu_week2",kakaoId:"kakao_id"};
+      const COLS: Record<string,string>={name:"name",group:"group_name",subgroup:"subgroup",notes:"notes",memberRole:"member_role",gender:"gender",phone:"phone",birthDate:"birth_date",baptismStatus:"baptism_status",schoolOrWork:"school_or_work",faithDuration:"faith_duration",registrationDate:"registration_date",pastoralVisitRequested:"pastoral_visit_requested",isNewMember:"is_new_member",newMemberEduWeek1:"new_member_edu_week1",newMemberEduWeek2:"new_member_edu_week2",kakaoId:"kakao_id",statusNote:"status_note",statusStart:"status_start",statusEnd:"status_end"};
+      const DATE_COLS=new Set(["birth_date","registration_date","status_start","status_end"]);
       const upd: any={updated_at:new Date().toISOString()};
-      for(const [k,col] of Object.entries(COLS)){ if(body[k]!==undefined) upd[col]=(col==="birth_date"||col==="registration_date")?(body[k]||null):body[k]; }
+      for(const [k,col] of Object.entries(COLS)){ if(body[k]!==undefined) upd[col]=DATE_COLS.has(col)?(body[k]||null):body[k]; }
       await sb.from("members").update(upd).eq("id",memberId);
       if(body.name!==undefined&&body.name!==m.name){
         await sb.from("devices").update({name:body.name}).eq("member_id",memberId);

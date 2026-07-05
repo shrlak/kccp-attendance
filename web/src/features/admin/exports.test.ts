@@ -76,6 +76,7 @@ describe('blockColors / cssColor', () => {
 })
 
 describe('buildAttendanceModel', () => {
+  const labels = { unassigned: '동산 미지정', newFamily: '새가족' }
   const members = [member('1', 'A'), member('2', 'B'), member('3', 'C', '청년부', '중호동산')]
   const log = [
     entry('A', '2026-05-31', 1),
@@ -84,31 +85,57 @@ describe('buildAttendanceModel', () => {
     entry('C', '2026-06-07', 4, { subgroup: '중호동산' }),
   ]
   const dates = ['2026-05-31', '2026-06-07']
+  const today = '2026-06-07'
 
   it('groups by 동산 in roster order and labels dates MM/DD/YYYY', () => {
-    const m = buildAttendanceModel(members, log, dates, '동산 미지정')
+    const m = buildAttendanceModel(members, log, dates, today, labels)
     expect(m.dateLabels).toEqual(['05/31/2026', '06/07/2026'])
     expect(m.sections.map((s) => s.subgroup)).toEqual(['건영동산', '중호동산'])
   })
   it('counts per-member present + per-date section totals over the given dates only', () => {
-    const s1 = buildAttendanceModel(members, log, dates, '동산 미지정').sections[0]
+    const s1 = buildAttendanceModel(members, log, dates, today, labels).sections[0]
     expect(s1.rows.map((r) => [r.member.name, r.total])).toEqual([['A', 2], ['B', 1]])
     expect(s1.totals).toEqual([1, 2]) // 5/31: A; 6/7: A + B
     // narrowing the window drops the 5/31 attendance from the totals
-    const narrow = buildAttendanceModel(members, log, ['2026-06-07'], '동산 미지정').sections[0]
+    const narrow = buildAttendanceModel(members, log, ['2026-06-07'], today, labels).sections[0]
     expect(narrow.rows.map((r) => r.total)).toEqual([1, 1])
   })
   it('buckets members without a 동산 under the unassigned label, last', () => {
     const ms = [member('1', 'A'), member('9', 'Z', '청년부', '')]
-    const m = buildAttendanceModel(ms, [], ['2026-06-07'], '동산 미지정')
+    const m = buildAttendanceModel(ms, [], ['2026-06-07'], today, labels)
     expect(m.sections.map((s) => s.subgroup)).toEqual(['건영동산', '동산 미지정'])
   })
   it('ignores attendance on dates before a member 등록일자', () => {
     // B registered 2026-06-01: a (stray) 05-31 attendance does not count toward their total.
     const ms = [member('1', 'A'), { ...member('2', 'B'), registration_date: '2026-06-01' }]
     const lg = [entry('B', '2026-05-31', 1), entry('B', '2026-06-07', 2)]
-    const rows = buildAttendanceModel(ms, lg, dates, '동산 미지정').sections[0].rows
+    const rows = buildAttendanceModel(ms, lg, dates, today, labels).sections[0].rows
     expect(rows.map((r) => [r.member.name, r.total])).toEqual([['A', 0], ['B', 1]])
+  })
+  it('marks a 동산 date with no check-ins blank (attendance not taken yet), totals included', () => {
+    // 건영동산 has data on both dates; 중호동산 only on 6/7 → its 5/31 column stays blank.
+    const s2 = buildAttendanceModel(members, log, dates, today, labels).sections[1]
+    expect(s2.rows[0].marks.map((c) => c.kind)).toEqual(['blank', 'present'])
+    expect(s2.totals).toEqual(['', 1])
+  })
+  it('renders a stored status mark as one note span from status_start (through future dates)', () => {
+    // B 한국 귀국 from 6/7: the note opens at 6/7 and spans the remaining columns — the
+    // future 6/14 included, as in the master sheet — with no X after it.
+    const ms = [member('1', 'A'), { ...member('2', 'B'), status_note: '한국 귀국', status_start: '2026-06-07' }]
+    const rows = buildAttendanceModel(ms, log, [...dates, '2026-06-14'], today, labels).sections[0].rows
+    expect(rows[1].marks).toEqual([{ kind: 'absent' }, { kind: 'note', note: '한국 귀국', span: 2 }, { kind: 'inNote' }])
+    expect(rows[1].total).toBe(0) // the 6/7 O is inside the marked-out span → not counted
+  })
+  it('closes a status mark at status_end and derives a 새가족 span before 등록일자', () => {
+    // 돌아옴 covers 5/31 only; B is back — and checked in — for 6/7.
+    const away = { ...member('2', 'B'), status_note: '돌아옴', status_start: '2026-05-01', status_end: '2026-05-31' }
+    const awayRow = buildAttendanceModel([member('1', 'A'), away], log, dates, today, labels).sections[0].rows[1]
+    expect(awayRow.marks).toEqual([{ kind: 'note', note: '돌아옴', span: 1 }, { kind: 'present' }])
+    // A new member registered 6/1: the pre-등록일자 5/31 cell reads 새가족 instead of blank.
+    const nf = { ...member('2', 'B'), is_new_member: true, registration_date: '2026-06-01' }
+    const nfRow = buildAttendanceModel([member('1', 'A'), nf], log, dates, today, labels).sections[0].rows[1]
+    expect(nfRow.marks).toEqual([{ kind: 'note', note: '새가족', span: 1 }, { kind: 'present' }])
+    expect(nfRow.total).toBe(1)
   })
 })
 
@@ -152,16 +179,17 @@ describe('gridSheet', () => {
     expect(aoa[0]).toEqual(['', '이름', '예배 총 출석', ...dates.map(formatGridDate)])
     expect(aoa[1].slice(0, 3)).toEqual(['건영동산', 'A', 2]) // first member row, no 예배 row between
   })
-  it('marks O present / X absent across past Sundays, blanks upcoming ones, with 동산 name + worship total', () => {
+  it('marks O present / X absent on Sundays with data, blanks no-data + upcoming ones', () => {
     const { aoa } = gridSheet(members, log, 'ko', today)
     const aRow = aoa[1]
     expect(aRow.slice(0, 3)).toEqual(['건영동산', 'A', 2]) // A attended 2 of the shown Sundays
-    expect(aRow[3]).toBe('X') // 06/07 absent
+    // 06/07–06/21 have no check-ins at all → attendance wasn't taken → blank, not X.
+    expect(aRow.slice(3, 6)).toEqual(['', '', ''])
     expect(aRow.slice(6, 8)).toEqual(['O', 'O']) // 06/28 + 07/05 present
     expect(aRow.slice(8)).toEqual(['', '', '', '']) // 07/12–08/02 upcoming → blank
-    // B: col A blank, present only 07/05, the rest absent/upcoming
+    // B: col A blank, absent 06/28 (that date has data), present 07/05
     expect(aoa[2].slice(0, 3)).toEqual(['', 'B', 1])
-    expect(aoa[2].slice(3)).toEqual(['X', 'X', 'X', 'X', 'O', '', '', '', ''])
+    expect(aoa[2].slice(3)).toEqual(['', '', '', 'X', 'O', '', '', '', ''])
   })
   it('leaves pre-등록일자 and upcoming dates blank instead of X', () => {
     const ms = [member('1', 'A'), { ...member('2', 'B'), registration_date: today }]
@@ -169,13 +197,14 @@ describe('gridSheet', () => {
     // B registered on 07/05: earlier cells blank (pre-reg), 07/05 = O, later Sundays blank (upcoming).
     expect(aoa[2].slice(3)).toEqual(['', '', '', '', 'O', '', '', '', ''])
   })
-  it('adds a blank spacer, a 총 출석 row counting present per date (upcoming blank), and a KEY legend', () => {
+  it('adds a blank spacer, a 총 출석 row counting present per date (no-data/upcoming blank), and a KEY legend', () => {
     const { aoa } = gridSheet(members, log, 'ko', today)
     expect(aoa[3]).toEqual([])
     expect(aoa[4][0]).toBe('총 출석')
+    expect(aoa[4].slice(3, 6)).toEqual(['', '', '']) // no check-ins on 06/07–06/21 → blank totals
     expect(aoa[4].slice(6, 8)).toEqual([1, 2]) // 06/28: A; 07/05: A + B
     expect(aoa[4].slice(8)).toEqual(['', '', '', '']) // upcoming Sundays blank in the totals too
-    expect(aoa.slice(-3)).toEqual([['KEY'], ['O', '출석'], ['X', '결석']])
+    expect(aoa.slice(-4)).toEqual([['KEY'], ['O', '출석'], ['X', '결석'], ['', '기타']])
   })
   it('merges only the 총 출석 label across A:B (no header merges without the 예배 sub-row)', () => {
     const { merges } = gridSheet(members, log, 'ko', today)
@@ -195,9 +224,9 @@ describe('gridSheet', () => {
   it('uses English labels in en mode', () => {
     const { aoa } = gridSheet(members, log, 'en', today)
     expect(aoa[0].slice(0, 3)).toEqual(['', 'Name', 'Worship Total'])
-    expect(aoa.slice(-3)).toEqual([['KEY'], ['O', 'Present'], ['X', 'Absent']])
+    expect(aoa.slice(-4)).toEqual([['KEY'], ['O', 'Present'], ['X', 'Absent'], ['', 'Other']])
   })
-  it('paints the header fills: 이름 light, 예배총출석 pink, dates medium, KEY teal', () => {
+  it('paints the header fills: 이름 light, 예배총출석 pink, dates medium, KEY teal + grey 기타', () => {
     const { fills } = gridSheet(members, log, 'ko', today)
     const at = (r: number, c: number) => fills.find((f) => f.r === r && f.c === c)?.rgb
     expect(at(0, 0)).toBe('FFD9EAD3') // 이름 label, green light
@@ -205,6 +234,19 @@ describe('gridSheet', () => {
     expect(at(0, 3)).toBe('FFB6D7A8') // first date, green medium
     expect(at(1, 0)).toBe('FFB6D7A8') // 동산 name cell (first member row, now directly under header)
     expect(fills.some((f) => f.rgb === 'FF76A5AF')).toBe(true) // KEY teal
+    expect(fills.some((f) => f.rgb === 'FFCCCCCC')).toBe(true) // 기타 grey swatch
+  })
+  it('renders a status mark as one grey cell merged across the covered dates', () => {
+    // C 한국 귀국 from 06/28 with no end → the note spans 06/28 through the 08/02 term end.
+    const ms = [...members, { ...member('3', 'C'), status_note: '한국 귀국', status_start: '2026-06-28' }]
+    const { aoa, merges, fills } = gridSheet(ms, log, 'ko', today)
+    const cRow = aoa[3]
+    expect(cRow.slice(1, 3)).toEqual(['C', 0])
+    expect(cRow[6]).toBe('한국 귀국') // note sits in the 06/28 cell…
+    expect(cRow.slice(7)).toEqual(['', '', '', '', '']) // …and the covered cells after it are empty
+    expect(merges).toContainEqual({ s: { r: 3, c: 6 }, e: { r: 3, c: 11 } }) // merged 06/28→08/02
+    // every covered cell is greyed
+    for (let c = 6; c <= 11; c++) expect(fills).toContainEqual({ r: 3, c, rgb: 'FFCCCCCC' })
   })
   it('cycles the palette per 동산 block (block 1 = blue)', () => {
     const ms = [member('1', 'A', '청년부', '건영동산'), member('2', 'C', '청년부', '중호동산')]
@@ -314,6 +356,12 @@ describe('reportHtml', () => {
     expect(html).toContain('background:#9FC5E8') // block 1 blue medium
     expect(html).toContain('background:#EAD1DC') // 예배 총 출석 pink
     expect(html).toContain('background:#76A5AF') // KEY teal chip
+  })
+  it('renders status marks as grey colspan cells and lists 기타 in the KEY', () => {
+    const ms = [member('1', 'A'), { ...member('2', 'B'), status_note: '이주(방문자)', status_start: today }]
+    const html = reportHtml(ms, log, { group: '', subgroup: '', today, lang: 'ko' })
+    expect(html).toContain('<td class="etc" colspan="5">이주(방문자)</td>') // 07/05 → the 08/02 term end
+    expect(html).toContain('기타') // KEY legend entry
   })
   it('escapes member names', () => {
     const html = reportHtml([member('1', '<b>X</b>')], [entry('<b>X</b>', today, 1)], { group: '', subgroup: '', today, lang: 'en' })
