@@ -36,9 +36,8 @@ export function AdminNewFamily() {
   const year = semesterKey(today).split('-')[0]
   const readOnly = data.role === 'pastor'
 
-  // Export today's registrations as 등록 카드 images — a JPG per person plus one
-  // JPG with every card registered on the export date (kiosk-dialog layout,
-  // drawn on canvas).
+  // Export today's registrations as 등록 카드 images — a JPG per person for every
+  // card registered on the export date (kiosk-dialog layout, drawn on canvas).
   async function exportCards() {
     const todays = registeredOnDate(scopedMembers, today)
     if (!todays.length) {

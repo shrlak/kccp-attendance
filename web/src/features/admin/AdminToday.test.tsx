@@ -68,3 +68,41 @@ describe('AdminToday — 방문자(guests) in the 오늘 tab', () => {
     ).toBeInTheDocument()
   })
 })
+
+describe('AdminToday — 새가족 ✝️ icon in the 오늘 tab', () => {
+  it('tags checked-in 새가족 with ✝️ (over 🌟, even on their first visit)', () => {
+    const today = easternNow().date
+    const nf = { ...member('m2', '새신자'), is_new_member: true }
+    rosterData.data = {
+      role: 'super_admin',
+      canBulkSubgroup: true,
+      canClearAttendance: true,
+      members: [nf],
+      staffMembers: [],
+      log: [{ ...memberRow(nf, today, 2), firstVisit: true }],
+    } as unknown as RosterResponse & { staffMembers: Member[] }
+
+    renderWithProviders(<AdminToday />)
+
+    expect(screen.getByText('✝️')).toBeInTheDocument()
+    expect(screen.queryByText('🌟')).not.toBeInTheDocument()
+  })
+
+  it('keeps 🌟 for a first visit that is not a 새가족', () => {
+    const today = easternNow().date
+    const m1 = member('m1', '김지체')
+    rosterData.data = {
+      role: 'super_admin',
+      canBulkSubgroup: true,
+      canClearAttendance: true,
+      members: [m1],
+      staffMembers: [],
+      log: [{ ...memberRow(m1, today, 2), firstVisit: true }],
+    } as unknown as RosterResponse & { staffMembers: Member[] }
+
+    renderWithProviders(<AdminToday />)
+
+    expect(screen.getByText('🌟')).toBeInTheDocument()
+    expect(screen.queryByText('✝️')).not.toBeInTheDocument()
+  })
+})
