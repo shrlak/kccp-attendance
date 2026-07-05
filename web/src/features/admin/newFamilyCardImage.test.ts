@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { cardSections } from './newFamilyCardImage'
+import { cardSections, cardFilenames } from './newFamilyCardImage'
 import type { Member } from '../../lib/api'
 
 const member = (extra: Partial<Member> = {}): Member => ({
@@ -48,5 +48,31 @@ describe('cardSections (새가족 등록 카드 model)', () => {
     )
     const values = secs.flatMap((s) => s.fields.map((f) => f.value))
     expect(values.filter(Boolean)).toEqual(['새신자', '대학부', '2026-07-05'])
+  })
+})
+
+describe('cardFilenames (per-person JPG names)', () => {
+  const named = (name: string) => ({ name })
+
+  it('names each file 새가족등록카드-날짜-이름.jpg', () => {
+    expect(cardFilenames([named('새신자'), named('김민준')], '2026-07-05')).toEqual([
+      '새가족등록카드-2026-07-05-새신자.jpg',
+      '새가족등록카드-2026-07-05-김민준.jpg',
+    ])
+  })
+
+  it('suffixes duplicate names so downloads never overwrite each other', () => {
+    expect(cardFilenames([named('김민준'), named('김민준'), named('김민준')], '2026-07-05')).toEqual([
+      '새가족등록카드-2026-07-05-김민준.jpg',
+      '새가족등록카드-2026-07-05-김민준-2.jpg',
+      '새가족등록카드-2026-07-05-김민준-3.jpg',
+    ])
+  })
+
+  it('sanitizes filesystem-hostile characters and falls back to the position for empty names', () => {
+    expect(cardFilenames([named('a/b:c?'), named('')], '2026-07-05')).toEqual([
+      '새가족등록카드-2026-07-05-abc.jpg',
+      '새가족등록카드-2026-07-05-2.jpg',
+    ])
   })
 })

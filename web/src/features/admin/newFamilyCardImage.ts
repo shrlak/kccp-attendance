@@ -10,9 +10,10 @@ import {
 // ── 새가족 등록 카드 → JPG download + clipboard (Korean) ─────────────────────
 // Renders each 새가족 as the same sectioned card the kiosk registration dialog
 // uses (인적 사항 / 신앙 / 등록 정보, same fields in the same order), then ships
-// all of a day's registrations stacked into ONE JPG. Drawing mirrors the dialog:
-// bordered fieldset sections with the caption sitting on the border, 3-up field
-// grid, label above a boxed value. Always Korean, like the 출석표 export.
+// each person's card as its OWN JPG plus all of a day's registrations stacked
+// into ONE JPG. Drawing mirrors the dialog: bordered fieldset sections with the
+// caption sitting on the border, 3-up field grid, label above a boxed value.
+// Always Korean, like the 출석표 export.
 
 const ACCENT = '#D9603D' // brand terracotta (matches the dialog / default sheet accent)
 
@@ -199,18 +200,43 @@ export function renderNewFamilyCard(m: Member): HTMLCanvasElement {
   return canvas
 }
 
-// Render every member's card, stack them into one image, download it as a single
-// JPG (새가족등록카드-YYYY-MM-DD.jpg) and copy it to the clipboard. Returns whether
-// the clipboard copy succeeded (downloads happen regardless).
+// Per-person filenames: 새가족등록카드-YYYY-MM-DD-이름.jpg. Names are sanitized for
+// the filesystem, an empty name falls back to the card's 1-based position, and a
+// duplicate name within the batch gets a -2/-3… suffix so no download overwrites
+// another. Pure + exported for tests.
+export function cardFilenames(members: Pick<Member, 'name'>[], date: string): string[] {
+  const seen = new Map<string, number>()
+  return members.map((m, i) => {
+    const safe = (m.name || '').replace(/[\\/:*?"<>|]/g, '').trim() || String(i + 1)
+    const n = (seen.get(safe) ?? 0) + 1
+    seen.set(safe, n)
+    return `새가족등록카드-${date}-${safe}${n > 1 ? `-${n}` : ''}.jpg`
+  })
+}
+
+// Render every member's card, download each person's card as its own JPG plus all
+// of them stacked into a single JPG (새가족등록카드-YYYY-MM-DD.jpg), and copy the
+// stacked image to the clipboard. Returns whether the clipboard copy succeeded
+// (downloads happen regardless).
 export async function exportNewFamilyCards(members: Member[], date: string): Promise<{ copied: boolean }> {
   await ensureSheetFonts()
-  const combined = combineVertical(members.map(renderNewFamilyCard), 24 * SCALE)
+  const cards = members.map(renderNewFamilyCard)
+  const combined = combineVertical(cards, 24 * SCALE)
 
   // Copy first — closest to the originating click, so the clipboard write keeps its
-  // transient user activation before the download runs.
+  // transient user activation before the downloads (and their delays) run.
   const copied = await copyCanvasToClipboard(combined)
 
-  const blob = await canvasToBlob(combined, 'image/jpeg', 0.95)
-  if (blob) downloadBlob(blob, `새가족등록카드-${date}.jpg`)
+  // One JPG per person, then the whole batch as one JPG. A single card IS the batch,
+  // so skip the redundant combined download when only one person registered.
+  const filenames = cardFilenames(members, date)
+  const downloads: [HTMLCanvasElement, string][] = cards.map((c, i) => [c, filenames[i]])
+  if (cards.length > 1) downloads.push([combined, `새가족등록카드-${date}.jpg`])
+  for (let i = 0; i < downloads.length; i++) {
+    const blob = await canvasToBlob(downloads[i][0], 'image/jpeg', 0.95)
+    if (blob) downloadBlob(blob, downloads[i][1])
+    // A short gap so the browser accepts back-to-back downloads (as the 출석표 export).
+    if (i < downloads.length - 1) await new Promise((resolve) => setTimeout(resolve, 250))
+  }
   return { copied }
 }
