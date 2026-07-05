@@ -226,7 +226,7 @@ export function downloadBlob(blob: Blob, filename: string): void {
 
 // Stack canvases vertically (centered) into one canvas, separated by `gap` px, on white.
 // Used to put both 부서 pages onto the clipboard as a single pasteable image, and by the
-// 새가족 등록 카드 export to ship all of today's cards as one image.
+// 새가족 등록 카드 export to put all of today's cards on the clipboard as one image.
 export function combineVertical(canvases: HTMLCanvasElement[], gap: number): HTMLCanvasElement {
   const width = Math.max(...canvases.map((c) => c.width))
   const height = canvases.reduce((h, c) => h + c.height, 0) + gap * Math.max(0, canvases.length - 1)

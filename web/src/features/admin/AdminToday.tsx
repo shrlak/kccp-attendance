@@ -34,6 +34,8 @@ export function AdminToday() {
   if (!data) return null
 
   const today = easternNow().date
+  // 새가족 by name — they get the ✝️ icon in today's list and on the exported 출석부.
+  const newMemberNames = new Set(data.members.filter((m) => m.is_new_member).map((m) => m.name))
 
   // Save the 대학부/청년부 sheets as JPGs and copy both pages to the clipboard. Built from
   // the full visible roster so both 부서 pages populate regardless of the active filter.
@@ -41,7 +43,6 @@ export function AdminToday() {
     if (!data) return
     setExporting(true)
     try {
-      const newMemberNames = new Set(data.members.filter((m) => m.is_new_member).map((m) => m.name))
       const { copied } = await exportTodaySheets(data.log, today, newMemberNames)
       toast({ title: copied ? t('admin.today.export.done') : t('admin.today.export.downloadedOnly'), tone: 'ok' })
     } catch {
@@ -129,7 +130,11 @@ export function AdminToday() {
                 <div>
                   <div className="text-sm font-semibold text-text">
                     {e.name}
-                    {e.firstVisit && <span className="ml-1.5 align-middle text-xs">🌟</span>}
+                    {newMemberNames.has(e.name) ? (
+                      <span className="ml-1.5 align-middle text-xs">✝️</span>
+                    ) : e.firstVisit ? (
+                      <span className="ml-1.5 align-middle text-xs">🌟</span>
+                    ) : null}
                     <DongsanBadge role={dongsanRole(e.name, e.group, e.subgroup)} />
                     <OfficerBadge name={e.name} />
                   </div>
