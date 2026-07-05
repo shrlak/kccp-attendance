@@ -87,7 +87,7 @@ describe('AdminApp nav rail', () => {
     })
     renderApp()
     // 리더+새가족팀 combined: day-to-day tabs + devices/kiosk are available.
-    for (const name of ['오늘', '출석부', '멤버', '통계', '새가족', '기기']) {
+    for (const name of ['오늘', '출석부', '멤버', '통계', '새가족', '방문자', '기기']) {
       expect(screen.getByRole('button', { name })).toBeInTheDocument()
     }
     // super-only tabs (admins/dongsan/officers/settings) stay hidden.
@@ -104,7 +104,7 @@ describe('AdminApp nav rail', () => {
       identity: { role: 'super_admin', group: '', subgroup: '', ministry: '' },
     })
     renderApp()
-    for (const name of ['오늘', '출석부', '멤버', '통계', '새가족', '기기', '관리자', '동산', '임원', '설정']) {
+    for (const name of ['오늘', '출석부', '멤버', '통계', '새가족', '방문자', '기기', '관리자', '동산', '임원', '설정']) {
       expect(screen.getByRole('button', { name })).toBeInTheDocument()
     }
   })
@@ -115,7 +115,7 @@ describe('AdminApp nav rail', () => {
       identity: { role: 'leader', group: '', subgroup: '', ministry: '' },
     })
     renderApp()
-    for (const name of ['오늘', '출석부', '멤버', '통계', '새가족', '기기']) {
+    for (const name of ['오늘', '출석부', '멤버', '통계', '새가족', '방문자', '기기']) {
       expect(screen.getByRole('button', { name })).toBeInTheDocument()
     }
     for (const name of ['관리자', '동산', '임원', '설정']) {
@@ -131,7 +131,7 @@ describe('AdminApp nav rail', () => {
       identity: { role: 'welcoming', group: '', subgroup: '', ministry: '' },
     })
     renderApp()
-    for (const name of ['오늘', '출석부', '멤버', '통계', '새가족', '기기']) {
+    for (const name of ['오늘', '출석부', '멤버', '통계', '새가족', '방문자', '기기']) {
       expect(screen.getByRole('button', { name })).toBeInTheDocument()
     }
     for (const name of ['관리자', '동산', '임원', '설정']) {
