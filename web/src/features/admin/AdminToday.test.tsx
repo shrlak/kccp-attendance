@@ -69,8 +69,8 @@ describe('AdminToday — 방문자(guests) in the 오늘 tab', () => {
   })
 })
 
-describe('AdminToday — 새가족 ✝️ icon in the 오늘 tab', () => {
-  it('tags checked-in 새가족 with ✝️ (over 🌟, even on their first visit)', () => {
+describe('AdminToday — ✝️ 새가족 / 👋 방문자 icons in the 오늘 tab', () => {
+  it('tags 새가족 with ✝️ and 방문자 with 👋, like the exported 출석부', () => {
     const today = easternNow().date
     const nf = { ...member('m2', '새신자'), is_new_member: true }
     rosterData.data = {
@@ -79,16 +79,16 @@ describe('AdminToday — 새가족 ✝️ icon in the 오늘 tab', () => {
       canClearAttendance: true,
       members: [nf],
       staffMembers: [],
-      log: [{ ...memberRow(nf, today, 2), firstVisit: true }],
+      log: [{ ...memberRow(nf, today, 2), firstVisit: true }, guestRow('박방문', today, 3)],
     } as unknown as RosterResponse & { staffMembers: Member[] }
 
     renderWithProviders(<AdminToday />)
 
     expect(screen.getByText('✝️')).toBeInTheDocument()
-    expect(screen.queryByText('🌟')).not.toBeInTheDocument()
+    expect(screen.getByText('👋')).toBeInTheDocument()
   })
 
-  it('keeps 🌟 for a first visit that is not a 새가족', () => {
+  it('leaves a regular member unmarked even on their first recorded visit', () => {
     const today = easternNow().date
     const m1 = member('m1', '김지체')
     rosterData.data = {
@@ -102,7 +102,8 @@ describe('AdminToday — 새가족 ✝️ icon in the 오늘 tab', () => {
 
     renderWithProviders(<AdminToday />)
 
-    expect(screen.getByText('🌟')).toBeInTheDocument()
     expect(screen.queryByText('✝️')).not.toBeInTheDocument()
+    expect(screen.queryByText('👋')).not.toBeInTheDocument()
+    expect(screen.queryByText('🌟')).not.toBeInTheDocument()
   })
 })
