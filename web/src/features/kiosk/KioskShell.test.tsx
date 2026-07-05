@@ -87,7 +87,7 @@ describe('KioskShell + KioskGate', () => {
     expect(await screen.findByText('admin-panel-here')).toBeInTheDocument()
   })
 
-  it('나가기 exits in one tap — no password, no confirm — signing out to the landing page', async () => {
+  it('나가기 exits in one tap — no password, no confirm — to the admin panel, keeping the session', async () => {
     const { adminVerify } = await import('../../lib/api')
     ;(adminVerify as ReturnType<typeof vi.fn>).mockResolvedValue({ role: 'welcoming', group: '', subgroup: '', ministry: '' })
     await renderKiosk()
@@ -97,10 +97,10 @@ describe('KioskShell + KioskGate', () => {
 
     await userEvent.click(screen.getByRole('button', { name: '나가기' }))
 
-    expect(await screen.findByText('landing-here')).toBeInTheDocument()
+    expect(await screen.findByText('admin-panel-here')).toBeInTheDocument()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     const { useAdminAuth } = await import('../../stores/useAdminAuth')
-    expect(useAdminAuth.getState().status).toBe('idle')
+    expect(useAdminAuth.getState().status).toBe('authed')
   })
 
   it('shows the wrong-password error when verification fails', async () => {

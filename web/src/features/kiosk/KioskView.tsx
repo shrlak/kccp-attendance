@@ -115,8 +115,9 @@ export function KioskView({ onExit }: { onExit: () => void }) {
         </div>
         <div className="flex items-center gap-1">
           <ThemeLangToggle />
-          {/* One-tap exit, no confirmation — leaving the /kiosk route signs the session
-              out to the landing page (KioskShell), so a stray tap costs one password entry. */}
+          {/* One-tap exit, no confirmation — the session stays signed in and lands on
+              the admin panel (KioskShell navigates to /admin; the admin-launched
+              overlay simply closes back to it). */}
           <button
             type="button"
             onClick={onExit}
