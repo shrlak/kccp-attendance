@@ -16,7 +16,6 @@ import {
 import { useKioskLive, broadcastKioskChange } from './live'
 import { KioskGuestDialog } from './KioskGuestDialog'
 import { KioskNewMemberDialog } from './KioskNewMemberDialog'
-import { KioskExitDialog } from './KioskExitDialog'
 import { ThemeLangToggle } from '../../components/ui/ThemeLangToggle'
 
 const DEPT_STYLE: Record<KioskDept, { color: string; tile: string }> = {
@@ -34,7 +33,7 @@ export function KioskView({ onExit }: { onExit: () => void }) {
   const { data, isLoading } = useRoster(true)
   const [search, setSearch] = useState('')
   const [overlay, setOverlay] = useState<{ tone: OverlayTone; name: string; detail?: string } | null>(null)
-  const [dialog, setDialog] = useState<'guest' | 'newMember' | 'exit' | null>(null)
+  const [dialog, setDialog] = useState<'guest' | 'newMember' | null>(null)
   const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Live cross-device sync: other kiosks' check-ins/undos arrive as broadcast pings.
@@ -116,9 +115,11 @@ export function KioskView({ onExit }: { onExit: () => void }) {
         </div>
         <div className="flex items-center gap-1">
           <ThemeLangToggle />
+          {/* One-tap exit, no confirmation — leaving the /kiosk route signs the session
+              out to the landing page (KioskShell), so a stray tap costs one password entry. */}
           <button
             type="button"
-            onClick={() => setDialog('exit')}
+            onClick={onExit}
             className="min-h-11 rounded-md bg-surface px-4 text-sm font-semibold text-muted hover:bg-surface-alt"
           >
             {t('kiosk.exit')}
@@ -209,7 +210,6 @@ export function KioskView({ onExit }: { onExit: () => void }) {
 
       <KioskGuestDialog open={dialog === 'guest'} onClose={() => setDialog(null)} />
       <KioskNewMemberDialog open={dialog === 'newMember'} onClose={() => setDialog(null)} />
-      <KioskExitDialog open={dialog === 'exit'} onClose={() => setDialog(null)} onExit={onExit} />
     </div>
   )
 }
