@@ -14,6 +14,7 @@ import {
   Users,
   BarChart3,
   UserPlus,
+  DoorOpen,
   Smartphone,
   Shield,
   Sprout,
@@ -26,6 +27,7 @@ import { AdminSheet } from './AdminSheet'
 import { AdminMembers } from './AdminMembers'
 import { AdminAnalytics } from './AdminAnalytics'
 import { AdminNewFamily } from './AdminNewFamily'
+import { AdminVisitors } from './AdminVisitors'
 import { AdminDevices } from './AdminDevices'
 import { AdminAdmins } from './AdminAdmins'
 import { AdminDongsan } from './AdminDongsan'
@@ -39,6 +41,7 @@ type Tab =
   | 'members'
   | 'analytics'
   | 'newfamily'
+  | 'visitors'
   | 'devices'
   | 'admins'
   | 'dongsan'
@@ -92,6 +95,7 @@ export function AdminApp() {
     { id: 'members', icon: Users, show: true },
     { id: 'analytics', icon: BarChart3, show: true },
     { id: 'newfamily', icon: UserPlus, show: true },
+    { id: 'visitors', icon: DoorOpen, show: true },
     { id: 'devices', icon: Smartphone, show: canDevices },
     { id: 'admins', icon: Shield, show: isSuper, badge: pendingCount },
     { id: 'dongsan', icon: Sprout, show: isSuper },
@@ -186,6 +190,7 @@ export function AdminApp() {
           {tab === 'members' && <AdminMembers />}
           {tab === 'analytics' && <AdminAnalytics />}
           {tab === 'newfamily' && <AdminNewFamily />}
+          {tab === 'visitors' && <AdminVisitors />}
           {tab === 'devices' && canDevices && <AdminDevices />}
           {tab === 'admins' && isSuper && <AdminAdmins />}
           {tab === 'dongsan' && isSuper && <AdminDongsan />}
