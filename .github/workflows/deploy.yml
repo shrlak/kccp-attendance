@@ -81,7 +81,11 @@ jobs:
         if: ${{ env.SUPABASE_ACCESS_TOKEN != '' }}
         uses: supabase/setup-cli@v2
         with:
-          version: latest
+          # Pinned: "latest" resolves the release via an unauthenticated GitHub API call,
+          # which intermittently fails on shared runners with "rate limit exceeded" and
+          # blocks the whole deploy (Pages `needs` this job). A pinned version downloads
+          # directly. Bump deliberately (npm view supabase version).
+          version: 2.109.0
 
       - name: Deploy Edge Function
         if: ${{ env.SUPABASE_ACCESS_TOKEN != '' }}
