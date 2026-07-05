@@ -32,6 +32,8 @@ const freshForm = () => ({ ...EMPTY, registrationDate: easternNow().date })
 
 // 새가족 (new-family) registration from the kiosk: collects name + group + 동산 + the
 // extended profile fields, then creates the member/device and checks them in for today.
+// Laid out like the paper 새가족 등록 카드 — fields spread across columns in sections
+// (인적 사항 / 신앙 / 등록 정보) instead of one long scrolling column.
 export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
@@ -83,61 +85,82 @@ export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && close()} title={t('kiosk.newMember.title')}>
-      <div className="flex max-h-[60vh] flex-col gap-3 overflow-y-auto pr-1">
-        <Field label={t('kiosk.newMember.name')}>
-          <Input value={f.name} onChange={(e) => set('name', e.target.value)} autoFocus autoComplete="off" />
-        </Field>
-        <Field label={t('kiosk.newMember.group')}>
-          <Select value={f.group} onChange={(e) => set('group', e.target.value)}>
-            {GROUPS.map((g) => (
-              <option key={g} value={g}>
-                {g}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <Field label={t('kiosk.newMember.subgroup')}>
-          <Input value={f.subgroup} onChange={(e) => set('subgroup', e.target.value)} autoComplete="off" />
-        </Field>
-        <Field label={t('kiosk.newMember.gender')}>
-          <Input value={f.gender} onChange={(e) => set('gender', e.target.value)} autoComplete="off" />
-        </Field>
-        <Field label={t('kiosk.newMember.phone')}>
-          <Input value={f.phone} onChange={(e) => set('phone', e.target.value)} autoComplete="off" inputMode="tel" />
-        </Field>
-        <Field label={t('kiosk.newMember.kakaoId')}>
-          <Input value={f.kakaoId} onChange={(e) => set('kakaoId', e.target.value)} autoComplete="off" />
-        </Field>
-        <Field label={t('kiosk.newMember.birthDate')}>
-          <Input type="date" value={f.birthDate} onChange={(e) => set('birthDate', e.target.value)} />
-        </Field>
-        <Field label={t('kiosk.newMember.baptism')}>
-          <Input value={f.baptismStatus} onChange={(e) => set('baptismStatus', e.target.value)} autoComplete="off" />
-        </Field>
-        <Field label={t('kiosk.newMember.school')}>
-          <Input value={f.schoolOrWork} onChange={(e) => set('schoolOrWork', e.target.value)} autoComplete="off" />
-        </Field>
-        <Field label={t('kiosk.newMember.faith')}>
-          <Input value={f.faithDuration} onChange={(e) => set('faithDuration', e.target.value)} autoComplete="off" />
-        </Field>
-        <Field label={t('kiosk.newMember.registrationDate')}>
-          <Input type="date" value={f.registrationDate} onChange={(e) => set('registrationDate', e.target.value)} />
-        </Field>
-        <label className="flex items-center gap-2 text-sm text-text">
-          <input
-            type="checkbox"
-            checked={f.pastoralVisitRequested}
-            onChange={(e) => set('pastoralVisitRequested', e.target.checked)}
-            className="h-4 w-4"
-          />
-          {t('kiosk.newMember.pastoralVisit')}
-        </label>
+    <Dialog open={open} onOpenChange={(o) => !o && close()} title={t('kiosk.newMember.title')} wide>
+      {/* max-h is a safety valve for short/small screens; on the kiosk tablet the whole
+          card fits without scrolling. */}
+      <div className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto pr-1">
+        <Section label={t('kiosk.newMember.sectionPersonal')}>
+          <Field label={t('kiosk.newMember.name')}>
+            <Input value={f.name} onChange={(e) => set('name', e.target.value)} autoFocus autoComplete="off" />
+          </Field>
+          <Field label={t('kiosk.newMember.gender')}>
+            <Input value={f.gender} onChange={(e) => set('gender', e.target.value)} autoComplete="off" />
+          </Field>
+          <Field label={t('kiosk.newMember.birthDate')}>
+            <Input type="date" value={f.birthDate} onChange={(e) => set('birthDate', e.target.value)} />
+          </Field>
+          <Field label={t('kiosk.newMember.phone')}>
+            <Input value={f.phone} onChange={(e) => set('phone', e.target.value)} autoComplete="off" inputMode="tel" />
+          </Field>
+          <Field label={t('kiosk.newMember.kakaoId')}>
+            <Input value={f.kakaoId} onChange={(e) => set('kakaoId', e.target.value)} autoComplete="off" />
+          </Field>
+          <Field label={t('kiosk.newMember.school')}>
+            <Input value={f.schoolOrWork} onChange={(e) => set('schoolOrWork', e.target.value)} autoComplete="off" />
+          </Field>
+        </Section>
+
+        <Section label={t('kiosk.newMember.sectionFaith')}>
+          <Field label={t('kiosk.newMember.baptism')}>
+            <Input value={f.baptismStatus} onChange={(e) => set('baptismStatus', e.target.value)} autoComplete="off" />
+          </Field>
+          <Field label={t('kiosk.newMember.faith')}>
+            <Input value={f.faithDuration} onChange={(e) => set('faithDuration', e.target.value)} autoComplete="off" />
+          </Field>
+          <label className="col-span-2 flex min-h-11 cursor-pointer items-center gap-2 self-end rounded-md border border-border bg-surface px-3.5 text-sm text-text sm:col-span-1">
+            <input
+              type="checkbox"
+              checked={f.pastoralVisitRequested}
+              onChange={(e) => set('pastoralVisitRequested', e.target.checked)}
+              className="h-4 w-4"
+            />
+            {t('kiosk.newMember.pastoralVisit')}
+          </label>
+        </Section>
+
+        <Section label={t('kiosk.newMember.sectionChurch')}>
+          <Field label={t('kiosk.newMember.group')}>
+            <Select value={f.group} onChange={(e) => set('group', e.target.value)}>
+              {GROUPS.map((g) => (
+                <option key={g} value={g}>
+                  {g}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label={t('kiosk.newMember.subgroup')}>
+            <Input value={f.subgroup} onChange={(e) => set('subgroup', e.target.value)} autoComplete="off" />
+          </Field>
+          <Field label={t('kiosk.newMember.registrationDate')}>
+            <Input type="date" value={f.registrationDate} onChange={(e) => set('registrationDate', e.target.value)} />
+          </Field>
+        </Section>
       </div>
       <Button onClick={() => void submit()} disabled={busy} className="mt-4 w-full">
         {busy ? t('common.loading') : t('kiosk.newMember.submit')}
       </Button>
     </Dialog>
+  )
+}
+
+// A bordered card section with its caption sitting on the border, like the ruled
+// sections of the paper registration card. Fields flow 2-up on phones, 3-up wider.
+function Section({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <fieldset className="rounded-lg border border-border px-3 pb-3 pt-1">
+      <legend className="px-1.5 font-mono text-[11px] uppercase tracking-wide text-subtle">{label}</legend>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">{children}</div>
+    </fieldset>
   )
 }
 

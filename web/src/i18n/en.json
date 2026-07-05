@@ -67,6 +67,9 @@
     "newMember": {
       "action": "✝️ New family",
       "title": "New family registration",
+      "sectionPersonal": "Personal",
+      "sectionFaith": "Faith",
+      "sectionChurch": "Registration",
       "name": "Name",
       "group": "Group",
       "subgroup": "동산",
