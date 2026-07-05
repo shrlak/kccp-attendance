@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useRoster } from './useRoster'
 import { easternNow } from '../../lib/checkinWindow'
 import { todaysCheckins, weeklyComparison, presentNamesToday, checkinCandidates } from './today'
+import { checkinTag } from './todaySheet'
 import { filterMembers, filterLog, NO_FILTER, type Filter } from './filters'
 import { computeStats, leaderDashboard } from './stats'
 import { GroupFilter } from './GroupFilter'
@@ -34,7 +35,8 @@ export function AdminToday() {
   if (!data) return null
 
   const today = easternNow().date
-  // 새가족 by name — they get the ✝️ icon in today's list and on the exported 출석부.
+  // 새가족 by name — with checkinTag they drive the ✝️ 새가족 / 👋 방문자 icons in
+  // today's list, matching the exported 출석부.
   const newMemberNames = new Set(data.members.filter((m) => m.is_new_member).map((m) => m.name))
 
   // Save the 대학부/청년부 sheets as JPGs and copy both pages to the clipboard. Built from
@@ -118,32 +120,31 @@ export function AdminToday() {
         <p className="text-sm text-muted">{t('admin.today.none')}</p>
       ) : (
         <ul className="flex flex-col gap-2">
-          {todays.map((e) => (
-            <li
-              key={`${e.name}-${e.ts}`}
-              className="flex items-center justify-between rounded-lg border border-border bg-surface px-4 py-3"
-            >
-              <div className="flex items-center gap-3">
-                <div className="grid h-9 w-9 place-items-center rounded-full bg-success/15 text-sm font-bold text-success">
-                  {(e.name || '?').slice(0, 1)}
-                </div>
-                <div>
-                  <div className="text-sm font-semibold text-text">
-                    {e.name}
-                    {newMemberNames.has(e.name) ? (
-                      <span className="ml-1.5 align-middle text-xs">✝️</span>
-                    ) : e.firstVisit ? (
-                      <span className="ml-1.5 align-middle text-xs">🌟</span>
-                    ) : null}
-                    <DongsanBadge role={dongsanRole(e.name, e.group, e.subgroup)} />
-                    <OfficerBadge name={e.name} />
+          {todays.map((e) => {
+            const tag = checkinTag(e, newMemberNames)
+            return (
+              <li
+                key={`${e.name}-${e.ts}`}
+                className="flex items-center justify-between rounded-lg border border-border bg-surface px-4 py-3"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="grid h-9 w-9 place-items-center rounded-full bg-success/15 text-sm font-bold text-success">
+                    {(e.name || '?').slice(0, 1)}
                   </div>
-                  <div className="text-xs text-muted">{[e.group, e.subgroup].filter(Boolean).join(' · ') || '—'}</div>
+                  <div>
+                    <div className="text-sm font-semibold text-text">
+                      {e.name}
+                      {tag && <span className="ml-1.5 align-middle text-xs">{tag === 'visitor' ? '👋' : '✝️'}</span>}
+                      <DongsanBadge role={dongsanRole(e.name, e.group, e.subgroup)} />
+                      <OfficerBadge name={e.name} />
+                    </div>
+                    <div className="text-xs text-muted">{[e.group, e.subgroup].filter(Boolean).join(' · ') || '—'}</div>
+                  </div>
                 </div>
-              </div>
-              <span className="font-mono text-xs text-muted">{e.time}</span>
-            </li>
-          ))}
+                <span className="font-mono text-xs text-muted">{e.time}</span>
+              </li>
+            )
+          })}
         </ul>
       )}
       {checkin && <ManualCheckinModal data={data} today={today} onClose={() => setCheckin(false)} />}
