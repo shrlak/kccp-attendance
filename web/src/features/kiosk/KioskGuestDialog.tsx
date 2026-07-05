@@ -8,26 +8,31 @@ import { useToast } from '../../components/ui/Toast'
 import { guestCheckin } from '../../lib/api'
 import { broadcastKioskChange } from './live'
 
-// 방문자 (guest) check-in from the kiosk: name only → hardened guest endpoint.
+// The 부서 a visitor is attending — puts them on that group's 오늘 sheet / 출석부 이미지.
+const GUEST_GROUPS = ['대학부', '청년부'] as const
+
+// 방문자 (guest) check-in from the kiosk: name + 부서 → hardened guest endpoint.
 export function KioskGuestDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const toast = useToast()
   const [name, setName] = useState('')
+  const [group, setGroup] = useState('')
   const [busy, setBusy] = useState(false)
 
   function close() {
     setName('')
+    setGroup('')
     setBusy(false)
     onClose()
   }
 
   async function submit() {
     const n = name.trim()
-    if (!n || busy) return
+    if (!n || !group || busy) return
     setBusy(true)
     try {
-      const res = await guestCheckin(n)
+      const res = await guestCheckin(n, group)
       broadcastKioskChange()
       await qc.invalidateQueries({ queryKey: ['roster'] })
       toast(
@@ -58,7 +63,27 @@ export function KioskGuestDialog({ open, onClose }: { open: boolean; onClose: ()
             if (e.key === 'Enter') void submit()
           }}
         />
-        <Button onClick={() => void submit()} disabled={!name.trim() || busy} className="w-full">
+        <div>
+          <span className="mb-1 block text-xs font-semibold text-subtle">{t('kiosk.guest.group')}</span>
+          <div className="grid grid-cols-2 gap-2">
+            {GUEST_GROUPS.map((g) => (
+              <button
+                key={g}
+                type="button"
+                aria-pressed={group === g}
+                onClick={() => setGroup(g)}
+                className={`min-h-11 rounded-md border px-3 text-sm transition-colors ${
+                  group === g
+                    ? 'border-primary bg-primary/10 font-semibold text-primary'
+                    : 'border-border bg-surface text-text'
+                }`}
+              >
+                {g}
+              </button>
+            ))}
+          </div>
+        </div>
+        <Button onClick={() => void submit()} disabled={!name.trim() || !group || busy} className="w-full">
           {busy ? t('common.loading') : t('kiosk.guest.submit')}
         </Button>
       </div>

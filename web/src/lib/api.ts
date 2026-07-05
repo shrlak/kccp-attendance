@@ -409,8 +409,9 @@ export const linkDevice = (deviceId: string, memberId: string) =>
 // Guest (방문자) check-in from the kiosk: records a visitor attendance row for today
 // (is_manual + is_guest, member_role "visitor"), bypassing day/time/location. Hardened
 // (verifyAdmin) + audited server-side; pastor read-only. Deduped by name+date.
-export const guestCheckin = (name: string) =>
-  api<{ status: 'ok' | 'already'; time?: string; name?: string }>('POST', '/api/admin/guest-checkin', { name })
+// `group` (대학부/청년부) puts the visitor on that 부서's 오늘 sheet / 출석부 이미지.
+export const guestCheckin = (name: string, group: string) =>
+  api<{ status: 'ok' | 'already'; time?: string; name?: string }>('POST', '/api/admin/guest-checkin', { name, group })
 
 export interface NewMemberFields {
   name: string
