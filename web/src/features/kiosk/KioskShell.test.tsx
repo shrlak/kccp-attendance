@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
@@ -49,6 +49,7 @@ async function renderKiosk() {
     <QueryClientProvider client={qc}>
       <MemoryRouter initialEntries={['/kiosk']}>
         <Routes>
+          <Route path="/" element={<div>landing-here</div>} />
           <Route path="/kiosk" element={<KioskShell />} />
           <Route path="/admin" element={<div>admin-panel-here</div>} />
         </Routes>
@@ -84,6 +85,25 @@ describe('KioskShell + KioskGate', () => {
     await userEvent.click(screen.getByRole('button', { name: '키오스크 시작' }))
 
     expect(await screen.findByText('admin-panel-here')).toBeInTheDocument()
+  })
+
+  it('exits without a password: confirm-only dialog signs out to the landing page', async () => {
+    const { adminVerify } = await import('../../lib/api')
+    ;(adminVerify as ReturnType<typeof vi.fn>).mockResolvedValue({ role: 'welcoming', group: '', subgroup: '', ministry: '' })
+    await renderKiosk()
+    await userEvent.type(screen.getByLabelText('키오스크 비밀번호'), 'kccpwelcome')
+    await userEvent.click(screen.getByRole('button', { name: '키오스크 시작' }))
+    await screen.findByPlaceholderText('🔍 이름 검색...')
+
+    await userEvent.click(screen.getByRole('button', { name: '나가기' })) // header button (dialog not open yet)
+    const dialog = await screen.findByRole('dialog')
+    // No password field — just a confirmation.
+    expect(within(dialog).queryByLabelText('관리자 비밀번호')).not.toBeInTheDocument()
+    await userEvent.click(within(dialog).getByRole('button', { name: '나가기' }))
+
+    expect(await screen.findByText('landing-here')).toBeInTheDocument()
+    const { useAdminAuth } = await import('../../stores/useAdminAuth')
+    expect(useAdminAuth.getState().status).toBe('idle')
   })
 
   it('shows the wrong-password error when verification fails', async () => {

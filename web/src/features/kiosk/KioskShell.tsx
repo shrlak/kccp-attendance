@@ -7,12 +7,22 @@ import { KioskView } from './KioskView'
 // get the kiosk password gate, which only unlocks with the welcoming-team password
 // (role 'welcoming'). A session holding any other admin role is sent to the admin
 // panel instead — admins launch the kiosk from there (AdminApp's 키오스크 button),
-// and the read-only pastor role can't run a kiosk at all. Exiting returns to /admin.
+// and the read-only pastor role can't run a kiosk at all. Exiting is password-free
+// (a plain confirm), so it signs the kiosk session out and returns to the landing
+// page rather than exposing the welcoming dashboard on the shared tablet.
 export function KioskShell() {
   const status = useAdminAuth((s) => s.status)
   const role = useAdminAuth((s) => s.identity?.role)
+  const signOut = useAdminAuth((s) => s.signOut)
   const navigate = useNavigate()
   if (status !== 'authed') return <KioskGate />
   if (role !== 'welcoming') return <Navigate to="/admin" replace />
-  return <KioskView onExit={() => navigate('/admin')} />
+  return (
+    <KioskView
+      onExit={() => {
+        signOut()
+        navigate('/')
+      }}
+    />
+  )
 }
