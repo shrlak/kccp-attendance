@@ -62,6 +62,24 @@ export function currentNewFamily(members: Member[], today: string): Member[] {
     )
 }
 
+export interface DateGroup {
+  date: string | null // ISO registration date; null = missing (kept visible)
+  members: Member[]
+}
+
+// Current-semester 새가족 split by registration date, newest date first; members missing a
+// registration date form a trailing group. Relies on currentNewFamily's ordering.
+export function newFamilyByDate(members: Member[], today: string): DateGroup[] {
+  const out: DateGroup[] = []
+  for (const m of currentNewFamily(members, today)) {
+    const date = m.registration_date || null
+    const last = out[out.length - 1]
+    if (last && last.date === date) last.members.push(m)
+    else out.push({ date, members: [m] })
+  }
+  return out
+}
+
 export interface MonthGroup {
   month: string // "YYYY-MM"
   members: Member[]

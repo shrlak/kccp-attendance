@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useRoster } from './useRoster'
 import { easternNow } from '../../lib/checkinWindow'
 import { filterMembers, NO_FILTER, type Filter } from './filters'
-import { semesterKey, currentNewFamily, monthlyRegistrations } from './newFamily'
+import { semesterKey, newFamilyByDate, monthlyRegistrations } from './newFamily'
 import { GroupFilter } from './GroupFilter'
 import { updateMember, type Member, type MemberEdit } from '../../lib/api'
 import { useToast } from '../../components/ui/Toast'
@@ -25,7 +25,8 @@ export function AdminNewFamily() {
 
   const today = easternNow().date
   const scopedMembers = filterMembers(data.members, filter)
-  const list = currentNewFamily(scopedMembers, today)
+  const dateGroups = newFamilyByDate(scopedMembers, today)
+  const total = dateGroups.reduce((n, g) => n + g.members.length, 0)
   const months = monthlyRegistrations(scopedMembers)
   const [, season] = semesterKey(today).split('-')
   const year = semesterKey(today).split('-')[0]
@@ -40,18 +41,32 @@ export function AdminNewFamily() {
           {year} {t(`admin.newfamily.season.${season}`)}
         </span>
         <span className="font-mono text-xs uppercase tracking-wide text-subtle">
-          {t('admin.newfamily.title')} · {list.length}
+          {t('admin.newfamily.title')} · {total}
         </span>
       </div>
 
-      {list.length === 0 ? (
+      {dateGroups.length === 0 ? (
         <p className="text-sm text-muted">{t('admin.newfamily.empty')}</p>
       ) : (
-        <ul className="grid grid-cols-4 gap-2">
-          {list.map((m) => (
-            <NewFamilyCard key={m.id} member={m} readOnly={readOnly} onOpen={() => setEditing(m)} />
+        <div className="flex flex-col gap-5">
+          {dateGroups.map((g) => (
+            <div key={g.date ?? 'no-date'}>
+              <div className="mb-1.5 flex items-baseline gap-2 border-b border-border pb-1">
+                {g.date ? (
+                  <span className="font-mono text-sm font-semibold text-text">{g.date}</span>
+                ) : (
+                  <span className="text-sm font-semibold text-warning">{t('admin.newfamily.noRegDate')}</span>
+                )}
+                <span className="text-xs text-subtle">{g.members.length}</span>
+              </div>
+              <ul className="grid grid-cols-4 gap-2">
+                {g.members.map((m) => (
+                  <NewFamilyCard key={m.id} member={m} readOnly={readOnly} onOpen={() => setEditing(m)} />
+                ))}
+              </ul>
+            </div>
           ))}
-        </ul>
+        </div>
       )}
 
       {months.length > 0 && (
@@ -138,13 +153,6 @@ function NewFamilyCard({
           )}
         </div>
         <div className="text-xs text-muted">{[member.group_name, member.subgroup].filter(Boolean).join(' · ') || '—'}</div>
-        <div className="mt-0.5 text-xs">
-          {member.registration_date ? (
-            <span className="font-mono text-subtle">{member.registration_date}</span>
-          ) : (
-            <span className="font-semibold text-warning">{t('admin.newfamily.noRegDate')}</span>
-          )}
-        </div>
         {member.phone && <div className="text-xs text-subtle">{member.phone}</div>}
       </button>
       <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">

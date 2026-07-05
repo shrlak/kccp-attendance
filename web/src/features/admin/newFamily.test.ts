@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { semesterKey, semesterBounds, semesterSundays, currentNewFamily, monthlyRegistrations } from './newFamily'
+import { semesterKey, semesterBounds, semesterSundays, currentNewFamily, newFamilyByDate, monthlyRegistrations } from './newFamily'
 import type { Member } from '../../lib/api'
 
 const m = (id: string, isNew: boolean, reg: string | null): Member => ({
@@ -49,6 +49,27 @@ describe('currentNewFamily', () => {
   ]
   it('keeps current-semester new members and undated ones, drops the rest', () => {
     expect(currentNewFamily(members, '2026-06-08').map((x) => x.id).sort()).toEqual(['cur', 'noreg'])
+  })
+})
+
+describe('newFamilyByDate', () => {
+  it('splits current-semester new members by registration date, newest first, undated last', () => {
+    const members = [
+      m('b1', true, '2026-05-31'),
+      m('a1', true, '2026-06-07'),
+      m('a2', true, '2026-06-07'),
+      m('none', true, null),
+      m('old', true, '2026-02-01'), // spring — out of scope
+      m('notNew', false, '2026-06-07'), // not flagged — excluded
+    ]
+    const groups = newFamilyByDate(members, '2026-06-08')
+    expect(groups.map((g) => g.date)).toEqual(['2026-06-07', '2026-05-31', null])
+    expect(groups[0].members.map((x) => x.id)).toEqual(['a1', 'a2'])
+    expect(groups[1].members.map((x) => x.id)).toEqual(['b1'])
+    expect(groups[2].members.map((x) => x.id)).toEqual(['none'])
+  })
+  it('returns no groups when nothing is in scope', () => {
+    expect(newFamilyByDate([m('old', true, '2026-02-01')], '2026-06-08')).toEqual([])
   })
 })
 
