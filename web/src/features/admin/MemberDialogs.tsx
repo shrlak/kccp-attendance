@@ -17,6 +17,8 @@ import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
 import { memberHistory, hasEntryOn } from './attendance'
 import { easternNow } from '../../lib/checkinWindow'
+import { NewFamilyCardView } from './NewFamilyCardView'
+import { exportNewFamilyCards } from './newFamilyCardImage'
 
 const GROUPS = ['대학부', '청년부', 'EM', 'Adult Ministry']
 const MEMBER_ROLES = ['', 'visitor', 'pastor', 'elder', 'deacon', 'mentor']
@@ -67,9 +69,24 @@ export function EditModal({
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [exporting, setExporting] = useState(false)
 
   function set<K extends keyof MemberEdit>(k: K, v: MemberEdit[K]) {
     setF((cur) => ({ ...cur, [k]: v }))
+  }
+
+  // Download this member's 새가족 등록 카드 as a JPG (same renderer as the 새가족 tab's
+  // batch export — one person, so the clipboard gets just their card).
+  async function downloadCard() {
+    setExporting(true)
+    try {
+      await exportNewFamilyCards([member], easternNow().date)
+      toast({ title: t('admin.members.card.done'), tone: 'ok' })
+    } catch {
+      toast({ title: t('admin.newfamily.export.failed'), tone: 'err' })
+    } finally {
+      setExporting(false)
+    }
   }
 
   async function save() {
@@ -100,10 +117,25 @@ export function EditModal({
   }
 
   return (
-    <Dialog open onOpenChange={(o) => !o && onClose()} title={t('admin.members.edit')}>
+    // wide: the 새가족 등록 카드 replica at the top needs the paper card's landscape width.
+    <Dialog open onOpenChange={(o) => !o && onClose()} title={t('admin.members.edit')} wide>
       <div className="flex max-h-[60vh] flex-col gap-3 overflow-y-auto pr-1">
+        {/* ── 새가족 등록 카드 — the member's info in the paper card's exact shape ── */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-xs font-bold uppercase tracking-wide text-subtle">{t('admin.members.card.section')}</div>
+          <button
+            type="button"
+            onClick={() => void downloadCard()}
+            disabled={exporting}
+            className="text-xs font-semibold text-primary hover:underline disabled:opacity-50"
+          >
+            {exporting ? t('admin.newfamily.export.busy') : t('admin.members.card.download')}
+          </button>
+        </div>
+        <NewFamilyCardView member={member} />
+
         {/* ── 기본 정보 ── */}
-        <div className="text-xs font-bold uppercase tracking-wide text-subtle">{t('admin.members.sectionBasic')}</div>
+        <div className="mt-1 border-t border-border pt-3 text-xs font-bold uppercase tracking-wide text-subtle">{t('admin.members.sectionBasic')}</div>
         <Field label={t('admin.members.name')}>
           <Input value={f.name ?? ''} onChange={(e) => set('name', e.target.value)} />
         </Field>

@@ -23,18 +23,20 @@ import { cardModel, type CardCell, type CardCheckOption } from './newFamilyCard'
 export { cardModel, formatCardDate, joinAffiliation, splitAffiliation } from './newFamilyCard'
 
 // Logical-pixel layout; rendered at SCALE× for a crisp raster (as todaySheetImage).
+// Column proportions follow the scanned card: equal grey label columns, with the
+// right value column wider than the left (≈ 16% | 31% | 16% | 37%).
 const SCALE = 2
 const CARD_W = 860
 const MARGIN = 24 // white margin around the printed table
 const TABLE_W = CARD_W - MARGIN * 2
-const LABEL_W = 148 // grey label columns
-const VALUE_W = (TABLE_W - LABEL_W * 2) / 2 // white value columns
+const LABEL_W = 130 // grey label columns
+const VALUE1_W = 250 // left value column (이름 / 생년월일 / 소속 / 학교 / 등록일)
+const VALUE2_W = TABLE_W - LABEL_W * 2 - VALUE1_W // right value column, wider (as printed)
 const TITLE_H = 54
 const MIN_ROW_H = 48
 const PAD_X = 12 // value-cell horizontal padding
-const PAD_Y = 12 // value-cell vertical padding around wrapped checkbox lines
-const LINE_H = 24 // one checkbox line
-const CHECK_GAP = 16 // gap between checkbox options on a line
+const PAD_Y = 12 // value-cell vertical padding around stacked checkbox lines
+const LINE_H = 26 // one checkbox line
 const BOX = 13 // checkbox square
 
 const INK = '#111111'
@@ -66,50 +68,54 @@ function checkWidth(ctx: CanvasRenderingContext2D, opt: CardCheckOption): number
 
 interface PlacedCheck {
   opt: CardCheckOption
-  x: number // relative to the cell's inner-left edge
   line: number
   w: number
 }
 
-// Flow the options left→right, wrapping within the cell's inner width — the paper
-// card packs several ☐ 옵션 per line and wraps when they don't fit.
-function layoutChecks(ctx: CanvasRenderingContext2D, options: CardCheckOption[], innerW: number): { placed: PlacedCheck[]; lines: number } {
-  const placed: PlacedCheck[] = []
-  let x = 0
-  let line = 0
-  for (const opt of options) {
-    const w = checkWidth(ctx, opt)
-    if (x > 0 && x + w > innerW) {
-      line += 1
-      x = 0
-    }
-    placed.push({ opt, x, line, w })
-    x += w + CHECK_GAP
-  }
-  return { placed, lines: line + 1 }
+// The printed card stacks every ☐ 옵션 on its own line (소속·세례·신앙생활 columns,
+// and O over X for 심방 요청) — no horizontal flow.
+function layoutChecks(ctx: CanvasRenderingContext2D, options: CardCheckOption[]): { placed: PlacedCheck[]; lines: number } {
+  const placed = options.map((opt, i) => ({ opt, line: i, w: checkWidth(ctx, opt) }))
+  return { placed, lines: options.length }
 }
 
-// Height one value cell needs (checkbox groups may wrap onto several lines).
+// Height one value cell needs (one line per checkbox option).
 function cellHeight(ctx: CanvasRenderingContext2D, cell: CardCell): number {
   if (cell.content.kind !== 'checks') return MIN_ROW_H
-  const { lines } = layoutChecks(ctx, cell.content.options, VALUE_W - PAD_X * 2)
+  const { lines } = layoutChecks(ctx, cell.content.options)
   return Math.max(MIN_ROW_H, PAD_Y * 2 + lines * LINE_H)
 }
 
-// Grey label cell: fill + bold centered text (shrinks to fit long labels like
-// 소속 (학교/직장) rather than overflowing the column).
+// Grey label cell: fill + bold centered text. Long labels wrap onto two centered
+// lines at the first space (the printed 소속 (학교/직장) / 학교/전공 or 직장 style);
+// single-word overflow shrinks instead.
 function drawLabel(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, h: number) {
   ctx.fillStyle = LABEL_GREY
   ctx.fillRect(x, y, LABEL_W, h)
   ctx.fillStyle = INK
-  let size = 15
-  ctx.font = `700 ${size}px "Gowun Dodum", sans-serif`
-  while (size > 11 && ctx.measureText(text).width > LABEL_W - 10) {
-    size -= 1
-    ctx.font = `700 ${size}px "Gowun Dodum", sans-serif`
-  }
+  const maxW = LABEL_W - 10
+  const fontAt = (size: number) => `700 ${size}px "Gowun Dodum", sans-serif`
+  ctx.font = fontAt(15)
   ctx.textAlign = 'center'
-  ctx.fillText(text, x + LABEL_W / 2, y + h / 2 + 1)
+  const cx = x + LABEL_W / 2
+  const words = text.split(' ')
+  if (ctx.measureText(text).width > maxW && words.length > 1) {
+    const lines = [words[0], words.slice(1).join(' ')]
+    let size = 15
+    while (size > 11 && lines.some((l) => ctx.measureText(l).width > maxW)) {
+      size -= 1
+      ctx.font = fontAt(size)
+    }
+    ctx.fillText(lines[0], cx, y + h / 2 - 9)
+    ctx.fillText(lines[1], cx, y + h / 2 + 10)
+  } else {
+    let size = 15
+    while (size > 11 && ctx.measureText(text).width > maxW) {
+      size -= 1
+      ctx.font = fontAt(size)
+    }
+    ctx.fillText(text, cx, y + h / 2 + 1)
+  }
   ctx.textAlign = 'left'
 }
 
@@ -127,20 +133,22 @@ function drawCheckbox(ctx: CanvasRenderingContext2D, x: number, cy: number, chec
   }
 }
 
-// Value cell with a checkbox group (소속 / 세례 여부 / 신앙생활 / 심방 요청 O·X).
+// Value cell with a checkbox group (소속 / 세례 여부 / 신앙생활 / 심방 요청 O·X),
+// options stacked one per line like the printed card.
 function drawChecksCell(
   ctx: CanvasRenderingContext2D,
   content: Extract<CardCell['content'], { kind: 'checks' }>,
   x: number,
   y: number,
+  w: number,
   h: number,
 ) {
-  const innerW = VALUE_W - PAD_X * 2
-  const { placed, lines } = layoutChecks(ctx, content.options, innerW)
+  const innerW = w - PAD_X * 2
+  const { placed, lines } = layoutChecks(ctx, content.options)
   const top = y + (h - lines * LINE_H) / 2
   for (const p of placed) {
     const cy = top + p.line * LINE_H + LINE_H / 2
-    const bx = x + PAD_X + p.x
+    const bx = x + PAD_X
     drawCheckbox(ctx, bx, cy, p.opt.checked)
     ctx.fillStyle = INK
     ctx.font = OPTION_FONT
@@ -155,7 +163,7 @@ function drawChecksCell(
   // Free text after the last option (the paper's "Other: ____" blank).
   if (content.extra) {
     const last = placed[placed.length - 1]
-    const ex = x + PAD_X + last.x + last.w + 6
+    const ex = x + PAD_X + last.w + 6
     const cy = top + last.line * LINE_H + LINE_H / 2
     const room = x + PAD_X + innerW - ex
     if (room > 24) {
@@ -173,14 +181,15 @@ function drawNameCell(
   content: Extract<CardCell['content'], { kind: 'name' }>,
   x: number,
   y: number,
+  w: number,
   h: number,
 ) {
   const cy = y + h / 2 + 1
   ctx.font = VALUE_FONT
   ctx.fillStyle = INK
   const genderParts = ['( ', '남', ' / ', '여', ' )'] as const
-  const genderW = genderParts.reduce((w, p) => w + ctx.measureText(p).width, 0)
-  const nameMax = VALUE_W - PAD_X * 2 - genderW - 14
+  const genderW = genderParts.reduce((gw, p) => gw + ctx.measureText(p).width, 0)
+  const nameMax = w - PAD_X * 2 - genderW - 14
   const name = truncate(ctx, content.name, Math.max(nameMax, 40))
   ctx.fillText(name, x + PAD_X, cy)
   let gx = x + PAD_X + ctx.measureText(name).width + 14
@@ -236,25 +245,25 @@ export function renderNewFamilyCard(m: Member): HTMLCanvasElement {
   ctx.fillText(model.title, left + TABLE_W / 2, top + TITLE_H / 2 + 2)
   ctx.textAlign = 'left'
 
-  // Rows: [grey label | value | grey label | value]
-  const colX = [left, left + LABEL_W, left + LABEL_W + VALUE_W, left + LABEL_W * 2 + VALUE_W]
+  // Rows: [grey label | value | grey label | wider value] — printed column widths.
+  const colX = [left, left + LABEL_W, left + LABEL_W + VALUE1_W, left + LABEL_W * 2 + VALUE1_W]
   let y = top + TITLE_H
   model.rows.forEach((row, i) => {
     const h = rowHeights[i]
-    for (const [cell, lx, vx] of [
-      [row.left, colX[0], colX[1]],
-      [row.right, colX[2], colX[3]],
+    for (const [cell, lx, vx, vw] of [
+      [row.left, colX[0], colX[1], VALUE1_W],
+      [row.right, colX[2], colX[3], VALUE2_W],
     ] as const) {
       drawLabel(ctx, cell.label, lx, y, h)
       const c = cell.content
       if (c.kind === 'text') {
         ctx.fillStyle = INK
         ctx.font = VALUE_FONT
-        if (c.text) ctx.fillText(truncate(ctx, c.text, VALUE_W - PAD_X * 2), vx + PAD_X, y + h / 2 + 1)
+        if (c.text) ctx.fillText(truncate(ctx, c.text, vw - PAD_X * 2), vx + PAD_X, y + h / 2 + 1)
       } else if (c.kind === 'name') {
-        drawNameCell(ctx, c, vx, y, h)
+        drawNameCell(ctx, c, vx, y, vw, h)
       } else {
-        drawChecksCell(ctx, c, vx, y, h)
+        drawChecksCell(ctx, c, vx, y, vw, h)
       }
     }
     y += h

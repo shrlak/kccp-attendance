@@ -40,6 +40,36 @@ const member = {
   notes: '',
 } as unknown as Member
 
+describe('EditModal — 새가족 등록 카드 view', () => {
+  it("renders the paper-card replica with all of the member's card info", () => {
+    const filled = {
+      ...member,
+      gender: '남',
+      phone: '412-555-0142',
+      kakao_id: 'gil_dong',
+      birth_date: '2004-03-15',
+      registration_date: '2026-07-05',
+      baptism_status: '세례',
+      school_or_work: '대학생 · Pitt 컴퓨터공학',
+      faith_duration: '1-3년',
+      pastoral_visit_requested: true,
+    } as unknown as Member
+    renderWithProviders(<EditModal member={filled} onClose={vi.fn()} onAttendance={vi.fn()} />)
+
+    expect(screen.getByText('< KCCP 빛주사랑 대학청년부 - 새가족 등록 카드 >')).toBeInTheDocument()
+    // Every card field is shown: phone, kakao, dates (MM / DD / YYYY), affiliation
+    // detail, and the checkbox options (세례/신앙생활/심방 O·X).
+    expect(screen.getByText('412-555-0142')).toBeInTheDocument()
+    expect(screen.getByText('gil_dong')).toBeInTheDocument()
+    expect(screen.getByText('03 / 15 / 2004')).toBeInTheDocument()
+    expect(screen.getByText('07 / 05 / 2026')).toBeInTheDocument()
+    expect(screen.getByText('Pitt 컴퓨터공학')).toBeInTheDocument()
+    expect(screen.getByText('유아세례')).toBeInTheDocument()
+    expect(screen.getByText('모태신앙')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '카드 다운로드 (JPG)' })).toBeInTheDocument()
+  })
+})
+
 describe('EditModal — member delete', () => {
   it('hides the delete control unless allowDelete is set', () => {
     renderWithProviders(<EditModal member={member} onClose={vi.fn()} onAttendance={vi.fn()} />)
