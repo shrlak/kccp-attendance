@@ -80,8 +80,6 @@
       "sectionFaith": "Faith",
       "sectionChurch": "Registration",
       "name": "Name",
-      "group": "Group",
-      "subgroup": "동산",
       "gender": "Gender",
       "phone": "Phone",
       "kakaoId": "KakaoTalk ID",
@@ -94,7 +92,8 @@
       "pastoralVisit": "Visit requested",
       "submit": "Register & check in",
       "done": "Registered {{name}}",
-      "nameRequired": "Please enter a name and group"
+      "nameRequired": "Please enter a name",
+      "affiliationRequired": "Please select an affiliation (school/work)"
     }
   },
   "common": { "cancel": "Cancel", "save": "Save", "loading": "Loading…", "error": "Connection error", "retry": "Try again", "close": "Close" },

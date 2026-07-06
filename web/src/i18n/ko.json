@@ -80,8 +80,6 @@
       "sectionFaith": "신앙",
       "sectionChurch": "등록 정보",
       "name": "이름",
-      "group": "부서",
-      "subgroup": "동산",
       "gender": "성별",
       "phone": "전화",
       "kakaoId": "카톡ID",
@@ -94,7 +92,8 @@
       "pastoralVisit": "심방 요청",
       "submit": "등록 후 출석",
       "done": "{{name}} 새가족 등록 완료",
-      "nameRequired": "이름과 부서를 입력해주세요"
+      "nameRequired": "이름을 입력해주세요",
+      "affiliationRequired": "소속 (학교/직장)을 선택해주세요"
     }
   },
   "common": { "cancel": "취소", "save": "저장", "loading": "불러오는 중…", "error": "연결 오류", "retry": "다시 시도", "close": "닫기" },

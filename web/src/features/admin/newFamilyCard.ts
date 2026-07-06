@@ -28,6 +28,13 @@ export function joinAffiliation(category: string, detail: string): string {
   return `${c}${AFFILIATION_SEP}${d}`
 }
 
+// 부서 derived from the card's 소속 category — the kiosk 새가족 등록 has no 부서 picker:
+// 대학생 → 대학부, everything else (대학원생/직장인/Other) → 청년부. Admins can correct it
+// later in the Members tab, the only place 부서 is edited.
+export function groupForAffiliation(category: string): '대학부' | '청년부' {
+  return category.trim() === '대학생' ? '대학부' : '청년부'
+}
+
 // Recover { category, detail } from `school_or_work`. A known-category prefix before
 // ' · ' (or a bare category with no detail) is recognized; any other non-empty text
 // means "has affiliation text that isn't one of the known categories" → category
