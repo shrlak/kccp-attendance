@@ -4,10 +4,13 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useRoster } from './useRoster'
 import { easternNow } from '../../lib/checkinWindow'
 import { filterMembers, NO_FILTER, type Filter } from './filters'
-import { semesterKey, newFamilyByDate, monthlyRegistrations, registeredOnDate } from './newFamily'
+import { semesterKey, newFamilyByDate, monthlyRegistrations } from './newFamily'
 import { exportNewFamilyCards } from './newFamilyCardImage'
+import { toggleId } from './bulk'
 import { GroupFilter } from './GroupFilter'
 import { updateMember, type Member, type MemberEdit } from '../../lib/api'
+import { Dialog } from '../../components/ui/Dialog'
+import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
 import { EditModal, AttendanceModal } from './MemberDialogs'
@@ -16,12 +19,11 @@ import { EditModal, AttendanceModal } from './MemberDialogs'
 // tracking, plus a monthly-registrations roll-up. Visible to every admin.
 export function AdminNewFamily() {
   const { t } = useTranslation()
-  const toast = useToast()
   const { data, isLoading, isError } = useRoster(true)
   const [filter, setFilter] = useState<Filter>(NO_FILTER)
   const [editing, setEditing] = useState<Member | null>(null)
   const [attendanceFor, setAttendanceFor] = useState<Member | null>(null)
-  const [exporting, setExporting] = useState(false)
+  const [exportOpen, setExportOpen] = useState(false)
 
   if (isLoading) return <p className="text-sm text-muted">{t('common.loading')}</p>
   if (isError) return <p className="text-sm text-danger">{t('common.error')}</p>
@@ -30,49 +32,30 @@ export function AdminNewFamily() {
   const today = easternNow().date
   const scopedMembers = filterMembers(data.members, filter)
   const dateGroups = newFamilyByDate(scopedMembers, today)
-  const total = dateGroups.reduce((n, g) => n + g.members.length, 0)
+  const allNewFamily = dateGroups.flatMap((g) => g.members)
+  const total = allNewFamily.length
   const months = monthlyRegistrations(scopedMembers)
   const [, season] = semesterKey(today).split('-')
   const year = semesterKey(today).split('-')[0]
   const readOnly = data.role === 'pastor'
 
-  // Export today's registrations as 등록 카드 images — a JPG per person for every
-  // card registered on the export date (kiosk-dialog layout, drawn on canvas).
-  async function exportCards() {
-    const todays = registeredOnDate(scopedMembers, today)
-    if (!todays.length) {
-      toast({ title: t('admin.newfamily.export.none'), tone: 'warn' })
-      return
-    }
-    setExporting(true)
-    try {
-      const { copied } = await exportNewFamilyCards(todays, today)
-      toast({
-        title: t(copied ? 'admin.newfamily.export.done' : 'admin.newfamily.export.downloadedOnly'),
-        tone: 'ok',
-      })
-    } catch {
-      toast({ title: t('admin.newfamily.export.failed'), tone: 'err' })
-    } finally {
-      setExporting(false)
-    }
-  }
-
   return (
     <>
       <GroupFilter members={data.members} value={filter} onChange={setFilter} />
 
-      <div className="mb-3 flex items-center gap-2">
+      <div className="mb-1.5 flex items-center gap-2">
         <span className="rounded-full bg-primary/15 px-3 py-1 text-xs font-semibold text-primary">
           {year} {t(`admin.newfamily.season.${season}`)}
         </span>
         <span className="font-mono text-xs uppercase tracking-wide text-subtle">
           {t('admin.newfamily.title')} · {total}
         </span>
-        <Button variant="secondary" size="sm" className="ml-auto" disabled={exporting} onClick={() => void exportCards()}>
-          {exporting ? t('admin.newfamily.export.busy') : t('admin.newfamily.export.action')}
+        <Button variant="secondary" size="sm" className="ml-auto" onClick={() => setExportOpen(true)}>
+          {t('admin.newfamily.export.action')}
         </Button>
       </div>
+      {/* Legend for the card badge below */}
+      <p className="mb-3 text-xs text-subtle">{t('admin.newfamily.legend')}</p>
 
       {dateGroups.length === 0 ? (
         <p className="text-sm text-muted">{t('admin.newfamily.empty')}</p>
@@ -99,7 +82,7 @@ export function AdminNewFamily() {
       )}
 
       {months.length > 0 && (
-        <div className="mt-8">
+        <div className="mt-8 border-t border-border pt-4">
           <div className="mb-3 font-mono text-xs uppercase tracking-wide text-subtle">{t('admin.newfamily.monthly')}</div>
           <div className="flex flex-col gap-4">
             {months.map((g) => (
@@ -123,6 +106,8 @@ export function AdminNewFamily() {
         </div>
       )}
 
+      {exportOpen && <ExportCardsModal members={allNewFamily} today={today} onClose={() => setExportOpen(false)} />}
+
       {editing && (
         <EditModal
           member={editing}
@@ -142,6 +127,96 @@ export function AdminNewFamily() {
         />
       )}
     </>
+  )
+}
+
+// Pick which 새가족 to export as 등록 카드 JPGs. Lists the whole current-semester tab
+// (name-searchable), with today's registrations pre-checked — the previous "export
+// today" behavior stays the default, but any subset of the semester can be chosen.
+function ExportCardsModal({ members, today, onClose }: { members: Member[]; today: string; onClose: () => void }) {
+  const { t } = useTranslation()
+  const toast = useToast()
+  const [search, setSearch] = useState('')
+  const [selected, setSelected] = useState<Set<string>>(
+    () => new Set(members.filter((m) => m.registration_date === today).map((m) => m.id)),
+  )
+  const [busy, setBusy] = useState(false)
+
+  const q = search.trim().toLowerCase()
+  const visible = q ? members.filter((m) => m.name.toLowerCase().includes(q)) : members
+
+  async function confirm() {
+    // Export in the tab's display order (newest registration date first).
+    const chosen = members.filter((m) => selected.has(m.id))
+    if (!chosen.length) return
+    setBusy(true)
+    try {
+      const { copied } = await exportNewFamilyCards(chosen, today)
+      toast({
+        title: t(copied ? 'admin.newfamily.export.done' : 'admin.newfamily.export.downloadedOnly'),
+        tone: 'ok',
+      })
+    } catch {
+      toast({ title: t('admin.newfamily.export.failed'), tone: 'err' })
+    }
+    onClose()
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()} title={t('admin.newfamily.export.title')}>
+      <p className="mb-3 text-sm text-muted">{t('admin.newfamily.export.select')}</p>
+      <Input
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder={t('admin.members.search')}
+        aria-label={t('admin.members.search')}
+        className="mb-2"
+      />
+      <div className="mb-2 flex items-center justify-between">
+        <span className="font-mono text-xs uppercase tracking-wide text-subtle">
+          {t('admin.newfamily.export.selected', { n: selected.size })}
+        </span>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setSelected((cur) => new Set([...cur, ...visible.map((m) => m.id)]))}
+            className="text-xs font-semibold text-primary hover:underline"
+          >
+            {t('admin.newfamily.export.all')}
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelected(new Set())}
+            className="text-xs font-semibold text-muted hover:underline"
+          >
+            {t('admin.newfamily.export.none')}
+          </button>
+        </div>
+      </div>
+      <ul className="flex max-h-[42vh] flex-col gap-1 overflow-y-auto pr-1">
+        {visible.length === 0 && <li className="text-sm text-muted">{t('admin.newfamily.export.noMatch')}</li>}
+        {visible.map((m) => (
+          <li key={m.id}>
+            <label className="flex cursor-pointer items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-sm hover:bg-surface-alt">
+              <input
+                type="checkbox"
+                checked={selected.has(m.id)}
+                disabled={busy}
+                onChange={() => setSelected((cur) => toggleId(cur, m.id))}
+              />
+              <span className="font-medium text-text">{m.name}</span>
+              <span className="text-xs text-muted">{[m.group_name, m.subgroup].filter(Boolean).join(' · ')}</span>
+              {m.registration_date && (
+                <span className="ml-auto font-mono text-[11px] text-subtle">{m.registration_date}</span>
+              )}
+            </label>
+          </li>
+        ))}
+      </ul>
+      <Button onClick={() => void confirm()} disabled={busy || selected.size === 0} className="mt-4 w-full">
+        {busy ? t('admin.newfamily.export.busy') : t('admin.newfamily.export.confirm', { n: selected.size })}
+      </Button>
+    </Dialog>
   )
 }
 

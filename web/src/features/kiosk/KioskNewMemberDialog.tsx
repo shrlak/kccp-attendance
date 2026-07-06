@@ -8,9 +8,17 @@ import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
 import { kioskNewMember, type NewMemberFields } from '../../lib/api'
 import { easternNow } from '../../lib/checkinWindow'
+import {
+  CARD_TITLE,
+  AFFILIATION_CATEGORIES,
+  BAPTISM_OPTIONS,
+  FAITH_OPTIONS,
+  joinAffiliation,
+} from '../admin/newFamilyCard'
 import { broadcastKioskChange } from './live'
 
 const GROUPS = ['대학부', '청년부', 'EM', 'Adult Ministry']
+const GENDERS = ['남', '여'] as const
 
 const EMPTY = {
   name: '',
@@ -21,6 +29,8 @@ const EMPTY = {
   kakaoId: '',
   birthDate: '',
   baptismStatus: '',
+  // 소속 category + the 학교/전공 or 직장 detail — joined into school_or_work on submit.
+  affiliationCategory: '',
   schoolOrWork: '',
   faithDuration: '',
   registrationDate: '',
@@ -31,10 +41,11 @@ const EMPTY = {
 // kiosk doesn't stamp a stale date if it stays up across midnight.
 const freshForm = () => ({ ...EMPTY, registrationDate: easternNow().date })
 
-// 새가족 (new-family) registration from the kiosk: collects name + group + 동산 + the
-// extended profile fields, then creates the member/device and checks them in for today.
-// Laid out like the paper 새가족 등록 카드 — fields spread across columns in sections
-// (인적 사항 / 신앙 / 등록 정보) instead of one long scrolling column.
+// 새가족 (new-family) registration from the kiosk, mirroring the paper 새가족 등록 카드:
+// the same title line, and the card's choose-one fields (성별 남/여, 소속 category,
+// 세례 여부, 신앙생활, 목사님 심방 요청 O/X) as tap targets instead of free text — the
+// options are the canonical Korean values stored in the DB (see ../admin/newFamilyCard).
+// Creates the member/device and checks them in for today.
 export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
@@ -67,7 +78,9 @@ export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose
         kakaoId: f.kakaoId.trim(),
         birthDate: f.birthDate || null,
         baptismStatus: f.baptismStatus,
-        schoolOrWork: f.schoolOrWork.trim(),
+        // 소속 stored as "category · detail" inside school_or_work (no DB column for
+        // the category — the 등록 카드 export splits it back out).
+        schoolOrWork: joinAffiliation(f.affiliationCategory, f.schoolOrWork),
         faithDuration: f.faithDuration.trim(),
         // 등록일 — operator-editable (prefilled to today); server falls back to today if blank.
         registrationDate: f.registrationDate || null,
@@ -91,13 +104,18 @@ export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose
       {/* max-h is a safety valve for short/small screens; on the kiosk tablet the whole
           card fits without scrolling. */}
       <div className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto pr-1">
+        {/* The paper card's title bar — same text, same grey band. */}
+        <p className="rounded-md bg-surface-alt px-2 py-2 text-center font-display text-sm font-semibold text-text">
+          {CARD_TITLE}
+        </p>
+
         <Section label={t('kiosk.newMember.sectionPersonal')}>
           <Field label={t('kiosk.newMember.name')}>
             <Input value={f.name} onChange={(e) => set('name', e.target.value)} autoFocus autoComplete="off" />
           </Field>
-          <Field label={t('kiosk.newMember.gender')}>
-            <Input value={f.gender} onChange={(e) => set('gender', e.target.value)} autoComplete="off" />
-          </Field>
+          <ChoiceField label={t('kiosk.newMember.gender')}>
+            <ChoiceRow options={GENDERS} value={f.gender} onChange={(v) => set('gender', v)} />
+          </ChoiceField>
           <Field label={t('kiosk.newMember.birthDate')}>
             <Input type="date" value={f.birthDate} onChange={(e) => set('birthDate', e.target.value)} />
           </Field>
@@ -107,27 +125,33 @@ export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose
           <Field label={t('kiosk.newMember.kakaoId')}>
             <Input value={f.kakaoId} onChange={(e) => set('kakaoId', e.target.value)} autoComplete="off" />
           </Field>
-          <Field label={t('kiosk.newMember.school')}>
+          <ChoiceField label={t('kiosk.newMember.affiliation')} className="col-span-full">
+            <ChoiceRow
+              options={AFFILIATION_CATEGORIES}
+              value={f.affiliationCategory}
+              onChange={(v) => set('affiliationCategory', v)}
+            />
+          </ChoiceField>
+          <Field label={t('kiosk.newMember.school')} className="col-span-full">
             <Input value={f.schoolOrWork} onChange={(e) => set('schoolOrWork', e.target.value)} autoComplete="off" />
           </Field>
         </Section>
 
         <Section label={t('kiosk.newMember.sectionFaith')}>
-          <Field label={t('kiosk.newMember.baptism')}>
-            <Input value={f.baptismStatus} onChange={(e) => set('baptismStatus', e.target.value)} autoComplete="off" />
-          </Field>
-          <Field label={t('kiosk.newMember.faith')}>
-            <Input value={f.faithDuration} onChange={(e) => set('faithDuration', e.target.value)} autoComplete="off" />
-          </Field>
-          <label className="col-span-2 flex min-h-11 cursor-pointer items-center gap-2 self-end rounded-md border border-border bg-surface px-3.5 text-sm text-text sm:col-span-1">
-            <input
-              type="checkbox"
-              checked={f.pastoralVisitRequested}
-              onChange={(e) => set('pastoralVisitRequested', e.target.checked)}
-              className="h-4 w-4"
+          <ChoiceField label={t('kiosk.newMember.baptism')} className="col-span-full">
+            <ChoiceRow options={BAPTISM_OPTIONS} value={f.baptismStatus} onChange={(v) => set('baptismStatus', v)} />
+          </ChoiceField>
+          <ChoiceField label={t('kiosk.newMember.faith')} className="col-span-full">
+            <ChoiceRow options={FAITH_OPTIONS} value={f.faithDuration} onChange={(v) => set('faithDuration', v)} />
+          </ChoiceField>
+          <ChoiceField label={t('kiosk.newMember.pastoralVisit')} className="col-span-2 sm:col-span-1">
+            <ChoiceRow
+              options={['O', 'X'] as const}
+              value={f.pastoralVisitRequested ? 'O' : 'X'}
+              onChange={(v) => set('pastoralVisitRequested', v === 'O')}
+              allowClear={false}
             />
-            {t('kiosk.newMember.pastoralVisit')}
-          </label>
+          </ChoiceField>
         </Section>
 
         <Section label={t('kiosk.newMember.sectionChurch')}>
@@ -160,17 +184,65 @@ export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose
 function Section({ label, children }: { label: string; children: ReactNode }) {
   return (
     <fieldset className="rounded-lg border border-border px-3 pb-3 pt-1">
-      <legend className="px-1.5 font-mono text-[11px] uppercase tracking-wide text-subtle">{label}</legend>
+      <legend className="rounded-sm bg-surface-alt px-2 py-0.5 font-mono text-[11px] uppercase tracking-wide text-muted">
+        {label}
+      </legend>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">{children}</div>
     </fieldset>
   )
 }
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
+function Field({ label, children, className = '' }: { label: string; children: ReactNode; className?: string }) {
   return (
-    <label className="block">
+    <label className={`block ${className}`}>
       <span className="mb-1 block text-xs font-semibold text-subtle">{label}</span>
       {children}
     </label>
+  )
+}
+
+// Like Field but for button groups — a <div>, not a <label>, so tapping the caption
+// doesn't "click" the first button.
+function ChoiceField({ label, children, className = '' }: { label: string; children: ReactNode; className?: string }) {
+  return (
+    <div className={className}>
+      <span className="mb-1 block text-xs font-semibold text-subtle">{label}</span>
+      {children}
+    </div>
+  )
+}
+
+// Single-select tappable chips (the paper card's checkbox rows). Tapping the selected
+// chip clears it again unless allowClear is off (O/X always has one side chosen).
+// min-h-11 keeps the targets tablet-finger sized.
+function ChoiceRow({
+  options,
+  value,
+  onChange,
+  allowClear = true,
+}: {
+  options: readonly string[]
+  value: string
+  onChange: (v: string) => void
+  allowClear?: boolean
+}) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {options.map((o) => (
+        <button
+          key={o}
+          type="button"
+          aria-pressed={value === o}
+          onClick={() => onChange(value === o ? (allowClear ? '' : o) : o)}
+          className={`min-h-11 rounded-md border px-3.5 text-sm transition-colors ${
+            value === o
+              ? 'border-primary bg-primary/10 font-semibold text-primary'
+              : 'border-border bg-surface text-text'
+          }`}
+        >
+          {o}
+        </button>
+      ))}
+    </div>
   )
 }

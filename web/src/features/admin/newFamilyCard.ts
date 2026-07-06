@@ -1,0 +1,165 @@
+import type { Member } from '../../lib/api'
+
+// ── 새가족 등록 카드 — pure model of the paper card ─────────────────────────────
+// The single source of truth for the paper registration card's layout/vocabulary:
+// the title line, the 소속/세례/신앙생활 option lists, and `cardModel()` which maps a
+// Member row onto the card's five label|value|label|value table rows. Shared by the
+// canvas renderer (newFamilyCardImage) and the kiosk entry form
+// (KioskNewMemberDialog) so the printed card and the on-screen form never drift.
+// No canvas/DOM here — everything is pure and unit-testable.
+
+export const CARD_TITLE = '< KCCP 빛주사랑 대학청년부 - 새가족 등록 카드 >'
+
+// 소속 (학교/직장) categories. There is no dedicated DB column: the category is
+// stored client-side as a prefix inside `school_or_work`, joined with ' · '
+// (e.g. "대학생 · Pitt 컴퓨터공학") — join/splitAffiliation below own that convention.
+export const AFFILIATION_CATEGORIES = ['대학생', '대학원생', '직장인', 'Other'] as const
+export type AffiliationCategory = (typeof AFFILIATION_CATEGORIES)[number]
+
+const AFFILIATION_SEP = ' · '
+
+// Compose `school_or_work` from a category + free-text detail. Either side may be
+// blank: '' category → just the detail, '' detail → just the category.
+export function joinAffiliation(category: string, detail: string): string {
+  const c = category.trim()
+  const d = detail.trim()
+  if (!c) return d
+  if (!d) return c
+  return `${c}${AFFILIATION_SEP}${d}`
+}
+
+// Recover { category, detail } from `school_or_work`. A known-category prefix before
+// ' · ' (or a bare category with no detail) is recognized; any other non-empty text
+// means "has affiliation text that isn't one of the known categories" → category
+// 'Other' with the whole string as the detail. Empty → both empty.
+export function splitAffiliation(schoolOrWork: string): { category: AffiliationCategory | ''; detail: string } {
+  const s = (schoolOrWork || '').trim()
+  if (!s) return { category: '', detail: '' }
+  for (const c of AFFILIATION_CATEGORIES) {
+    if (s === c) return { category: c, detail: '' }
+    if (s.startsWith(c + AFFILIATION_SEP)) return { category: c, detail: s.slice(c.length + AFFILIATION_SEP.length).trim() }
+  }
+  return { category: 'Other', detail: s }
+}
+
+// 세례 여부 options — the Korean label is the canonical stored value; the paper card
+// prints a small English caption after each.
+export const BAPTISM_OPTIONS = ['유아세례', '입교', '세례', '해당없음'] as const
+export const BAPTISM_CAPTIONS: Record<string, string> = {
+  유아세례: 'Infant Baptism',
+  입교: 'Confirmation',
+  세례: 'Baptism',
+  해당없음: 'N/A',
+}
+
+// 신앙생활 options (stored verbatim in `faith_duration`).
+export const FAITH_OPTIONS = ['모태신앙', '1년 미만', '1-3년', '3-5년', '5년 이상'] as const
+
+// Unfilled date blanks, exactly as printed on the paper card (MM / DD / YYYY).
+export const DATE_BLANK = '____ / ____ / ______'
+
+// ISO date → the card's "MM / DD / YYYY"; anything blank/unparseable stays as the
+// paper card's underscore blanks.
+export function formatCardDate(iso: string | null | undefined): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || '')
+  if (!m) return DATE_BLANK
+  return `${m[2]} / ${m[3]} / ${m[1]}`
+}
+
+// ── Card model ───────────────────────────────────────────────────────────────
+
+export interface CardCheckOption {
+  label: string // Korean canonical label (what's matched against the stored value)
+  caption?: string // small English caption printed after the label (세례 여부 row)
+  checked: boolean
+}
+
+export type CardCellContent =
+  | { kind: 'text'; text: string }
+  | { kind: 'name'; name: string; circled: '남' | '여' | null } // 이름 cell: name + ( 남 / 여 ) with the gender circled
+  | { kind: 'checks'; options: CardCheckOption[]; extra: string } // extra = free text after the last option (Other: …)
+
+export interface CardCell {
+  label: string
+  content: CardCellContent
+}
+
+export interface CardRow {
+  left: CardCell
+  right: CardCell
+}
+
+export interface CardModel {
+  title: string
+  rows: CardRow[]
+}
+
+// One member → the paper card's five [grey label | value | grey label | value] rows.
+export function cardModel(m: Member): CardModel {
+  const gender = m.gender || ''
+  const circled = gender.includes('남') ? ('남' as const) : gender.includes('여') ? ('여' as const) : null
+  const aff = splitAffiliation(m.school_or_work || '')
+  const baptism = (m.baptism_status || '').trim()
+  const faith = (m.faith_duration || '').trim()
+  return {
+    title: CARD_TITLE,
+    rows: [
+      {
+        left: { label: '이름', content: { kind: 'name', name: m.name || '', circled } },
+        right: { label: '전화번호', content: { kind: 'text', text: m.phone || '' } },
+      },
+      {
+        left: { label: '생년월일', content: { kind: 'text', text: formatCardDate(m.birth_date) } },
+        right: { label: '카톡 아이디', content: { kind: 'text', text: m.kakao_id || '' } },
+      },
+      {
+        left: {
+          label: '소속 (학교/직장)',
+          content: {
+            kind: 'checks',
+            options: AFFILIATION_CATEGORIES.map((c) => ({
+              label: c === 'Other' ? 'Other:' : c,
+              checked: aff.category === c,
+            })),
+            // The paper's "Other: ____" free text — only when the affiliation isn't a
+            // known category (the detail also appears in the 학교/전공 or 직장 row).
+            extra: aff.category === 'Other' ? aff.detail : '',
+          },
+        },
+        right: {
+          label: '세례 여부',
+          content: {
+            kind: 'checks',
+            options: BAPTISM_OPTIONS.map((o) => ({ label: o, caption: BAPTISM_CAPTIONS[o], checked: baptism === o })),
+            extra: '',
+          },
+        },
+      },
+      {
+        left: { label: '학교/전공 or 직장', content: { kind: 'text', text: aff.detail } },
+        right: {
+          label: '신앙생활',
+          content: {
+            kind: 'checks',
+            options: FAITH_OPTIONS.map((o) => ({ label: o, checked: faith === o })),
+            extra: '',
+          },
+        },
+      },
+      {
+        left: { label: '등록일', content: { kind: 'text', text: formatCardDate(m.registration_date) } },
+        right: {
+          label: '목사님 심방 요청',
+          content: {
+            kind: 'checks',
+            options: [
+              { label: 'O', checked: !!m.pastoral_visit_requested },
+              { label: 'X', checked: !m.pastoral_visit_requested },
+            ],
+            extra: '',
+          },
+        },
+      },
+    ],
+  }
+}

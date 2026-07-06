@@ -102,6 +102,8 @@ export function EditModal({
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()} title={t('admin.members.edit')}>
       <div className="flex max-h-[60vh] flex-col gap-3 overflow-y-auto pr-1">
+        {/* ── 기본 정보 ── */}
+        <div className="text-xs font-bold uppercase tracking-wide text-subtle">{t('admin.members.sectionBasic')}</div>
         <Field label={t('admin.members.name')}>
           <Input value={f.name ?? ''} onChange={(e) => set('name', e.target.value)} />
         </Field>
@@ -126,6 +128,10 @@ export function EditModal({
             ))}
           </Select>
         </Field>
+        {/* ── 개인 정보 ── */}
+        <div className="mt-1 border-t border-border pt-3 text-xs font-bold uppercase tracking-wide text-subtle">
+          {t('admin.members.sectionPersonal')}
+        </div>
         <Field label={t('admin.members.gender')}>
           <Input value={f.gender ?? ''} onChange={(e) => set('gender', e.target.value)} />
         </Field>
@@ -150,8 +156,12 @@ export function EditModal({
           <input type="checkbox" checked={f.isNewMember ?? false} onChange={(e) => set('isNewMember', e.target.checked)} />
           {t('admin.members.isNewMember')}
         </label>
-        {/* 상태 표기: the 출석부 shows this as a grey cell from the start date to the end
-            date (or the term's end) instead of O/X — e.g. 한국 귀국, 이주(방문자), 돌아옴. */}
+        {/* ── 상태 표기: the 출석부 shows this as a grey cell from the start date to the end
+            date (or the term's end) instead of O/X — e.g. 한국 귀국, 이주(방문자), 돌아옴. ── */}
+        <div className="mt-1 border-t border-border pt-3">
+          <div className="text-xs font-bold uppercase tracking-wide text-subtle">{t('admin.members.statusSection')}</div>
+          <p className="mt-2 rounded-md bg-warning/10 px-3 py-2 text-sm text-warning">{t('admin.members.statusHelp')}</p>
+        </div>
         <Field label={t('admin.members.statusNote')}>
           <Input value={f.statusNote ?? ''} onChange={(e) => set('statusNote', e.target.value)} />
         </Field>

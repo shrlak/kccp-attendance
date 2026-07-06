@@ -73,6 +73,36 @@ export function getDongsanRole(
   return match(leaders[group]?.[subgroup])
 }
 
+// Roster order with 동산지기 first and 부동산지기 next within each 동산 block. Mirrors
+// buildAttendanceModel's grouping (by subgroup, first-seen block order) so the on-screen
+// 출석부 hoists leaders without ever reordering members across 동산 blocks; within a block
+// the partition is stable — untitled members keep their original relative order.
+export function orderByDongsanRole(
+  members: Member[],
+  roleOf: (name: string, group: string, subgroup: string) => DongsanRole,
+): Member[] {
+  const blocks = new Map<string, Member[]>()
+  for (const m of members) {
+    const key = m.subgroup || ''
+    const block = blocks.get(key)
+    if (block) block.push(m)
+    else blocks.set(key, [m])
+  }
+  const out: Member[] = []
+  for (const block of blocks.values()) {
+    const ranks = block.map((m) => {
+      const role = roleOf(m.name, m.group_name, m.subgroup || '')
+      return role === '동산지기' ? 0 : role === '부동산지기' ? 1 : 2
+    })
+    for (const rank of [0, 1, 2]) {
+      block.forEach((m, i) => {
+        if (ranks[i] === rank) out.push(m)
+      })
+    }
+  }
+  return out
+}
+
 // ── 임원 (officer) display badge ────────────────────────────────────────────
 // `officers` is the config-managed name list (config.officers, edited in the 동산 tab).
 // Undefined (endpoint unreachable / still loading) means no badges — graceful degradation.

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { cardSections, cardFilenames } from './newFamilyCardImage'
+import { cardModel, cardFilenames, formatCardDate, joinAffiliation, splitAffiliation } from './newFamilyCardImage'
+import { DATE_BLANK, type CardCellContent } from './newFamilyCard'
 import type { Member } from '../../lib/api'
 
 const member = (extra: Partial<Member> = {}): Member => ({
@@ -16,38 +17,145 @@ const member = (extra: Partial<Member> = {}): Member => ({
   notes: '',
   registration_date: '2026-07-05',
   baptism_status: '유아세례',
-  school_or_work: 'Pitt',
-  faith_duration: '10년',
+  school_or_work: '대학생 · Pitt 컴퓨터공학',
+  faith_duration: '1-3년',
   pastoral_visit_requested: true,
   ...extra,
 })
 
-describe('cardSections (새가족 등록 카드 model)', () => {
-  it('mirrors the kiosk dialog: 인적 사항 / 신앙 / 등록 정보 with the same fields in order', () => {
-    const secs = cardSections(member())
-    expect(secs.map((s) => s.label)).toEqual(['인적 사항', '신앙', '등록 정보'])
-    expect(secs[0].fields.map((f) => f.label)).toEqual(['이름', '성별', '생일', '전화', '카톡ID', '학교/직장'])
-    expect(secs[1].fields.map((f) => f.label)).toEqual(['세례 여부', '신앙 기간', '심방 요청'])
-    expect(secs[2].fields.map((f) => f.label)).toEqual(['부서', '동산', '등록일'])
+// Handles into the model: flatten [left,right] cells and index by label.
+const cellsByLabel = (m: Member): Record<string, CardCellContent> => {
+  const model = cardModel(m)
+  return Object.fromEntries(model.rows.flatMap((r) => [r.left, r.right]).map((c) => [c.label, c.content]))
+}
+const optionsOf = (content: CardCellContent) => (content.kind === 'checks' ? content.options : [])
+const checkedOf = (content: CardCellContent) =>
+  optionsOf(content)
+    .filter((o) => o.checked)
+    .map((o) => o.label)
+
+describe('joinAffiliation / splitAffiliation (소속 stored inside school_or_work)', () => {
+  it('joins category + detail with " · "', () => {
+    expect(joinAffiliation('대학생', 'Pitt 컴퓨터공학')).toBe('대학생 · Pitt 컴퓨터공학')
   })
 
-  it('fills the values from the member row (snake_case roster fields)', () => {
-    const secs = cardSections(member())
-    const byLabel = Object.fromEntries(secs.flatMap((s) => s.fields.map((f) => [f.label, f.value])))
-    expect(byLabel['이름']).toBe('새신자')
-    expect(byLabel['학교/직장']).toBe('Pitt')
-    expect(byLabel['세례 여부']).toBe('유아세례')
-    expect(byLabel['신앙 기간']).toBe('10년')
-    expect(byLabel['심방 요청']).toBe('🙏 요청')
-    expect(byLabel['등록일']).toBe('2026-07-05')
+  it('drops the separator when either side is blank', () => {
+    expect(joinAffiliation('', 'Pitt')).toBe('Pitt')
+    expect(joinAffiliation('직장인', '')).toBe('직장인')
+    expect(joinAffiliation('', '')).toBe('')
+    expect(joinAffiliation(' 대학원생 ', '  CMU  ')).toBe('대학원생 · CMU')
   })
 
-  it('renders blanks (not placeholders) for missing values, like the paper card', () => {
-    const secs = cardSections(
-      member({ gender: '', phone: '', kakao_id: '', birth_date: null, baptism_status: '', school_or_work: '', faith_duration: '', pastoral_visit_requested: false, subgroup: '' }),
-    )
-    const values = secs.flatMap((s) => s.fields.map((f) => f.value))
-    expect(values.filter(Boolean)).toEqual(['새신자', '대학부', '2026-07-05'])
+  it('splits a known-category prefix back out', () => {
+    expect(splitAffiliation('대학생 · Pitt 컴퓨터공학')).toEqual({ category: '대학생', detail: 'Pitt 컴퓨터공학' })
+    expect(splitAffiliation('Other · Google')).toEqual({ category: 'Other', detail: 'Google' })
+  })
+
+  it('recognizes a bare category (no detail) for round-trip symmetry', () => {
+    expect(splitAffiliation('직장인')).toEqual({ category: '직장인', detail: '' })
+    expect(splitAffiliation(joinAffiliation('대학원생', ''))).toEqual({ category: '대학원생', detail: '' })
+  })
+
+  it('treats unprefixed text as Other with the whole string as detail', () => {
+    expect(splitAffiliation('Google 소프트웨어 엔지니어')).toEqual({ category: 'Other', detail: 'Google 소프트웨어 엔지니어' })
+  })
+
+  it('maps empty to empty (no category, no detail)', () => {
+    expect(splitAffiliation('')).toEqual({ category: '', detail: '' })
+    expect(splitAffiliation('   ')).toEqual({ category: '', detail: '' })
+  })
+})
+
+describe('formatCardDate (ISO → the card\'s MM / DD / YYYY)', () => {
+  it('formats an ISO date', () => {
+    expect(formatCardDate('2004-03-01')).toBe('03 / 01 / 2004')
+    expect(formatCardDate('2026-07-05')).toBe('07 / 05 / 2026')
+  })
+
+  it('keeps the paper card\'s underscore blanks for missing/invalid dates', () => {
+    expect(formatCardDate(null)).toBe(DATE_BLANK)
+    expect(formatCardDate(undefined)).toBe(DATE_BLANK)
+    expect(formatCardDate('')).toBe(DATE_BLANK)
+    expect(formatCardDate('저번주')).toBe(DATE_BLANK)
+  })
+})
+
+describe('cardModel (새가족 등록 카드, paper layout)', () => {
+  it('lays out the paper card\'s five label|value|label|value rows in order', () => {
+    const model = cardModel(member())
+    expect(model.title).toBe('< KCCP 빛주사랑 대학청년부 - 새가족 등록 카드 >')
+    expect(model.rows.map((r) => [r.left.label, r.right.label])).toEqual([
+      ['이름', '전화번호'],
+      ['생년월일', '카톡 아이디'],
+      ['소속 (학교/직장)', '세례 여부'],
+      ['학교/전공 or 직장', '신앙생활'],
+      ['등록일', '목사님 심방 요청'],
+    ])
+  })
+
+  it('fills the plain-value cells from the member row', () => {
+    const cells = cellsByLabel(member())
+    expect(cells['전화번호']).toEqual({ kind: 'text', text: '412-555-0101' })
+    expect(cells['카톡 아이디']).toEqual({ kind: 'text', text: 'saeshinja' })
+    expect(cells['생년월일']).toEqual({ kind: 'text', text: '03 / 01 / 2004' })
+    expect(cells['등록일']).toEqual({ kind: 'text', text: '07 / 05 / 2026' })
+  })
+
+  it('renders missing dates as the underscore blanks', () => {
+    const cells = cellsByLabel(member({ birth_date: null, registration_date: null }))
+    expect(cells['생년월일']).toEqual({ kind: 'text', text: DATE_BLANK })
+    expect(cells['등록일']).toEqual({ kind: 'text', text: DATE_BLANK })
+  })
+
+  it('circles the gender in the 이름 cell (남/여 recognized inside free text; none otherwise)', () => {
+    expect(cellsByLabel(member())['이름']).toEqual({ kind: 'name', name: '새신자', circled: '여' })
+    expect(cellsByLabel(member({ gender: '남자' }))['이름']).toMatchObject({ circled: '남' })
+    expect(cellsByLabel(member({ gender: '' }))['이름']).toMatchObject({ circled: null })
+    expect(cellsByLabel(member({ gender: 'nonbinary' }))['이름']).toMatchObject({ circled: null })
+  })
+
+  it('checks the 소속 category box and puts the detail in the 학교/전공 or 직장 row', () => {
+    const cells = cellsByLabel(member()) // 대학생 · Pitt 컴퓨터공학
+    expect(checkedOf(cells['소속 (학교/직장)'])).toEqual(['대학생'])
+    expect(cells['소속 (학교/직장)']).toMatchObject({ extra: '' })
+    expect(cells['학교/전공 or 직장']).toEqual({ kind: 'text', text: 'Pitt 컴퓨터공학' })
+  })
+
+  it('checks Other: (with the text after it) for an unprefixed 소속', () => {
+    const cells = cellsByLabel(member({ school_or_work: 'Google 엔지니어' }))
+    expect(checkedOf(cells['소속 (학교/직장)'])).toEqual(['Other:'])
+    expect(cells['소속 (학교/직장)']).toMatchObject({ extra: 'Google 엔지니어' })
+    expect(cells['학교/전공 or 직장']).toEqual({ kind: 'text', text: 'Google 엔지니어' })
+  })
+
+  it('checks no 소속 box when school_or_work is empty', () => {
+    const cells = cellsByLabel(member({ school_or_work: '' }))
+    expect(checkedOf(cells['소속 (학교/직장)'])).toEqual([])
+    expect(cells['학교/전공 or 직장']).toEqual({ kind: 'text', text: '' })
+  })
+
+  it('checks the matching 세례 여부 box (Korean labels with English captions)', () => {
+    const cells = cellsByLabel(member()) // 유아세례
+    expect(optionsOf(cells['세례 여부']).map((o) => `${o.label} ${o.caption}`)).toEqual([
+      '유아세례 Infant Baptism',
+      '입교 Confirmation',
+      '세례 Baptism',
+      '해당없음 N/A',
+    ])
+    expect(checkedOf(cells['세례 여부'])).toEqual(['유아세례'])
+    expect(checkedOf(cellsByLabel(member({ baptism_status: '몰라요' }))['세례 여부'])).toEqual([])
+  })
+
+  it('checks the matching 신앙생활 box', () => {
+    const cells = cellsByLabel(member()) // 1-3년
+    expect(optionsOf(cells['신앙생활']).map((o) => o.label)).toEqual(['모태신앙', '1년 미만', '1-3년', '3-5년', '5년 이상'])
+    expect(checkedOf(cells['신앙생활'])).toEqual(['1-3년'])
+    expect(checkedOf(cellsByLabel(member({ faith_duration: '' }))['신앙생활'])).toEqual([])
+  })
+
+  it('checks 심방 요청 O when requested, X otherwise', () => {
+    expect(checkedOf(cellsByLabel(member())['목사님 심방 요청'])).toEqual(['O'])
+    expect(checkedOf(cellsByLabel(member({ pastoral_visit_requested: false }))['목사님 심방 요청'])).toEqual(['X'])
   })
 })
 

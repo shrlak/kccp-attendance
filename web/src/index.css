@@ -35,7 +35,9 @@
 }
 
 @layer base {
-  html { -webkit-tap-highlight-color: transparent; }
+  /* 17px root (vs the 16px default) scales every rem-based size ~6% — a site-wide
+     readability bump requested by the product owner. */
+  html { -webkit-tap-highlight-color: transparent; font-size: 17px; }
   body { @apply bg-canvas text-text font-sans antialiased; min-height: 100dvh; }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
