@@ -12,6 +12,8 @@ vi.mock('../../lib/api', () => ({
   deleteMember: vi.fn(),
   addMemberAttendance: vi.fn(),
   removeAttendance: vi.fn(),
+  getConfig: vi.fn().mockResolvedValue({ summerMode: false }),
+  getDongsanNames: vi.fn().mockResolvedValue({ 대학부: ['1동산', '2동산'], 청년부: ['해동산'] }),
 }))
 
 beforeAll(async () => { await i18n.init() })
@@ -110,6 +112,33 @@ describe('EditModal — 새가족 등록 카드 as the form', () => {
       'm1',
       expect.objectContaining({ registrationDate: null, isNewMember: false }),
     )
+  })
+
+  it("동산 is a dropdown of the member's 부서's configured 동산, and a change lands in the payload", async () => {
+    const { updateMember } = await import('../../lib/api')
+    ;(updateMember as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ok' })
+    renderWithProviders(<EditModal member={filled} onClose={vi.fn()} onAttendance={vi.fn()} />)
+
+    const select = await screen.findByLabelText('동산')
+    expect(select.tagName).toBe('SELECT')
+    await waitFor(() => expect(select).toContainHTML('2동산'))
+    // 대학부 member: only 대학부's 동산 (plus the blank option) are offered.
+    expect(select).not.toContainHTML('해동산')
+    expect(select).toHaveValue('1동산')
+
+    await userEvent.selectOptions(select, '2동산')
+    await userEvent.click(screen.getByRole('button', { name: '저장' }))
+    expect(updateMember).toHaveBeenCalledWith('m1', expect.objectContaining({ subgroup: '2동산' }))
+  })
+
+  it("keeps a stored 동산 selectable even when it's no longer in the configured list", async () => {
+    const stale = { ...filled, subgroup: '옛동산' } as unknown as Member
+    renderWithProviders(<EditModal member={stale} onClose={vi.fn()} onAttendance={vi.fn()} />)
+
+    const select = await screen.findByLabelText('동산')
+    expect(select).toHaveValue('옛동산')
+    await waitFor(() => expect(select).toContainHTML('1동산'))
+    expect(select).toContainHTML('옛동산')
   })
 
   it('상태 표기 box beneath the card: the 이주/귀국 presets set the note and default the start date', async () => {

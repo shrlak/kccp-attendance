@@ -9,6 +9,7 @@ import { Select } from '../../components/ui/Select'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
 import { mergeTargets, canMerge, mergeSummary, type MergeState } from './merge'
+import { groupsOf } from './filters'
 import { DongsanBadge } from './DongsanLeaders'
 import { OfficerBadge } from './Officers'
 import { useDongsanRole } from './useDongsanRole'
@@ -41,6 +42,13 @@ export function AdminMembers() {
   const members = q ? data.members.filter((m) => m.name.toLowerCase().includes(q)) : data.members
   const staffMembers = q ? data.staffMembers.filter((m) => m.name.toLowerCase().includes(q)) : data.staffMembers
   const dongsanOptions = [...new Set(data.members.map((m) => m.subgroup).filter(Boolean))].sort()
+
+  // The card grid is split into one section per 부서 (대학부 first, then 청년부, …);
+  // members without a 부서 gather in a trailing "—" section.
+  const sections = [
+    ...groupsOf(members).map((g) => ({ group: g, list: members.filter((m) => m.group_name === g) })),
+    { group: '', list: members.filter((m) => !m.group_name) },
+  ].filter((s) => s.list.length > 0)
 
   function toggleSel(id: string) {
     setSelected((s) => {
@@ -122,32 +130,39 @@ export function AdminMembers() {
         </div>
       )}
       <IconKey items={['newMemberStar']} />
-      <div className="grid grid-cols-4 gap-2">
-        {members.map((m) => {
-          const sel = selectMode && selected.has(m.id)
-          return (
-            <button
-              key={m.id}
-              type="button"
-              onClick={() => (selectMode ? toggleSel(m.id) : setEditing(m))}
-              className={
-                'rounded-lg border bg-surface p-3 text-left transition-colors hover:bg-surface-alt ' +
-                (sel ? 'border-primary ring-2 ring-primary/40' : 'border-border')
-              }
-            >
-              <div className="text-base font-semibold text-text">
-                {selectMode && <span className="mr-1 text-primary">{sel ? '☑' : '☐'}</span>}
-                {m.name}
-                {m.is_new_member && <span className="ml-1 text-xs">🌟</span>}
-                <DongsanBadge role={dongsanRole(m.name, m.group_name, m.subgroup)} />
-                <OfficerBadge name={m.name} />
-              </div>
-              <div className="text-xs text-muted">{[m.group_name, m.subgroup].filter(Boolean).join(' · ') || '—'}</div>
-              {m.member_role && <div className="mt-1 font-mono text-[11px] text-subtle">{m.member_role}</div>}
-            </button>
-          )
-        })}
-      </div>
+      {sections.map(({ group, list }) => (
+        <section key={group || 'none'} className="mb-6">
+          <h3 className="mb-2 font-display text-base font-semibold text-text">
+            {group || '—'} <span className="text-sm font-normal text-muted">· {list.length}</span>
+          </h3>
+          <div className="grid grid-cols-4 gap-2">
+            {list.map((m) => {
+              const sel = selectMode && selected.has(m.id)
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => (selectMode ? toggleSel(m.id) : setEditing(m))}
+                  className={
+                    'rounded-lg border bg-surface p-3 text-left transition-colors hover:bg-surface-alt ' +
+                    (sel ? 'border-primary ring-2 ring-primary/40' : 'border-border')
+                  }
+                >
+                  <div className="text-base font-semibold text-text">
+                    {selectMode && <span className="mr-1 text-primary">{sel ? '☑' : '☐'}</span>}
+                    {m.name}
+                    {m.is_new_member && <span className="ml-1 text-xs">🌟</span>}
+                    <DongsanBadge role={dongsanRole(m.name, m.group_name, m.subgroup)} />
+                    <OfficerBadge name={m.name} />
+                  </div>
+                  <div className="text-xs text-muted">{[m.group_name, m.subgroup].filter(Boolean).join(' · ') || '—'}</div>
+                  {m.member_role && <div className="mt-1 font-mono text-[11px] text-subtle">{m.member_role}</div>}
+                </button>
+              )
+            })}
+          </div>
+        </section>
+      ))}
       {staffMembers.length > 0 && (
         <>
           <div className="mb-3 mt-6 font-mono text-xs uppercase tracking-wide text-subtle">
