@@ -17,9 +17,12 @@ export async function api<T = unknown>(
   path: string,
   body?: unknown,
   extraHeaders?: Record<string, string>,
+  // Nearly everything answers well under 12s; slow endpoints (e.g. Gemini card
+  // extraction) pass their own budget.
+  timeoutMs = 12_000,
 ): Promise<T> {
   const ctrl = new AbortController()
-  const timer = setTimeout(() => ctrl.abort(), 12_000)
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs)
   const headers: Record<string, string> = { 'X-Device-Id': getDeviceId() }
   if (adminToken) headers['Authorization'] = `Bearer ${adminToken}`
   else if (adminPassword) headers['X-Admin-Password'] = adminPassword
@@ -419,10 +422,20 @@ export interface NewMemberFields {
   // 등록일 (registration date). Optional; server defaults to today when omitted.
   registrationDate?: string | null
   pastoralVisitRequested?: boolean
+  // Admin card-scan path: create the member + device but skip today's attendance row
+  // (e.g. entering a stack of paper cards later in the week). Kiosk never sends this.
+  skipCheckin?: boolean
 }
 
 // 새가족 (new-family) registration from the kiosk: creates a member with
-// is_new_member=true + a NEW-{ts} device, then records today's attendance (first_visit).
-// Hardened (verifyAdmin) + audited server-side; pastor read-only.
+// is_new_member=true + a NEW-{ts} device, then records today's attendance (first_visit)
+// unless skipCheckin. Hardened (verifyAdmin) + audited server-side; pastor read-only.
 export const kioskNewMember = (fields: NewMemberFields) =>
   api<{ status: 'ok'; memberId: string; time?: string }>('POST', '/api/admin/kiosk-new-member', fields)
+
+// 새가족 등록 카드 photo extraction: sends a downscaled card photo (base64) to the edge
+// function, which has Gemini read the handwriting/checkboxes into raw card JSON —
+// normalized client-side (cardExtraction.ts) before showing it for review. Nothing is
+// saved server-side. Gemini vision can take well over the default 12s budget.
+export const extractCard = (image: string, mediaType: string) =>
+  api<{ status: 'ok'; card: Record<string, unknown> }>('POST', '/api/admin/extract-card', { image, mediaType }, undefined, 60_000)
