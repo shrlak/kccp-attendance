@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { cardModel, cardFilenames, formatCardDate, joinAffiliation, splitAffiliation } from './newFamilyCardImage'
-import { DATE_BLANK, type CardCellContent } from './newFamilyCard'
+import { DATE_BLANK, groupForAffiliation, type CardCellContent } from './newFamilyCard'
 import type { Member } from '../../lib/api'
 
 const member = (extra: Partial<Member> = {}): Member => ({
@@ -63,6 +63,19 @@ describe('joinAffiliation / splitAffiliation (소속 stored inside school_or_wor
   it('maps empty to empty (no category, no detail)', () => {
     expect(splitAffiliation('')).toEqual({ category: '', detail: '' })
     expect(splitAffiliation('   ')).toEqual({ category: '', detail: '' })
+  })
+})
+
+describe('groupForAffiliation (소속 → 부서 at kiosk registration)', () => {
+  it('files 대학생 under 대학부', () => {
+    expect(groupForAffiliation('대학생')).toBe('대학부')
+    expect(groupForAffiliation(' 대학생 ')).toBe('대학부')
+  })
+
+  it('files every other category under 청년부', () => {
+    expect(groupForAffiliation('대학원생')).toBe('청년부')
+    expect(groupForAffiliation('직장인')).toBe('청년부')
+    expect(groupForAffiliation('Other')).toBe('청년부')
   })
 })
 

@@ -1,24 +1,21 @@
-import { useState, type ReactNode } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import { Dialog } from '../../components/ui/Dialog'
-import { Input } from '../../components/ui/Input'
-import { Select } from '../../components/ui/Select'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
 import { kioskNewMember, type NewMemberFields } from '../../lib/api'
 import { easternNow } from '../../lib/checkinWindow'
 import { NewFamilyCardForm } from '../admin/NewFamilyCardForm'
-import { blankCardForm, joinAffiliation, type CardFormValue } from '../admin/newFamilyCard'
+import { blankCardForm, groupForAffiliation, joinAffiliation, type CardFormValue } from '../admin/newFamilyCard'
 import { broadcastKioskChange } from './live'
-
-const GROUPS = ['대학부', '청년부', 'EM', 'Adult Ministry']
 
 // 새가족 (new-family) registration from the kiosk: a blank paper 새가족 등록 카드 to
 // fill in directly — type into the card's cells, tap its checkboxes. 등록일 is stamped
 // to the day the person is added (the server stamps the same date authoritatively).
-// 부서/동산 aren't printed on the paper card, so they sit just below it. Creates the
-// member/device and checks them in for today.
+// There are no 부서/동산 controls: 부서 is derived from the card's 소속 category
+// (대학생 → 대학부, else → 청년부) and 동산 is assigned later in the Members tab.
+// Creates the member/device and checks them in for today.
 export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
@@ -26,31 +23,34 @@ export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose
   // Fresh blank card per open, 등록일 = today (Eastern) — computed per open so the
   // kiosk doesn't stamp a stale date if it stays up across midnight.
   const [card, setCard] = useState<CardFormValue>(() => blankCardForm(easternNow().date))
-  const [group, setGroup] = useState('대학부')
-  const [subgroup, setSubgroup] = useState('')
   const [busy, setBusy] = useState(false)
 
   const patchCard = (patch: Partial<CardFormValue>) => setCard((cur) => ({ ...cur, ...patch }))
 
   function close() {
     setCard(blankCardForm(easternNow().date))
-    setGroup('대학부')
-    setSubgroup('')
     setBusy(false)
     onClose()
   }
 
   async function submit() {
-    if (!card.name.trim() || !group) {
+    if (!card.name.trim()) {
       toast({ title: t('kiosk.newMember.nameRequired'), tone: 'warn' })
+      return
+    }
+    // 소속 decides the 부서 now, so an unticked card can't be filed anywhere.
+    if (!card.affiliationCategory) {
+      toast({ title: t('kiosk.newMember.affiliationRequired'), tone: 'warn' })
       return
     }
     setBusy(true)
     try {
       const payload: NewMemberFields = {
         name: card.name.trim(),
-        group,
-        subgroup: subgroup.trim(),
+        // 부서 from the 소속 checkbox: 대학생 → 대학부, 대학원생/직장인/Other → 청년부.
+        group: groupForAffiliation(card.affiliationCategory),
+        // 동산 is assigned by an admin in the Members tab, never at the kiosk.
+        subgroup: '',
         gender: card.gender,
         phone: card.phone.trim(),
         kakaoId: card.kakaoId.trim(),
@@ -84,35 +84,10 @@ export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose
           card fits without scrolling. */}
       <div className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto pr-1">
         <NewFamilyCardForm value={card} onChange={patchCard} regDateFixed />
-
-        {/* 부서/동산 — system fields the paper card doesn't carry. */}
-        <div className="grid grid-cols-2 gap-3">
-          <Field label={t('kiosk.newMember.group')}>
-            <Select value={group} onChange={(e) => setGroup(e.target.value)}>
-              {GROUPS.map((g) => (
-                <option key={g} value={g}>
-                  {g}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label={t('kiosk.newMember.subgroup')}>
-            <Input value={subgroup} onChange={(e) => setSubgroup(e.target.value)} autoComplete="off" />
-          </Field>
-        </div>
       </div>
       <Button onClick={() => void submit()} disabled={busy} className="mt-4 w-full">
         {busy ? t('common.loading') : t('kiosk.newMember.submit')}
       </Button>
     </Dialog>
-  )
-}
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-xs font-semibold text-subtle">{label}</span>
-      {children}
-    </label>
   )
 }

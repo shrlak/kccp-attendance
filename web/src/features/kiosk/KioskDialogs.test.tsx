@@ -90,22 +90,42 @@ describe('KioskGuestDialog (방문자 체크인)', () => {
 })
 
 describe('KioskNewMemberDialog (새가족 등록)', () => {
-  it('registers a new family member: sends name + group (+defaults), toasts success, closes', async () => {
+  it('registers a new family member: 대학생 소속 → 대학부, no 동산, toasts success, closes', async () => {
     const { kioskNewMember } = await import('../../lib/api')
     ;(kioskNewMember as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ok', memberId: 'm1' })
     const onClose = vi.fn()
     renderWithProviders(<KioskNewMemberDialog open onClose={onClose} />)
 
     await userEvent.type(screen.getByLabelText('이름'), '새신자')
+    await userEvent.click(screen.getByRole('button', { name: '대학생' }))
     await userEvent.click(screen.getByRole('button', { name: '등록 후 출석' }))
 
     expect(kioskNewMember).toHaveBeenCalledTimes(1)
     const payload = (kioskNewMember as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(payload).toMatchObject({ name: '새신자', group: '대학부' })
+    expect(payload).toMatchObject({ name: '새신자', group: '대학부', subgroup: '' })
     // 등록일 is operator-editable and prefilled to today (YYYY-MM-DD), so it's sent.
     expect(payload.registrationDate).toMatch(/^\d{4}-\d{2}-\d{2}$/)
     expect(await screen.findByText('새신자 새가족 등록 완료')).toBeInTheDocument()
     await waitFor(() => expect(onClose).toHaveBeenCalled())
+  })
+
+  it.each(['대학원생', '직장인', 'Other:'])('files a %s 소속 under 청년부', async (categoryButton) => {
+    const { kioskNewMember } = await import('../../lib/api')
+    ;(kioskNewMember as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ok', memberId: 'm1' })
+    renderWithProviders(<KioskNewMemberDialog open onClose={vi.fn()} />)
+
+    await userEvent.type(screen.getByLabelText('이름'), '새신자')
+    await userEvent.click(screen.getByRole('button', { name: categoryButton }))
+    await userEvent.click(screen.getByRole('button', { name: '등록 후 출석' }))
+
+    const payload = (kioskNewMember as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(payload).toMatchObject({ group: '청년부', subgroup: '' })
+  })
+
+  it('shows no 부서/동산 pickers — the card is the whole form', () => {
+    renderWithProviders(<KioskNewMemberDialog open onClose={vi.fn()} />)
+    expect(screen.queryByText('부서')).toBeNull()
+    expect(screen.queryByText('동산')).toBeNull()
   })
 
   it('stamps 등록일 to the day they are added — shown fixed on the card, not editable', async () => {
@@ -117,6 +137,7 @@ describe('KioskNewMemberDialog (새가족 등록)', () => {
     expect(screen.queryByLabelText('등록일')).toBeNull()
 
     await userEvent.type(screen.getByLabelText('이름'), '새신자')
+    await userEvent.click(screen.getByRole('button', { name: '직장인' }))
     await userEvent.click(screen.getByRole('button', { name: '등록 후 출석' }))
 
     const payload = (kioskNewMember as ReturnType<typeof vi.fn>).mock.calls[0][0]
@@ -142,6 +163,7 @@ describe('KioskNewMemberDialog (새가족 등록)', () => {
       baptismStatus: '세례',
       faithDuration: '1-3년',
       pastoralVisitRequested: true,
+      group: '대학부',
     })
   })
 
@@ -152,6 +174,17 @@ describe('KioskNewMemberDialog (새가족 등록)', () => {
     await userEvent.click(screen.getByRole('button', { name: '등록 후 출석' }))
 
     expect(kioskNewMember).not.toHaveBeenCalled()
-    expect(await screen.findByText('이름과 부서를 입력해주세요')).toBeInTheDocument()
+    expect(await screen.findByText('이름을 입력해주세요')).toBeInTheDocument()
+  })
+
+  it('blocks submission without a 소속 — 부서 is derived from it, so it must be ticked', async () => {
+    const { kioskNewMember } = await import('../../lib/api')
+    renderWithProviders(<KioskNewMemberDialog open onClose={vi.fn()} />)
+
+    await userEvent.type(screen.getByLabelText('이름'), '무소속')
+    await userEvent.click(screen.getByRole('button', { name: '등록 후 출석' }))
+
+    expect(kioskNewMember).not.toHaveBeenCalled()
+    expect(await screen.findByText('소속 (학교/직장)을 선택해주세요')).toBeInTheDocument()
   })
 })
