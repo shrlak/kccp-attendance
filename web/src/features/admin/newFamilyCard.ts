@@ -66,6 +66,61 @@ export function formatCardDate(iso: string | null | undefined): string {
   return `${m[2]} / ${m[3]} / ${m[1]}`
 }
 
+// ── Card form value ──────────────────────────────────────────────────────────
+// The editable card's field set (NewFamilyCardForm) — everything printed on the
+// paper card, with 소속 kept as category + detail until save re-joins them.
+
+export interface CardFormValue {
+  name: string
+  gender: string // '남' | '여' | ''
+  phone: string
+  kakaoId: string
+  birthDate: string // ISO or ''
+  affiliationCategory: string // 대학생 | 대학원생 | 직장인 | Other | ''
+  affiliationDetail: string // 학교/전공 or 직장
+  baptismStatus: string
+  faithDuration: string
+  registrationDate: string // ISO or ''
+  pastoralVisitRequested: boolean
+}
+
+// Seed the form from a stored member (소속 category recovered from school_or_work).
+export function cardFormFromMember(m: Member): CardFormValue {
+  const aff = splitAffiliation(m.school_or_work || '')
+  return {
+    name: m.name || '',
+    gender: m.gender || '',
+    phone: m.phone || '',
+    kakaoId: m.kakao_id || '',
+    birthDate: m.birth_date || '',
+    affiliationCategory: aff.category,
+    affiliationDetail: aff.detail,
+    baptismStatus: m.baptism_status || '',
+    faithDuration: m.faith_duration || '',
+    registrationDate: m.registration_date || '',
+    pastoralVisitRequested: !!m.pastoral_visit_requested,
+  }
+}
+
+const EMPTY_CARD: CardFormValue = {
+  name: '',
+  gender: '',
+  phone: '',
+  kakaoId: '',
+  birthDate: '',
+  affiliationCategory: '',
+  affiliationDetail: '',
+  baptismStatus: '',
+  faithDuration: '',
+  registrationDate: '',
+  pastoralVisitRequested: false,
+}
+
+// A blank card with 등록일 stamped to the given day (the kiosk's "day they were added").
+export function blankCardForm(registrationDate: string): CardFormValue {
+  return { ...EMPTY_CARD, registrationDate }
+}
+
 // ── Card model ───────────────────────────────────────────────────────────────
 
 export interface CardCheckOption {

@@ -337,6 +337,11 @@ export interface MemberEdit {
   registrationDate?: string | null
   newMemberEduWeek1?: boolean
   newMemberEduWeek2?: boolean
+  // 새가족 등록 카드 fields (the member-update endpoint maps them in its COLS table).
+  baptismStatus?: string
+  schoolOrWork?: string
+  faithDuration?: string
+  pastoralVisitRequested?: boolean
   statusNote?: string
   statusStart?: string | null
   statusEnd?: string | null

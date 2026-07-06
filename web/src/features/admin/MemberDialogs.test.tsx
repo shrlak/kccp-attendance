@@ -40,33 +40,90 @@ const member = {
   notes: '',
 } as unknown as Member
 
-describe('EditModal — 새가족 등록 카드 view', () => {
-  it("renders the paper-card replica with all of the member's card info", () => {
-    const filled = {
-      ...member,
-      gender: '남',
-      phone: '412-555-0142',
-      kakao_id: 'gil_dong',
-      birth_date: '2004-03-15',
-      registration_date: '2026-07-05',
-      baptism_status: '세례',
-      school_or_work: '대학생 · Pitt 컴퓨터공학',
-      faith_duration: '1-3년',
-      pastoral_visit_requested: true,
-    } as unknown as Member
+const filled = {
+  ...member,
+  is_new_member: true,
+  gender: '남',
+  phone: '412-555-0142',
+  kakao_id: 'gil_dong',
+  birth_date: '2004-03-15',
+  registration_date: '2026-07-05',
+  baptism_status: '세례',
+  school_or_work: '대학생 · Pitt 컴퓨터공학',
+  faith_duration: '1-3년',
+  pastoral_visit_requested: true,
+} as unknown as Member
+
+describe('EditModal — 새가족 등록 카드 as the form', () => {
+  it("shows all of the member's info directly on the editable card", () => {
     renderWithProviders(<EditModal member={filled} onClose={vi.fn()} onAttendance={vi.fn()} />)
 
     expect(screen.getByText('< KCCP 빛주사랑 대학청년부 - 새가족 등록 카드 >')).toBeInTheDocument()
-    // Every card field is shown: phone, kakao, dates (MM / DD / YYYY), affiliation
-    // detail, and the checkbox options (세례/신앙생활/심방 O·X).
-    expect(screen.getByText('412-555-0142')).toBeInTheDocument()
-    expect(screen.getByText('gil_dong')).toBeInTheDocument()
-    expect(screen.getByText('03 / 15 / 2004')).toBeInTheDocument()
-    expect(screen.getByText('07 / 05 / 2026')).toBeInTheDocument()
-    expect(screen.getByText('Pitt 컴퓨터공학')).toBeInTheDocument()
-    expect(screen.getByText('유아세례')).toBeInTheDocument()
-    expect(screen.getByText('모태신앙')).toBeInTheDocument()
+    // The card's cells are the inputs, prefilled with the stored info.
+    expect(screen.getByLabelText('이름')).toHaveValue('홍길동')
+    expect(screen.getByLabelText('전화번호')).toHaveValue('412-555-0142')
+    expect(screen.getByLabelText('카톡 아이디')).toHaveValue('gil_dong')
+    expect(screen.getByLabelText('생년월일')).toHaveValue('2004-03-15')
+    expect(screen.getByLabelText('등록일')).toHaveValue('2026-07-05')
+    expect(screen.getByLabelText('학교/전공 or 직장')).toHaveValue('Pitt 컴퓨터공학')
+    // Checkboxes reflect the stored choices (aria-pressed) — 남 circled, 대학생/세례/1-3년/O.
+    expect(screen.getByRole('button', { name: '남' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: '대학생' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: /^세례 Baptism$/ })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: '1-3년' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'O' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: '카드 다운로드 (JPG)' })).toBeInTheDocument()
+  })
+
+  it('edits made on the card are saved: typed cells and tapped checkboxes land in the payload', async () => {
+    const { updateMember } = await import('../../lib/api')
+    ;(updateMember as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ok' })
+    renderWithProviders(<EditModal member={filled} onClose={vi.fn()} onAttendance={vi.fn()} />)
+
+    await userEvent.clear(screen.getByLabelText('전화번호'))
+    await userEvent.type(screen.getByLabelText('전화번호'), '412-555-9999')
+    await userEvent.click(screen.getByRole('button', { name: '입교 Confirmation' }))
+    await userEvent.click(screen.getByRole('button', { name: '저장' }))
+
+    expect(updateMember).toHaveBeenCalledWith(
+      'm1',
+      expect.objectContaining({
+        phone: '412-555-9999',
+        baptismStatus: '입교',
+        schoolOrWork: '대학생 · Pitt 컴퓨터공학',
+        pastoralVisitRequested: true,
+      }),
+    )
+  })
+
+  it('등록일 제거 clears the 등록일 and the 새가족 flag (removes them from the 새가족 list on save)', async () => {
+    const { updateMember } = await import('../../lib/api')
+    ;(updateMember as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ok' })
+    renderWithProviders(<EditModal member={filled} onClose={vi.fn()} onAttendance={vi.fn()} />)
+
+    await userEvent.click(screen.getByRole('button', { name: '등록일 제거 · 새가족 목록에서 제외' }))
+    expect(screen.getByLabelText('등록일')).toHaveValue('')
+    expect(screen.getByRole('checkbox', { name: '새가족' })).not.toBeChecked()
+
+    await userEvent.click(screen.getByRole('button', { name: '저장' }))
+    expect(updateMember).toHaveBeenCalledWith(
+      'm1',
+      expect.objectContaining({ registrationDate: null, isNewMember: false }),
+    )
+  })
+
+  it('상태 표기 box beneath the card: the 이주/귀국 presets set the note and default the start date', async () => {
+    const { updateMember } = await import('../../lib/api')
+    ;(updateMember as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ok' })
+    renderWithProviders(<EditModal member={filled} onClose={vi.fn()} onAttendance={vi.fn()} />)
+
+    await userEvent.click(screen.getByRole('button', { name: '이주' }))
+    expect(screen.getByLabelText('상태 표기 (한국 귀국 · 이주 등)')).toHaveValue('이주')
+
+    await userEvent.click(screen.getByRole('button', { name: '저장' }))
+    const payload = (updateMember as ReturnType<typeof vi.fn>).mock.calls[0][1]
+    expect(payload.statusNote).toBe('이주')
+    expect(payload.statusStart).toMatch(/^\d{4}-\d{2}-\d{2}$/)
   })
 })
 

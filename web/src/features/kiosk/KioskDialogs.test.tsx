@@ -108,19 +108,41 @@ describe('KioskNewMemberDialog (새가족 등록)', () => {
     await waitFor(() => expect(onClose).toHaveBeenCalled())
   })
 
-  it('sends an operator-edited 등록일 instead of the default', async () => {
+  it('stamps 등록일 to the day they are added — shown fixed on the card, not editable', async () => {
+    const { kioskNewMember } = await import('../../lib/api')
+    ;(kioskNewMember as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ok', memberId: 'm1' })
+    renderWithProviders(<KioskNewMemberDialog open onClose={vi.fn()} />)
+
+    // No 등록일 input on the blank card — the date is stamped, not typed.
+    expect(screen.queryByLabelText('등록일')).toBeNull()
+
+    await userEvent.type(screen.getByLabelText('이름'), '새신자')
+    await userEvent.click(screen.getByRole('button', { name: '등록 후 출석' }))
+
+    const payload = (kioskNewMember as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(payload.registrationDate).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  })
+
+  it('card checkboxes enter data directly: 소속/세례/신앙생활/심방 land in the payload', async () => {
     const { kioskNewMember } = await import('../../lib/api')
     ;(kioskNewMember as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ok', memberId: 'm1' })
     renderWithProviders(<KioskNewMemberDialog open onClose={vi.fn()} />)
 
     await userEvent.type(screen.getByLabelText('이름'), '새신자')
-    const regDate = screen.getByLabelText('등록일')
-    await userEvent.clear(regDate)
-    await userEvent.type(regDate, '2026-01-15')
+    await userEvent.type(screen.getByLabelText('학교/전공 or 직장'), 'Pitt 컴퓨터공학')
+    await userEvent.click(screen.getByRole('button', { name: '대학생' }))
+    await userEvent.click(screen.getByRole('button', { name: /^세례 Baptism$/ }))
+    await userEvent.click(screen.getByRole('button', { name: '1-3년' }))
+    await userEvent.click(screen.getByRole('button', { name: 'O' }))
     await userEvent.click(screen.getByRole('button', { name: '등록 후 출석' }))
 
     const payload = (kioskNewMember as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(payload.registrationDate).toBe('2026-01-15')
+    expect(payload).toMatchObject({
+      schoolOrWork: '대학생 · Pitt 컴퓨터공학',
+      baptismStatus: '세례',
+      faithDuration: '1-3년',
+      pastoralVisitRequested: true,
+    })
   })
 
   it('blocks submission without a name and does not call the API', async () => {

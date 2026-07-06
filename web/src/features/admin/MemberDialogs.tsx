@@ -17,8 +17,12 @@ import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
 import { memberHistory, hasEntryOn } from './attendance'
 import { easternNow } from '../../lib/checkinWindow'
-import { NewFamilyCardView } from './NewFamilyCardView'
+import { NewFamilyCardForm } from './NewFamilyCardForm'
+import { cardFormFromMember, joinAffiliation, type CardFormValue } from './newFamilyCard'
 import { exportNewFamilyCards } from './newFamilyCardImage'
+
+// 상태 표기 quick presets — canonical note values the 출석부 renders as grey spans.
+const STATUS_PRESETS = ['이주', '한국 귀국']
 
 const GROUPS = ['대학부', '청년부', 'EM', 'Adult Ministry']
 const MEMBER_ROLES = ['', 'visitor', 'pastor', 'elder', 'deacon', 'mentor']
@@ -51,16 +55,14 @@ export function EditModal({
   const { t } = useTranslation()
   const qc = useQueryClient()
   const toast = useToast()
+  // The card carries everything printed on the 새가족 등록 카드; `f` keeps the
+  // system-only fields (부서/동산/역할/메모/새가족 flag/상태 표기).
+  const [card, setCard] = useState<CardFormValue>(() => cardFormFromMember(member))
   const [f, setF] = useState<MemberEdit>({
-    name: member.name,
     group: member.group_name,
     subgroup: member.subgroup,
     memberRole: member.member_role,
     isNewMember: member.is_new_member,
-    gender: member.gender,
-    phone: member.phone,
-    kakaoId: member.kakao_id,
-    birthDate: member.birth_date,
     notes: member.notes,
     statusNote: member.status_note ?? '',
     statusStart: member.status_start ?? null,
@@ -73,6 +75,21 @@ export function EditModal({
 
   function set<K extends keyof MemberEdit>(k: K, v: MemberEdit[K]) {
     setF((cur) => ({ ...cur, [k]: v }))
+  }
+  const patchCard = (patch: Partial<CardFormValue>) => setCard((cur) => ({ ...cur, ...patch }))
+
+  // "등록일 제거": clears the 등록일 AND the 새가족 flag, so saving drops the member
+  // from the 새가족 list (the list keeps flagged members even without a date).
+  function removeRegistration() {
+    patchCard({ registrationDate: '' })
+    set('isNewMember', false)
+  }
+
+  // 상태 표기 quick preset — tapping the active one clears it; activating one starts
+  // the covered span today unless a start date is already set.
+  function toggleStatusPreset(note: string) {
+    if (f.statusNote === note) return set('statusNote', '')
+    setF((cur) => ({ ...cur, statusNote: note, statusStart: cur.statusStart || easternNow().date }))
   }
 
   // Download this member's 새가족 등록 카드 as a JPG (same renderer as the 새가족 tab's
@@ -92,7 +109,20 @@ export function EditModal({
   async function save() {
     setSaving(true)
     try {
-      await updateMember(member.id, f)
+      await updateMember(member.id, {
+        ...f,
+        name: card.name,
+        gender: card.gender,
+        phone: card.phone,
+        kakaoId: card.kakaoId,
+        birthDate: card.birthDate || null,
+        baptismStatus: card.baptismStatus,
+        // 소속 category stored as a prefix inside school_or_work (no DB column).
+        schoolOrWork: joinAffiliation(card.affiliationCategory, card.affiliationDetail),
+        faithDuration: card.faithDuration,
+        registrationDate: card.registrationDate || null,
+        pastoralVisitRequested: card.pastoralVisitRequested,
+      })
       await qc.invalidateQueries({ queryKey: ['roster'] })
       toast({ title: t('admin.members.saved'), tone: 'ok' })
       onClose()
@@ -120,7 +150,7 @@ export function EditModal({
     // wide: the 새가족 등록 카드 replica at the top needs the paper card's landscape width.
     <Dialog open onOpenChange={(o) => !o && onClose()} title={t('admin.members.edit')} wide>
       <div className="flex max-h-[60vh] flex-col gap-3 overflow-y-auto pr-1">
-        {/* ── 새가족 등록 카드 — the member's info in the paper card's exact shape ── */}
+        {/* ── 새가족 등록 카드 — edit the member's info directly on the paper card ── */}
         <div className="flex items-center justify-between gap-2">
           <div className="text-xs font-bold uppercase tracking-wide text-subtle">{t('admin.members.card.section')}</div>
           <button
@@ -132,13 +162,56 @@ export function EditModal({
             {exporting ? t('admin.newfamily.export.busy') : t('admin.members.card.download')}
           </button>
         </div>
-        <NewFamilyCardView member={member} />
+        <NewFamilyCardForm value={card} onChange={patchCard} />
+        {(card.registrationDate || f.isNewMember) && (
+          <button
+            type="button"
+            onClick={removeRegistration}
+            className="self-start text-xs font-semibold text-danger hover:underline"
+          >
+            {t('admin.members.card.removeReg')}
+          </button>
+        )}
 
-        {/* ── 기본 정보 ── */}
+        {/* ── 상태 표기 box — 이주/귀국 spans, right beneath the card ── */}
+        <div className="rounded-lg border border-warning/30 bg-warning/5 p-3">
+          <div className="text-xs font-bold uppercase tracking-wide text-subtle">{t('admin.members.statusSection')}</div>
+          <p className="mt-1.5 text-sm text-warning">{t('admin.members.statusHelp')}</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {STATUS_PRESETS.map((note) => (
+              <button
+                key={note}
+                type="button"
+                aria-pressed={f.statusNote === note}
+                onClick={() => toggleStatusPreset(note)}
+                className={
+                  'min-h-9 rounded-md border px-3 text-sm transition-colors ' +
+                  (f.statusNote === note
+                    ? 'border-warning bg-warning/15 font-semibold text-warning'
+                    : 'border-border bg-surface text-text hover:bg-surface-alt')
+                }
+              >
+                {note}
+              </button>
+            ))}
+          </div>
+          <div className="mt-3 flex flex-col gap-3">
+            <Field label={t('admin.members.statusNote')}>
+              <Input value={f.statusNote ?? ''} onChange={(e) => set('statusNote', e.target.value)} />
+            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label={t('admin.members.statusStart')}>
+                <Input type="date" value={f.statusStart ?? ''} onChange={(e) => set('statusStart', e.target.value)} />
+              </Field>
+              <Field label={t('admin.members.statusEnd')}>
+                <Input type="date" value={f.statusEnd ?? ''} onChange={(e) => set('statusEnd', e.target.value)} />
+              </Field>
+            </div>
+          </div>
+        </div>
+
+        {/* ── 기본 정보 — the system fields the paper card doesn't carry ── */}
         <div className="mt-1 border-t border-border pt-3 text-xs font-bold uppercase tracking-wide text-subtle">{t('admin.members.sectionBasic')}</div>
-        <Field label={t('admin.members.name')}>
-          <Input value={f.name ?? ''} onChange={(e) => set('name', e.target.value)} />
-        </Field>
         <Field label={t('admin.members.group')}>
           <Select value={f.group ?? ''} onChange={(e) => set('group', e.target.value)}>
             {GROUPS.map((g) => (
@@ -160,22 +233,6 @@ export function EditModal({
             ))}
           </Select>
         </Field>
-        {/* ── 개인 정보 ── */}
-        <div className="mt-1 border-t border-border pt-3 text-xs font-bold uppercase tracking-wide text-subtle">
-          {t('admin.members.sectionPersonal')}
-        </div>
-        <Field label={t('admin.members.gender')}>
-          <Input value={f.gender ?? ''} onChange={(e) => set('gender', e.target.value)} />
-        </Field>
-        <Field label={t('admin.members.phone')}>
-          <Input value={f.phone ?? ''} onChange={(e) => set('phone', e.target.value)} />
-        </Field>
-        <Field label={t('admin.members.kakaoId')}>
-          <Input value={f.kakaoId ?? ''} onChange={(e) => set('kakaoId', e.target.value)} />
-        </Field>
-        <Field label={t('admin.members.birthDate')}>
-          <Input type="date" value={f.birthDate ?? ''} onChange={(e) => set('birthDate', e.target.value)} />
-        </Field>
         <Field label={t('admin.members.notes')}>
           <textarea
             value={f.notes ?? ''}
@@ -188,21 +245,6 @@ export function EditModal({
           <input type="checkbox" checked={f.isNewMember ?? false} onChange={(e) => set('isNewMember', e.target.checked)} />
           {t('admin.members.isNewMember')}
         </label>
-        {/* ── 상태 표기: the 출석부 shows this as a grey cell from the start date to the end
-            date (or the term's end) instead of O/X — e.g. 한국 귀국, 이주(방문자), 돌아옴. ── */}
-        <div className="mt-1 border-t border-border pt-3">
-          <div className="text-xs font-bold uppercase tracking-wide text-subtle">{t('admin.members.statusSection')}</div>
-          <p className="mt-2 rounded-md bg-warning/10 px-3 py-2 text-sm text-warning">{t('admin.members.statusHelp')}</p>
-        </div>
-        <Field label={t('admin.members.statusNote')}>
-          <Input value={f.statusNote ?? ''} onChange={(e) => set('statusNote', e.target.value)} />
-        </Field>
-        <Field label={t('admin.members.statusStart')}>
-          <Input type="date" value={f.statusStart ?? ''} onChange={(e) => set('statusStart', e.target.value)} />
-        </Field>
-        <Field label={t('admin.members.statusEnd')}>
-          <Input type="date" value={f.statusEnd ?? ''} onChange={(e) => set('statusEnd', e.target.value)} />
-        </Field>
       </div>
       <div className="mt-4 flex gap-2">
         <Button variant="secondary" onClick={onAttendance} className="flex-1">
