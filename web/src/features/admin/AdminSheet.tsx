@@ -242,7 +242,16 @@ function BulkModal({ data, onClose }: { data: RosterResponse; onClose: () => voi
 // worship Sundays. Each block lists its 동산지기 (👑) first, then 부동산지기 (⭐), then the
 // rest in roster order, with the leaders' name cells bolded + highlighted.
 const CELL = 'whitespace-nowrap border border-[#b7b7b7] px-3 py-1.5'
+// Variable-length cells (names, status notes) truncate instead of stretching their
+// column, so every 동산 block's table keeps the same fixed-layout width.
+const CLIP = 'overflow-hidden text-ellipsis'
 const DARK = '#1f2937'
+
+// Fixed column widths (px), shared by every 동산 block so all tables end up the exact
+// same overall width regardless of name/label lengths: 이름 · 예배 총 출석 · one per date.
+const NAME_COL = 160
+const TOTAL_COL = 120
+const DATE_COL = 72
 
 function GridView({ members, log, lang, today, filter }: { members: Member[]; log: LogEntry[]; lang: Lang; today: string; filter: Filter }) {
   const roleOf = useDongsanRole()
@@ -285,10 +294,17 @@ function GridView({ members, log, lang, today, filter }: { members: Member[]; lo
               <h3 className="mb-1.5 inline-block rounded px-3 py-1 text-base font-bold" style={{ background: medium, color: DARK }}>
                 {s.subgroup}
               </h3>
-              <table className="border-collapse">
+              <table className="table-fixed border-collapse">
+                <colgroup>
+                  <col style={{ width: NAME_COL }} />
+                  <col style={{ width: TOTAL_COL }} />
+                  {model.dateLabels.map((d) => (
+                    <col key={d} style={{ width: DATE_COL }} />
+                  ))}
+                </colgroup>
                 <thead>
                   <tr>
-                    <th className={`${CELL} text-left font-bold`} style={{ background: light }}>{L.name}</th>
+                    <th className={`${CELL} ${CLIP} text-left font-bold`} style={{ background: light }}>{L.name}</th>
                     <th className={`${CELL} text-center font-bold`} style={{ background: pink }}>{L.memberTotal}</th>
                     {model.dateLabels.map((d) => (
                       <th key={d} className={`${CELL} text-center font-bold`} style={{ background: medium }}>{d}</th>
@@ -305,14 +321,14 @@ function GridView({ members, log, lang, today, filter }: { members: Member[]; lo
                         // grid is fixed light-scheme (hex fills) like the export, so hardcoded
                         // hex highlights are consistent here.
                         <td
-                          className={`${CELL} text-left font-bold`}
+                          className={`${CELL} ${CLIP} text-left font-bold`}
                           style={{ background: role === '동산지기' ? '#FFF3C4' : '#FFF9E1' }}
                         >
                           {role === '동산지기' ? '👑 ' : '⭐ '}
                           {r.member.name}
                         </td>
                       ) : (
-                        <td className={`${CELL} bg-white text-left font-medium`}>{r.member.name}</td>
+                        <td className={`${CELL} ${CLIP} bg-white text-left font-medium`}>{r.member.name}</td>
                       )}
                       <td className={`${CELL} bg-white text-center font-bold`}>{r.total}</td>
                       {r.marks.map((c, di) => {
@@ -320,7 +336,7 @@ function GridView({ members, log, lang, today, filter }: { members: Member[]; lo
                         // Status marks: one grey cell spanning the covered dates (master-sheet style).
                         if (c.kind === 'note')
                           return (
-                            <td key={d} colSpan={c.span} className={`${CELL} text-center`} style={{ background: grey }}>
+                            <td key={d} colSpan={c.span} className={`${CELL} ${CLIP} text-center`} style={{ background: grey }}>
                               {c.note}
                             </td>
                           )

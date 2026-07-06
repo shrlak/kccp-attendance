@@ -1,7 +1,9 @@
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  getConfig,
+  getDongsanNames,
   updateMember,
   deleteMember,
   addMemberAttendance,
@@ -10,6 +12,7 @@ import {
   type MemberEdit,
   type LogEntry,
 } from '../../lib/api'
+import { summerDongsanList } from './dongsan'
 import { Dialog } from '../../components/ui/Dialog'
 import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
@@ -55,6 +58,9 @@ export function EditModal({
   const { t } = useTranslation()
   const qc = useQueryClient()
   const toast = useToast()
+  // Configured 동산 names feed the 동산 dropdown (combined list in summer mode).
+  const { data: cfg } = useQuery({ queryKey: ['config'], queryFn: getConfig })
+  const { data: dongsanNames } = useQuery({ queryKey: ['dongsanNames'], queryFn: getDongsanNames })
   // The card carries everything printed on the 새가족 등록 카드; `f` keeps the
   // system-only fields (부서/동산/역할/메모/새가족 flag/상태 표기).
   const [card, setCard] = useState<CardFormValue>(() => cardFormFromMember(member))
@@ -76,6 +82,15 @@ export function EditModal({
   function set<K extends keyof MemberEdit>(k: K, v: MemberEdit[K]) {
     setF((cur) => ({ ...cur, [k]: v }))
   }
+
+  // 동산 dropdown options: the configured names for the selected 부서 (the combined 합동
+  // list in summer mode). A stored 동산 that's no longer configured stays selectable so
+  // opening + saving the dialog never silently drops it.
+  const dongsanOptions = cfg?.summerMode
+    ? summerDongsanList(dongsanNames ?? {})
+    : [...(dongsanNames?.[f.group ?? ''] ?? [])]
+  const currentDongsan = f.subgroup ?? ''
+  if (currentDongsan && !dongsanOptions.includes(currentDongsan)) dongsanOptions.push(currentDongsan)
   const patchCard = (patch: Partial<CardFormValue>) => setCard((cur) => ({ ...cur, ...patch }))
 
   // "등록일 제거": clears the 등록일 AND the 새가족 flag, so saving drops the member
@@ -222,7 +237,14 @@ export function EditModal({
           </Select>
         </Field>
         <Field label={t('admin.members.subgroup')}>
-          <Input value={f.subgroup ?? ''} onChange={(e) => set('subgroup', e.target.value)} />
+          <Select value={currentDongsan} onChange={(e) => set('subgroup', e.target.value)}>
+            <option value="">—</option>
+            {dongsanOptions.map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </Select>
         </Field>
         <Field label={t('admin.members.memberRole')}>
           <Select value={f.memberRole ?? ''} onChange={(e) => set('memberRole', e.target.value)}>

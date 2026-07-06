@@ -223,9 +223,9 @@ function ManualCheckinModal({ data, today, onClose }: { data: RosterResponse; to
 
 function Stat({ label, value, valueClass = 'text-text' }: { label: string; value: string; valueClass?: string }) {
   return (
-    <div className="rounded-lg border border-border bg-surface px-3 py-2.5 text-center">
-      <div className={'text-2xl font-bold ' + valueClass}>{value}</div>
-      <div className="mt-0.5 font-mono text-[11px] uppercase tracking-wide text-subtle">{label}</div>
+    <div className="rounded-lg border border-border bg-surface px-3 py-3 text-center">
+      <div className={'text-3xl font-bold ' + valueClass}>{value}</div>
+      <div className="mt-1 text-sm font-semibold text-text">{label}</div>
     </div>
   )
 }

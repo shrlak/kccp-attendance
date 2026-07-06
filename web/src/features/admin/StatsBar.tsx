@@ -12,9 +12,9 @@ export function StatsBar({ stats }: { stats: Stats }) {
   return (
     <div className="mb-4 grid grid-cols-3 gap-2">
       {items.map(([label, value]) => (
-        <div key={label} className="rounded-lg border border-border bg-surface px-2 py-2 text-center">
-          <div className="text-xl font-bold text-text">{value}</div>
-          <div className="mt-0.5 font-mono text-[11px] uppercase tracking-wide text-subtle">{label}</div>
+        <div key={label} className="rounded-lg border border-border bg-surface px-2 py-2.5 text-center">
+          <div className="text-2xl font-bold text-text">{value}</div>
+          <div className="mt-1 text-sm font-semibold text-text">{label}</div>
         </div>
       ))}
     </div>

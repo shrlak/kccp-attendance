@@ -15,7 +15,6 @@ import {
   BarChart3,
   UserPlus,
   DoorOpen,
-  Smartphone,
   Shield,
   Sprout,
   Medal,
@@ -28,7 +27,6 @@ import { AdminMembers } from './AdminMembers'
 import { AdminAnalytics } from './AdminAnalytics'
 import { AdminNewFamily } from './AdminNewFamily'
 import { AdminVisitors } from './AdminVisitors'
-import { AdminDevices } from './AdminDevices'
 import { AdminAdmins } from './AdminAdmins'
 import { AdminDongsan } from './AdminDongsan'
 import { AdminOfficers } from './AdminOfficers'
@@ -42,7 +40,6 @@ type Tab =
   | 'analytics'
   | 'newfamily'
   | 'visitors'
-  | 'devices'
   | 'admins'
   | 'dongsan'
   | 'officers'
@@ -50,7 +47,7 @@ type Tab =
 
 // Authenticated admin layout: a left icon rail that expands to show labels on hover
 // (the nav) + a main column with a contextual header. Settings/Admins/Dongsan are
-// super-admin only; Devices is hidden from pastors.
+// super-admin only.
 export function AdminApp() {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -75,7 +72,6 @@ export function AdminApp() {
   // A password-only (break-glass) login on an unroled device resolves to the 'staff'
   // role — surfaced as a plain badge in the header so it's clear this is a limited login.
   const isStaff = identity?.role === 'staff'
-  const canDevices = identity?.role !== 'pastor'
   // Pastors are read-only and can't check anyone in, so they don't get the kiosk.
   const canKiosk = identity?.role !== 'pastor'
   const { data: pending } = useQuery({ queryKey: ['pending'], queryFn: getPending, enabled: isSuper })
@@ -96,7 +92,6 @@ export function AdminApp() {
     { id: 'analytics', icon: BarChart3, show: true },
     { id: 'newfamily', icon: UserPlus, show: true },
     { id: 'visitors', icon: DoorOpen, show: true },
-    { id: 'devices', icon: Smartphone, show: canDevices },
     { id: 'admins', icon: Shield, show: isSuper, badge: pendingCount },
     { id: 'dongsan', icon: Sprout, show: isSuper },
     { id: 'officers', icon: Medal, show: isSuper },
@@ -191,7 +186,6 @@ export function AdminApp() {
           {tab === 'analytics' && <AdminAnalytics />}
           {tab === 'newfamily' && <AdminNewFamily />}
           {tab === 'visitors' && <AdminVisitors />}
-          {tab === 'devices' && canDevices && <AdminDevices />}
           {tab === 'admins' && isSuper && <AdminAdmins />}
           {tab === 'dongsan' && isSuper && <AdminDongsan />}
           {tab === 'officers' && isSuper && <AdminOfficers />}
