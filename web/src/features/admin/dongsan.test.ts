@@ -5,6 +5,7 @@ import {
   removeAt,
   cleanNames,
   getDongsanRole,
+  orderByDongsanRole,
   leaderEntry,
   summerDongsanList,
   membersInDongsan,
@@ -103,6 +104,53 @@ describe('getDongsanRole (display badge lookup)', () => {
 
   it('falls through to the per-group lookup in summer mode when no 합동 entry exists', () => {
     expect(getDongsanRole('최건영', '청년부', '건영동산', leaders, true)).toBe('동산지기')
+  })
+})
+
+describe('orderByDongsanRole (출석부 row ordering)', () => {
+  const m = (id: string, name: string, group: string, subgroup: string) =>
+    ({ id, name, group_name: group, subgroup }) as Member
+  // Real resolver over the shared leaders fixture: 건영동산 → 최건영/권상운, 호연동산 → −/신주원.
+  const roleOf = (name: string, group: string, subgroup: string) =>
+    getDongsanRole(name, group, subgroup, leaders, false)
+
+  it('hoists 동산지기 then 부동산지기 within their own 동산 block', () => {
+    const input = [
+      m('1', '아무개', '청년부', '건영동산'),
+      m('2', '권상운', '청년부', '건영동산'),
+      m('3', '홍길동', '청년부', '건영동산'),
+      m('4', '최건영', '청년부', '건영동산'),
+    ]
+    expect(orderByDongsanRole(input, roleOf).map((x) => x.name)).toEqual(['최건영', '권상운', '아무개', '홍길동'])
+  })
+
+  it('never reorders members across 동산 blocks — titles hoist inside their own block only', () => {
+    const input = [
+      m('1', '아무개', '청년부', '건영동산'),
+      m('2', '둘리', '청년부', '호연동산'),
+      m('3', '최건영', '청년부', '건영동산'),
+      m('4', '김호연', '청년부', '건영동산'), // 호연동산's leader → untitled here, no hoist
+      m('5', '신주원', '청년부', '호연동산'),
+    ]
+    // 건영동산 (first-seen) block stays ahead of 호연동산 even though its 동산지기 appears
+    // late in the roster; 최건영 hoists only within 건영동산, 신주원 (부동산지기) only within
+    // 호연동산.
+    expect(orderByDongsanRole(input, roleOf).map((x) => x.name)).toEqual(['최건영', '아무개', '김호연', '신주원', '둘리'])
+  })
+
+  it('keeps untitled members in stable roster order', () => {
+    const input = [
+      m('1', '가', '청년부', '건영동산'),
+      m('2', '나', '청년부', '건영동산'),
+      m('3', '다', '청년부', '건영동산'),
+    ]
+    expect(orderByDongsanRole(input, roleOf).map((x) => x.name)).toEqual(['가', '나', '다'])
+  })
+
+  it('returns empty input and role-less rosters in original order', () => {
+    expect(orderByDongsanRole([], roleOf)).toEqual([])
+    const input = [m('1', '가', '대학부', '동산1'), m('2', '나', '대학부', '동산1'), m('3', '다', '대학부', '동산2')]
+    expect(orderByDongsanRole(input, () => null).map((x) => x.name)).toEqual(['가', '나', '다'])
   })
 })
 

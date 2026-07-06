@@ -19,10 +19,13 @@ import { easternNow } from '../../lib/checkinWindow'
 import { checkinCandidates } from './today'
 import { memberIdsPresentOn, toggleId } from './bulk'
 import { filterMembers, filterLog, NO_FILTER, type Filter } from './filters'
+import { orderByDongsanRole } from './dongsan'
+import { useDongsanRole } from './useDongsanRole'
 import { computeStats } from './stats'
 import { GroupFilter } from './GroupFilter'
 import { ExportMenu } from './ExportMenu'
 import { StatsBar } from './StatsBar'
+import { IconKey } from './IconKey'
 import { Dialog } from '../../components/ui/Dialog'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
@@ -77,6 +80,7 @@ export function AdminSheet() {
           )}
         </div>
       </div>
+      {view === 'log' && <IconKey items={['firstVisit']} />}
       {view === 'grid' ? (
         <GridView members={members} log={fLog} lang={lang} today={today} filter={filter} />
       ) : (
@@ -233,18 +237,23 @@ function BulkModal({ data, onClose }: { data: RosterResponse; onClose: () => voi
 // into color-coded 동산 blocks (green → blue → yellow → red), each a single date-header row
 // over O = 출석 (green) / X = 결석 (red) cells — status marks (한국 귀국 / 이주 / 새가족 …)
 // render as grey cells spanning the dates they cover, like the master sheet — a per-member
-// 예배 총 출석 count and a 총 출석 totals row, closed by the KEY legend — see exports.ts
-// (gridSheet / reportHtml) for the shared spine. Date columns are the term's worship Sundays.
-const CELL = 'whitespace-nowrap border border-[#b7b7b7] px-2 py-1'
+// 예배 총 출석 count and a 총 출석 totals row, opened by the KEY legend up top — see
+// exports.ts (gridSheet / reportHtml) for the shared spine. Date columns are the term's
+// worship Sundays. Each block lists its 동산지기 (👑) first, then 부동산지기 (⭐), then the
+// rest in roster order, with the leaders' name cells bolded + highlighted.
+const CELL = 'whitespace-nowrap border border-[#b7b7b7] px-3 py-1.5'
 const DARK = '#1f2937'
 
 function GridView({ members, log, lang, today, filter }: { members: Member[]; log: LogEntry[]; lang: Lang; today: string; filter: Filter }) {
+  const roleOf = useDongsanRole()
   const L =
     lang === 'ko'
-      ? { name: '이름', memberTotal: '예배 총 출석', total: '총 출석', key: 'KEY', present: '출석', absent: '결석', etc: '기타', unassigned: '동산 미지정', newFamily: '새가족', empty: '출석 기록이 없습니다' }
-      : { name: 'Name', memberTotal: 'Worship Total', total: 'Total', key: 'KEY', present: 'Present', absent: 'Absent', etc: 'Other', unassigned: 'Unassigned', newFamily: 'New family', empty: 'No attendance records' }
+      ? { name: '이름', memberTotal: '예배 총 출석', total: '총 출석', key: 'KEY', present: '출석', absent: '결석', etc: '기타', leaderKey: '동산지기', subleaderKey: '부동산지기', unassigned: '동산 미지정', newFamily: '새가족', empty: '출석 기록이 없습니다' }
+      : { name: 'Name', memberTotal: 'Worship Total', total: 'Total', key: 'KEY', present: 'Present', absent: 'Absent', etc: 'Other', leaderKey: 'Dongsan leader', subleaderKey: 'Assistant leader', unassigned: 'Unassigned', newFamily: 'New family', empty: 'No attendance records' }
 
-  const model = buildAttendanceModel(members, log, exportSundays(today), today, { unassigned: L.unassigned, newFamily: L.newFamily })
+  // 동산지기/부동산지기 float to the top of their own 동산 block (roster order otherwise).
+  const ordered = orderByDongsanRole(members, roleOf)
+  const model = buildAttendanceModel(ordered, log, exportSundays(today), today, { unassigned: L.unassigned, newFamily: L.newFamily })
   const pink = cssColor(HEADER_TOTAL_FILL)
   const grey = cssColor(NOTE_FILL)
 
@@ -252,17 +261,28 @@ function GridView({ members, log, lang, today, filter }: { members: Member[]; lo
 
   return (
     <div className="overflow-x-auto">
-      <p className="mb-3 text-xs text-muted">
+      <p className="mb-3 text-sm text-muted">
         {semesterLabel(today, lang)} · {filterLabel(filter.group, filter.subgroup, lang)}
       </p>
-      <div className="flex flex-col gap-6 text-[11px]" style={{ color: DARK }}>
+      <div className="mb-3 flex flex-wrap items-center gap-4 text-sm" style={{ color: '#374151' }}>
+        <b className="rounded px-2.5 py-0.5 text-white" style={{ background: cssColor(KEY_FILL) }}>{L.key}</b>
+        <span><b>O</b> {L.present}</span>
+        <span><b>X</b> {L.absent}</span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block h-3.5 w-5 rounded-sm" style={{ background: grey }} />
+          {L.etc}
+        </span>
+        <span>👑 {L.leaderKey}</span>
+        <span>⭐ {L.subleaderKey}</span>
+      </div>
+      <div className="flex flex-col gap-6 text-sm" style={{ color: DARK }}>
         {model.sections.map((s, si) => {
           const { light: lightArgb, medium: mediumArgb } = blockColors(si)
           const light = cssColor(lightArgb)
           const medium = cssColor(mediumArgb)
           return (
             <section key={s.subgroup} className="w-max">
-              <h3 className="mb-1.5 inline-block rounded px-3 py-1 text-[13px] font-bold" style={{ background: medium, color: DARK }}>
+              <h3 className="mb-1.5 inline-block rounded px-3 py-1 text-base font-bold" style={{ background: medium, color: DARK }}>
                 {s.subgroup}
               </h3>
               <table className="border-collapse">
@@ -276,9 +296,24 @@ function GridView({ members, log, lang, today, filter }: { members: Member[]; lo
                   </tr>
                 </thead>
                 <tbody>
-                  {s.rows.map((r) => (
+                  {s.rows.map((r) => {
+                    const role = roleOf(r.member.name, r.member.group_name, r.member.subgroup || '')
+                    return (
                     <tr key={r.member.id}>
-                      <td className={`${CELL} bg-white text-left font-medium`}>{r.member.name}</td>
+                      {role ? (
+                        // 동산지기 (👑) / 부동산지기 (⭐): bold, warm-highlighted name cell. The
+                        // grid is fixed light-scheme (hex fills) like the export, so hardcoded
+                        // hex highlights are consistent here.
+                        <td
+                          className={`${CELL} text-left font-bold`}
+                          style={{ background: role === '동산지기' ? '#FFF3C4' : '#FFF9E1' }}
+                        >
+                          {role === '동산지기' ? '👑 ' : '⭐ '}
+                          {r.member.name}
+                        </td>
+                      ) : (
+                        <td className={`${CELL} bg-white text-left font-medium`}>{r.member.name}</td>
+                      )}
                       <td className={`${CELL} bg-white text-center font-bold`}>{r.total}</td>
                       {r.marks.map((c, di) => {
                         const d = model.dates[di]
@@ -303,7 +338,8 @@ function GridView({ members, log, lang, today, filter }: { members: Member[]; lo
                         )
                       })}
                     </tr>
-                  ))}
+                    )
+                  })}
                 </tbody>
                 <tfoot>
                   <tr>
@@ -319,15 +355,6 @@ function GridView({ members, log, lang, today, filter }: { members: Member[]; lo
             </section>
           )
         })}
-      </div>
-      <div className="mt-4 flex flex-wrap items-center gap-4 text-xs" style={{ color: '#374151' }}>
-        <b className="rounded px-2.5 py-0.5 text-white" style={{ background: cssColor(KEY_FILL) }}>{L.key}</b>
-        <span><b>O</b> {L.present}</span>
-        <span><b>X</b> {L.absent}</span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block h-3.5 w-5 rounded-sm" style={{ background: grey }} />
-          {L.etc}
-        </span>
       </div>
     </div>
   )

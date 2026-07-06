@@ -8,70 +8,62 @@ import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
 import { kioskNewMember, type NewMemberFields } from '../../lib/api'
 import { easternNow } from '../../lib/checkinWindow'
+import { NewFamilyCardForm } from '../admin/NewFamilyCardForm'
+import { blankCardForm, joinAffiliation, type CardFormValue } from '../admin/newFamilyCard'
 import { broadcastKioskChange } from './live'
 
 const GROUPS = ['대학부', '청년부', 'EM', 'Adult Ministry']
 
-const EMPTY = {
-  name: '',
-  group: '대학부',
-  subgroup: '',
-  gender: '',
-  phone: '',
-  kakaoId: '',
-  birthDate: '',
-  baptismStatus: '',
-  schoolOrWork: '',
-  faithDuration: '',
-  registrationDate: '',
-  pastoralVisitRequested: false,
-}
-
-// Fresh blank form with 등록일 prefilled to today (Eastern) — computed per open so the
-// kiosk doesn't stamp a stale date if it stays up across midnight.
-const freshForm = () => ({ ...EMPTY, registrationDate: easternNow().date })
-
-// 새가족 (new-family) registration from the kiosk: collects name + group + 동산 + the
-// extended profile fields, then creates the member/device and checks them in for today.
-// Laid out like the paper 새가족 등록 카드 — fields spread across columns in sections
-// (인적 사항 / 신앙 / 등록 정보) instead of one long scrolling column.
+// 새가족 (new-family) registration from the kiosk: a blank paper 새가족 등록 카드 to
+// fill in directly — type into the card's cells, tap its checkboxes. 등록일 is stamped
+// to the day the person is added (the server stamps the same date authoritatively).
+// 부서/동산 aren't printed on the paper card, so they sit just below it. Creates the
+// member/device and checks them in for today.
 export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const toast = useToast()
-  const [f, setF] = useState(freshForm)
+  // Fresh blank card per open, 등록일 = today (Eastern) — computed per open so the
+  // kiosk doesn't stamp a stale date if it stays up across midnight.
+  const [card, setCard] = useState<CardFormValue>(() => blankCardForm(easternNow().date))
+  const [group, setGroup] = useState('대학부')
+  const [subgroup, setSubgroup] = useState('')
   const [busy, setBusy] = useState(false)
 
-  function set<K extends keyof typeof EMPTY>(key: K, value: (typeof EMPTY)[K]) {
-    setF((prev) => ({ ...prev, [key]: value }))
-  }
+  const patchCard = (patch: Partial<CardFormValue>) => setCard((cur) => ({ ...cur, ...patch }))
+
   function close() {
-    setF(freshForm())
+    setCard(blankCardForm(easternNow().date))
+    setGroup('대학부')
+    setSubgroup('')
     setBusy(false)
     onClose()
   }
 
   async function submit() {
-    if (!f.name.trim() || !f.group) {
+    if (!card.name.trim() || !group) {
       toast({ title: t('kiosk.newMember.nameRequired'), tone: 'warn' })
       return
     }
     setBusy(true)
     try {
       const payload: NewMemberFields = {
-        name: f.name.trim(),
-        group: f.group,
-        subgroup: f.subgroup.trim(),
-        gender: f.gender,
-        phone: f.phone.trim(),
-        kakaoId: f.kakaoId.trim(),
-        birthDate: f.birthDate || null,
-        baptismStatus: f.baptismStatus,
-        schoolOrWork: f.schoolOrWork.trim(),
-        faithDuration: f.faithDuration.trim(),
-        // 등록일 — operator-editable (prefilled to today); server falls back to today if blank.
-        registrationDate: f.registrationDate || null,
-        pastoralVisitRequested: f.pastoralVisitRequested,
+        name: card.name.trim(),
+        group,
+        subgroup: subgroup.trim(),
+        gender: card.gender,
+        phone: card.phone.trim(),
+        kakaoId: card.kakaoId.trim(),
+        birthDate: card.birthDate || null,
+        baptismStatus: card.baptismStatus,
+        // 소속 stored as "category · detail" inside school_or_work (no DB column for
+        // the category — the 등록 카드 export splits it back out).
+        schoolOrWork: joinAffiliation(card.affiliationCategory, card.affiliationDetail),
+        faithDuration: card.faithDuration.trim(),
+        // 등록일 = the day they were added (shown stamped on the card; the kiosk
+        // endpoint stamps the same date server-side regardless).
+        registrationDate: card.registrationDate || null,
+        pastoralVisitRequested: card.pastoralVisitRequested,
       }
       await kioskNewMember(payload)
       broadcastKioskChange()
@@ -91,48 +83,12 @@ export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose
       {/* max-h is a safety valve for short/small screens; on the kiosk tablet the whole
           card fits without scrolling. */}
       <div className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto pr-1">
-        <Section label={t('kiosk.newMember.sectionPersonal')}>
-          <Field label={t('kiosk.newMember.name')}>
-            <Input value={f.name} onChange={(e) => set('name', e.target.value)} autoFocus autoComplete="off" />
-          </Field>
-          <Field label={t('kiosk.newMember.gender')}>
-            <Input value={f.gender} onChange={(e) => set('gender', e.target.value)} autoComplete="off" />
-          </Field>
-          <Field label={t('kiosk.newMember.birthDate')}>
-            <Input type="date" value={f.birthDate} onChange={(e) => set('birthDate', e.target.value)} />
-          </Field>
-          <Field label={t('kiosk.newMember.phone')}>
-            <Input value={f.phone} onChange={(e) => set('phone', e.target.value)} autoComplete="off" inputMode="tel" />
-          </Field>
-          <Field label={t('kiosk.newMember.kakaoId')}>
-            <Input value={f.kakaoId} onChange={(e) => set('kakaoId', e.target.value)} autoComplete="off" />
-          </Field>
-          <Field label={t('kiosk.newMember.school')}>
-            <Input value={f.schoolOrWork} onChange={(e) => set('schoolOrWork', e.target.value)} autoComplete="off" />
-          </Field>
-        </Section>
+        <NewFamilyCardForm value={card} onChange={patchCard} regDateFixed />
 
-        <Section label={t('kiosk.newMember.sectionFaith')}>
-          <Field label={t('kiosk.newMember.baptism')}>
-            <Input value={f.baptismStatus} onChange={(e) => set('baptismStatus', e.target.value)} autoComplete="off" />
-          </Field>
-          <Field label={t('kiosk.newMember.faith')}>
-            <Input value={f.faithDuration} onChange={(e) => set('faithDuration', e.target.value)} autoComplete="off" />
-          </Field>
-          <label className="col-span-2 flex min-h-11 cursor-pointer items-center gap-2 self-end rounded-md border border-border bg-surface px-3.5 text-sm text-text sm:col-span-1">
-            <input
-              type="checkbox"
-              checked={f.pastoralVisitRequested}
-              onChange={(e) => set('pastoralVisitRequested', e.target.checked)}
-              className="h-4 w-4"
-            />
-            {t('kiosk.newMember.pastoralVisit')}
-          </label>
-        </Section>
-
-        <Section label={t('kiosk.newMember.sectionChurch')}>
+        {/* 부서/동산 — system fields the paper card doesn't carry. */}
+        <div className="grid grid-cols-2 gap-3">
           <Field label={t('kiosk.newMember.group')}>
-            <Select value={f.group} onChange={(e) => set('group', e.target.value)}>
+            <Select value={group} onChange={(e) => setGroup(e.target.value)}>
               {GROUPS.map((g) => (
                 <option key={g} value={g}>
                   {g}
@@ -141,28 +97,14 @@ export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose
             </Select>
           </Field>
           <Field label={t('kiosk.newMember.subgroup')}>
-            <Input value={f.subgroup} onChange={(e) => set('subgroup', e.target.value)} autoComplete="off" />
+            <Input value={subgroup} onChange={(e) => setSubgroup(e.target.value)} autoComplete="off" />
           </Field>
-          <Field label={t('kiosk.newMember.registrationDate')}>
-            <Input type="date" value={f.registrationDate} onChange={(e) => set('registrationDate', e.target.value)} />
-          </Field>
-        </Section>
+        </div>
       </div>
       <Button onClick={() => void submit()} disabled={busy} className="mt-4 w-full">
         {busy ? t('common.loading') : t('kiosk.newMember.submit')}
       </Button>
     </Dialog>
-  )
-}
-
-// A bordered card section with its caption sitting on the border, like the ruled
-// sections of the paper registration card. Fields flow 2-up on phones, 3-up wider.
-function Section({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <fieldset className="rounded-lg border border-border px-3 pb-3 pt-1">
-      <legend className="px-1.5 font-mono text-[11px] uppercase tracking-wide text-subtle">{label}</legend>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">{children}</div>
-    </fieldset>
   )
 }
 

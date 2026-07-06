@@ -86,6 +86,10 @@ describe('AdminToday — ✝️ 새가족 / 👋 방문자 icons in the 오늘 t
 
     expect(screen.getByText('✝️')).toBeInTheDocument()
     expect(screen.getByText('👋')).toBeInTheDocument()
+    // …and the tab carries an icon legend explaining both marks.
+    expect(
+      screen.getByText((_, el) => el?.tagName === 'P' && el.textContent === '✝️ 새가족 · 👋 방문자'),
+    ).toBeInTheDocument()
   })
 
   it('leaves a regular member unmarked even on their first recorded visit', () => {

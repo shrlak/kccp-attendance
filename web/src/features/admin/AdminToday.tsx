@@ -9,6 +9,7 @@ import { filterMembers, filterLog, NO_FILTER, type Filter } from './filters'
 import { computeStats, leaderDashboard } from './stats'
 import { GroupFilter } from './GroupFilter'
 import { StatsBar } from './StatsBar'
+import { IconKey } from './IconKey'
 import { DongsanBadge } from './DongsanLeaders'
 import { OfficerBadge } from './Officers'
 import { useDongsanRole } from './useDongsanRole'
@@ -101,7 +102,8 @@ export function AdminToday() {
         </div>
       )}
 
-      <div className="mb-3 flex items-center justify-between gap-2">
+      {/* Divider: the stats/dashboard zone above, the live check-in list below. */}
+      <div className="mb-3 flex items-center justify-between gap-2 border-t border-border pt-4">
         <span className="font-mono text-xs uppercase tracking-wide text-subtle">
           {t('admin.today.title')} · {todays.length}
         </span>
@@ -116,6 +118,7 @@ export function AdminToday() {
           )}
         </div>
       </div>
+      <IconKey items={['newFamily', 'visitor']} />
       {todays.length === 0 ? (
         <p className="text-sm text-muted">{t('admin.today.none')}</p>
       ) : (
@@ -132,13 +135,13 @@ export function AdminToday() {
                     {(e.name || '?').slice(0, 1)}
                   </div>
                   <div>
-                    <div className="text-sm font-semibold text-text">
+                    <div className="text-base font-semibold text-text">
                       {e.name}
                       {tag && <span className="ml-1.5 align-middle text-xs">{tag === 'visitor' ? '👋' : '✝️'}</span>}
                       <DongsanBadge role={dongsanRole(e.name, e.group, e.subgroup)} />
                       <OfficerBadge name={e.name} />
                     </div>
-                    <div className="text-xs text-muted">{[e.group, e.subgroup].filter(Boolean).join(' · ') || '—'}</div>
+                    <div className="text-sm text-muted">{[e.group, e.subgroup].filter(Boolean).join(' · ') || '—'}</div>
                   </div>
                 </div>
                 <span className="font-mono text-xs text-muted">{e.time}</span>
@@ -221,8 +224,8 @@ function ManualCheckinModal({ data, today, onClose }: { data: RosterResponse; to
 function Stat({ label, value, valueClass = 'text-text' }: { label: string; value: string; valueClass?: string }) {
   return (
     <div className="rounded-lg border border-border bg-surface px-3 py-2.5 text-center">
-      <div className={'text-xl font-bold ' + valueClass}>{value}</div>
-      <div className="mt-0.5 font-mono text-[10px] uppercase tracking-wide text-subtle">{label}</div>
+      <div className={'text-2xl font-bold ' + valueClass}>{value}</div>
+      <div className="mt-0.5 font-mono text-[11px] uppercase tracking-wide text-subtle">{label}</div>
     </div>
   )
 }
