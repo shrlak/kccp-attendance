@@ -3,6 +3,9 @@ import { adminVerify, adminVerifyGoogle, setAdminPassword, setAdminToken, type A
 import { supabase } from '../lib/supabase'
 
 const PW_KEY = 'kccp-admin-pw'
+// Where the Google OAuth callback should land. Set before the redirect (the kiosk gate
+// passes '/kiosk'), read once when the callback verifies; anything else means /admin.
+const RETURN_KEY = 'kccp-oauth-return'
 
 function readPw(): string | null {
   try { return sessionStorage.getItem(PW_KEY) } catch { return null }
@@ -20,7 +23,7 @@ interface AdminAuthState {
   status: AdminStatus
   identity: AdminIdentity | null
   verify: (password: string) => Promise<boolean>
-  signInWithGoogle: () => Promise<void>
+  signInWithGoogle: (returnTo?: '/kiosk') => Promise<void>
   signOut: () => void
 }
 
@@ -45,9 +48,14 @@ export const useAdminAuth = create<AdminAuthState>((set) => ({
     }
   },
 
-  // Google sign-in: triggers the OAuth redirect; onAuthStateChange handles the callback.
-  signInWithGoogle: async () => {
+  // Google sign-in: triggers the OAuth redirect; onAuthStateChange handles the callback,
+  // which lands on `returnTo` ('/kiosk' from the kiosk gate) or /admin by default.
+  signInWithGoogle: async (returnTo) => {
     set({ status: 'verifying' })
+    try {
+      if (returnTo) sessionStorage.setItem(RETURN_KEY, returnTo)
+      else sessionStorage.removeItem(RETURN_KEY)
+    } catch { /* non-fatal */ }
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       // Redirect to the site root (a real file) so GitHub Pages serves it directly — no
@@ -77,18 +85,27 @@ const isOAuthCallback =
   (new URLSearchParams(window.location.search).has('code') ||
     window.location.hash.includes('access_token'))
 
-// Route to the admin panel without a full reload (the OAuth redirect lands at the site
-// root). React Router listens for popstate, so dispatching one makes it render /admin.
-function navigateToAdmin(): void {
+// Route to the post-login page without a full reload (the OAuth redirect lands at the
+// site root). Honors the stored return path — '/kiosk' when the sign-in started at the
+// kiosk gate, /admin otherwise. React Router listens for popstate, so dispatching one
+// makes it render the new path.
+function navigateAfterOAuth(): void {
   if (typeof window === 'undefined') return
-  if (window.location.pathname.startsWith('/kccp-attendance/admin')) return
-  window.history.pushState({}, '', '/kccp-attendance/admin')
+  let path = '/admin'
+  try {
+    if (sessionStorage.getItem(RETURN_KEY) === '/kiosk') path = '/kiosk'
+    sessionStorage.removeItem(RETURN_KEY)
+  } catch { /* non-fatal */ }
+  const full = `/kccp-attendance${path}`
+  if (window.location.pathname.startsWith(full)) return
+  window.history.pushState({}, '', full)
   window.dispatchEvent(new PopStateEvent('popstate', { state: {} }))
 }
 
 // Verify a Google session with the edge function. On success, reflect it in the store and
-// — when this load is the fresh OAuth callback — route to /admin so the user lands on the
-// panel instead of the public landing page. Returns false if the session isn't an
+// — when this load is the fresh OAuth callback — route to the return path (/admin, or
+// /kiosk when the sign-in started at the kiosk gate) so the user lands where they meant
+// to go instead of the public landing page. Returns false if the session isn't an
 // authorized admin (caller decides how to surface that).
 async function verifyGoogleSession(accessToken: string): Promise<boolean> {
   useAdminAuth.setState({ status: 'verifying' })
@@ -96,7 +113,7 @@ async function verifyGoogleSession(accessToken: string): Promise<boolean> {
     setAdminToken(accessToken)
     const identity = await adminVerifyGoogle()
     useAdminAuth.setState({ status: 'authed', identity })
-    if (isOAuthCallback) navigateToAdmin()
+    if (isOAuthCallback) navigateAfterOAuth()
     return true
   } catch {
     setAdminToken(null)

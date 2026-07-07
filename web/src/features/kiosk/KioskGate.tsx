@@ -6,22 +6,26 @@ import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
 import { ThemeLangToggle } from '../../components/ui/ThemeLangToggle'
 
-// Password gate for /kiosk reached from the public landing page: a single password
-// field, no Google sign-in. The kiosk only opens for the welcoming-team password
-// (server-verified role 'welcoming') — KioskShell routes any other valid admin
-// password to the admin panel instead, where the 키오스크 button still works.
+// Login gate for /kiosk reached from the public landing page. Same credentials as the
+// admin panel — any team password or an authorized Google account — but unlocking lands
+// straight on the kiosk (KioskShell) instead of the admin panel. Google sign-in passes
+// returnTo:'/kiosk' so the OAuth callback comes back here rather than /admin.
 export function KioskGate() {
   const { t } = useTranslation()
   const verify = useAdminAuth((s) => s.verify)
+  const signInWithGoogle = useAdminAuth((s) => s.signInWithGoogle)
   const status = useAdminAuth((s) => s.status)
   const [pw, setPw] = useState('')
+  // Which method the last attempt used, so a failure shows the matching message.
+  const [method, setMethod] = useState<'password' | 'google'>('password')
   const busy = status === 'verifying'
 
   async function submit() {
     if (!pw || busy) return
+    setMethod('password')
     await verify(pw)
-    // On success KioskShell re-renders into the kiosk (welcoming) or the admin
-    // panel (any other role); on failure the store's error status shows below.
+    // On success KioskShell re-renders straight into the kiosk; on failure the store's
+    // error status shows below.
   }
 
   return (
@@ -46,12 +50,33 @@ export function KioskGate() {
             if (e.key === 'Enter' && pw) void submit()
           }}
         />
-        {status === 'error' && (
+        {status === 'error' && method === 'password' && (
           <p className="mt-2 text-xs text-danger">{t('kiosk.gate.wrong')}</p>
         )}
         <Button onClick={() => void submit()} disabled={busy || !pw} className="mt-3 w-full">
-          {busy ? t('common.loading') : t('kiosk.gate.submit')}
+          {busy && method === 'password' ? t('common.loading') : t('kiosk.gate.submit')}
         </Button>
+
+        <div className="my-4 flex items-center gap-3 text-xs text-subtle">
+          <span className="h-px flex-1 bg-border" aria-hidden />
+          {t('kiosk.gate.or')}
+          <span className="h-px flex-1 bg-border" aria-hidden />
+        </div>
+
+        <Button
+          variant="secondary"
+          onClick={() => {
+            setMethod('google')
+            void signInWithGoogle('/kiosk')
+          }}
+          disabled={busy}
+          className="w-full"
+        >
+          {busy && method === 'google' ? t('common.loading') : t('admin.signInWithGoogle')}
+        </Button>
+        {status === 'error' && method === 'google' && (
+          <p className="mt-2 text-xs text-danger">{t('admin.googleError')}</p>
+        )}
       </div>
     </main>
   )
