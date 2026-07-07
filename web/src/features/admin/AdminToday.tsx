@@ -122,29 +122,31 @@ export function AdminToday() {
       {todays.length === 0 ? (
         <p className="text-sm text-muted">{t('admin.today.none')}</p>
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className="grid grid-cols-3 gap-2">
           {todays.map((e) => {
             const tag = checkinTag(e, newMemberNames)
             return (
               <li
                 key={`${e.name}-${e.ts}`}
-                className="flex items-center justify-between rounded-lg border border-border bg-surface px-4 py-3"
+                className="flex items-center justify-between gap-2 rounded-lg border border-border bg-surface px-4 py-3"
               >
-                <div className="flex items-center gap-3">
-                  <div className="grid h-9 w-9 place-items-center rounded-full bg-success/15 text-sm font-bold text-success">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-success/15 text-sm font-bold text-success">
                     {(e.name || '?').slice(0, 1)}
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <div className="text-base font-semibold text-text">
                       {e.name}
                       {tag && <span className="ml-1.5 align-middle text-xs">{tag === 'visitor' ? '👋' : '✝️'}</span>}
                       <DongsanBadge role={dongsanRole(e.name, e.group, e.subgroup)} />
                       <OfficerBadge name={e.name} />
                     </div>
-                    <div className="text-sm text-muted">{[e.group, e.subgroup].filter(Boolean).join(' · ') || '—'}</div>
+                    <div className="truncate text-sm text-muted">
+                      {[e.group, e.subgroup].filter(Boolean).join(' · ') || '—'}
+                    </div>
                   </div>
                 </div>
-                <span className="font-mono text-xs text-muted">{e.time}</span>
+                <span className="shrink-0 font-mono text-xs text-muted">{e.time}</span>
               </li>
             )
           })}
