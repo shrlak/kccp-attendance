@@ -14,6 +14,7 @@ import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
 import { EditModal, AttendanceModal } from './MemberDialogs'
+import { CardScanDialog } from './CardScanDialog'
 
 // 새가족 (new-family) tab: the current-semester new members with inline education
 // tracking, plus a monthly-registrations roll-up. Visible to every admin.
@@ -24,6 +25,7 @@ export function AdminNewFamily() {
   const [editing, setEditing] = useState<Member | null>(null)
   const [attendanceFor, setAttendanceFor] = useState<Member | null>(null)
   const [exportOpen, setExportOpen] = useState(false)
+  const [scanOpen, setScanOpen] = useState(false)
 
   if (isLoading) return <p className="text-sm text-muted">{t('common.loading')}</p>
   if (isError) return <p className="text-sm text-danger">{t('common.error')}</p>
@@ -50,9 +52,16 @@ export function AdminNewFamily() {
         <span className="font-mono text-xs uppercase tracking-wide text-subtle">
           {t('admin.newfamily.title')} · {total}
         </span>
-        <Button variant="secondary" size="sm" className="ml-auto" onClick={() => setExportOpen(true)}>
-          {t('admin.newfamily.export.action')}
-        </Button>
+        <div className="ml-auto flex gap-2">
+          {!readOnly && (
+            <Button variant="secondary" size="sm" onClick={() => setScanOpen(true)}>
+              {t('admin.newfamily.scan.action')}
+            </Button>
+          )}
+          <Button variant="secondary" size="sm" onClick={() => setExportOpen(true)}>
+            {t('admin.newfamily.export.action')}
+          </Button>
+        </div>
       </div>
       {/* Legend for the card badge below */}
       <p className="mb-3 text-xs text-subtle">{t('admin.newfamily.legend')}</p>
@@ -107,6 +116,7 @@ export function AdminNewFamily() {
       )}
 
       {exportOpen && <ExportCardsModal members={allNewFamily} today={today} onClose={() => setExportOpen(false)} />}
+      {scanOpen && <CardScanDialog open onClose={() => setScanOpen(false)} />}
 
       {editing && (
         <EditModal

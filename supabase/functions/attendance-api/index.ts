@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { resolveAdmin, scopeFilter } from "./auth.ts";
+import { GEMINI_URL, buildGeminiBody, parseGeminiCard } from "./gemini.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -813,8 +814,8 @@ Deno.serve(async (req: Request) => {
 
     // Kiosk 새가족 (new-family) registration (Phase 3.8): creates a member with
     // is_new_member=true and the extended profile fields, links a NEW-{ts} device, then
-    // immediately records today's attendance (first_visit). Hardened (verifyAdmin);
-    // pastor read-only; audited.
+    // immediately records today's attendance (first_visit) — unless body.skipCheckin
+    // (admin card-scan path). Hardened (verifyAdmin); pastor read-only; audited.
     if(req.method==="POST"&&p==="/api/admin/kiosk-new-member") {
       const role=await resolveAdmin(sb,req);
       if(!role) return fail(401,"Not authorized");
@@ -837,9 +838,38 @@ Deno.serve(async (req: Request) => {
       if(!memberId) return fail(500,"Could not create member");
       const newId="NEW-"+Date.now();
       await sb.from("devices").insert({id:newId,name,group_name:group,subgroup,member_id:memberId,is_new_member:true});
-      await sb.from("attendance_log").insert({device_id:newId,member_id:memberId,name,group_name:group,subgroup,date:today,time_str:time,ts:Date.now(),is_manual:true,admin_added:false,first_visit:true});
-      await addAudit(sb,"new-member-register",xDev,name+" | "+group);
+      // skipCheckin (admin card-scan path): create the member + device but don't record
+      // today's attendance — e.g. entering a stack of paper cards later in the week.
+      // The kiosk never sends the flag, so its check-them-in-now behavior is unchanged.
+      if(!body.skipCheckin) await sb.from("attendance_log").insert({device_id:newId,member_id:memberId,name,group_name:group,subgroup,date:today,time_str:time,ts:Date.now(),is_manual:true,admin_added:false,first_visit:true});
+      await addAudit(sb,"new-member-register",xDev,name+" | "+group+(body.skipCheckin?" | no-checkin":""));
       return ok({status:"ok",memberId,time});
+    }
+
+    // 새가족 등록 카드 photo extraction: the admin panel sends a downscaled card photo
+    // (base64 JPEG); Gemini reads the handwriting/checkboxes into structured JSON which
+    // the client normalizes + shows for review — nothing is written to the DB here.
+    // Audit logs only size/type, never the extracted PII.
+    if(req.method==="POST"&&p==="/api/admin/extract-card") {
+      const role=await resolveAdmin(sb,req);
+      if(!role) return fail(401,"Not authorized");
+      if(role.role==="pastor") return fail(403,"Read-only");
+      const image=typeof body.image==="string"?body.image:"";
+      const mediaType=["image/jpeg","image/png","image/webp"].includes(body.mediaType)?body.mediaType:"image/jpeg";
+      if(!image) return fail(400,"image required");
+      if(image.length>8_000_000) return fail(413,"Image too large — retake with a smaller photo");
+      const key=Deno.env.get("GEMINI_API_KEY");
+      if(!key) return fail(500,"GEMINI_API_KEY not configured — set it in Supabase Edge Function secrets");
+      const gr=await fetch(GEMINI_URL,{method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":key},body:JSON.stringify(buildGeminiBody(image,mediaType))});
+      if(!gr.ok) {
+        const detail=await gr.text().catch(()=>"");
+        if(gr.status===429) return fail(429,"Gemini quota exceeded — wait a minute and retry");
+        return fail(502,"Gemini error "+gr.status+(detail?": "+detail.slice(0,200):""));
+      }
+      const card=parseGeminiCard(await gr.json().catch(()=>null));
+      if(!card) return fail(502,"Could not read card fields from the image");
+      await addAudit(sb,"extract-card",xDev,mediaType+" | "+Math.round(image.length*3/4/1024)+"KB");
+      return ok({status:"ok",card});
     }
 
     if(req.method==="POST"&&p==="/api/check-admin") {
