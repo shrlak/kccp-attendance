@@ -59,10 +59,10 @@ async function renderKiosk() {
 }
 
 describe('KioskShell + KioskGate', () => {
-  it('shows the password-only gate when not authed', async () => {
+  it('shows the login gate (password + Google) when not authed', async () => {
     await renderKiosk()
     expect(screen.getByLabelText('키오스크 비밀번호')).toBeInTheDocument()
-    expect(screen.queryByText('Google로 로그인')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Google로 로그인' })).toBeInTheDocument()
   })
 
   it('unlocks the kiosk when the password verifies as the welcoming role', async () => {
@@ -76,7 +76,7 @@ describe('KioskShell + KioskGate', () => {
     expect(await screen.findByPlaceholderText('🔍 이름 검색...')).toBeInTheDocument()
   })
 
-  it('routes any other admin role to the admin panel instead of the kiosk', async () => {
+  it('unlocks the kiosk for other admin roles too (no detour to the admin panel)', async () => {
     const { adminVerify } = await import('../../lib/api')
     ;(adminVerify as ReturnType<typeof vi.fn>).mockResolvedValue({ role: 'super_admin', group: '', subgroup: '', ministry: '' })
     await renderKiosk()
@@ -84,7 +84,34 @@ describe('KioskShell + KioskGate', () => {
     await userEvent.type(screen.getByLabelText('키오스크 비밀번호'), 'kccpadmin')
     await userEvent.click(screen.getByRole('button', { name: '키오스크 시작' }))
 
+    expect(await screen.findByPlaceholderText('🔍 이름 검색...')).toBeInTheDocument()
+  })
+
+  it('opens the kiosk directly for an already-authed session, skipping the gate', async () => {
+    const { useAdminAuth } = await import('../../stores/useAdminAuth')
+    useAdminAuth.setState({ status: 'authed', identity: { role: 'leader', group: 'KM 대학부', subgroup: '', ministry: '' } })
+    await renderKiosk()
+
+    expect(await screen.findByPlaceholderText('🔍 이름 검색...')).toBeInTheDocument()
+    expect(screen.queryByLabelText('키오스크 비밀번호')).not.toBeInTheDocument()
+  })
+
+  it('sends the read-only pastor role to the admin panel instead of the kiosk', async () => {
+    const { useAdminAuth } = await import('../../stores/useAdminAuth')
+    useAdminAuth.setState({ status: 'authed', identity: { role: 'pastor', group: '', subgroup: '', ministry: '' } })
+    await renderKiosk()
+
     expect(await screen.findByText('admin-panel-here')).toBeInTheDocument()
+  })
+
+  it('Google sign-in from the gate stores /kiosk as the OAuth return path', async () => {
+    const { supabase } = await import('../../lib/supabase')
+    await renderKiosk()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Google로 로그인' }))
+
+    expect(supabase.auth.signInWithOAuth).toHaveBeenCalled()
+    expect(sessionStorage.getItem('kccp-oauth-return')).toBe('/kiosk')
   })
 
   it('나가기 exits in one tap — no password, no confirm — to the admin panel, keeping the session', async () => {

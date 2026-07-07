@@ -46,11 +46,11 @@ describe('routes', () => {
     expect(screen.getByRole('button', { name: 'Google로 로그인' })).toBeInTheDocument()
   })
 
-  it('gates /kiosk behind the kiosk password gate when not authed (no Google sign-in)', () => {
+  it('gates /kiosk behind the kiosk login gate when not authed (password + Google)', () => {
     renderAt('/kiosk')
     expect(screen.getByLabelText('키오스크 비밀번호')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '키오스크 시작' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Google로 로그인' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Google로 로그인' })).toBeInTheDocument()
   })
 
   it('renders the 404 page for an unknown path', () => {
