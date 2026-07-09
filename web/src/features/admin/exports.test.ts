@@ -13,6 +13,9 @@ import {
   reportHtml,
   formatHeaderDate,
   filterLabel,
+  NEW_FAMILY_HEADER,
+  newFamilyRow,
+  newFamilySheets,
 } from './exports'
 import { semesterSundays } from './newFamily'
 import type { Member, LogEntry } from '../../lib/api'
@@ -371,5 +374,65 @@ describe('reportHtml', () => {
   it('shows an empty message when no members are in scope', () => {
     const html = reportHtml([], [], { group: '', subgroup: '', today, lang: 'en' })
     expect(html).toContain('No attendance records')
+  })
+})
+
+describe('newFamilyRow', () => {
+  it('maps the 12 template columns from a fully-filled member', () => {
+    const m: Member = {
+      ...member('1', '김철수', '대학부', '1동산'),
+      gender: '남',
+      registration_date: '2026-07-05',
+      birth_date: '2004-03-15',
+      phone: '(412) 555-1234',
+      school_or_work: '대학생 · Pitt 컴퓨터공학',
+      baptism_status: '세례',
+      pastoral_visit_requested: true,
+      notes: '카톡 안 함',
+    }
+    expect(newFamilyRow(m)).toEqual([
+      '김철수',
+      new Date(2026, 6, 5),
+      '남',
+      new Date(2004, 2, 15),
+      '(412) 555-1234',
+      '',
+      'Pitt 컴퓨터공학', // 소속 category prefix stripped
+      '세례',
+      '',
+      'O', // subgroup set → 동산 참여
+      'O', // pastoral_visit_requested
+      '카톡 안 함', // notes (메모), not faith_duration
+    ])
+  })
+  it('blanks/defaults for a bare-minimum member', () => {
+    const row = newFamilyRow(member('2', '이영희', '청년부', ''))
+    expect(row[1]).toBe('') // no registration_date
+    expect(row[3]).toBe('') // no birth_date
+    expect(row[5]).toBe('') // 이메일 — not collected
+    expect(row[8]).toBe('') // 주소/동네 — not collected
+    expect(row[9]).toBe('X') // no subgroup
+    expect(row[10]).toBe('X') // pastoral_visit_requested falsy
+    expect(row[11]).toBe('') // notes empty
+  })
+})
+
+describe('newFamilySheets', () => {
+  it('has the template header, in column order', () => {
+    expect(NEW_FAMILY_HEADER).toEqual([
+      '이름', '등록일', '성별', '생년월일', '전화번호', '이메일',
+      '학교/직장, 학과', '세례', '주소/동네', '동산 참여', '목사님 심방', '노트',
+    ])
+  })
+  it('splits members into one sheet per 부서, first-seen order', () => {
+    const ms = [member('1', 'A', '청년부'), member('2', 'B', '대학부'), member('3', 'C', '청년부')]
+    const sheets = newFamilySheets(ms)
+    expect(sheets.map((s) => s.name)).toEqual(['청년부', '대학부'])
+    expect(sheets[0].aoa[0]).toEqual(NEW_FAMILY_HEADER)
+    expect(sheets[0].aoa.map((r) => r[0])).toEqual(['이름', 'A', 'C'])
+    expect(sheets[1].aoa.map((r) => r[0])).toEqual(['이름', 'B'])
+  })
+  it('falls back to a placeholder sheet name for a blank group_name', () => {
+    expect(newFamilySheets([member('1', 'A', '')])[0].name).toBe('미지정')
   })
 })
