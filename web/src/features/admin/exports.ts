@@ -1,6 +1,7 @@
 import type { Member, LogEntry } from '../../lib/api'
 import { buildGrid } from './sheet'
 import { semesterBounds, semesterKey, semesterSundays } from './newFamily'
+import { splitAffiliation } from './newFamilyCard'
 
 // ── Pure export helpers ──────────────────────────────────────────────────────
 // Everything here is side-effect free so it can be unit-tested. The thin DOM bits
@@ -348,6 +349,67 @@ export function logRows(members: Member[], log: LogEntry[], lang: Lang): (string
     rows.push([e.name, e.group, e.subgroup, e.date, e.time, totals.get(e.name) ?? 0, logNotes(e, lang)])
   }
   return rows
+}
+
+// ── 새가족 information export (Excel) ────────────────────────────────────────
+// Mirrors the church's legacy 새가족 roster spreadsheet: one row per member, split into
+// one sheet per 부서 (group_name). The DOM/XLSX.writeFile side lives in
+// AdminNewFamily.tsx (as with gridSheet/logRows above); this stays pure so it's
+// unit-testable.
+
+export const NEW_FAMILY_HEADER = [
+  '이름', '등록일', '성별', '생년월일', '전화번호', '이메일',
+  '학교/직장, 학과', '세례', '주소/동네', '동산 참여', '목사님 심방', '노트',
+]
+
+// ISO "YYYY-MM-DD" -> a local Date (matches how SheetJS serializes date cells) so the
+// exported 등록일/생년월일 columns are real Excel dates, not text. '' when blank/unparseable.
+function excelDate(iso: string | null | undefined): Date | '' {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || '')
+  if (!m) return ''
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+}
+
+// One 새가족's row across the export's 12 columns. 이메일/주소·동네 are always blank — the
+// app doesn't collect either (no such field exists anywhere in the schema/UI). 노트 is
+// the member's free-text `notes` field (the 메모 box in the edit dialog), not `faith_duration`.
+export function newFamilyRow(m: Member): (string | number | Date)[] {
+  return [
+    m.name || '',
+    excelDate(m.registration_date),
+    m.gender || '',
+    excelDate(m.birth_date),
+    m.phone || '',
+    '',
+    splitAffiliation(m.school_or_work || '').detail,
+    m.baptism_status || '',
+    '',
+    m.subgroup ? 'O' : 'X',
+    m.pastoral_visit_requested ? 'O' : 'X',
+    m.notes || '',
+  ]
+}
+
+// Split into one sheet per 부서 (group_name), matching the legacy roster's 청년부/대학부
+// tabs — only groups actually present in `members` get a sheet, in first-seen order. A
+// blank/missing group_name falls back to a placeholder name (Excel rejects blank sheet names).
+export function newFamilySheets(members: Member[]): { name: string; aoa: (string | number | Date)[][] }[] {
+  const order: string[] = []
+  const byGroup = new Map<string, Member[]>()
+  for (const m of members) {
+    const key = m.group_name || '미지정'
+    let bucket = byGroup.get(key)
+    if (!bucket) {
+      bucket = []
+      byGroup.set(key, bucket)
+      order.push(key)
+    }
+    bucket.push(m)
+  }
+  return order.map((name) => ({
+    name,
+    aoa: [NEW_FAMILY_HEADER, ...byGroup.get(name)!.map(newFamilyRow)],
+  }))
 }
 
 const WEEKDAYS_EN = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']

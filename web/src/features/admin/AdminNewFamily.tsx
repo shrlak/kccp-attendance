@@ -6,6 +6,7 @@ import { easternNow } from '../../lib/checkinWindow'
 import { filterMembers, NO_FILTER, type Filter } from './filters'
 import { semesterKey, newFamilyByDate, monthlyRegistrations } from './newFamily'
 import { exportNewFamilyCards } from './newFamilyCardImage'
+import { newFamilySheets, NEW_FAMILY_HEADER } from './exports'
 import { toggleId } from './bulk'
 import { GroupFilter } from './GroupFilter'
 import { updateMember, type Member, type MemberEdit } from '../../lib/api'
@@ -115,7 +116,7 @@ export function AdminNewFamily() {
         </div>
       )}
 
-      {exportOpen && <ExportCardsModal members={allNewFamily} today={today} onClose={() => setExportOpen(false)} />}
+      {exportOpen && <ExportModal members={allNewFamily} today={today} onClose={() => setExportOpen(false)} />}
       {scanOpen && <CardScanDialog open onClose={() => setScanOpen(false)} />}
 
       {editing && (
@@ -140,34 +141,81 @@ export function AdminNewFamily() {
   )
 }
 
-// Pick which 새가족 to export as 등록 카드 JPGs. Lists the whole current-semester tab
-// (name-searchable), with today's registrations pre-checked — the previous "export
-// today" behavior stays the default, but any subset of the semester can be chosen.
-function ExportCardsModal({ members, today, onClose }: { members: Member[]; today: string; onClose: () => void }) {
+// 새가족 정보를 회사의 레거시 로스터 스프레드시트와 같은 모양(부서별 탭, 파란 헤더, 12개
+// 열)으로 내보낸다. XLSX.writeFile이 유일한 DOM 부수효과 — 행/시트 구성은 순수 함수
+// (newFamilySheets, ./exports)에 있다.
+async function exportNewFamilyExcel(members: Member[], today: string): Promise<void> {
+  const XLSX = await import('xlsx-js-style')
+  const wb = XLSX.utils.book_new()
+  const headerStyle = {
+    font: { name: 'Arial', bold: true },
+    fill: { patternType: 'solid', fgColor: { rgb: 'FF6FA8DC' } },
+    alignment: { horizontal: 'center' },
+  }
+  // 이름 / 등록일 / 성별 / 생년월일 / 전화번호 / 이메일 / 학교·직장 / 세례 / 주소·동네 / 동산 참여 / 목사님 심방 / 노트
+  const colWidths = [14, 11, 7, 11, 14, 26, 22, 11, 16, 11, 11, 22].map((wch) => ({ wch }))
+  for (const { name, aoa } of newFamilySheets(members)) {
+    const ws = XLSX.utils.aoa_to_sheet(aoa)
+    for (let c = 0; c < NEW_FAMILY_HEADER.length; c++) {
+      const addr = XLSX.utils.encode_cell({ r: 0, c })
+      if (ws[addr]) ws[addr].s = headerStyle
+    }
+    // 등록일(열 1) / 생년월일(열 3) — 템플릿과 같은 실제 날짜 셀.
+    for (let r = 1; r < aoa.length; r++) {
+      for (const c of [1, 3]) {
+        const addr = XLSX.utils.encode_cell({ r, c })
+        if (ws[addr]?.t === 'n') ws[addr].z = 'm/d/yyyy'
+      }
+    }
+    ws['!cols'] = colWidths
+    XLSX.utils.book_append_sheet(wb, ws, name)
+  }
+  XLSX.writeFile(wb, `새가족등록정보-${today}.xlsx`)
+}
+
+// Pick which 새가족 to export — as 등록 카드 JPGs, or as an Excel roster. Lists the whole
+// current-semester tab (name-searchable), with today's registrations pre-checked — the
+// previous "export today" behavior stays the default, but any subset of the semester can
+// be chosen. Both actions share the same selection so there's one selection UI, not two.
+function ExportModal({ members, today, onClose }: { members: Member[]; today: string; onClose: () => void }) {
   const { t } = useTranslation()
   const toast = useToast()
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Set<string>>(
     () => new Set(members.filter((m) => m.registration_date === today).map((m) => m.id)),
   )
-  const [busy, setBusy] = useState(false)
+  const [busy, setBusy] = useState<'cards' | 'excel' | null>(null)
 
   const q = search.trim().toLowerCase()
   const visible = q ? members.filter((m) => m.name.toLowerCase().includes(q)) : members
+  // Export in the tab's display order (newest registration date first).
+  const chosen = () => members.filter((m) => selected.has(m.id))
 
-  async function confirm() {
-    // Export in the tab's display order (newest registration date first).
-    const chosen = members.filter((m) => selected.has(m.id))
-    if (!chosen.length) return
-    setBusy(true)
+  async function confirmCards() {
+    const list = chosen()
+    if (!list.length) return
+    setBusy('cards')
     try {
-      const { copied } = await exportNewFamilyCards(chosen, today)
+      const { copied } = await exportNewFamilyCards(list, today)
       toast({
-        title: t(copied ? 'admin.newfamily.export.done' : 'admin.newfamily.export.downloadedOnly'),
+        title: t(copied ? 'admin.newfamily.export.cardsDone' : 'admin.newfamily.export.cardsDownloadedOnly'),
         tone: 'ok',
       })
     } catch {
-      toast({ title: t('admin.newfamily.export.failed'), tone: 'err' })
+      toast({ title: t('admin.newfamily.export.cardsFailed'), tone: 'err' })
+    }
+    onClose()
+  }
+
+  async function confirmExcel() {
+    const list = chosen()
+    if (!list.length) return
+    setBusy('excel')
+    try {
+      await exportNewFamilyExcel(list, today)
+      toast({ title: t('admin.newfamily.export.excelDone'), tone: 'ok' })
+    } catch {
+      toast({ title: t('admin.newfamily.export.excelFailed'), tone: 'err' })
     }
     onClose()
   }
@@ -211,7 +259,7 @@ function ExportCardsModal({ members, today, onClose }: { members: Member[]; toda
               <input
                 type="checkbox"
                 checked={selected.has(m.id)}
-                disabled={busy}
+                disabled={busy !== null}
                 onChange={() => setSelected((cur) => toggleId(cur, m.id))}
               />
               <span className="font-medium text-text">{m.name}</span>
@@ -223,9 +271,19 @@ function ExportCardsModal({ members, today, onClose }: { members: Member[]; toda
           </li>
         ))}
       </ul>
-      <Button onClick={() => void confirm()} disabled={busy || selected.size === 0} className="mt-4 w-full">
-        {busy ? t('admin.newfamily.export.busy') : t('admin.newfamily.export.confirm', { n: selected.size })}
-      </Button>
+      <div className="mt-4 flex gap-2">
+        <Button onClick={() => void confirmCards()} disabled={busy !== null || selected.size === 0} className="flex-1">
+          {busy === 'cards' ? t('admin.newfamily.export.cardsBusy') : t('admin.newfamily.export.cardsConfirm', { n: selected.size })}
+        </Button>
+        <Button
+          variant="secondary"
+          onClick={() => void confirmExcel()}
+          disabled={busy !== null || selected.size === 0}
+          className="flex-1"
+        >
+          {busy === 'excel' ? t('admin.newfamily.export.excelBusy') : t('admin.newfamily.export.excelConfirm', { n: selected.size })}
+        </Button>
+      </div>
     </Dialog>
   )
 }
