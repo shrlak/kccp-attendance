@@ -39,8 +39,8 @@ describe('normalizeCardDate', () => {
 
 describe('normalizePhone', () => {
   it('formats 10-digit US numbers', () => {
-    expect(normalizePhone('4125551234')).toBe('412-555-1234')
-    expect(normalizePhone('(412) 555-1234')).toBe('412-555-1234')
+    expect(normalizePhone('4125551234')).toBe('(412) 555-1234')
+    expect(normalizePhone('(412) 555-1234')).toBe('(412) 555-1234')
   })
   it('formats 11-digit 010 Korean mobiles', () => {
     expect(normalizePhone('01012345678')).toBe('010-1234-5678')
@@ -75,7 +75,7 @@ describe('normalizeExtractedCard', () => {
     expect(card).toEqual({
       name: '김철수',
       gender: '남',
-      phone: '412-555-1234',
+      phone: '(412) 555-1234',
       kakaoId: 'chulsoo',
       birthDate: '2004-03-15',
       affiliationCategory: '대학생',

@@ -1,4 +1,5 @@
 import type { Member } from '../../lib/api'
+import { formatPhoneNumber } from '../../lib/phone'
 
 // ── 새가족 등록 카드 — pure model of the paper card ─────────────────────────────
 // The single source of truth for the paper registration card's layout/vocabulary:
@@ -97,7 +98,7 @@ export function cardFormFromMember(m: Member): CardFormValue {
   return {
     name: m.name || '',
     gender: m.gender || '',
-    phone: m.phone || '',
+    phone: formatPhoneNumber(m.phone || ''),
     kakaoId: m.kakao_id || '',
     birthDate: m.birth_date || '',
     affiliationCategory: aff.category,
