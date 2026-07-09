@@ -5,6 +5,7 @@ import {
   blankCardForm,
   type CardFormValue,
 } from './newFamilyCard'
+import { formatPhoneNumber } from '../../lib/phone'
 
 // ── 카드 사진 인식 결과 정규화 ─────────────────────────────────────────────────
 // Turns the raw JSON the extraction endpoint returns (Gemini's reading of a
@@ -57,12 +58,7 @@ export function normalizeCardDate(
 // Format recognizable US/Korean mobile numbers; anything else passes through as
 // written so the admin sees what the card says instead of a silently mangled value.
 export function normalizePhone(v: unknown): string {
-  const s = str(v)
-  if (!s) return ''
-  const digits = s.replace(/\D/g, '')
-  if (digits.length === 10) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`
-  if (digits.length === 11 && digits.startsWith('010')) return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`
-  return s
+  return formatPhoneNumber(str(v))
 }
 
 // Raw extraction payload → a complete CardFormValue. Unknown/null fields become the

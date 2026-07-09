@@ -8,6 +8,7 @@ import {
   formatCardDate,
   type CardFormValue,
 } from './newFamilyCard'
+import { formatPhoneNumber } from '../../lib/phone'
 
 // ── 새가족 등록 카드 — the paper card as a directly editable form ────────────────
 // The card replica IS the form: type into its cells, tap its checkboxes, tap 남/여
@@ -57,7 +58,12 @@ export function NewFamilyCardForm({
               </ValueCell>
               <LabelCell text="전화번호" />
               <ValueCell>
-                <CardInput aria-label="전화번호" inputMode="tel" value={value.phone} onChange={(v) => onChange({ phone: v })} />
+                <CardInput
+                  aria-label="전화번호"
+                  inputMode="tel"
+                  value={value.phone}
+                  onChange={(v) => onChange({ phone: formatPhoneNumber(v) })}
+                />
               </ValueCell>
             </tr>
             <tr>

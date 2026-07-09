@@ -63,7 +63,7 @@ describe('EditModal — 새가족 등록 카드 as the form', () => {
     expect(screen.getByText('< KCCP 빛주사랑 대학청년부 - 새가족 등록 카드 >')).toBeInTheDocument()
     // The card's cells are the inputs, prefilled with the stored info.
     expect(screen.getByLabelText('이름')).toHaveValue('홍길동')
-    expect(screen.getByLabelText('전화번호')).toHaveValue('412-555-0142')
+    expect(screen.getByLabelText('전화번호')).toHaveValue('(412) 555-0142')
     expect(screen.getByLabelText('카톡 아이디')).toHaveValue('gil_dong')
     expect(screen.getByLabelText('생년월일')).toHaveValue('2004-03-15')
     expect(screen.getByLabelText('등록일')).toHaveValue('2026-07-05')
@@ -90,7 +90,7 @@ describe('EditModal — 새가족 등록 카드 as the form', () => {
     expect(updateMember).toHaveBeenCalledWith(
       'm1',
       expect.objectContaining({
-        phone: '412-555-9999',
+        phone: '(412) 555-9999',
         baptismStatus: '입교',
         schoolOrWork: '대학생 · Pitt 컴퓨터공학',
         pastoralVisitRequested: true,
