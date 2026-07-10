@@ -106,7 +106,7 @@ export function AdminApp() {
       <aside
         className={
           'fixed inset-y-0 left-0 z-30 flex flex-col overflow-hidden border-r border-border bg-canvas/95 backdrop-blur transition-all duration-200 ease-out ' +
-          (navOpen ? 'w-60 shadow-xl' : 'w-16')
+          (navOpen ? 'w-60' : 'w-16')
         }
         onMouseEnter={() => setNavOpen(true)}
         onMouseLeave={() => setNavOpen(false)}
@@ -117,9 +117,7 @@ export function AdminApp() {
       >
         <div className="flex h-16 shrink-0 items-center pt-[env(safe-area-inset-top)]">
           <span className="grid w-16 shrink-0 place-items-center">
-            <span className="grid size-9 place-items-center rounded-xl bg-white shadow-sm">
-              <KccpMark size={22} />
-            </span>
+            <KccpMark size={22} />
           </span>
           <span
             className={

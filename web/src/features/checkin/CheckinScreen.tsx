@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { getConfig, type AppConfig, type SelfRegisterResponse } from '../../lib/api'
 import { isCheckinOpen, formatMinutes } from '../../lib/checkinWindow'
 import { Button } from '../../components/ui/Button'
+import { Monitor } from '../../components/ui/Icon'
 import { ThemeLangToggle, iconBtnClass } from '../../components/ui/ThemeLangToggle'
 import { KccpMark } from './KccpMark'
 import { KccpLogo } from './KccpLogo'
@@ -24,30 +25,12 @@ const DEFAULT_CFG: AppConfig = {
   individualCheckinEnabled: false,
 }
 
-// Warm atmospheric backdrop — layered radial washes instead of a flat canvas.
-function Backdrop() {
-  return (
-    <div
-      aria-hidden
-      className="pointer-events-none fixed inset-0 -z-20"
-      style={{
-        background:
-          'radial-gradient(120% 80% at 50% -10%, color-mix(in oklab, var(--primary) 12%, transparent), transparent 60%),' +
-          'radial-gradient(80% 60% at 100% 110%, color-mix(in oklab, var(--gold) 10%, transparent), transparent 55%)',
-      }}
-    />
-  )
-}
-
 function TopBar() {
   const { t } = useTranslation()
   return (
     <header className="flex items-center justify-between px-5 pt-[calc(1rem+env(safe-area-inset-top))]">
       <div className="flex items-center gap-2 text-primary">
-        {/* white chip so the multi-color mark (esp. the yellow) stays crisp on both themes */}
-        <span className="grid place-items-center rounded-md bg-white p-1 shadow-sm">
-          <KccpMark size={22} />
-        </span>
+        <KccpMark size={22} />
         <span className="font-display text-base font-semibold tracking-tight">KCCP</span>
       </div>
       <div className="flex items-center gap-1">
@@ -107,7 +90,6 @@ export function CheckinScreen() {
   if (!cfg && isLoading) {
     return (
       <main className="grid min-h-dvh place-items-center">
-        <Backdrop />
         <KccpMark size={72} className="fx-pulse text-primary" />
       </main>
     )
@@ -117,15 +99,13 @@ export function CheckinScreen() {
 
   return (
     <main className="relative flex min-h-dvh flex-col">
-      <Backdrop />
-
       {phase.kind === 'idle' && (
         <>
           <TopBar />
           <div className="flex flex-1 flex-col items-center justify-center gap-6 px-6 pb-16 text-center">
-            <KccpLogo size={232} className="fx-breathe" />
+            <KccpLogo size={200} />
             <div className="fx-rise">
-              <h1 className="font-display text-3xl font-semibold text-text">{t('landing.title')}</h1>
+              <h1 className="font-display text-3xl font-semibold tracking-tight text-text">{t('landing.title')}</h1>
               <p className="mt-2 text-sm text-muted">{t('landing.subtitle')}</p>
             </div>
             {config.announcement && (
@@ -141,10 +121,7 @@ export function CheckinScreen() {
             {config.individualCheckinEnabled ? (
               <>
                 <WindowBadge cfg={config} />
-                <Button
-                  onClick={() => void checkIn()}
-                  className="fx-rise min-w-[12rem] rounded-xl px-10 py-4 text-base shadow-lg shadow-primary/20"
-                >
+                <Button onClick={() => void checkIn()} className="fx-rise min-w-[12rem] px-10 py-4 text-base">
                   {t('checkin.button')}
                 </Button>
               </>
@@ -156,9 +133,10 @@ export function CheckinScreen() {
                 otherwise, so it's safe to surface publicly. */}
             <Link
               to="/kiosk"
-              className="fx-rise inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-border bg-surface px-5 py-2.5 text-sm font-semibold text-text transition-colors hover:bg-surface-alt"
+              className="fx-rise inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-border bg-surface px-5 py-2.5 text-sm font-semibold text-text transition-colors hover:bg-surface-alt"
             >
-              🖥️ {t('landing.kioskButton')}
+              <Monitor className="size-4" aria-hidden />
+              {t('landing.kioskButton')}
             </Link>
           </div>
         </>

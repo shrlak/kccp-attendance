@@ -1,5 +1,6 @@
 import { useTheme } from '../../stores/useTheme'
 import { useLang } from '../../stores/useLang'
+import { Sun, Moon } from './Icon'
 
 // Shared button styling so the toggles (and any sibling control, e.g. the landing
 // page's 관리자 link) look identical everywhere they appear.
@@ -17,7 +18,7 @@ export function ThemeLangToggle() {
   return (
     <>
       <button type="button" onClick={toggleTheme} className={iconBtnClass} aria-label="Toggle theme">
-        {theme === 'dark' ? '☀' : '☾'}
+        {theme === 'dark' ? <Sun className="size-4" aria-hidden /> : <Moon className="size-4" aria-hidden />}
       </button>
       <button type="button" onClick={toggleLang} className={iconBtnClass} aria-label="Toggle language">
         {lang === 'ko' ? 'EN' : 'KO'}

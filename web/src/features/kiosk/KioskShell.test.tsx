@@ -73,7 +73,7 @@ describe('KioskShell + KioskGate', () => {
     await userEvent.type(screen.getByLabelText('키오스크 비밀번호'), 'kccpwelcome')
     await userEvent.click(screen.getByRole('button', { name: '키오스크 시작' }))
 
-    expect(await screen.findByPlaceholderText('🔍 이름 검색...')).toBeInTheDocument()
+    expect(await screen.findByPlaceholderText('이름 검색...')).toBeInTheDocument()
   })
 
   it('unlocks the kiosk for other admin roles too (no detour to the admin panel)', async () => {
@@ -84,7 +84,7 @@ describe('KioskShell + KioskGate', () => {
     await userEvent.type(screen.getByLabelText('키오스크 비밀번호'), 'kccpadmin')
     await userEvent.click(screen.getByRole('button', { name: '키오스크 시작' }))
 
-    expect(await screen.findByPlaceholderText('🔍 이름 검색...')).toBeInTheDocument()
+    expect(await screen.findByPlaceholderText('이름 검색...')).toBeInTheDocument()
   })
 
   it('opens the kiosk directly for an already-authed session, skipping the gate', async () => {
@@ -92,7 +92,7 @@ describe('KioskShell + KioskGate', () => {
     useAdminAuth.setState({ status: 'authed', identity: { role: 'leader', group: 'KM 대학부', subgroup: '', ministry: '' } })
     await renderKiosk()
 
-    expect(await screen.findByPlaceholderText('🔍 이름 검색...')).toBeInTheDocument()
+    expect(await screen.findByPlaceholderText('이름 검색...')).toBeInTheDocument()
     expect(screen.queryByLabelText('키오스크 비밀번호')).not.toBeInTheDocument()
   })
 
@@ -120,7 +120,7 @@ describe('KioskShell + KioskGate', () => {
     await renderKiosk()
     await userEvent.type(screen.getByLabelText('키오스크 비밀번호'), 'kccpwelcome')
     await userEvent.click(screen.getByRole('button', { name: '키오스크 시작' }))
-    await screen.findByPlaceholderText('🔍 이름 검색...')
+    await screen.findByPlaceholderText('이름 검색...')
 
     await userEvent.click(screen.getByRole('button', { name: '나가기' }))
 
