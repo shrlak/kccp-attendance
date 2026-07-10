@@ -8,7 +8,7 @@ export function KccpLogo({ size = 220, className = '' }: { size?: number; classN
       className={
         // White in light mode (the logo's native ground → crisp green/yellow + navy), a
         // dark surface in dark mode (text flips light) so it reads clearly on both.
-        'grid place-items-center rounded-full border border-border bg-white text-center shadow-sm dark:bg-surface ' +
+        'grid place-items-center rounded-full border border-border bg-white text-center dark:bg-surface ' +
         className
       }
       style={{ width: size, height: size }}

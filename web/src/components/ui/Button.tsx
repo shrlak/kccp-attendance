@@ -14,9 +14,10 @@ const variants: Record<Variant, string> = {
   ghost: 'bg-transparent text-primary hover:bg-primary/10',
   danger: 'bg-danger text-white hover:bg-danger/90',
 }
+// Pill buttons (fully rounded) — an Apple signature. Radius stays constant across sizes.
 const sizes: Record<Size, string> = {
-  md: 'px-4 py-2.5 text-sm rounded-md',
-  sm: 'px-3 py-1.5 text-xs rounded-sm',
+  md: 'px-5 py-2.5 text-sm rounded-full',
+  sm: 'px-3.5 py-1.5 text-xs rounded-full',
 }
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
