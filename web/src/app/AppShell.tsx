@@ -6,24 +6,7 @@ export function AppShell() {
   const [offline, setOffline] = useState(false)
 
   useEffect(() => {
-    // Check connectivity via a lightweight HEAD request with short timeout
-    const checkConnectivity = async () => {
-      try {
-        const controller = new AbortController()
-        const timeout = setTimeout(() => controller.abort(), 5000)
-        // Ping GitHub (widely available, CORS-friendly for HEAD)
-        await fetch('https://github.com', { method: 'HEAD', signal: controller.signal })
-        clearTimeout(timeout)
-        setOffline(false)
-      } catch {
-        setOffline(true)
-      }
-    }
-
-    // Run initial check
-    checkConnectivity()
-
-    // Listen for native online/offline events as a faster signal
+    // Listen for native online/offline events
     const onOnline = () => {
       setOffline(false)
     }
@@ -33,13 +16,9 @@ export function AppShell() {
     window.addEventListener('online', onOnline)
     window.addEventListener('offline', onOffline)
 
-    // Periodic check every 30s when offline to detect reconnection
-    const intervalId = setInterval(checkConnectivity, 30000)
-
     return () => {
       window.removeEventListener('online', onOnline)
       window.removeEventListener('offline', onOffline)
-      clearInterval(intervalId)
     }
   }, [])
   return (
