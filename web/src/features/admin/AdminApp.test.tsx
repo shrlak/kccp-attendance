@@ -90,8 +90,8 @@ describe('AdminApp nav rail', () => {
     for (const name of ['오늘', '출석부', '멤버', '통계', '새가족', '방문자']) {
       expect(screen.getByRole('button', { name })).toBeInTheDocument()
     }
-    // super-only tabs (admins/dongsan/officers/settings) stay hidden.
-    for (const name of ['관리자', '동산', '임원', '설정']) {
+    // super-only tabs (admins/dongsan/settings) stay hidden.
+    for (const name of ['관리자', '동산', '설정']) {
       expect(screen.queryByRole('button', { name })).toBeNull()
     }
     // Header shows the 운영진 role label.
@@ -104,7 +104,7 @@ describe('AdminApp nav rail', () => {
       identity: { role: 'super_admin', group: '', subgroup: '', ministry: '' },
     })
     renderApp()
-    for (const name of ['오늘', '출석부', '멤버', '통계', '새가족', '방문자', '관리자', '동산', '임원', '설정']) {
+    for (const name of ['오늘', '출석부', '멤버', '통계', '새가족', '방문자', '관리자', '동산', '설정']) {
       expect(screen.getByRole('button', { name })).toBeInTheDocument()
     }
   })
@@ -118,7 +118,7 @@ describe('AdminApp nav rail', () => {
     for (const name of ['오늘', '출석부', '멤버', '통계', '새가족', '방문자']) {
       expect(screen.getByRole('button', { name })).toBeInTheDocument()
     }
-    for (const name of ['관리자', '동산', '임원', '설정']) {
+    for (const name of ['관리자', '동산', '설정']) {
       expect(screen.queryByRole('button', { name })).toBeNull()
     }
     // Role label + "전체" scope (a group-less break-glass leader sees everyone).
@@ -134,7 +134,7 @@ describe('AdminApp nav rail', () => {
     for (const name of ['오늘', '출석부', '멤버', '통계', '새가족', '방문자']) {
       expect(screen.getByRole('button', { name })).toBeInTheDocument()
     }
-    for (const name of ['관리자', '동산', '임원', '설정']) {
+    for (const name of ['관리자', '동산', '설정']) {
       expect(screen.queryByRole('button', { name })).toBeNull()
     }
     expect(screen.getByText(/새가족팀 · 전체/)).toBeInTheDocument()

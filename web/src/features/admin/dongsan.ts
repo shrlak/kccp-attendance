@@ -103,14 +103,6 @@ export function orderByDongsanRole(
   return out
 }
 
-// ── 임원 (officer) display badge ────────────────────────────────────────────
-// `officers` is the config-managed name list (config.officers, edited in the 동산 tab).
-// Undefined (endpoint unreachable / still loading) means no badges — graceful degradation.
-
-export function isOfficer(name: string, officers: string[] | undefined): boolean {
-  return !!name && !!officers && officers.includes(name)
-}
-
 // The stored entry for a 동산 (defaulting to empty), used to seed the editor.
 export function leaderEntry(leaders: DongsanLeaders, group: string, subgroup: string): DongsanLeaderEntry {
   return leaders[group]?.[subgroup] ?? EMPTY_ENTRY

@@ -239,8 +239,8 @@ function BulkModal({ data, onClose }: { data: RosterResponse; onClose: () => voi
 // render as grey cells spanning the dates they cover, like the master sheet — a per-member
 // 예배 총 출석 count and a 총 출석 totals row, opened by the KEY legend up top — see
 // exports.ts (gridSheet / reportHtml) for the shared spine. Date columns are the term's
-// worship Sundays. Each block lists its 동산지기 (👑) first, then 부동산지기 (⭐), then the
-// rest in roster order, with the leaders' name cells bolded + highlighted.
+// worship Sundays. Each block lists its 동산지기 first, then 부동산지기, then the rest in
+// roster order, with the leaders' name cells bolded + highlighted (no icon).
 const CELL = 'whitespace-nowrap border border-[#b7b7b7] px-3 py-1.5'
 // Variable-length cells (names, status notes) truncate instead of stretching their
 // column, so every 동산 block's table keeps the same fixed-layout width.
@@ -281,8 +281,14 @@ function GridView({ members, log, lang, today, filter }: { members: Member[]; lo
           <span className="inline-block h-3.5 w-5 rounded-sm" style={{ background: grey }} />
           {L.etc}
         </span>
-        <span>👑 {L.leaderKey}</span>
-        <span>⭐ {L.subleaderKey}</span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block h-3.5 w-5 rounded-sm" style={{ background: '#FFF3C4' }} />
+          <b>{L.leaderKey}</b>
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block h-3.5 w-5 rounded-sm" style={{ background: '#FFF9E1' }} />
+          <b>{L.subleaderKey}</b>
+        </span>
       </div>
       <div className="flex flex-col gap-6 text-sm" style={{ color: DARK }}>
         {model.sections.map((s, si) => {
@@ -317,14 +323,13 @@ function GridView({ members, log, lang, today, filter }: { members: Member[]; lo
                     return (
                     <tr key={r.member.id}>
                       {role ? (
-                        // 동산지기 (👑) / 부동산지기 (⭐): bold, warm-highlighted name cell. The
+                        // 동산지기 / 부동산지기: bold, warm-highlighted name cell (no icon). The
                         // grid is fixed light-scheme (hex fills) like the export, so hardcoded
                         // hex highlights are consistent here.
                         <td
                           className={`${CELL} ${CLIP} text-left font-bold`}
                           style={{ background: role === '동산지기' ? '#FFF3C4' : '#FFF9E1' }}
                         >
-                          {role === '동산지기' ? '👑 ' : '⭐ '}
                           {r.member.name}
                         </td>
                       ) : (

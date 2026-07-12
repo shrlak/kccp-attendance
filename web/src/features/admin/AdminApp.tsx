@@ -17,7 +17,6 @@ import {
   DoorOpen,
   Shield,
   Sprout,
-  Medal,
   Settings,
 } from '../../components/ui/Icon'
 import { KccpMark } from '../checkin/KccpMark'
@@ -29,7 +28,6 @@ import { AdminNewFamily } from './AdminNewFamily'
 import { AdminVisitors } from './AdminVisitors'
 import { AdminAdmins } from './AdminAdmins'
 import { AdminDongsan } from './AdminDongsan'
-import { AdminOfficers } from './AdminOfficers'
 import { AdminSettings } from './AdminSettings'
 import { KioskView } from '../kiosk/KioskView'
 
@@ -42,7 +40,6 @@ type Tab =
   | 'visitors'
   | 'admins'
   | 'dongsan'
-  | 'officers'
   | 'settings'
 
 // Authenticated admin layout: a left icon rail that expands to show labels on hover
@@ -94,7 +91,6 @@ export function AdminApp() {
     { id: 'visitors', icon: DoorOpen, show: true },
     { id: 'admins', icon: Shield, show: isSuper, badge: pendingCount },
     { id: 'dongsan', icon: Sprout, show: isSuper },
-    { id: 'officers', icon: Medal, show: isSuper },
     { id: 'settings', icon: Settings, show: isSuper },
   ]
 
@@ -186,7 +182,6 @@ export function AdminApp() {
           {tab === 'visitors' && <AdminVisitors />}
           {tab === 'admins' && isSuper && <AdminAdmins />}
           {tab === 'dongsan' && isSuper && <AdminDongsan />}
-          {tab === 'officers' && isSuper && <AdminOfficers />}
           {tab === 'settings' && isSuper && <AdminSettings />}
         </div>
       </main>
