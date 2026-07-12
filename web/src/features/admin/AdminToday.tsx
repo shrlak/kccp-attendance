@@ -10,8 +10,6 @@ import { computeStats, leaderDashboard } from './stats'
 import { GroupFilter } from './GroupFilter'
 import { StatsBar } from './StatsBar'
 import { IconKey } from './IconKey'
-import { DongsanBadge } from './DongsanLeaders'
-import { useDongsanRole } from './useDongsanRole'
 import { memberCheckin, type Member, type RosterResponse } from '../../lib/api'
 import { exportTodaySheets } from './todaySheetImage'
 import { Dialog } from '../../components/ui/Dialog'
@@ -25,7 +23,6 @@ export function AdminToday() {
   const { t } = useTranslation()
   const toast = useToast()
   const { data, isLoading, isError } = useRoster(true)
-  const dongsanRole = useDongsanRole()
   const [checkin, setCheckin] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [filter, setFilter] = useState<Filter>(NO_FILTER)
@@ -138,7 +135,6 @@ export function AdminToday() {
                     <div className="text-base font-semibold text-text">
                       {e.name}
                       {tag && <span className="ml-1.5 align-middle text-xs">{tag === 'visitor' ? '👋' : '✝️'}</span>}
-                      <DongsanBadge role={dongsanRole(e.name, e.group, e.subgroup)} />
                     </div>
                     <div className="truncate text-sm text-muted">
                       {[e.group, e.subgroup].filter(Boolean).join(' · ') || '—'}

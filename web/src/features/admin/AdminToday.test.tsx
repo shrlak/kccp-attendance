@@ -6,15 +6,13 @@ import { ToastProvider } from '../../components/ui/Toast'
 import { easternNow } from '../../lib/checkinWindow'
 import type { LogEntry, Member, RosterResponse } from '../../lib/api'
 
-// Isolate AdminToday from its data hooks / badge widgets (which run their own queries).
+// Isolate AdminToday from its data hooks (which run their own queries).
 const rosterData: { data: (RosterResponse & { staffMembers: Member[] }) | undefined; isLoading: boolean; isError: boolean } = {
   data: undefined,
   isLoading: false,
   isError: false,
 }
 vi.mock('./useRoster', () => ({ useRoster: () => rosterData }))
-vi.mock('./useDongsanRole', () => ({ useDongsanRole: () => () => null }))
-vi.mock('./DongsanLeaders', () => ({ DongsanBadge: () => null }))
 
 import { AdminToday } from './AdminToday'
 

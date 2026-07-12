@@ -12,34 +12,9 @@ import { useRoster } from './useRoster'
 import { useToast } from '../../components/ui/Toast'
 import { Button } from '../../components/ui/Button'
 import { Select } from '../../components/ui/Select'
-import {
-  leaderEntry,
-  summerDongsanList,
-  membersInDongsan,
-  withLeader,
-  toggleSubLeader,
-  type DongsanRole,
-} from './dongsan'
+import { leaderEntry, summerDongsanList, membersInDongsan, withLeader, toggleSubLeader } from './dongsan'
 
 const SUMMER_KEY = '합동'
-
-// The 👑 동산지기 / ⭐ 부동산지기 display badge, shown next to a member's name on the
-// Members grid and the Today list. Renders nothing for ordinary members.
-export function DongsanBadge({ role }: { role: DongsanRole }) {
-  const { t } = useTranslation()
-  if (!role) return null
-  const isLeader = role === '동산지기'
-  return (
-    <span
-      className={
-        'ml-1.5 inline-flex items-center gap-0.5 rounded px-1 py-px align-middle text-[10px] font-semibold ' +
-        (isLeader ? 'bg-warning/15 text-warning' : 'bg-primary/15 text-primary')
-      }
-    >
-      {isLeader ? '👑' : '⭐'} {t(`admin.dongsanRole.${isLeader ? 'leader' : 'subleader'}`)}
-    </span>
-  )
-}
 
 // Settings-tab editor: assign the 동산지기 + 부동산지기 for each 동산 (super-admin only).
 // In summer mode the 동산 list collapses to a single combined ("합동") set spanning both
