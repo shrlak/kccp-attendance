@@ -295,6 +295,22 @@ export interface AuditEntry {
 export const getAuditLog = (limit = 100) =>
   api<{ log: AuditEntry[] }>('GET', `/api/admin/audit?limit=${limit}`)
 
+export interface LoginLogEntry {
+  ts: number
+  role: AdminRole
+  // The linked member's name when the sign-in device maps to one; '' for a pure
+  // break-glass login (shared password on an unlinked device).
+  memberName: string
+  deviceId: string
+  ip: string
+  method: 'password' | 'google'
+}
+
+// Successful admin sign-ins — which account, when, from which IP/device — newest first
+// (super-admin only). Repeat re-verifies within an hour are collapsed server-side.
+export const getLoginLog = (limit = 100) =>
+  api<{ log: LoginLogEntry[] }>('GET', `/api/admin/login-log?limit=${limit}`)
+
 export interface PendingReg {
   deviceId: string
   name: string
