@@ -68,9 +68,10 @@ export function AdminToday() {
       <StatsBar stats={computeStats(members, log, today)} />
       <GroupFilter members={data.members} value={filter} onChange={setFilter} />
 
-      {/* "오늘" is already shown in the StatsBar above (thisWeek === today's count for a
-          weekly-service church) — only the genuinely new numbers go here. */}
-      <div className="mb-5 grid grid-cols-2 gap-2">
+      {/* One row: 오늘 · 지난 주 · 증감 (thisWeek === today's count for a weekly-service
+          church, so it doubles as 오늘 출석 인원 next to the numbers it's compared with). */}
+      <div className="mb-5 grid grid-cols-3 gap-2">
+        <Stat label={t('admin.stats.today')} value={String(wk.thisWeek)} />
         <Stat label={t('admin.today.lastWeek')} value={String(wk.lastWeek)} />
         <Stat label={t('admin.today.change')} value={`${arrow} ${Math.abs(wk.delta)}`} valueClass={arrowClass} />
       </div>
