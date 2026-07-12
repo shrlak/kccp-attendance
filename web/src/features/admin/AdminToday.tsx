@@ -71,15 +71,16 @@ export function AdminToday() {
       <StatsBar stats={computeStats(members, log, today)} />
       <GroupFilter members={data.members} value={filter} onChange={setFilter} />
 
-      <div className="mb-5 grid grid-cols-3 gap-2">
-        <Stat label={t('admin.today.thisWeek')} value={String(wk.thisWeek)} />
+      {/* "오늘" is already shown in the StatsBar above (thisWeek === today's count for a
+          weekly-service church) — only the genuinely new numbers go here. */}
+      <div className="mb-5 grid grid-cols-2 gap-2">
         <Stat label={t('admin.today.lastWeek')} value={String(wk.lastWeek)} />
         <Stat label={t('admin.today.change')} value={`${arrow} ${Math.abs(wk.delta)}`} valueClass={arrowClass} />
       </div>
 
       {dash && (
         <div className="mb-5 rounded-lg border-l-4 border-primary bg-surface px-4 py-3">
-          <div className="mb-2 flex items-center gap-4 text-sm">
+          <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
             <span className="font-semibold text-text">
               {t('admin.dashboard.present')} <span className="text-success">{dash.present}</span> / {dash.total}
             </span>
@@ -102,11 +103,11 @@ export function AdminToday() {
       )}
 
       {/* Divider: the stats/dashboard zone above, the live check-in list below. */}
-      <div className="mb-3 flex items-center justify-between gap-2 border-t border-border pt-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-4">
         <span className="font-mono text-xs uppercase tracking-wide text-subtle">
           {t('admin.today.title')} · {todays.length}
         </span>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="secondary" size="sm" onClick={handleExport} disabled={exporting || data.log.length === 0}>
             {exporting ? t('admin.today.export.busy') : t('admin.today.export.action')}
           </Button>
@@ -121,13 +122,13 @@ export function AdminToday() {
       {todays.length === 0 ? (
         <p className="text-sm text-muted">{t('admin.today.none')}</p>
       ) : (
-        <ul className="grid grid-cols-3 gap-2">
+        <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {todays.map((e) => {
             const tag = checkinTag(e, newMemberNames)
             return (
               <li
                 key={`${e.name}-${e.ts}`}
-                className="flex items-center justify-between gap-2 rounded-lg border border-border bg-surface px-4 py-3"
+                className="flex items-center justify-between gap-2 rounded-lg border border-border bg-surface px-3 py-2.5 sm:px-4 sm:py-3"
               >
                 <div className="flex min-w-0 items-center gap-3">
                   <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-success/15 text-sm font-bold text-success">
