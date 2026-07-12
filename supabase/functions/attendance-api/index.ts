@@ -142,6 +142,36 @@ async function addAudit(sb: SB, action: string, adminId: string, details: any) {
     await sb.from("audit_log").insert({ts:Date.now(),action,admin_id:adminId,admin_name:d?.name||adminId,details:typeof details==="string"?{info:details}:details});
   } catch(_){}
 }
+// Client IP as seen by the edge runtime: first hop of X-Forwarded-For (Supabase's proxy
+// appends its own hops after the client), else the CDN/proxy single-IP headers.
+function clientIp(req: Request): string {
+  const xf=req.headers.get("x-forwarded-for")||"";
+  if(xf) return xf.split(",")[0].trim();
+  return req.headers.get("cf-connecting-ip")||req.headers.get("x-real-ip")||"";
+}
+// Record a successful admin sign-in (login_log, read via /api/admin/login-log). The web
+// app re-sends the saved password through /api/admin/verify on every page reload, so an
+// identical repeat (same role+member+device+ip+method) within an hour is collapsed into
+// the original entry instead of flooding the log. Best-effort: a logging failure must
+// never block the login itself.
+async function addLoginLog(sb: SB, req: Request, role: {role:string;memberId:string}) {
+  try {
+    const ip=clientIp(req);
+    const deviceId=req.headers.get("x-device-id")||req.headers.get("X-Device-Id")||"";
+    const method=(req.headers.get("authorization")||"").startsWith("Bearer ")?"google":"password";
+    let memberName="";
+    if(role.memberId){
+      const {data:m}=await sb.from("members").select("name").eq("id",role.memberId).single();
+      memberName=(m as {name?:string}|null)?.name||"";
+    }
+    const now=Date.now();
+    const {data:last}=await sb.from("login_log").select("ts")
+      .eq("role",role.role).eq("member_name",memberName).eq("device_id",deviceId).eq("ip",ip).eq("method",method)
+      .order("ts",{ascending:false}).limit(1);
+    if(last&&last.length&&now-((last[0] as {ts:number}).ts)<60*60*1000) return;
+    await sb.from("login_log").insert({ts:now,role:role.role,member_id:role.memberId||null,member_name:memberName,device_id:deviceId,ip,method,user_agent:req.headers.get("user-agent")||""});
+  } catch(_){}
+}
 
 async function buildCsvLog(sb: SB, gf: string, sf: string) {
   const [{data:logs},{data:devs}]=await Promise.all([
@@ -228,6 +258,7 @@ Deno.serve(async (req: Request) => {
     if(req.method==="POST"&&p==="/api/admin/verify") {
       const role=await resolveAdmin(sb,req);
       if(!role) return fail(401,"Not authorized");
+      await addLoginLog(sb,req,role);
       return ok({role:role.role,group:role.group,subgroup:role.subgroup,ministry:role.ministry});
     }
 
@@ -365,6 +396,16 @@ Deno.serve(async (req: Request) => {
       const limit=Math.min(parseInt(url.searchParams.get("limit")||"100")||100,200);
       const {data:log}=await sb.from("audit_log").select("*").order("ts",{ascending:false}).limit(limit);
       return ok({log:(log||[]).map((e:any)=>({ts:e.ts,action:e.action,adminName:e.admin_name,details:e.details}))});
+    }
+
+    // Login log — successful admin sign-ins (which account, when, from which IP/device),
+    // newest first. Super-admin only.
+    if(req.method==="GET"&&p==="/api/admin/login-log") {
+      const role=await resolveAdmin(sb,req);
+      if(role?.role!=="super_admin") return fail(403,"Super admin required");
+      const limit=Math.min(parseInt(url.searchParams.get("limit")||"100")||100,500);
+      const {data:log}=await sb.from("login_log").select("*").order("ts",{ascending:false}).limit(limit);
+      return ok({log:(log||[]).map((e:any)=>({ts:e.ts,role:e.role,memberName:e.member_name||"",deviceId:e.device_id||"",ip:e.ip||"",method:e.method||"password"}))});
     }
 
     // Full v2 JSON snapshot — devices, log, config, events, audit, pending. Super-admin

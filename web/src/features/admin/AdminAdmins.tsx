@@ -5,6 +5,7 @@ import {
   getConfig,
   getAdminRoles,
   getAuditLog,
+  getLoginLog,
   getPending,
   approvePending,
   rejectPending,
@@ -51,6 +52,12 @@ export function AdminAdmins() {
     queryKey: ['audit'],
     queryFn: () => getAuditLog(100),
     enabled: showAudit,
+  })
+  const [showLogins, setShowLogins] = useState(false)
+  const { data: loginData, isLoading: loginLoading } = useQuery({
+    queryKey: ['loginLog'],
+    queryFn: () => getLoginLog(100),
+    enabled: showLogins,
   })
   const [busy, setBusy] = useState(false)
 
@@ -304,6 +311,39 @@ export function AdminAdmins() {
               <div className="mt-0.5 text-muted">
                 {e.adminName}
                 {auditDetail(e.details) && <span className="text-subtle"> · {auditDetail(e.details)}</span>}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <hr className="my-6 border-border" />
+
+      <h2 className="mb-3 font-display text-lg font-semibold text-text">{t('admin.admins.loginLog')}</h2>
+      {!showLogins ? (
+        <Button variant="secondary" onClick={() => setShowLogins(true)}>
+          {t('admin.admins.loadLogins')}
+        </Button>
+      ) : loginLoading ? (
+        <p className="text-sm text-muted">{t('common.loading')}</p>
+      ) : (loginData?.log.length ?? 0) === 0 ? (
+        <p className="text-sm text-muted">{t('admin.admins.noLogins')}</p>
+      ) : (
+        <ul className="flex flex-col gap-1.5">
+          {loginData!.log.map((e, i) => (
+            <li key={`${e.ts}-${i}`} className="rounded-md border border-border bg-surface px-3 py-2 text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold text-text">
+                  {e.memberName || t('admin.admins.sharedLogin')}
+                  <span className="ml-1.5 rounded-full bg-primary/15 px-2 py-0.5 font-semibold text-primary">
+                    {t(`admin.roles.${e.role}`)}
+                  </span>
+                </span>
+                <span className="text-subtle">{new Date(e.ts).toLocaleString()}</span>
+              </div>
+              <div className="mt-0.5 font-mono text-muted">
+                {e.ip || '—'}
+                <span className="text-subtle"> · {t(`admin.admins.method.${e.method}`)}</span>
               </div>
             </li>
           ))}
