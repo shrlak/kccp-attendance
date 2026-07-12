@@ -11,7 +11,6 @@ import {
   membersInDongsan,
   withLeader,
   toggleSubLeader,
-  isOfficer,
 } from './dongsan'
 import type { DongsanNames, DongsanLeaders, Member } from '../../lib/api'
 
@@ -151,22 +150,6 @@ describe('orderByDongsanRole (출석부 row ordering)', () => {
     expect(orderByDongsanRole([], roleOf)).toEqual([])
     const input = [m('1', '가', '대학부', '동산1'), m('2', '나', '대학부', '동산1'), m('3', '다', '대학부', '동산2')]
     expect(orderByDongsanRole(input, () => null).map((x) => x.name)).toEqual(['가', '나', '다'])
-  })
-})
-
-describe('isOfficer (임원 display badge)', () => {
-  const officers = ['강혜윤', '조인서', '심영은']
-
-  it('matches names in the config-managed officer list', () => {
-    expect(isOfficer('강혜윤', officers)).toBe(true)
-    expect(isOfficer('심영은', officers)).toBe(true)
-    expect(isOfficer('김호연', officers)).toBe(false)
-  })
-
-  it('returns false for an empty name or an unloaded list', () => {
-    expect(isOfficer('', officers)).toBe(false)
-    expect(isOfficer('강혜윤', undefined)).toBe(false)
-    expect(isOfficer('강혜윤', [])).toBe(false)
   })
 })
 

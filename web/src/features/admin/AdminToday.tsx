@@ -11,7 +11,6 @@ import { GroupFilter } from './GroupFilter'
 import { StatsBar } from './StatsBar'
 import { IconKey } from './IconKey'
 import { DongsanBadge } from './DongsanLeaders'
-import { OfficerBadge } from './Officers'
 import { useDongsanRole } from './useDongsanRole'
 import { memberCheckin, type Member, type RosterResponse } from '../../lib/api'
 import { exportTodaySheets } from './todaySheetImage'
@@ -139,7 +138,6 @@ export function AdminToday() {
                       {e.name}
                       {tag && <span className="ml-1.5 align-middle text-xs">{tag === 'visitor' ? '👋' : '✝️'}</span>}
                       <DongsanBadge role={dongsanRole(e.name, e.group, e.subgroup)} />
-                      <OfficerBadge name={e.name} />
                     </div>
                     <div className="truncate text-sm text-muted">
                       {[e.group, e.subgroup].filter(Boolean).join(' · ') || '—'}

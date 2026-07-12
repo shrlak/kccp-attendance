@@ -14,7 +14,6 @@ const rosterData: { data: (RosterResponse & { staffMembers: Member[] }) | undefi
 }
 vi.mock('./useRoster', () => ({ useRoster: () => rosterData }))
 vi.mock('./useDongsanRole', () => ({ useDongsanRole: () => () => null }))
-vi.mock('./Officers', () => ({ OfficerBadge: () => null }))
 vi.mock('./DongsanLeaders', () => ({ DongsanBadge: () => null }))
 
 import { AdminToday } from './AdminToday'
