@@ -67,6 +67,13 @@ export function CheckinScreen() {
   const { phase, checkIn, reset, setPhase } = useCheckin(cfg)
   const [registerOpen, setRegisterOpen] = useState(false)
 
+  // Live Pittsburgh clock for the landing hero (minute precision, ticked every second).
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(id)
+  }, [])
+
   // Drain any offline-queued check-ins now and whenever connectivity returns.
   useEffect(() => {
     if (navigator.onLine) void syncQueuedCheckins()
@@ -97,12 +104,18 @@ export function CheckinScreen() {
   }
 
   const config = cfg ?? DEFAULT_CFG
-  const todayLabel = new Intl.DateTimeFormat(lang === 'ko' ? 'ko-KR' : 'en-US', {
+  const locale = lang === 'ko' ? 'ko-KR' : 'en-US'
+  const todayLabel = new Intl.DateTimeFormat(locale, {
     month: 'long',
     day: 'numeric',
     weekday: 'long',
     timeZone: 'America/New_York',
-  }).format(new Date())
+  }).format(now)
+  const timeLabel = new Intl.DateTimeFormat(locale, {
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: 'America/New_York',
+  }).format(now)
 
   return (
     <main className="relative flex min-h-dvh flex-col bg-canvas">
@@ -112,25 +125,20 @@ export function CheckinScreen() {
           <section className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center px-6 py-10 text-center">
             <div className="fx-rise flex flex-col items-center">
               <KccpLogo size={88} stacked />
-              <h1
-                aria-label={t('landing.title')}
-                className="mt-10 break-keep font-display text-3xl font-semibold leading-[1.2] tracking-[-0.03em] text-text sm:text-4xl"
-              >
-                <span className="block">{t('landing.titleLine1')}</span>
-                <span className="block">{t('landing.titleLine2')}</span>
+              <h1 className="mt-10 font-display text-5xl font-semibold tabular-nums tracking-[-0.03em] text-text sm:text-6xl">
+                {timeLabel}
               </h1>
-              <div className="mt-4 section-kicker">{todayLabel}</div>
+              <div className="mt-3 text-base font-semibold text-muted">{todayLabel}</div>
             </div>
-
-            {config.announcement && (
-              <div className="fx-rise mt-8 w-full max-w-md border-l-2 border-gold bg-gold/[0.08] px-4 py-3 text-left">
-                <div className="section-kicker text-gold">{t('announce.label')}</div>
-                <div className="mt-1.5 text-sm leading-6 text-text">{config.announcement}</div>
-              </div>
-            )}
 
             {config.individualCheckinEnabled && (
               <div className="fx-rise mt-8 flex w-full max-w-sm flex-col items-center gap-4">
+                {config.announcement && (
+                  <div className="w-full border-l-2 border-gold bg-gold/[0.08] px-4 py-3 text-left">
+                    <div className="section-kicker text-gold">{t('announce.label')}</div>
+                    <div className="mt-1.5 text-sm leading-6 text-text">{config.announcement}</div>
+                  </div>
+                )}
                 <WindowBadge cfg={config} />
                 <Button onClick={() => void checkIn()} className="w-full py-3.5 text-base">
                   {t('checkin.button')}
