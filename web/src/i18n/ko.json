@@ -48,18 +48,7 @@
     "title": "한 사람을 기억하는 주일 출석",
     "titleLine1": "한 사람을 기억하는",
     "titleLine2": "주일 출석",
-    "subtitle": "피츠버그 한인중앙교회 · 대학청년부",
-    "description": "예배에 함께한 공동체를 정확히 기록하고, 새가족과 오래 보이지 않은 지체를 세심하게 돌보기 위한 출석 시스템입니다.",
-    "today": "피츠버그 현지 날짜",
-    "checkinMethod": "출석 방법",
-    "checkinMethodValue": "교회 키오스크에서 이름 선택",
-    "attendanceDesk": "주일 출석 안내",
-    "thisSunday": "오늘의 출석",
-    "kioskTitle": "현장 출석 키오스크",
-    "kioskNote": "교회 태블릿에서 키오스크를 시작한 뒤, 이름을 한 번 눌러 출석을 기록합니다.",
-    "memberCheckinHelp": "아래 버튼을 눌러 현재 기기에서 출석을 기록하세요.",
-    "kioskButton": "교회 키오스크 시작",
-    "privacyNote": "출석 정보는 공동체 돌봄과 부서 운영을 위해서만 사용됩니다."
+    "kioskButton": "교회 키오스크 시작"
   },
   "access": {
     "adminEyebrow": "관리자 업무 공간",
