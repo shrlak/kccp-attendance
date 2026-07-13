@@ -53,7 +53,7 @@ function WindowBadge({ cfg }: { cfg: AppConfig }) {
   const { t } = useTranslation()
   const open = isCheckinOpen(cfg)
   return (
-    <div className="inline-flex items-center gap-2.5 rounded-sm border border-border bg-surface-alt px-3 py-2 text-xs">
+    <div className="inline-flex items-center gap-2.5 rounded-full border border-border bg-surface-alt px-3 py-2 text-xs">
       <span className={'h-1.5 w-1.5 rounded-full ' + (open ? 'bg-success' : 'bg-subtle')} aria-hidden />
       <span className={open ? 'font-semibold text-success' : 'font-semibold text-muted'}>
         {open ? t('checkin.open') : t('checkin.closed')}
@@ -120,10 +120,14 @@ export function CheckinScreen() {
               <div className="fx-rise max-w-xl">
                 <KccpLogo size={48} />
                 <div className="mt-14 section-kicker">Sunday Attendance · Pittsburgh</div>
-                <h1 className="mt-4 max-w-lg font-display text-4xl font-bold leading-[1.16] tracking-[-0.035em] text-text sm:text-5xl">
-                  {t('landing.title')}
+                <h1
+                  aria-label={t('landing.title')}
+                  className="mt-4 max-w-lg break-keep font-display text-[2.35rem] font-semibold leading-[1.17] tracking-[-0.035em] text-text sm:text-5xl"
+                >
+                  <span className="block">{t('landing.titleLine1')}</span>
+                  <span className="block">{t('landing.titleLine2')}</span>
                 </h1>
-                <p className="mt-5 max-w-md text-base leading-7 text-muted">{t('landing.description')}</p>
+                <p className="mt-5 max-w-md break-keep text-base leading-7 text-muted">{t('landing.description')}</p>
 
                 <dl className="mt-10 grid max-w-lg grid-cols-2 border-y border-border py-5">
                   <div className="border-r border-border pr-5">
@@ -140,17 +144,22 @@ export function CheckinScreen() {
               <p className="mt-14 text-xs leading-5 text-subtle">{t('landing.subtitle')}</p>
             </section>
 
-            <aside className="flex items-center border-t border-border bg-surface-alt/55 px-6 py-10 sm:px-10 lg:border-l lg:border-t-0 lg:px-12">
+            <aside className="flex items-center border-t border-border bg-surface-alt px-6 py-10 sm:px-10 lg:border-l lg:border-t-0 lg:px-12">
               <div className="surface-panel fx-rise w-full overflow-hidden">
-                <div className="border-b border-border px-6 py-5 sm:px-7">
-                  <div className="section-kicker">{t('landing.attendanceDesk')}</div>
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                    <h2 className="font-display text-xl font-bold tracking-tight text-text">{t('landing.thisSunday')}</h2>
-                    <WindowBadge cfg={config} />
+                {config.individualCheckinEnabled && (
+                  <div className="border-b border-border px-6 py-5 sm:px-7">
+                    <div className="section-kicker">{t('landing.attendanceDesk')}</div>
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                      <h2 className="font-display text-xl font-bold tracking-tight text-text">{t('landing.thisSunday')}</h2>
+                      <WindowBadge cfg={config} />
+                    </div>
                   </div>
-                </div>
+                )}
 
                 <div className="px-6 py-6 sm:px-7">
+                  {!config.individualCheckinEnabled && (
+                    <div className="section-kicker mb-3">{t('landing.kioskTitle')}</div>
+                  )}
                   {config.announcement && (
                     <div className="mb-6 border-l-2 border-gold bg-gold/[0.08] px-4 py-3">
                       <div className="section-kicker text-gold">{t('announce.label')}</div>
@@ -170,7 +179,7 @@ export function CheckinScreen() {
                     )}
                     <Link
                       to="/kiosk"
-                      className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-border bg-surface px-5 py-3 text-sm font-semibold text-text transition-colors hover:border-primary/35 hover:bg-surface-alt"
+                      className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-border bg-surface px-5 py-3 text-sm font-semibold text-text transition-colors hover:bg-white dark:hover:bg-surface-alt"
                     >
                       <Monitor className="size-4" aria-hidden />
                       {t('landing.kioskButton')}

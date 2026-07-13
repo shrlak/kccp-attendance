@@ -46,6 +46,8 @@
   "announce": { "label": "Notice" },
   "landing": {
     "title": "Sunday attendance that remembers each person",
+    "titleLine1": "Sunday attendance",
+    "titleLine2": "that remembers each person",
     "subtitle": "Korean Central Church of Pittsburgh · College & Young Adult",
     "description": "A clear attendance record helps our ministry welcome new people, notice who has been away, and care for the community well.",
     "today": "Pittsburgh local date",
@@ -53,6 +55,7 @@
     "checkinMethodValue": "Choose your name at the church kiosk",
     "attendanceDesk": "Sunday attendance",
     "thisSunday": "Today's check-in",
+    "kioskTitle": "On-site attendance kiosk",
     "kioskNote": "Start the kiosk on the church tablet, then tap a name once to record attendance.",
     "memberCheckinHelp": "Use the button below to record attendance from this device.",
     "kioskButton": "Start church kiosk",
