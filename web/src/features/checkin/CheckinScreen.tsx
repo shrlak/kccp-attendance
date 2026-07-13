@@ -28,24 +28,16 @@ const DEFAULT_CFG: AppConfig = {
   groupColors: DEFAULT_GROUP_COLORS,
 }
 
+// Controls only — the logo lives in the centered hero, not the header.
 function TopBar() {
   const { t } = useTranslation()
   return (
-    <header className="border-b border-border bg-surface/75 pt-[env(safe-area-inset-top)] backdrop-blur">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 sm:px-8">
-        <Link to="/" className="flex items-center gap-2.5" aria-label="KCCP">
-          <KccpMark size={28} />
-          <div>
-            <div className="font-display text-sm font-bold leading-none tracking-tight text-text">KCCP</div>
-            <div className="mt-1 text-[10px] font-semibold text-muted">대학 · 청년부 출석</div>
-          </div>
+    <header className="pt-[env(safe-area-inset-top)]">
+      <div className="mx-auto flex h-16 max-w-6xl items-center justify-end px-5 sm:px-8">
+        <ThemeLangToggle />
+        <Link to="/admin" className={iconBtnClass + ' ml-1 px-2.5'}>
+          {t('checkin.admin')}
         </Link>
-        <div className="flex items-center gap-1">
-          <ThemeLangToggle />
-          <Link to="/admin" className={iconBtnClass + ' ml-1 px-2.5'}>
-            {t('checkin.admin')}
-          </Link>
-        </div>
       </div>
     </header>
   )
@@ -117,83 +109,44 @@ export function CheckinScreen() {
       {phase.kind === 'idle' && (
         <>
           <TopBar />
-          <div className="mx-auto grid w-full max-w-6xl flex-1 items-stretch lg:grid-cols-[1.08fr_.92fr]">
-            <section className="flex flex-col justify-between px-6 py-12 sm:px-10 sm:py-16 lg:px-12 lg:py-20">
-              <div className="fx-rise max-w-xl">
-                <KccpLogo size={48} />
-                <div className="mt-14 section-kicker">Sunday Attendance · Pittsburgh</div>
-                <h1
-                  aria-label={t('landing.title')}
-                  className="mt-4 max-w-lg break-keep font-display text-[2.35rem] font-semibold leading-[1.17] tracking-[-0.035em] text-text sm:text-5xl"
-                >
-                  <span className="block">{t('landing.titleLine1')}</span>
-                  <span className="block">{t('landing.titleLine2')}</span>
-                </h1>
-                <p className="mt-5 max-w-md break-keep text-base leading-7 text-muted">{t('landing.description')}</p>
+          <section className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center px-6 py-10 text-center">
+            <div className="fx-rise flex flex-col items-center">
+              <KccpLogo size={88} stacked />
+              <h1
+                aria-label={t('landing.title')}
+                className="mt-10 break-keep font-display text-3xl font-semibold leading-[1.2] tracking-[-0.03em] text-text sm:text-4xl"
+              >
+                <span className="block">{t('landing.titleLine1')}</span>
+                <span className="block">{t('landing.titleLine2')}</span>
+              </h1>
+              <div className="mt-4 section-kicker">{todayLabel}</div>
+            </div>
 
-                <dl className="mt-10 grid max-w-lg grid-cols-2 border-y border-border py-5">
-                  <div className="border-r border-border pr-5">
-                    <dt className="section-kicker">{t('landing.today')}</dt>
-                    <dd className="mt-2 text-sm font-semibold text-text">{todayLabel}</dd>
-                  </div>
-                  <div className="pl-5">
-                    <dt className="section-kicker">{t('landing.checkinMethod')}</dt>
-                    <dd className="mt-2 text-sm font-semibold text-text">{t('landing.checkinMethodValue')}</dd>
-                  </div>
-                </dl>
+            {config.announcement && (
+              <div className="fx-rise mt-8 w-full max-w-md border-l-2 border-gold bg-gold/[0.08] px-4 py-3 text-left">
+                <div className="section-kicker text-gold">{t('announce.label')}</div>
+                <div className="mt-1.5 text-sm leading-6 text-text">{config.announcement}</div>
               </div>
+            )}
 
-              <p className="mt-14 text-xs leading-5 text-subtle">{t('landing.subtitle')}</p>
-            </section>
-
-            <aside className="flex items-center border-t border-border bg-surface-alt px-6 py-10 sm:px-10 lg:border-l lg:border-t-0 lg:px-12">
-              <div className="surface-panel fx-rise w-full overflow-hidden">
-                {config.individualCheckinEnabled && (
-                  <div className="border-b border-border px-6 py-5 sm:px-7">
-                    <div className="section-kicker">{t('landing.attendanceDesk')}</div>
-                    <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                      <h2 className="font-display text-xl font-bold tracking-tight text-text">{t('landing.thisSunday')}</h2>
-                      <WindowBadge cfg={config} />
-                    </div>
-                  </div>
-                )}
-
-                <div className="px-6 py-6 sm:px-7">
-                  {!config.individualCheckinEnabled && (
-                    <div className="section-kicker mb-3">{t('landing.kioskTitle')}</div>
-                  )}
-                  {config.announcement && (
-                    <div className="mb-6 border-l-2 border-gold bg-gold/[0.08] px-4 py-3">
-                      <div className="section-kicker text-gold">{t('announce.label')}</div>
-                      <div className="mt-1.5 text-sm leading-6 text-text">{config.announcement}</div>
-                    </div>
-                  )}
-
-                  <p className="text-sm leading-6 text-muted">
-                    {config.individualCheckinEnabled ? t('landing.memberCheckinHelp') : t('landing.kioskNote')}
-                  </p>
-
-                  <div className="mt-6 flex flex-col gap-2.5">
-                    {config.individualCheckinEnabled && (
-                      <Button onClick={() => void checkIn()} className="w-full py-3.5 text-base">
-                        {t('checkin.button')}
-                      </Button>
-                    )}
-                    <Link
-                      to="/kiosk"
-                      className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-border bg-surface px-5 py-3 text-sm font-semibold text-text transition-colors hover:bg-white dark:hover:bg-surface-alt"
-                    >
-                      <Monitor className="size-4" aria-hidden />
-                      {t('landing.kioskButton')}
-                    </Link>
-                  </div>
-
-                  <div className="mt-6 border-t border-border pt-4 text-xs leading-5 text-subtle">
-                    {t('landing.privacyNote')}
-                  </div>
-                </div>
+            {config.individualCheckinEnabled && (
+              <div className="fx-rise mt-8 flex w-full max-w-sm flex-col items-center gap-4">
+                <WindowBadge cfg={config} />
+                <Button onClick={() => void checkIn()} className="w-full py-3.5 text-base">
+                  {t('checkin.button')}
+                </Button>
               </div>
-            </aside>
+            )}
+          </section>
+
+          <div className="flex justify-center px-6 pb-[calc(2.5rem+env(safe-area-inset-bottom))]">
+            <Link
+              to="/kiosk"
+              className="fx-rise inline-flex min-h-12 w-full max-w-sm items-center justify-center gap-2.5 rounded-full border border-primary bg-primary px-8 py-3.5 text-base font-semibold text-primary-fg transition-colors hover:border-primary-hover hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+            >
+              <Monitor className="size-5" aria-hidden />
+              {t('landing.kioskButton')}
+            </Link>
           </div>
         </>
       )}
