@@ -6,6 +6,12 @@ const PW_KEY = 'kccp-admin-pw'
 // Where the Google OAuth callback should land. Set before the redirect (the kiosk gate
 // passes '/kiosk'), read once when the callback verifies; anything else means /admin.
 const RETURN_KEY = 'kccp-oauth-return'
+// Last-activity timestamp for password (break-glass) sessions only — Google sessions rely
+// on Supabase's own persisted session and are exempt. If a reload finds this stale by more
+// than IDLE_TIMEOUT_MS, the saved password is dropped instead of silently re-authing, so
+// the tab falls back to the login screen after a long-idle reload.
+const ACTIVITY_KEY = 'kccp-admin-activity'
+const IDLE_TIMEOUT_MS = 2 * 60 * 60 * 1000 // 2h
 
 function readPw(): string | null {
   try { return sessionStorage.getItem(PW_KEY) } catch { return null }
@@ -17,11 +23,27 @@ function writePw(pw: string | null): void {
   } catch { /* non-fatal */ }
 }
 
+function writeActivity(): void {
+  try { sessionStorage.setItem(ACTIVITY_KEY, String(Date.now())) } catch { /* non-fatal */ }
+}
+function clearActivity(): void {
+  try { sessionStorage.removeItem(ACTIVITY_KEY) } catch { /* non-fatal */ }
+}
+function isIdleExpired(): boolean {
+  try {
+    const raw = sessionStorage.getItem(ACTIVITY_KEY)
+    if (!raw) return false
+    return Date.now() - Number(raw) > IDLE_TIMEOUT_MS
+  } catch { return false }
+}
+
 export type AdminStatus = 'idle' | 'verifying' | 'authed' | 'error'
+export type AdminAuthMethod = 'password' | 'google' | null
 
 interface AdminAuthState {
   status: AdminStatus
   identity: AdminIdentity | null
+  method: AdminAuthMethod
   verify: (password: string) => Promise<boolean>
   signInWithGoogle: (returnTo?: '/kiosk') => Promise<void>
   signOut: () => void
@@ -30,6 +52,7 @@ interface AdminAuthState {
 export const useAdminAuth = create<AdminAuthState>((set) => ({
   status: 'idle',
   identity: null,
+  method: null,
 
   // Break-glass: device + master password (unchanged).
   verify: async (password) => {
@@ -38,12 +61,14 @@ export const useAdminAuth = create<AdminAuthState>((set) => ({
       setAdminPassword(password)
       const identity = await adminVerify(password)
       writePw(password)
-      set({ status: 'authed', identity })
+      writeActivity()
+      set({ status: 'authed', identity, method: 'password' })
       return true
     } catch {
       setAdminPassword(null)
       writePw(null)
-      set({ status: 'error', identity: null })
+      clearActivity()
+      set({ status: 'error', identity: null, method: null })
       return false
     }
   },
@@ -70,10 +95,31 @@ export const useAdminAuth = create<AdminAuthState>((set) => ({
     setAdminPassword(null)
     setAdminToken(null)
     writePw(null)
+    clearActivity()
     void supabase.auth.signOut()
-    set({ status: 'idle', identity: null })
+    set({ status: 'idle', identity: null, method: null })
   },
 }))
+
+// Keep the password-session activity timestamp warm while the tab is actually in use, so
+// the idle clock measures inactivity rather than just time-since-login. Google sessions
+// don't track this — they're exempt from the idle re-login requirement. Throttled so a
+// burst of interaction doesn't hammer sessionStorage.
+let lastActivityWrite = 0
+function bumpActivity(): void {
+  if (useAdminAuth.getState().method !== 'password') return
+  const now = Date.now()
+  if (now - lastActivityWrite < 60_000) return
+  lastActivityWrite = now
+  writeActivity()
+}
+if (typeof window !== 'undefined') {
+  window.addEventListener('pointerdown', bumpActivity, { passive: true })
+  window.addEventListener('keydown', bumpActivity, { passive: true })
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') bumpActivity()
+  })
+}
 
 // Whether this page load is the OAuth redirect landing. Supabase appends `?code=` (PKCE)
 // or a `#access_token=` hash (implicit) to the redirect URL. Captured at module load —
@@ -112,13 +158,27 @@ async function verifyGoogleSession(accessToken: string): Promise<boolean> {
   try {
     setAdminToken(accessToken)
     const identity = await adminVerifyGoogle()
-    useAdminAuth.setState({ status: 'authed', identity })
+    useAdminAuth.setState({ status: 'authed', identity, method: 'google' })
     if (isOAuthCallback) navigateAfterOAuth()
     return true
   } catch {
     setAdminToken(null)
     return false
   }
+}
+
+// A saved break-glass password is only worth rehydrating if the tab hasn't been idle past
+// the timeout — otherwise drop it so the reload lands on the login screen instead of
+// silently re-authing a long-stale session.
+function rehydratePassword(): void {
+  const stored = readPw()
+  if (!stored) return
+  if (isIdleExpired()) {
+    writePw(null)
+    clearActivity()
+    return
+  }
+  void useAdminAuth.getState().verify(stored)
 }
 
 // Handle Supabase auth state. An OAuth callback may arrive as INITIAL_SESSION or SIGNED_IN
@@ -130,14 +190,12 @@ supabase.auth.onAuthStateChange(async (event, session) => {
       // break-glass password rather than showing an error on a passive page load.
       const ok = await verifyGoogleSession(session.access_token)
       if (!ok) {
-        useAdminAuth.setState({ status: 'idle', identity: null })
-        const stored = readPw()
-        if (stored) void useAdminAuth.getState().verify(stored)
+        useAdminAuth.setState({ status: 'idle', identity: null, method: null })
+        rehydratePassword()
       }
     } else {
       // No Google session — try a saved break-glass password.
-      const stored = readPw()
-      if (stored) void useAdminAuth.getState().verify(stored)
+      rehydratePassword()
     }
   } else if (event === 'SIGNED_IN' && session?.access_token) {
     if (useAdminAuth.getState().status === 'authed') return
