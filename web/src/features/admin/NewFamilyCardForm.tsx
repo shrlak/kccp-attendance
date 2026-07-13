@@ -95,7 +95,15 @@ export function NewFamilyCardForm({
               </ValueCell>
             </tr>
             <tr>
-              <LabelCell text="학교/전공 or 직장" />
+              <LabelCell
+                text={
+                  <>
+                    학교/전공
+                    <br />
+                    or 직장
+                  </>
+                }
+              />
               <ValueCell>
                 <CardTextArea
                   aria-label="학교/전공 or 직장"
@@ -147,7 +155,7 @@ export function NewFamilyCardForm({
   )
 }
 
-function LabelCell({ text }: { text: string }) {
+function LabelCell({ text }: { text: ReactNode }) {
   return <td className="border border-[#111] bg-[#d9d9d9] px-1 py-1.5 text-center font-bold">{text}</td>
 }
 
