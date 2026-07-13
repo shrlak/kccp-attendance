@@ -15,7 +15,7 @@ describe('primitives', () => {
     render(<Tag tone="primary">대학부</Tag>)
     const el = screen.getByText('대학부')
     expect(el).toBeInTheDocument()
-    expect(el.className).toMatch(/rounded-sm/)
+    expect(el.className).toMatch(/rounded-full/)
   })
   it('Card renders children', () => {
     render(<Card>hello</Card>)

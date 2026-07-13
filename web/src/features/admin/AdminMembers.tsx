@@ -140,7 +140,7 @@ export function AdminMembers() {
                   type="button"
                   onClick={() => (selectMode ? toggleSel(m.id) : setEditing(m))}
                   className={
-                    'min-h-20 rounded-md border bg-surface p-3.5 text-left transition-colors hover:border-primary/30 hover:bg-surface-alt ' +
+                    'min-h-20 rounded-xl border bg-surface p-3.5 text-left transition-colors hover:border-primary/30 hover:bg-surface-alt ' +
                     (sel ? 'border-primary ring-2 ring-primary/40' : 'border-border')
                   }
                 >
@@ -152,7 +152,7 @@ export function AdminMembers() {
                     )}
                     {m.name}
                     {m.is_new_member && (
-                      <span className="ml-2 rounded-sm bg-gold/10 px-1.5 py-0.5 align-middle text-[10px] font-semibold text-gold">
+                      <span className="ml-2 rounded-full bg-gold/10 px-2 py-0.5 align-middle text-[10px] font-semibold text-gold">
                         {t('admin.iconKey.newMemberStar')}
                       </span>
                     )}
@@ -176,7 +176,7 @@ export function AdminMembers() {
                 key={m.id}
                 type="button"
                 onClick={() => setEditing(m)}
-                className="min-h-20 rounded-md border border-border bg-surface p-3.5 text-left transition-colors hover:border-primary/30 hover:bg-surface-alt"
+                className="min-h-20 rounded-xl border border-border bg-surface p-3.5 text-left transition-colors hover:border-primary/30 hover:bg-surface-alt"
               >
                 <div className="text-base font-semibold text-text">{m.name}</div>
                 <div className="text-xs text-muted">{m.member_role || '—'}</div>

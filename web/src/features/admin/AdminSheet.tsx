@@ -391,7 +391,7 @@ function LogView({ log, empty }: { log: LogEntry[]; empty: string }) {
           <span className="font-medium text-text">
             {e.name}
             {e.firstVisit && (
-              <span className="ml-2 rounded-sm bg-gold/10 px-1.5 py-0.5 align-middle text-[10px] font-semibold text-gold">
+              <span className="ml-2 rounded-full bg-gold/10 px-2 py-0.5 align-middle text-[10px] font-semibold text-gold">
                 {t('admin.iconKey.firstVisit')}
               </span>
             )}

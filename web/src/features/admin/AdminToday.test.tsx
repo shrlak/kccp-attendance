@@ -59,6 +59,9 @@ describe('AdminToday — 방문자(guests) in the 오늘 tab', () => {
     // The guest appears in today's list alongside the member...
     expect(screen.getByText('박방문')).toBeInTheDocument()
     expect(screen.getByText('김지체')).toBeInTheDocument()
+    // The redundant three-card summary does not appear on the Today tab.
+    expect(screen.queryByText('전체 멤버 수')).not.toBeInTheDocument()
+    expect(screen.queryByText('예배 주일 수')).not.toBeInTheDocument()
     // ...and the 오늘 header count includes the guest (member + guest = 2).
     expect(
       screen.getByText((_, el) => el?.textContent === '오늘 출석 · 2' && el.tagName === 'SPAN'),

@@ -28,8 +28,12 @@ describe('routes', () => {
       requireApproval: false, summerMode: false, demoMode: false, individualCheckinEnabled: false,
     }), { status: 200 })))
     renderAt('/')
-    expect(await screen.findByText('한 사람을 기억하는 주일 출석')).toBeInTheDocument()
+    const heading = await screen.findByRole('heading', { name: '한 사람을 기억하는 주일 출석' })
+    expect(heading).toHaveClass('break-keep')
     expect(screen.queryByRole('button', { name: '체크인' })).not.toBeInTheDocument()
+    expect(screen.queryByText('오늘의 출석')).not.toBeInTheDocument()
+    expect(screen.queryByText('지금은 출석 시간이 아닙니다')).not.toBeInTheDocument()
+    expect(screen.getByText('현장 출석 키오스크')).toBeInTheDocument()
   })
 
   it('surfaces the check-in button at / when individual check-in is enabled', async () => {

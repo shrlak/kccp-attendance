@@ -97,8 +97,8 @@ export function AnalyticsCharts({ members, log }: { members: Member[]; log: LogE
           {
             label: t('admin.analytics.attendance'),
             data: trend.map((p) => p.count),
-            borderColor: '#245441',
-            backgroundColor: 'rgba(36,84,65,0.12)',
+            borderColor: '#0071E3',
+            backgroundColor: 'rgba(0,113,227,0.12)',
             tension: 0.25,
             fill: true,
             pointRadius: 3,

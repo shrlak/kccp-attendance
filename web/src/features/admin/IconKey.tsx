@@ -8,7 +8,7 @@ export function IconKey({ items }: { items: IconKeyItem[] }) {
   return (
     <div className="mb-4 flex flex-wrap gap-1.5" aria-label={t('admin.iconKey.legend')}>
       {items.map((item) => (
-        <span key={item} className="rounded-sm border border-border bg-surface-alt px-2 py-1 text-[11px] font-semibold text-muted">
+        <span key={item} className="rounded-full border border-border bg-surface-alt px-2.5 py-1 text-[11px] font-semibold text-muted">
           {t(`admin.iconKey.${item}`)}
         </span>
       ))}
