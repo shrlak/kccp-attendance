@@ -66,8 +66,8 @@ describe('AdminToday — 방문자(guests) in the 오늘 tab', () => {
   })
 })
 
-describe('AdminToday — ✝️ 새가족 / 👋 방문자 icons in the 오늘 tab', () => {
-  it('tags 새가족 with ✝️ and 방문자 with 👋, like the exported 출석부', () => {
+describe('AdminToday — 새가족 / 방문자 status labels in the 오늘 tab', () => {
+  it('tags 새가족 and 방문자 with readable labels and a legend', () => {
     const today = easternNow().date
     const nf = { ...member('m2', '새신자'), is_new_member: true }
     rosterData.data = {
@@ -81,12 +81,9 @@ describe('AdminToday — ✝️ 새가족 / 👋 방문자 icons in the 오늘 t
 
     renderWithProviders(<AdminToday />)
 
-    expect(screen.getByText('✝️')).toBeInTheDocument()
-    expect(screen.getByText('👋')).toBeInTheDocument()
-    // …and the tab carries an icon legend explaining both marks.
-    expect(
-      screen.getByText((_, el) => el?.tagName === 'P' && el.textContent === '✝️ 새가족 · 👋 방문자'),
-    ).toBeInTheDocument()
+    expect(screen.getAllByText('새가족').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('방문자').length).toBeGreaterThan(0)
+    expect(screen.getByLabelText('상태 안내')).toBeInTheDocument()
   })
 
   it('leaves a regular member unmarked even on their first recorded visit', () => {
@@ -103,8 +100,8 @@ describe('AdminToday — ✝️ 새가족 / 👋 방문자 icons in the 오늘 t
 
     renderWithProviders(<AdminToday />)
 
-    expect(screen.queryByText('✝️')).not.toBeInTheDocument()
-    expect(screen.queryByText('👋')).not.toBeInTheDocument()
-    expect(screen.queryByText('🌟')).not.toBeInTheDocument()
+    const regularRow = screen.getByText('김지체').closest('li')
+    expect(regularRow).not.toHaveTextContent('새가족')
+    expect(regularRow).not.toHaveTextContent('방문자')
   })
 })

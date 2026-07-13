@@ -36,48 +36,29 @@ function renderApp() {
   )
 }
 
-describe('AdminApp nav rail', () => {
-  it('starts collapsed and expands on hover', () => {
+describe('AdminApp ministry navigation', () => {
+  it('keeps the ministry navigation visible and marks Today as current', () => {
     const { container } = renderApp()
     const aside = container.querySelector('aside')!
-    expect(aside.className).toContain('w-16')
-    fireEvent.mouseEnter(aside)
-    expect(aside.className).toContain('w-60')
+    expect(aside.className).toContain('md:w-[248px]')
+    expect(screen.getByRole('button', { name: '오늘' })).toHaveAttribute('aria-current', 'page')
   })
 
-  it('collapses as soon as a tab is selected, and switches the tab', () => {
+  it('switches tabs without changing the persistent navigation', () => {
     const { container } = renderApp()
     const aside = container.querySelector('aside')!
-    fireEvent.mouseEnter(aside)
-    expect(aside.className).toContain('w-60')
-
     const sheetTab = screen.getByRole('button', { name: '출석부' })
     fireEvent.click(sheetTab)
-
-    expect(aside.className).toContain('w-16') // collapsed immediately, pointer still inside
+    expect(aside.className).toContain('md:w-[248px]')
     expect(sheetTab).toHaveAttribute('aria-current', 'page')
   })
 
-  it('re-expands on the next hover after a selection', () => {
+  it('uses one horizontally scrollable nav that also works on smaller screens', () => {
     const { container } = renderApp()
-    const aside = container.querySelector('aside')!
-    fireEvent.mouseEnter(aside)
+    const nav = container.querySelector('nav')!
+    expect(nav.className).toContain('overflow-x-auto')
     fireEvent.click(screen.getByRole('button', { name: '멤버' }))
-    expect(aside.className).toContain('w-16')
-
-    fireEvent.mouseLeave(aside)
-    fireEvent.mouseEnter(aside)
-    expect(aside.className).toContain('w-60')
-  })
-
-  it('expands on keyboard focus and collapses when focus leaves', () => {
-    const { container } = renderApp()
-    const aside = container.querySelector('aside')!
-    const todayTab = screen.getByRole('button', { name: '오늘' })
-    fireEvent.focus(todayTab)
-    expect(aside.className).toContain('w-60')
-    fireEvent.blur(todayTab) // focus leaves the rail entirely (relatedTarget null)
-    expect(aside.className).toContain('w-16')
+    expect(screen.getByRole('button', { name: '멤버' })).toHaveAttribute('aria-current', 'page')
   })
 
   it('staff (break-glass 운영진) sees operational tabs but not super-only ones', () => {
@@ -95,7 +76,7 @@ describe('AdminApp nav rail', () => {
       expect(screen.queryByRole('button', { name })).toBeNull()
     }
     // Header shows the 운영진 role label.
-    expect(screen.getByText(/운영진/)).toBeInTheDocument()
+    expect(screen.getAllByText(/운영진 · 전체/).length).toBeGreaterThan(0)
   })
 
   it('break-glass super password lands on the full panel (super-only tabs visible)', () => {
@@ -122,7 +103,7 @@ describe('AdminApp nav rail', () => {
       expect(screen.queryByRole('button', { name })).toBeNull()
     }
     // Role label + "전체" scope (a group-less break-glass leader sees everyone).
-    expect(screen.getByText(/리더 · 전체/)).toBeInTheDocument()
+    expect(screen.getAllByText(/리더 · 전체/).length).toBeGreaterThan(0)
   })
 
   it('break-glass welcoming password lands on the 새가족팀 dashboard', () => {
@@ -137,6 +118,6 @@ describe('AdminApp nav rail', () => {
     for (const name of ['관리자', '동산', '설정']) {
       expect(screen.queryByRole('button', { name })).toBeNull()
     }
-    expect(screen.getByText(/새가족팀 · 전체/)).toBeInTheDocument()
+    expect(screen.getAllByText(/새가족팀 · 전체/).length).toBeGreaterThan(0)
   })
 })

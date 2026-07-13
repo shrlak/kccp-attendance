@@ -17,7 +17,7 @@ const DAY_SHORT: Record<'ko' | 'en', string[]> = {
 function Badge({ tone, children }: { tone: string; children: ReactNode }) {
   return (
     <div
-      className="fx-rise mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-full"
+      className="fx-rise mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-xl border border-current/20"
       style={{ background: `color-mix(in oklab, ${tone} 12%, transparent)`, color: tone }}
     >
       {children}
@@ -27,7 +27,7 @@ function Badge({ tone, children }: { tone: string; children: ReactNode }) {
 
 function DrawnCheck({ color }: { color: string }) {
   return (
-    <div className="fx-rise mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-full" style={{ background: color }}>
+    <div className="fx-rise mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-xl" style={{ background: color }}>
       <svg width="48" height="48" viewBox="0 0 52 52" fill="none" aria-hidden>
         <path className="fx-draw" d="M14 27l8 8 16-18" stroke="var(--canvas)" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round" />
       </svg>

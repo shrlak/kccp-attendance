@@ -45,10 +45,26 @@
   },
   "announce": { "label": "공지" },
   "landing": {
-    "title": "KCCP 출석 시스템",
+    "title": "한 사람을 기억하는 주일 출석",
     "subtitle": "피츠버그 한인중앙교회 · 대학청년부",
-    "kioskNote": "출석은 교회 키오스크에서 진행됩니다",
-    "kioskButton": "출석 키오스크"
+    "description": "예배에 함께한 공동체를 정확히 기록하고, 새가족과 오래 보이지 않은 지체를 세심하게 돌보기 위한 출석 시스템입니다.",
+    "today": "피츠버그 현지 날짜",
+    "checkinMethod": "출석 방법",
+    "checkinMethodValue": "교회 키오스크에서 이름 선택",
+    "attendanceDesk": "주일 출석 안내",
+    "thisSunday": "오늘의 출석",
+    "kioskNote": "교회 태블릿에서 키오스크를 시작한 뒤, 이름을 한 번 눌러 출석을 기록합니다.",
+    "memberCheckinHelp": "아래 버튼을 눌러 현재 기기에서 출석을 기록하세요.",
+    "kioskButton": "교회 키오스크 시작",
+    "privacyNote": "출석 정보는 공동체 돌봄과 부서 운영을 위해서만 사용됩니다."
+  },
+  "access": {
+    "adminEyebrow": "관리자 업무 공간",
+    "kioskEyebrow": "현장 출석 모드",
+    "sideTitle": "기록을 넘어, 공동체를 돌보는 출석 관리",
+    "sideText": "리더와 새가족팀이 같은 기록을 보고 다음 돌봄을 놓치지 않도록 돕습니다.",
+    "secure": "승인된 운영진만 접근할 수 있습니다",
+    "backHome": "출석 안내 화면으로 돌아가기"
   },
   "kiosk": {
     "title": "출석 키오스크",
@@ -98,10 +114,12 @@
     }
   },
   "common": { "cancel": "취소", "save": "저장", "loading": "불러오는 중…", "error": "연결 오류", "retry": "다시 시도", "close": "닫기" },
-  "notFound": { "message": "페이지를 찾을 수 없습니다", "home": "홈으로 돌아가기" },
+  "notFound": { "message": "페이지를 찾을 수 없습니다", "description": "KCCP 대학·청년부 출석 안내 화면으로 돌아가 다시 시작해주세요.", "home": "출석 안내로 돌아가기" },
   "admin": {
     "title": "관리자",
     "pageTitle": "관리자 페이지",
+    "workspace": "대학 · 청년부 운영",
+    "serviceOps": "주일 운영 메뉴",
     "subtitle": "Google 계정으로 로그인하세요",
     "signInWithGoogle": "Google로 로그인",
     "googleError": "이 Google 계정은 관리자 권한이 없습니다",
@@ -115,6 +133,17 @@
     "scopeAll": "전체",
     "roles": { "super_admin": "최고관리자", "leader": "리더", "pastor": "목사님", "welcoming": "새가족팀", "staff": "운영진" },
     "nav": { "today": "오늘", "sheet": "출석부", "members": "멤버", "analytics": "통계", "newfamily": "새가족", "visitors": "방문자", "admins": "관리자", "dongsan": "동산", "settings": "설정" },
+    "navHelp": {
+      "today": "오늘 출석 현황과 주간 비교",
+      "sheet": "주일별 출석 기록 확인과 내보내기",
+      "members": "공동체 명단과 개인 기록 관리",
+      "analytics": "출석 흐름과 부서별 변화 확인",
+      "newfamily": "새가족 등록과 정착 과정 관리",
+      "visitors": "방문자 기록과 재방문 확인",
+      "admins": "운영 권한과 승인 요청 관리",
+      "dongsan": "동산 구성과 리더 배정",
+      "settings": "출석 시간과 운영 방식 설정"
+    },
     "filter": { "all": "전체" },
     "dongsanRole": { "leader": "동산지기", "subleader": "부동산지기" },
     "analytics": { "trend": "출석 추이", "groupCompare": "부서별 비교", "attendance": "출석", "monthly": "월별 요약", "semester": "학기별 요약", "weeklyRecap": "주간 요약", "month": "월", "date": "날짜", "sundays": "주일", "attendees": "출석 인원", "firstVisits": "첫출석", "half1": "상반기", "half2": "하반기", "copy": "복사", "copied": "클립보드에 복사되었습니다" },
@@ -122,7 +151,7 @@
     "newfamily": { "title": "새가족", "empty": "이번 학기 새가족이 없습니다", "monthly": "월별 등록", "noRegDate": "등록일 미입력", "pastoralVisit": "심방 요청", "legend": "🙏 심방 요청", "edu1": "교육 1주차", "edu2": "교육 2주차", "season": { "spring": "봄학기", "summer": "여름학기", "fall": "가을학기" }, "export": { "action": "내보내기", "title": "새가족 내보내기", "select": "내보낼 새가족을 선택하세요. 오늘 등록된 새가족은 미리 선택되어 있습니다.", "selected": "선택 {{n}}명", "all": "전체 선택", "none": "선택 해제", "noMatch": "멤버를 찾을 수 없습니다", "cardsConfirm": "카드 다운로드 ({{n}}명)", "cardsBusy": "카드 내보내는 중…", "cardsDone": "새가족 등록 카드(JPG)를 저장하고 클립보드에 복사했습니다", "cardsDownloadedOnly": "새가족 등록 카드(JPG)를 저장했습니다 (이 브라우저는 클립보드 복사를 지원하지 않습니다)", "cardsFailed": "이미지를 만들지 못했습니다", "excelConfirm": "엑셀로 내보내기 ({{n}}명)", "excelBusy": "엑셀 만드는 중…", "excelDone": "새가족 정보를 엑셀 파일로 저장했습니다", "excelFailed": "엑셀 파일을 만들지 못했습니다" }, "scan": { "action": "카드 사진 등록", "title": "카드 사진으로 등록", "hint": "새가족 등록 카드를 촬영하거나 사진을 업로드하세요. 여러 장을 한 번에 선택할 수 있습니다.", "pick": "카드 사진 선택", "extracting": "카드 인식 중… 잠시만 기다려주세요", "reviewHint": "인식된 내용을 확인하고 잘못 읽힌 부분을 수정한 뒤 등록하세요.", "checkinToday": "오늘 출석 체크", "retake": "다시 선택", "skip": "이 카드 건너뛰기", "progress": "카드 {{n}} / {{total}}", "submit": "등록", "done": "{{name}} 등록 완료", "failed": "카드 인식에 실패했습니다", "badImage": "이미지를 읽을 수 없습니다" } },
     "visitors": { "title": "방문 기록", "empty": "방문자 기록이 없습니다", "today": "오늘", "returning": "재방문 {{n}}회", "stats": { "today": "오늘 방문", "total": "총 방문", "unique": "방문자 수" } },
     "stats": { "today": "오늘 출석 인원", "members": "전체 멤버 수", "records": "출석", "days": "예배 주일 수" },
-    "iconKey": { "newFamily": "✝️ 새가족", "visitor": "👋 방문자", "firstVisit": "🌟 첫출석", "newMemberStar": "🌟 새가족" },
+    "iconKey": { "legend": "상태 안내", "newFamily": "새가족", "visitor": "방문자", "firstVisit": "첫출석", "newMemberStar": "새가족" },
     "dashboard": { "present": "출석", "absent": "결석", "avgRate": "4주 평균" },
     "members": { "search": "이름 검색", "bulkMove": { "action": "동산 이동", "selected": "{{n}}명 선택", "placeholder": "동산 선택", "moveTo": "이 동산으로", "remove": "동산에서 빼기", "done": "{{n}}명 이동되었습니다" }, "edit": "멤버 편집", "saved": "저장되었습니다", "name": "이름", "group": "부서", "subgroup": "동산", "memberRole": "역할", "gender": "성별", "phone": "전화", "kakaoId": "카톡ID", "birthDate": "생일", "notes": "메모", "isNewMember": "새가족", "card": { "section": "새가족 등록 카드", "download": "카드 다운로드 (JPG)", "done": "등록 카드(JPG)를 저장했습니다", "removeReg": "등록일 제거 · 새가족 목록에서 제외" }, "sectionBasic": "기본 정보", "sectionPersonal": "개인 정보", "statusSection": "상태 표기", "statusHelp": "이주 혹은 귀국 시에만 작성해주세요. 작성한 기간은 출석부에 회색으로 표시됩니다.", "statusNote": "상태 표기 (한국 귀국 · 이주 등)", "statusStart": "표기 시작일", "statusEnd": "표기 종료일 (비우면 학기 끝까지)", "merge": { "action": "병합", "title": "멤버 병합", "help": "한 멤버의 기기와 출석 기록을 다른 멤버로 옮기고, 원래 멤버는 삭제합니다. 되돌릴 수 없습니다.", "from": "병합할 멤버 (삭제됨)", "to": "남길 멤버", "warn": "{{summary}} — 되돌릴 수 없습니다.", "confirm": "병합", "done": "병합되었습니다" }, "delete": { "action": "멤버 삭제", "warn": "이 멤버와 모든 출석 기록이 영구적으로 삭제됩니다. 되돌릴 수 없습니다.", "confirm": "삭제", "done": "{{name}} 님이 삭제되었습니다" }, "attendance": { "action": "출석 기록", "title": "출석 기록", "date": "날짜", "add": "추가", "remove": "삭제", "total": "기록 {{n}}건", "empty": "출석 기록이 없습니다", "added": "출석이 추가되었습니다", "removed": "출석이 삭제되었습니다", "already": "해당 날짜에 이미 출석 기록이 있습니다" }, "staffSection": "운영 계정" },
     "today": { "title": "오늘 출석", "none": "아직 출석이 없습니다", "thisWeek": "이번 주 출석 인원", "lastWeek": "지난 주 출석 인원", "change": "지난 주 대비 증감", "manualCheckin": { "action": "수동 출석", "title": "수동 출석", "present": "출석", "none": "멤버를 찾을 수 없습니다", "done": "{{name}} 출석 처리되었습니다", "already": "{{name}} 님은 이미 출석했습니다" }, "export": { "action": "출석표 이미지", "busy": "내보내는 중…", "done": "출석표 이미지(JPG)를 저장하고 클립보드에 복사했습니다", "downloadedOnly": "출석표 이미지(JPG)를 저장했습니다 (이 브라우저는 클립보드 복사를 지원하지 않습니다)", "failed": "이미지를 만들지 못했습니다" } },

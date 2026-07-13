@@ -70,14 +70,14 @@ export function AdminToday() {
 
       {/* One row: 오늘 · 지난 주 · 증감 (thisWeek === today's count for a weekly-service
           church, so it doubles as 오늘 출석 인원 next to the numbers it's compared with). */}
-      <div className="mb-5 grid grid-cols-3 gap-2">
+      <div className="mb-6 grid grid-cols-3 overflow-hidden rounded-xl border border-border bg-surface">
         <Stat label={t('admin.stats.today')} value={String(wk.thisWeek)} />
         <Stat label={t('admin.today.lastWeek')} value={String(wk.lastWeek)} />
         <Stat label={t('admin.today.change')} value={`${arrow} ${Math.abs(wk.delta)}`} valueClass={arrowClass} />
       </div>
 
       {dash && (
-        <div className="mb-5 rounded-lg border-l-4 border-primary bg-surface px-4 py-3">
+        <div className="mb-6 border-l-2 border-primary bg-primary/[0.06] px-4 py-4">
           <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
             <span className="font-semibold text-text">
               {t('admin.dashboard.present')} <span className="text-success">{dash.present}</span> / {dash.total}
@@ -101,8 +101,8 @@ export function AdminToday() {
       )}
 
       {/* Divider: the stats/dashboard zone above, the live check-in list below. */}
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-4">
-        <span className="font-mono text-xs uppercase tracking-wide text-subtle">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5">
+        <span className="section-kicker">
           {t('admin.today.title')} · {todays.length}
         </span>
         <div className="flex flex-wrap items-center gap-2">
@@ -120,22 +120,26 @@ export function AdminToday() {
       {todays.length === 0 ? (
         <p className="text-sm text-muted">{t('admin.today.none')}</p>
       ) : (
-        <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="grid grid-cols-1 overflow-hidden rounded-xl border border-border bg-surface sm:grid-cols-2 xl:grid-cols-3">
           {todays.map((e) => {
             const tag = checkinTag(e, newMemberNames)
             return (
               <li
                 key={`${e.name}-${e.ts}`}
-                className="flex items-center justify-between gap-2 rounded-lg border border-border bg-surface px-3 py-2.5 sm:px-4 sm:py-3"
+                className="flex items-center justify-between gap-3 border-b border-r border-border px-4 py-3.5 last:border-b-0"
               >
                 <div className="flex min-w-0 items-center gap-3">
-                  <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-success/15 text-sm font-bold text-success">
+                  <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-success/25 bg-success/10 text-sm font-bold text-success">
                     {(e.name || '?').slice(0, 1)}
                   </div>
                   <div className="min-w-0">
                     <div className="text-base font-semibold text-text">
                       {e.name}
-                      {tag && <span className="ml-1.5 align-middle text-xs">{tag === 'visitor' ? '👋' : '✝️'}</span>}
+                      {tag && (
+                        <span className="ml-2 rounded-sm bg-primary/10 px-1.5 py-0.5 align-middle text-[10px] font-semibold text-primary">
+                          {t(tag === 'visitor' ? 'admin.iconKey.visitor' : 'admin.iconKey.newFamily')}
+                        </span>
+                      )}
                     </div>
                     <div className="truncate text-sm text-muted">
                       {[e.group, e.subgroup].filter(Boolean).join(' · ') || '—'}
@@ -221,9 +225,9 @@ function ManualCheckinModal({ data, today, onClose }: { data: RosterResponse; to
 
 function Stat({ label, value, valueClass = 'text-text' }: { label: string; value: string; valueClass?: string }) {
   return (
-    <div className="rounded-lg border border-border bg-surface px-3 py-3 text-center">
-      <div className={'text-3xl font-bold ' + valueClass}>{value}</div>
-      <div className="mt-1 text-sm font-semibold text-text">{label}</div>
+    <div className="border-r border-border px-3 py-4 text-center last:border-r-0 sm:px-5">
+      <div className={'font-display text-2xl font-bold tabular-nums sm:text-3xl ' + valueClass}>{value}</div>
+      <div className="mt-1.5 text-xs font-semibold text-muted sm:text-sm">{label}</div>
     </div>
   )
 }

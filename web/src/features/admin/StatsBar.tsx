@@ -10,11 +10,11 @@ export function StatsBar({ stats }: { stats: Stats }) {
     [t('admin.stats.days'), stats.days],
   ]
   return (
-    <div className="mb-4 grid grid-cols-3 gap-2">
+    <div className="surface-panel mb-5 grid grid-cols-3 overflow-hidden">
       {items.map(([label, value]) => (
-        <div key={label} className="rounded-lg border border-border bg-surface px-2 py-2.5 text-center">
-          <div className="text-2xl font-bold text-text">{value}</div>
-          <div className="mt-1 text-sm font-semibold text-text">{label}</div>
+        <div key={label} className="border-r border-border px-4 py-4 last:border-r-0 sm:px-5 sm:py-5">
+          <div className="section-kicker leading-4">{label}</div>
+          <div className="mt-2 font-display text-2xl font-bold tabular-nums tracking-tight text-text sm:text-3xl">{value}</div>
         </div>
       ))}
     </div>

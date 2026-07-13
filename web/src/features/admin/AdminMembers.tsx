@@ -76,13 +76,13 @@ export function AdminMembers() {
 
   return (
     <>
-      <div className="mb-4 flex gap-2">
+      <div className="mb-5 flex flex-wrap gap-2 border-b border-border pb-5">
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t('admin.members.search')}
           aria-label={t('admin.members.search')}
-          className="flex-1"
+          className="min-w-[220px] flex-1"
         />
         {data.canBulkSubgroup && (
           <Button variant="secondary" onClick={() => (selectMode ? exitSelect() : setSelectMode(true))}>
@@ -96,7 +96,7 @@ export function AdminMembers() {
         )}
       </div>
       {selectMode ? (
-        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
+        <div className="mb-4 flex flex-wrap items-center gap-2 border-l-2 border-primary bg-primary/[0.06] px-4 py-3">
           <span className="font-mono text-xs font-semibold text-primary">
             {t('admin.members.bulkMove.selected', { n: selected.size })}
           </span>
@@ -121,17 +121,17 @@ export function AdminMembers() {
           </Button>
         </div>
       ) : (
-        <div className="mb-3 font-mono text-xs uppercase tracking-wide text-subtle">
+        <div className="section-kicker mb-4">
           {t('admin.nav.members')} · {members.length}
         </div>
       )}
       <IconKey items={['newMemberStar']} />
       {sections.map(({ group, list }) => (
-        <section key={group || 'none'} className="mb-6">
-          <h3 className="mb-2 font-display text-base font-semibold text-text">
+        <section key={group || 'none'} className="mb-8">
+          <h3 className="mb-3 border-b border-border pb-2 font-display text-base font-bold text-text">
             {group || '—'} <span className="text-sm font-normal text-muted">· {list.length}</span>
           </h3>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
             {list.map((m) => {
               const sel = selectMode && selected.has(m.id)
               return (
@@ -140,14 +140,22 @@ export function AdminMembers() {
                   type="button"
                   onClick={() => (selectMode ? toggleSel(m.id) : setEditing(m))}
                   className={
-                    'rounded-lg border bg-surface p-3 text-left transition-colors hover:bg-surface-alt ' +
+                    'min-h-20 rounded-md border bg-surface p-3.5 text-left transition-colors hover:border-primary/30 hover:bg-surface-alt ' +
                     (sel ? 'border-primary ring-2 ring-primary/40' : 'border-border')
                   }
                 >
                   <div className="text-base font-semibold text-text">
-                    {selectMode && <span className="mr-1 text-primary">{sel ? '☑' : '☐'}</span>}
+                    {selectMode && (
+                      <span className="mr-2 inline-grid h-4 w-4 place-items-center rounded-[2px] border border-primary align-middle text-[10px] text-primary">
+                        {sel ? '✓' : ''}
+                      </span>
+                    )}
                     {m.name}
-                    {m.is_new_member && <span className="ml-1 text-xs">🌟</span>}
+                    {m.is_new_member && (
+                      <span className="ml-2 rounded-sm bg-gold/10 px-1.5 py-0.5 align-middle text-[10px] font-semibold text-gold">
+                        {t('admin.iconKey.newMemberStar')}
+                      </span>
+                    )}
                   </div>
                   <div className="text-xs text-muted">{[m.group_name, m.subgroup].filter(Boolean).join(' · ') || '—'}</div>
                   {m.member_role && <div className="mt-1 font-mono text-[11px] text-subtle">{m.member_role}</div>}
@@ -162,13 +170,13 @@ export function AdminMembers() {
           <div className="mb-3 mt-6 font-mono text-xs uppercase tracking-wide text-subtle">
             {t('admin.members.staffSection')} · {staffMembers.length}
           </div>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
             {staffMembers.map((m) => (
               <button
                 key={m.id}
                 type="button"
                 onClick={() => setEditing(m)}
-                className="rounded-lg border border-border bg-surface p-3 text-left transition-colors hover:bg-surface-alt"
+                className="min-h-20 rounded-md border border-border bg-surface p-3.5 text-left transition-colors hover:border-primary/30 hover:bg-surface-alt"
               >
                 <div className="text-base font-semibold text-text">{m.name}</div>
                 <div className="text-xs text-muted">{m.member_role || '—'}</div>
@@ -269,4 +277,3 @@ function MergeModal({ members, onClose }: { members: Member[]; onClose: () => vo
     </Dialog>
   )
 }
-

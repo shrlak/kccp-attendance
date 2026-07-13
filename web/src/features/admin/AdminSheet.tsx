@@ -382,6 +382,7 @@ function GridView({ members, log, lang, today, filter }: { members: Member[]; lo
 }
 
 function LogView({ log, empty }: { log: LogEntry[]; empty: string }) {
+  const { t } = useTranslation()
   if (log.length === 0) return <p className="text-sm text-muted">{empty}</p>
   return (
     <ul className="flex flex-col gap-1.5">
@@ -389,7 +390,11 @@ function LogView({ log, empty }: { log: LogEntry[]; empty: string }) {
         <li key={`${e.name}-${e.ts}`} className="flex items-center justify-between rounded-md border border-border bg-surface px-3 py-2 text-sm">
           <span className="font-medium text-text">
             {e.name}
-            {e.firstVisit && <span className="ml-1.5 text-xs">🌟</span>}
+            {e.firstVisit && (
+              <span className="ml-2 rounded-sm bg-gold/10 px-1.5 py-0.5 align-middle text-[10px] font-semibold text-gold">
+                {t('admin.iconKey.firstVisit')}
+              </span>
+            )}
           </span>
           <span className="font-mono text-xs text-muted">
             {e.date} · {e.time}

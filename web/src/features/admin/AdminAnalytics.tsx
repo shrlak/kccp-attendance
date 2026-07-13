@@ -153,9 +153,9 @@ function SummaryTable({ head, rows }: { head: string[]; rows: { key: string; cel
 
 function Section({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
   return (
-    <section className="rounded-lg border border-border bg-surface p-4">
-      <div className="mb-2 flex items-center justify-between">
-        <h3 className="font-mono text-xs uppercase tracking-wide text-subtle">{title}</h3>
+    <section className="surface-panel p-5">
+      <div className="mb-3 flex items-center justify-between border-b border-border pb-3">
+        <h3 className="section-kicker">{title}</h3>
         {action}
       </div>
       {children}

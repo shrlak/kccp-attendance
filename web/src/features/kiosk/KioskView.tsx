@@ -18,11 +18,12 @@ import { KioskGuestDialog } from './KioskGuestDialog'
 import { KioskNewMemberDialog } from './KioskNewMemberDialog'
 import { ThemeLangToggle } from '../../components/ui/ThemeLangToggle'
 import { Search, Check, Clock, ClipboardList, RotateCcw, AlertTriangle } from '../../components/ui/Icon'
+import { KccpMark } from '../checkin/KccpMark'
 
 // Dept color survives only as the section-header underline; tiles themselves stay neutral.
 const DEPT_COLOR: Record<KioskDept, string> = { 대학부: 'var(--warning)', 청년부: 'var(--info)' }
-const TILE = 'border-border bg-surface text-text hover:bg-surface-alt'
-const DONE_TILE = 'border-success/40 bg-success/10 text-success'
+const TILE = 'border-border bg-surface text-text hover:border-primary/35 hover:bg-surface-alt'
+const DONE_TILE = 'border-success bg-success text-white dark:text-[#102219]'
 
 // Full-screen kiosk for touchscreen attendance (Phase 3). Runs on an already-verified
 // admin device, so taps go through the hardened member-checkin endpoint. Auto-refreshes
@@ -95,7 +96,7 @@ export function KioskView({ onExit }: { onExit: () => void }) {
       <button
         type="button"
         onClick={() => void tap(m)}
-        className={'flex min-h-12 items-center justify-center gap-1 rounded-xl border px-2 py-2.5 text-sm font-semibold transition-colors ' + (done ? DONE_TILE : TILE)}
+        className={'flex min-h-14 items-center justify-center gap-1.5 rounded-md border px-2 py-3 text-sm font-semibold transition-colors active:translate-y-px ' + (done ? DONE_TILE : TILE)}
       >
         {done && <Check className="size-3.5 shrink-0" aria-hidden />}
         {m.name}
@@ -106,12 +107,19 @@ export function KioskView({ onExit }: { onExit: () => void }) {
   return (
     <div className="fixed inset-0 z-[999] flex flex-col bg-canvas">
       {/* Header: title + live attendance count + exit */}
-      <header className="flex items-center justify-between gap-3 border-b border-border px-5 py-3 pt-[calc(0.75rem+env(safe-area-inset-top))]">
-        <div>
-          <div className="font-display text-lg font-semibold text-text">{t('kiosk.title')}</div>
-          <div className="text-xs text-muted">{t('kiosk.count', { n: count })}</div>
+      <header className="flex items-center justify-between gap-3 border-b border-nav-border bg-nav px-5 py-3 text-white pt-[calc(0.75rem+env(safe-area-inset-top))] sm:px-7">
+        <div className="flex items-center gap-3">
+          <KccpMark size={32} />
+          <div>
+            <div className="font-display text-lg font-bold tracking-tight">{t('kiosk.title')}</div>
+            <div className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-nav-muted">KCCP Sunday Check-in</div>
+          </div>
         </div>
         <div className="flex items-center gap-1">
+          <div className="mr-2 hidden border-r border-nav-border pr-4 text-right sm:block">
+            <div className="text-xl font-bold tabular-nums">{count}</div>
+            <div className="text-[10px] font-semibold text-nav-muted">{t('kiosk.count', { n: count })}</div>
+          </div>
           <ThemeLangToggle />
           {/* One-tap exit, no confirmation — the session stays signed in and lands on
               the admin panel (KioskShell navigates to /admin; the admin-launched
@@ -119,14 +127,15 @@ export function KioskView({ onExit }: { onExit: () => void }) {
           <button
             type="button"
             onClick={onExit}
-            className="min-h-11 rounded-full bg-surface-alt px-4 text-sm font-semibold text-muted hover:bg-border"
+            className="min-h-10 rounded-sm border border-nav-border bg-white/[0.06] px-3.5 text-sm font-semibold text-white hover:bg-white/[0.12]"
           >
             {t('kiosk.exit')}
           </button>
         </div>
       </header>
 
-      <div className="relative mx-5 mt-3">
+      <div className="mx-auto w-full max-w-[1500px] px-5 pt-4 sm:px-7">
+        <div className="relative">
         <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-subtle" aria-hidden />
         <input
           value={search}
@@ -136,11 +145,13 @@ export function KioskView({ onExit }: { onExit: () => void }) {
           autoComplete="off"
           autoCorrect="off"
           spellCheck={false}
-          className="w-full rounded-xl border border-border bg-surface py-3 pl-10 pr-4 text-base text-text outline-none focus-visible:border-primary"
+          className="w-full rounded-md border border-border bg-surface py-3.5 pl-10 pr-4 text-base text-text shadow-sm outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/15"
         />
+        </div>
+        <div className="mt-2 text-right text-xs font-semibold text-muted sm:hidden">{t('kiosk.count', { n: count })}</div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 py-3">
+      <div className="mx-auto w-full max-w-[1500px] flex-1 overflow-y-auto px-5 py-4 sm:px-7">
         {isLoading ? (
           <p className="py-12 text-center text-sm text-muted">{t('common.loading')}</p>
         ) : !hasAnyResult ? (
@@ -149,13 +160,13 @@ export function KioskView({ onExit }: { onExit: () => void }) {
           </p>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-6">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-6">
               {cols.depts.map((dept) =>
                 dept.thirds.map((part, i) => (
                   <div key={`${dept.key}-${i}`} className="flex flex-col gap-2">
                     <div
-                      className="border-b border-border pb-1 text-xs font-semibold uppercase tracking-wide"
-                      style={{ color: DEPT_COLOR[dept.key] }}
+                      className="border-b-2 pb-2 text-xs font-bold uppercase tracking-wide"
+                      style={{ color: DEPT_COLOR[dept.key], borderColor: DEPT_COLOR[dept.key] }}
                     >
                       {i === 0 ? (
                         <>
@@ -191,24 +202,24 @@ export function KioskView({ onExit }: { onExit: () => void }) {
       </div>
 
       {/* Footer: guest + 새가족 registration */}
-      <footer className="flex gap-3 border-t border-border px-5 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+      <footer className="flex gap-3 border-t border-border bg-surface px-5 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:px-7">
         <button
           type="button"
           onClick={() => setDialog('guest')}
-          className="min-h-12 flex-1 rounded-full border border-border bg-surface text-sm font-semibold text-text hover:bg-surface-alt"
+          className="min-h-12 flex-1 rounded-md border border-border bg-surface text-sm font-semibold text-text hover:border-primary/35 hover:bg-surface-alt"
         >
           {t('kiosk.guest.action')}
         </button>
         <button
           type="button"
           onClick={() => setDialog('newMember')}
-          className="min-h-12 flex-1 rounded-full border border-border bg-surface text-sm font-semibold text-text hover:bg-surface-alt"
+          className="min-h-12 flex-1 rounded-md border border-primary bg-primary text-sm font-semibold text-primary-fg hover:bg-primary-hover"
         >
           {t('kiosk.newMember.action')}
         </button>
       </footer>
 
-      {overlay && <SuccessOverlay tone={overlay.tone} name={overlay.name} />}
+      {overlay && <SuccessOverlay tone={overlay.tone} name={overlay.name} detail={overlay.detail} />}
 
       <KioskGuestDialog open={dialog === 'guest'} onClose={() => setDialog(null)} />
       <KioskNewMemberDialog open={dialog === 'newMember'} onClose={() => setDialog(null)} />
@@ -237,11 +248,11 @@ function SuccessOverlay({ tone, name, detail }: { tone: OverlayTone; name: strin
     <div
       role="status"
       aria-live="polite"
-      className="fixed inset-0 z-[1002] flex flex-col items-center justify-center bg-canvas/95 px-6 text-center"
+      className="fixed inset-0 z-[1002] flex flex-col items-center justify-center bg-nav/95 px-6 text-center backdrop-blur"
     >
       <div
-        className="mb-5 flex h-24 w-24 items-center justify-center rounded-full"
-        style={{ background: `color-mix(in oklab, ${color} 12%, transparent)`, color }}
+        className="mb-6 flex h-20 w-20 items-center justify-center rounded-xl border"
+        style={{ background: `color-mix(in oklab, ${color} 18%, transparent)`, borderColor: color, color }}
       >
         <OverlayIcon className={'size-10' + (tone === 'loading' ? ' fx-pulse' : '')} aria-hidden />
       </div>
@@ -256,8 +267,8 @@ function SuccessOverlay({ tone, name, detail }: { tone: OverlayTone; name: strin
                 ? t('kiosk.fail')
                 : t('kiosk.success')}
       </div>
-      <div className="mt-1 text-base font-medium text-text">{name}</div>
-      {tone === 'error' && detail && <div className="mt-2 max-w-xs text-xs text-muted">{detail}</div>}
+      <div className="mt-2 text-base font-semibold text-white">{name}</div>
+      {tone === 'error' && detail && <div className="mt-3 max-w-xs text-xs text-nav-muted">{detail}</div>}
     </div>
   )
 }

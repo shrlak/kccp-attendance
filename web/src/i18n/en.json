@@ -45,10 +45,26 @@
   },
   "announce": { "label": "Notice" },
   "landing": {
-    "title": "KCCP Attendance System",
+    "title": "Sunday attendance that remembers each person",
     "subtitle": "Korean Central Church of Pittsburgh · College & Young Adult",
-    "kioskNote": "Check in at the church kiosk",
-    "kioskButton": "Attendance Kiosk"
+    "description": "A clear attendance record helps our ministry welcome new people, notice who has been away, and care for the community well.",
+    "today": "Pittsburgh local date",
+    "checkinMethod": "How to check in",
+    "checkinMethodValue": "Choose your name at the church kiosk",
+    "attendanceDesk": "Sunday attendance",
+    "thisSunday": "Today's check-in",
+    "kioskNote": "Start the kiosk on the church tablet, then tap a name once to record attendance.",
+    "memberCheckinHelp": "Use the button below to record attendance from this device.",
+    "kioskButton": "Start church kiosk",
+    "privacyNote": "Attendance information is used only for community care and ministry operations."
+  },
+  "access": {
+    "adminEyebrow": "Admin workspace",
+    "kioskEyebrow": "On-site attendance mode",
+    "sideTitle": "Attendance records built for community care",
+    "sideText": "Leaders and the welcome team share one clear record, so the next follow-up is not missed.",
+    "secure": "Access is limited to approved ministry staff",
+    "backHome": "Return to attendance information"
   },
   "kiosk": {
     "title": "Attendance Kiosk",
@@ -98,10 +114,12 @@
     }
   },
   "common": { "cancel": "Cancel", "save": "Save", "loading": "Loading…", "error": "Connection error", "retry": "Try again", "close": "Close" },
-  "notFound": { "message": "We couldn’t find that page", "home": "Back to check-in" },
+  "notFound": { "message": "We couldn’t find that page", "description": "Return to the KCCP College & Young Adult attendance page and start again.", "home": "Back to attendance" },
   "admin": {
     "title": "Admin",
     "pageTitle": "Admin Page",
+    "workspace": "College · Young Adult",
+    "serviceOps": "Sunday operations",
     "subtitle": "Sign in with your Google account",
     "signInWithGoogle": "Sign in with Google",
     "googleError": "This Google account has no admin access",
@@ -115,6 +133,17 @@
     "scopeAll": "All",
     "roles": { "super_admin": "Super admin", "leader": "Leader", "pastor": "Pastor", "welcoming": "Welcome team", "staff": "Staff" },
     "nav": { "today": "Today", "sheet": "Sheet", "members": "Members", "analytics": "Analytics", "newfamily": "New family", "visitors": "Visitors", "admins": "Admins", "dongsan": "동산", "settings": "Settings" },
+    "navHelp": {
+      "today": "Today's attendance and week-over-week view",
+      "sheet": "Review and export Sunday attendance records",
+      "members": "Manage the community roster and individual records",
+      "analytics": "Understand attendance patterns across ministries",
+      "newfamily": "Track registration and settling-in steps",
+      "visitors": "Review guest visits and returning visitors",
+      "admins": "Manage access and approval requests",
+      "dongsan": "Organize dongsan groups and leaders",
+      "settings": "Set attendance hours and operating modes"
+    },
     "filter": { "all": "All" },
     "dongsanRole": { "leader": "Leader", "subleader": "Sub-leader" },
     "analytics": { "trend": "Attendance trend", "groupCompare": "Group comparison", "attendance": "Attendance", "monthly": "Monthly summary", "semester": "Semester summary", "weeklyRecap": "Weekly recap", "month": "Month", "date": "Date", "sundays": "Sundays", "attendees": "Attendees", "firstVisits": "First visits", "half1": "Spring", "half2": "Fall", "copy": "Copy", "copied": "Copied to clipboard" },
@@ -122,7 +151,7 @@
     "newfamily": { "title": "New family", "empty": "No new family this semester", "monthly": "Monthly registrations", "noRegDate": "No registration date", "pastoralVisit": "Visit requested", "legend": "🙏 pastoral visit requested", "edu1": "Class wk 1", "edu2": "Class wk 2", "season": { "spring": "Spring", "summer": "Summer", "fall": "Fall" }, "export": { "action": "Export", "title": "Export new family", "select": "Choose who to export. Today's registrations are pre-selected.", "selected": "{{n}} selected", "all": "Select all", "none": "Clear selection", "noMatch": "No members found", "cardsConfirm": "Download cards ({{n}})", "cardsBusy": "Exporting cards…", "cardsDone": "Saved the registration cards (JPG) and copied them to the clipboard", "cardsDownloadedOnly": "Saved the registration cards (JPG) — this browser can't copy images to the clipboard", "cardsFailed": "Couldn't create the image", "excelConfirm": "Export to Excel ({{n}})", "excelBusy": "Building the spreadsheet…", "excelDone": "Saved the new-family info as an Excel file", "excelFailed": "Couldn't create the Excel file" }, "scan": { "action": "Scan card", "title": "Register from card photo", "hint": "Take or upload photos of the 새가족 registration cards — you can select several at once.", "pick": "Choose card photos", "extracting": "Reading the card… this can take a moment", "reviewHint": "Review the extracted fields, fix anything misread, then register.", "checkinToday": "Check in for today", "retake": "Choose another photo", "skip": "Skip this card", "progress": "Card {{n}} / {{total}}", "submit": "Register", "done": "{{name}} registered", "failed": "Could not read the card", "badImage": "Could not read that image" } },
     "visitors": { "title": "Visit history", "empty": "No visitor records yet", "today": "Today", "returning": "{{n}} visits", "stats": { "today": "Today", "total": "Total visits", "unique": "Visitors" } },
     "stats": { "today": "Checked in today", "members": "Total members", "records": "Records", "days": "Worship Sundays" },
-    "iconKey": { "newFamily": "✝️ new family", "visitor": "👋 visitor", "firstVisit": "🌟 first visit", "newMemberStar": "🌟 new member" },
+    "iconKey": { "legend": "Status legend", "newFamily": "New family", "visitor": "Visitor", "firstVisit": "First visit", "newMemberStar": "New member" },
     "dashboard": { "present": "Present", "absent": "Absent", "avgRate": "4-wk avg" },
     "members": { "search": "Search name", "bulkMove": { "action": "Move 동산", "selected": "{{n}} selected", "placeholder": "Select 동산", "moveTo": "Move here", "remove": "Remove from 동산", "done": "Moved {{n}}" }, "edit": "Edit member", "saved": "Saved", "name": "Name", "group": "Group", "subgroup": "동산", "memberRole": "Role", "gender": "Gender", "phone": "Phone", "kakaoId": "KakaoTalk ID", "birthDate": "Birthday", "notes": "Notes", "isNewMember": "New member", "card": { "section": "새가족 등록 카드", "download": "Download card (JPG)", "done": "Saved the registration card (JPG)", "removeReg": "Clear 등록일 · remove from the new-family list" }, "sectionBasic": "Basics", "sectionPersonal": "Personal info", "statusSection": "Status mark", "statusHelp": "Fill this in only when someone moves away or returns to Korea. The covered period shows grey on the attendance sheet.", "statusNote": "Status mark (moved · returned to Korea …)", "statusStart": "Mark start date", "statusEnd": "Mark end date (blank = rest of term)", "merge": { "action": "Merge", "title": "Merge members", "help": "Move one member's devices and attendance into another, then delete the original. This cannot be undone.", "from": "Member to merge (removed)", "to": "Member to keep", "warn": "{{summary}} — this cannot be undone.", "confirm": "Merge", "done": "Members merged" }, "delete": { "action": "Delete member", "warn": "This member and all their attendance records will be permanently deleted. This cannot be undone.", "confirm": "Delete", "done": "{{name}} deleted" }, "attendance": { "action": "Attendance", "title": "Attendance", "date": "Date", "add": "Add", "remove": "Remove", "total": "{{n}} record(s)", "empty": "No attendance records", "added": "Attendance added", "removed": "Attendance removed", "already": "An entry for that date already exists" }, "staffSection": "Staff accounts" },
     "today": { "title": "Today", "none": "No check-ins yet", "thisWeek": "This week's check-ins", "lastWeek": "Last week's check-ins", "change": "Change vs last week", "manualCheckin": { "action": "Check in", "title": "Manual check-in", "present": "Present", "none": "No members found", "done": "Checked in {{name}}", "already": "{{name}} is already checked in" }, "export": { "action": "Sheet image", "busy": "Exporting…", "done": "Saved the sheet images (JPG) and copied them to the clipboard", "downloadedOnly": "Saved the sheet images (JPG) — clipboard copy isn’t supported in this browser", "failed": "Could not create the image" } },

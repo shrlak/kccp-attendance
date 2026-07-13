@@ -8,12 +8,12 @@ import type { Member, LogEntry } from '../../lib/api'
 
 // Per-부서 bar colors (대학부 yellow, 청년부 blue, then a small palette).
 const GROUP_COLORS: Record<string, string> = {
-  대학부: '#E0A800',
-  청년부: '#3B82F6',
-  EM: '#10B981',
-  'Adult Ministry': '#A855F7',
+  대학부: '#9A682C',
+  청년부: '#315F78',
+  EM: '#2F704F',
+  'Adult Ministry': '#75567D',
 }
-const FALLBACK = ['#D9603D', '#0EA5E9', '#F97316', '#84CC16', '#EC4899']
+const FALLBACK = ['#A33E34', '#4A7182', '#9A682C', '#637A52', '#835E70']
 const colorFor = (group: string, i: number) => GROUP_COLORS[group] ?? FALLBACK[i % FALLBACK.length]
 
 // Inline plugin that prints each datapoint's value just above its dot on the trend
@@ -97,8 +97,8 @@ export function AnalyticsCharts({ members, log }: { members: Member[]; log: LogE
           {
             label: t('admin.analytics.attendance'),
             data: trend.map((p) => p.count),
-            borderColor: '#D9603D',
-            backgroundColor: 'rgba(217,96,61,0.15)',
+            borderColor: '#245441',
+            backgroundColor: 'rgba(36,84,65,0.12)',
             tension: 0.25,
             fill: true,
             pointRadius: 3,
@@ -164,8 +164,8 @@ export function AnalyticsCharts({ members, log }: { members: Member[]; log: LogE
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-border bg-surface p-4">
-      <h3 className="mb-3 font-mono text-xs uppercase tracking-wide text-subtle">{title}</h3>
+    <div className="surface-panel p-5">
+      <h3 className="section-kicker mb-4 border-b border-border pb-3">{title}</h3>
       <div className="relative h-56">{children}</div>
     </div>
   )
