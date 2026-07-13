@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRoster } from '../admin/useRoster'
 import { easternNow } from '../../lib/checkinWindow'
-import { memberCheckin, removeAttendance, type Member } from '../../lib/api'
+import { memberCheckin, removeAttendance, getConfig, type Member } from '../../lib/api'
+import { resolveGroupColor, hexTint } from '../admin/groupColors'
 import {
   kioskColumns,
   filterByName,
@@ -11,7 +12,6 @@ import {
   attendanceCount,
   todayEntryFor,
   hiddenByStatus,
-  type KioskDept,
 } from './kiosk'
 import { useKioskLive, broadcastKioskChange } from './live'
 import { KioskGuestDialog } from './KioskGuestDialog'
@@ -20,8 +20,6 @@ import { ThemeLangToggle } from '../../components/ui/ThemeLangToggle'
 import { Search, Check, Clock, ClipboardList, RotateCcw, AlertTriangle } from '../../components/ui/Icon'
 import { KccpMark } from '../checkin/KccpMark'
 
-// Dept color survives only as the section-header underline; tiles themselves stay neutral.
-const DEPT_COLOR: Record<KioskDept, string> = { 대학부: 'var(--warning)', 청년부: 'var(--info)' }
 const TILE = 'border-border bg-surface text-text hover:border-primary/35 hover:bg-surface-alt'
 const DONE_TILE = 'border-primary bg-primary text-white'
 
@@ -32,6 +30,7 @@ export function KioskView({ onExit }: { onExit: () => void }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const { data, isLoading } = useRoster(true)
+  const { data: cfg } = useQuery({ queryKey: ['config'], queryFn: getConfig })
   const [search, setSearch] = useState('')
   const [overlay, setOverlay] = useState<{ tone: OverlayTone; name: string; detail?: string } | null>(null)
   const [dialog, setDialog] = useState<'guest' | 'newMember' | null>(null)
@@ -160,30 +159,37 @@ export function KioskView({ onExit }: { onExit: () => void }) {
           </p>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-6">
-              {cols.depts.map((dept) =>
-                dept.thirds.map((part, i) => (
-                  <div key={`${dept.key}-${i}`} className="flex flex-col gap-2">
-                    <div
-                      className="border-b-2 pb-2 text-xs font-bold uppercase tracking-wide"
-                      style={{ color: DEPT_COLOR[dept.key], borderColor: DEPT_COLOR[dept.key] }}
-                    >
-                      {i === 0 ? (
-                        <>
-                          {dept.key} <span className="text-subtle">{dept.total}</span>
-                        </>
-                      ) : (
-                        ' '
-                      )}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {cols.depts.map((dept) => {
+                const color = resolveGroupColor(cfg?.groupColors, dept.key)
+                return (
+                  <div key={dept.key} className="rounded-2xl p-3" style={{ background: hexTint(color, 0.07) }}>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-5 min-[480px]:grid-cols-3">
+                      {dept.thirds.map((part, i) => (
+                        <div key={`${dept.key}-${i}`} className="flex flex-col gap-2">
+                          <div
+                            className="border-b-2 pb-2 text-xs font-bold uppercase tracking-wide"
+                            style={{ color, borderColor: color }}
+                          >
+                            {i === 0 ? (
+                              <>
+                                {dept.key} <span className="text-subtle">{dept.total}</span>
+                              </>
+                            ) : (
+                              ' '
+                            )}
+                          </div>
+                          {part.length ? (
+                            part.map((m) => <Tile key={m.id} m={m} />)
+                          ) : (
+                            <div className="py-3 text-center text-xs text-subtle">—</div>
+                          )}
+                        </div>
+                      ))}
                     </div>
-                    {part.length ? (
-                      part.map((m) => <Tile key={m.id} m={m} />)
-                    ) : (
-                      <div className="py-3 text-center text-xs text-subtle">—</div>
-                    )}
                   </div>
-                )),
-              )}
+                )
+              })}
             </div>
             {cols.others.length > 0 && (
               <>

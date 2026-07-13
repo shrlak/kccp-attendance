@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { getConfig, type AppConfig, type SelfRegisterResponse } from '../../lib/api'
+import { DEFAULT_GROUP_COLORS } from '../admin/groupColors'
 import { isCheckinOpen, formatMinutes } from '../../lib/checkinWindow'
 import { Button } from '../../components/ui/Button'
 import { Monitor } from '../../components/ui/Icon'
@@ -24,6 +25,7 @@ const DEFAULT_CFG: AppConfig = {
   summerMode: false,
   demoMode: false,
   individualCheckinEnabled: false,
+  groupColors: DEFAULT_GROUP_COLORS,
 }
 
 function TopBar() {

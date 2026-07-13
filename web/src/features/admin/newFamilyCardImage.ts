@@ -37,6 +37,7 @@ const MIN_ROW_H = 48
 const PAD_X = 12 // value-cell horizontal padding
 const PAD_Y = 12 // value-cell vertical padding around stacked checkbox lines
 const LINE_H = 26 // one checkbox line
+const TEXT_LINE_H = 22 // one wrapped plain-text line (학교/전공 or 직장, …)
 const BOX = 13 // checkbox square
 
 const INK = '#111111'
@@ -53,6 +54,42 @@ function truncate(ctx: CanvasRenderingContext2D, text: string, maxW: number): st
   let t = text
   while (t.length > 1 && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1)
   return t + '…'
+}
+
+// Word-wrap `text` to fit `maxW` at the current ctx.font — greedy, breaking on
+// whitespace where possible and falling back to a mid-word break for a single token
+// wider than the whole cell (long school/program names with no spaces). Matches the
+// 학교/전공 or 직장 field on the printed card, which wraps instead of truncating.
+function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxW: number): string[] {
+  if (!text) return ['']
+  const words = text.split(/(\s+)/).filter((w) => w !== '')
+  const lines: string[] = []
+  let line = ''
+  for (const word of words) {
+    const test = line + word
+    if (ctx.measureText(test).width <= maxW || !line) {
+      // A lone word already wider than the cell: break it character by character.
+      if (!line && ctx.measureText(test).width > maxW && word.trim().length > 1) {
+        let chunk = ''
+        for (const ch of word) {
+          if (ctx.measureText(chunk + ch).width > maxW && chunk) {
+            lines.push(chunk)
+            chunk = ch
+          } else {
+            chunk += ch
+          }
+        }
+        line = chunk
+      } else {
+        line = test
+      }
+    } else {
+      lines.push(line.trimEnd())
+      line = word.trimStart()
+    }
+  }
+  if (line.trim()) lines.push(line.trimEnd())
+  return lines.length ? lines : ['']
 }
 
 // Width of one checkbox option (box + label + optional English caption).
@@ -79,11 +116,19 @@ function layoutChecks(ctx: CanvasRenderingContext2D, options: CardCheckOption[])
   return { placed, lines: options.length }
 }
 
-// Height one value cell needs (one line per checkbox option).
-function cellHeight(ctx: CanvasRenderingContext2D, cell: CardCell): number {
-  if (cell.content.kind !== 'checks') return MIN_ROW_H
-  const { lines } = layoutChecks(ctx, cell.content.options)
-  return Math.max(MIN_ROW_H, PAD_Y * 2 + lines * LINE_H)
+// Height one value cell needs: one line per checkbox option, or as many wrapped lines
+// as a long text value (학교/전공 or 직장, …) needs to fit `width`.
+function cellHeight(ctx: CanvasRenderingContext2D, cell: CardCell, width: number): number {
+  if (cell.content.kind === 'checks') {
+    const { lines } = layoutChecks(ctx, cell.content.options)
+    return Math.max(MIN_ROW_H, PAD_Y * 2 + lines * LINE_H)
+  }
+  if (cell.content.kind === 'text' && cell.content.text) {
+    ctx.font = VALUE_FONT
+    const lines = wrapLines(ctx, cell.content.text, width - PAD_X * 2)
+    return Math.max(MIN_ROW_H, PAD_Y * 2 + lines.length * TEXT_LINE_H)
+  }
+  return MIN_ROW_H
 }
 
 // Grey label cell: fill + bold centered text. Long labels wrap onto two centered
@@ -216,7 +261,7 @@ export function renderNewFamilyCard(m: Member): HTMLCanvasElement {
   // (checkbox groups wrap), then size the real canvas exactly.
   const meas = document.createElement('canvas').getContext('2d')
   if (!meas) throw new Error('canvas 2d context unavailable')
-  const rowHeights = model.rows.map((r) => Math.max(cellHeight(meas, r.left), cellHeight(meas, r.right)))
+  const rowHeights = model.rows.map((r) => Math.max(cellHeight(meas, r.left, VALUE1_W), cellHeight(meas, r.right, VALUE2_W)))
   const tableH = TITLE_H + rowHeights.reduce((a, b) => a + b, 0)
   const H = MARGIN * 2 + tableH
 
@@ -259,7 +304,11 @@ export function renderNewFamilyCard(m: Member): HTMLCanvasElement {
       if (c.kind === 'text') {
         ctx.fillStyle = INK
         ctx.font = VALUE_FONT
-        if (c.text) ctx.fillText(truncate(ctx, c.text, vw - PAD_X * 2), vx + PAD_X, y + h / 2 + 1)
+        if (c.text) {
+          const lines = wrapLines(ctx, c.text, vw - PAD_X * 2)
+          const top2 = y + (h - lines.length * TEXT_LINE_H) / 2
+          lines.forEach((ln, li) => ctx.fillText(ln, vx + PAD_X, top2 + li * TEXT_LINE_H + TEXT_LINE_H / 2 + 1))
+        }
       } else if (c.kind === 'name') {
         drawNameCell(ctx, c, vx, y, vw, h)
       } else {
@@ -311,18 +360,25 @@ export function cardFilenames(members: Pick<Member, 'name'>[], date: string): st
   })
 }
 
-// Render every member's card and download each person's card as its own JPG.
-// The clipboard (which can only hold one image) gets all of them stacked into a
-// single image. Returns whether the clipboard copy succeeded (downloads happen
-// regardless).
-export async function exportNewFamilyCards(members: Member[], date: string): Promise<{ copied: boolean }> {
+// Render every member's card. Shared by the copy/save actions below so there's one
+// render pass regardless of which (or both) the operator picks.
+async function buildNewFamilyCards(members: Member[]): Promise<HTMLCanvasElement[]> {
   await ensureSheetFonts()
-  const cards = members.map(renderNewFamilyCard)
+  return members.map(renderNewFamilyCard)
+}
 
-  // Copy first — closest to the originating click, so the clipboard write keeps its
-  // transient user activation before the downloads (and their delays) run.
+// Copy every card, stacked into a single image (the clipboard can only hold one), to
+// the clipboard. Returns whether the copy succeeded — false (no throw) when the
+// browser can't do it.
+export async function copyNewFamilyCards(members: Member[]): Promise<{ copied: boolean }> {
+  const cards = await buildNewFamilyCards(members)
   const copied = await copyCanvasToClipboard(combineVertical(cards, 24 * SCALE))
+  return { copied }
+}
 
+// Download each person's card as its own JPG.
+export async function saveNewFamilyCards(members: Member[], date: string): Promise<void> {
+  const cards = await buildNewFamilyCards(members)
   const filenames = cardFilenames(members, date)
   for (let i = 0; i < cards.length; i++) {
     const blob = await canvasToBlob(cards[i], 'image/jpeg', 0.95)
@@ -330,5 +386,4 @@ export async function exportNewFamilyCards(members: Member[], date: string): Pro
     // A short gap so the browser accepts back-to-back downloads (as the 출석표 export).
     if (i < cards.length - 1) await new Promise((resolve) => setTimeout(resolve, 250))
   }
-  return { copied }
 }

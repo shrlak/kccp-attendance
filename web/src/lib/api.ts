@@ -65,6 +65,11 @@ export interface AppConfig {
   summerMode: boolean
   demoMode: boolean
   individualCheckinEnabled: boolean
+  // 대학부/청년부 accent colors (hex, e.g. "#E0A800") — drives the 오늘 tab's name icons,
+  // the kiosk's per-부서 tile backgrounds, and the 멤버 tab's per-부서 card backgrounds.
+  // Keyed by group name; falls back to DEFAULT_GROUP_COLORS (./features/admin/groupColors)
+  // for any group not present.
+  groupColors: Record<string, string>
 }
 
 export const getConfig = () => api<AppConfig>('GET', '/api/config')
@@ -140,7 +145,7 @@ export interface Member {
   registration_date?: string | null
   new_member_edu_week1?: boolean
   new_member_edu_week2?: boolean
-  pastoral_visit_requested?: boolean
+  pastoral_visit_requested?: boolean | null
   // 새가족 등록 카드 fields (stored on members; /api/roster returns them via select *).
   baptism_status?: string
   school_or_work?: string
@@ -219,6 +224,7 @@ export interface SettingsPatch {
   demoMode?: boolean
   individualCheckinEnabled?: boolean
   requireApproval?: boolean
+  groupColors?: Record<string, string>
 }
 
 // Update any subset of the app-wide settings (super-admin). Same endpoint as the
@@ -348,7 +354,7 @@ export interface MemberEdit {
   baptismStatus?: string
   schoolOrWork?: string
   faithDuration?: string
-  pastoralVisitRequested?: boolean
+  pastoralVisitRequested?: boolean | null
   statusNote?: string
   statusStart?: string | null
   statusEnd?: string | null
@@ -425,7 +431,7 @@ export interface NewMemberFields {
   faithDuration?: string
   // 등록일 (registration date). Optional; server defaults to today when omitted.
   registrationDate?: string | null
-  pastoralVisitRequested?: boolean
+  pastoralVisitRequested?: boolean | null
   // Admin card-scan path: create the member + device but skip today's attendance row
   // (e.g. entering a stack of paper cards later in the week). Kiosk never sends this.
   skipCheckin?: boolean

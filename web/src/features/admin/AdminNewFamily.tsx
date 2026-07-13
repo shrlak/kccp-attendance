@@ -5,7 +5,7 @@ import { useRoster } from './useRoster'
 import { easternNow } from '../../lib/checkinWindow'
 import { filterMembers, NO_FILTER, type Filter } from './filters'
 import { semesterKey, newFamilyByDate, monthlyRegistrations } from './newFamily'
-import { exportNewFamilyCards } from './newFamilyCardImage'
+import { copyNewFamilyCards, saveNewFamilyCards } from './newFamilyCardImage'
 import { newFamilySheets, NEW_FAMILY_HEADER } from './exports'
 import { toggleId } from './bulk'
 import { GroupFilter } from './GroupFilter'
@@ -184,25 +184,35 @@ function ExportModal({ members, today, onClose }: { members: Member[]; today: st
   const [selected, setSelected] = useState<Set<string>>(
     () => new Set(members.filter((m) => m.registration_date === today).map((m) => m.id)),
   )
-  const [busy, setBusy] = useState<'cards' | 'excel' | null>(null)
+  const [busy, setBusy] = useState<'cardsCopy' | 'cardsSave' | 'excel' | null>(null)
 
   const q = search.trim().toLowerCase()
   const visible = q ? members.filter((m) => m.name.toLowerCase().includes(q)) : members
   // Export in the tab's display order (newest registration date first).
   const chosen = () => members.filter((m) => selected.has(m.id))
 
-  async function confirmCards() {
+  async function confirmCopyCards() {
     const list = chosen()
     if (!list.length) return
-    setBusy('cards')
+    setBusy('cardsCopy')
     try {
-      const { copied } = await exportNewFamilyCards(list, today)
-      toast({
-        title: t(copied ? 'admin.newfamily.export.cardsDone' : 'admin.newfamily.export.cardsDownloadedOnly'),
-        tone: 'ok',
-      })
+      const { copied } = await copyNewFamilyCards(list)
+      toast({ title: t(copied ? 'admin.newfamily.export.cardsCopyDone' : 'admin.newfamily.export.cardsCopyFailed'), tone: copied ? 'ok' : 'err' })
     } catch {
-      toast({ title: t('admin.newfamily.export.cardsFailed'), tone: 'err' })
+      toast({ title: t('admin.newfamily.export.cardsSaveFailed'), tone: 'err' })
+    }
+    onClose()
+  }
+
+  async function confirmSaveCards() {
+    const list = chosen()
+    if (!list.length) return
+    setBusy('cardsSave')
+    try {
+      await saveNewFamilyCards(list, today)
+      toast({ title: t('admin.newfamily.export.cardsSaveDone'), tone: 'ok' })
+    } catch {
+      toast({ title: t('admin.newfamily.export.cardsSaveFailed'), tone: 'err' })
     }
     onClose()
   }
@@ -271,9 +281,17 @@ function ExportModal({ members, today, onClose }: { members: Member[]; today: st
           </li>
         ))}
       </ul>
-      <div className="mt-4 flex gap-2">
-        <Button onClick={() => void confirmCards()} disabled={busy !== null || selected.size === 0} className="flex-1">
-          {busy === 'cards' ? t('admin.newfamily.export.cardsBusy') : t('admin.newfamily.export.cardsConfirm', { n: selected.size })}
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Button onClick={() => void confirmCopyCards()} disabled={busy !== null || selected.size === 0} className="flex-1">
+          {busy === 'cardsCopy' ? t('admin.newfamily.export.cardsCopyBusy') : t('admin.newfamily.export.cardsCopyConfirm', { n: selected.size })}
+        </Button>
+        <Button
+          variant="secondary"
+          onClick={() => void confirmSaveCards()}
+          disabled={busy !== null || selected.size === 0}
+          className="flex-1"
+        >
+          {busy === 'cardsSave' ? t('admin.newfamily.export.cardsSaveBusy') : t('admin.newfamily.export.cardsSaveConfirm', { n: selected.size })}
         </Button>
         <Button
           variant="secondary"

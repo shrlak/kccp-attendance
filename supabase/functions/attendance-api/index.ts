@@ -296,7 +296,7 @@ Deno.serve(async (req: Request) => {
     if(req.method==="POST"&&p==="/api/admin/settings") {
       const role=await resolveAdmin(sb,req);
       if(role?.role!=="super_admin") return fail(403,"Super admin required");
-      const {checkinDays,checkinStartMin,checkinEndMin,announcement,summerMode,demoMode,individualCheckinEnabled,requireApproval}=body;
+      const {checkinDays,checkinStartMin,checkinEndMin,announcement,summerMode,demoMode,individualCheckinEnabled,requireApproval,groupColors}=body;
       const upd: any={updated_at:new Date().toISOString()};
       if(checkinDays!==undefined) upd.checkin_days=checkinDays;
       if(checkinStartMin!==undefined) upd.checkin_start_min=Number(checkinStartMin);
@@ -306,6 +306,11 @@ Deno.serve(async (req: Request) => {
       if(demoMode!==undefined) upd.demo_mode=!!demoMode;
       if(individualCheckinEnabled!==undefined) upd.individual_checkin_enabled=!!individualCheckinEnabled;
       if(requireApproval!==undefined) upd.require_approval=!!requireApproval;
+      if(groupColors!==undefined&&groupColors&&typeof groupColors==="object"){
+        const HEX=/^#[0-9a-fA-F]{6}$/; const clean: Record<string,string>={};
+        for(const [g,c] of Object.entries(groupColors)) if(typeof c==="string"&&HEX.test(c)) clean[g]=c;
+        upd.group_colors=clean;
+      }
       await sb.from("config").update(upd).eq("id",1);
       return ok({status:"ok"});
     }
@@ -873,7 +878,7 @@ Deno.serve(async (req: Request) => {
         // 등록일자 defaults to the date the member is added but the operator may set it
         // explicitly (e.g. back-fill someone who joined earlier). Attendance percentages
         // count from this date.
-        registration_date:(body.registrationDate||"").trim()||today,pastoral_visit_requested:!!body.pastoralVisitRequested,
+        registration_date:(body.registrationDate||"").trim()||today,pastoral_visit_requested:body.pastoralVisitRequested===true?true:body.pastoralVisitRequested===false?false:null,
       }).select("id").single();
       const memberId=(created as {id?:string}|null)?.id||null;
       if(!memberId) return fail(500,"Could not create member");
@@ -1196,6 +1201,7 @@ Deno.serve(async (req: Request) => {
         summerMode:cfg.summer_mode||false,
         demoMode:cfg.demo_mode||false,
         individualCheckinEnabled:cfg.individual_checkin_enabled||false,
+        groupColors:cfg.group_colors||{"대학부":"#E0A800","청년부":"#3B82F6"},
       });
     }
 

@@ -1,4 +1,4 @@
-import type { InputHTMLAttributes, ReactNode } from 'react'
+import type { InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from 'react'
 import {
   CARD_TITLE,
   AFFILIATION_CATEGORIES,
@@ -97,7 +97,7 @@ export function NewFamilyCardForm({
             <tr>
               <LabelCell text="학교/전공 or 직장" />
               <ValueCell>
-                <CardInput
+                <CardTextArea
                   aria-label="학교/전공 or 직장"
                   value={value.affiliationDetail}
                   onChange={(v) => onChange({ affiliationDetail: v })}
@@ -133,10 +133,10 @@ export function NewFamilyCardForm({
                     { value: 'O', label: 'O' },
                     { value: 'X', label: 'X' },
                   ]}
-                  selected={value.pastoralVisitRequested ? 'O' : 'X'}
-                  // O/X always has one side chosen — no clearing.
-                  onSelect={(v) => onChange({ pastoralVisitRequested: v === 'O' })}
-                  allowClear={false}
+                  // Blank (neither box) until the operator taps a side — the default for a
+                  // fresh card; tapping the ticked side again clears it back to blank.
+                  selected={value.pastoralVisitRequested === true ? 'O' : value.pastoralVisitRequested === false ? 'X' : ''}
+                  onSelect={(v) => onChange({ pastoralVisitRequested: v === 'O' ? true : v === 'X' ? false : null })}
                 />
               </ValueCell>
             </tr>
@@ -173,6 +173,31 @@ function CardInput({
       onChange={(e) => onChange(e.target.value)}
       autoComplete="off"
       className={`w-full min-h-7 rounded-sm bg-transparent text-xs text-[#111] outline-none focus:bg-[#f3f4f6] ${className}`}
+    />
+  )
+}
+
+// Borderless, wrapping textarea for the one field long enough to need it (학교/전공 or
+// 직장) — long school/program/workplace names wrap onto multiple lines instead of
+// scrolling off in a single-line input.
+function CardTextArea({
+  value,
+  onChange,
+  className = '',
+  ...rest
+}: {
+  value: string
+  onChange: (v: string) => void
+  className?: string
+} & Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'value' | 'onChange' | 'className'>) {
+  return (
+    <textarea
+      {...rest}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      rows={2}
+      autoComplete="off"
+      className={`w-full min-h-7 resize-none rounded-sm bg-transparent text-xs text-[#111] outline-none focus:bg-[#f3f4f6] ${className}`}
     />
   )
 }

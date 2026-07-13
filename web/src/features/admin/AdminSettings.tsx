@@ -5,8 +5,12 @@ import { getConfig, updateCheckinWindow, updateSettings, type SettingsPatch } fr
 import { useToast } from '../../components/ui/Toast'
 import { useLang } from '../../stores/useLang'
 import { Button } from '../../components/ui/Button'
+import { Input } from '../../components/ui/Input'
 import { Switch } from '../../components/ui/Switch'
 import { minutesToHHMM, hhmmToMinutes } from './time'
+import { DEFAULT_GROUP_COLORS, isValidHex } from './groupColors'
+
+const GROUPS = ['대학부', '청년부'] as const
 
 const DAY_LABELS: Record<'ko' | 'en', string[]> = {
   ko: ['일', '월', '화', '수', '목', '금', '토'],
@@ -30,11 +34,16 @@ export function AdminSettings() {
   const [ann, setAnn] = useState<string | undefined>(undefined)
   const [annSaving, setAnnSaving] = useState(false)
   const [busyToggle, setBusyToggle] = useState<keyof SettingsPatch | null>(null)
+  const [colorEdits, setColorEdits] = useState<Record<string, string> | undefined>(undefined)
+  const [colorsSaving, setColorsSaving] = useState(false)
 
   const days = edits.days ?? cfg?.checkinDays ?? [0]
   const start = edits.start ?? (cfg ? minutesToHHMM(cfg.checkinStartMin) : '13:00')
   const end = edits.end ?? (cfg ? minutesToHHMM(cfg.checkinEndMin) : '15:00')
   const announcement = ann ?? cfg?.announcement ?? ''
+  const colors = colorEdits ?? cfg?.groupColors ?? DEFAULT_GROUP_COLORS
+  const colorsDirty = colorEdits !== undefined
+  const colorsValid = GROUPS.every((g) => isValidHex(colors[g] ?? ''))
 
   function toggleDay(d: number) {
     const next = days.includes(d) ? days.filter((x) => x !== d) : [...days, d].sort((a, b) => a - b)
@@ -66,6 +75,25 @@ export function AdminSettings() {
       toast({ title: t('common.error'), tone: 'err' })
     } finally {
       setAnnSaving(false)
+    }
+  }
+
+  function setColor(group: string, hex: string) {
+    setColorEdits({ ...colors, [group]: hex })
+  }
+
+  async function saveColors() {
+    if (!colorsValid) return
+    setColorsSaving(true)
+    try {
+      await updateSettings({ groupColors: colors })
+      await qc.invalidateQueries({ queryKey: ['config'] })
+      setColorEdits(undefined)
+      toast({ title: t('admin.settings.saved'), tone: 'ok' })
+    } catch {
+      toast({ title: t('common.error'), tone: 'err' })
+    } finally {
+      setColorsSaving(false)
     }
   }
 
@@ -180,6 +208,45 @@ export function AdminSettings() {
           onChange={(v) => flip('demoMode', v)}
         />
       </div>
+
+      <hr className="my-8 border-border" />
+
+      <h2 className="font-display text-lg font-semibold text-text">{t('admin.settings.groupColors')}</h2>
+      <p className="mb-4 mt-1 text-sm text-muted">{t('admin.settings.groupColorsDesc')}</p>
+      <div className="mb-3 flex flex-col gap-3">
+        {GROUPS.map((g) => (
+          <ColorField key={g} label={g} value={colors[g] ?? DEFAULT_GROUP_COLORS[g]} onChange={(hex) => setColor(g, hex)} />
+        ))}
+      </div>
+      {!colorsValid && <p className="mb-3 text-xs font-semibold text-danger">{t('admin.settings.groupColorInvalid')}</p>}
+      <Button onClick={saveColors} disabled={colorsSaving || !colorsDirty || !colorsValid}>
+        {colorsSaving ? t('common.loading') : t('admin.settings.save')}
+      </Button>
+    </div>
+  )
+}
+
+function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (hex: string) => void }) {
+  const valid = isValidHex(value)
+  return (
+    <div className="flex items-center gap-3">
+      <span className="w-16 shrink-0 text-sm font-semibold text-text">{label}</span>
+      <input
+        type="color"
+        aria-label={label}
+        // The native color input requires a well-formed #rrggbb; fall back while the
+        // text field is mid-edit (e.g. "#E0A8") so this never throws.
+        value={valid ? value : '#000000'}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-10 w-14 shrink-0 cursor-pointer rounded-md border border-border bg-surface p-1"
+      />
+      <Input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        aria-label={`${label} hex`}
+        placeholder="#E0A800"
+        className={'max-w-[10rem] font-mono ' + (valid ? '' : 'border-danger focus-visible:border-danger')}
+      />
     </div>
   )
 }
