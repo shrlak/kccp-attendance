@@ -45,9 +45,6 @@
   },
   "announce": { "label": "Notice" },
   "landing": {
-    "title": "Sunday attendance that remembers each person",
-    "titleLine1": "Sunday attendance",
-    "titleLine2": "that remembers each person",
     "kioskButton": "Start church kiosk"
   },
   "access": {
