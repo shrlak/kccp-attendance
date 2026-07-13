@@ -28,7 +28,7 @@ describe('routes', () => {
       requireApproval: false, summerMode: false, demoMode: false, individualCheckinEnabled: false,
     }), { status: 200 })))
     renderAt('/')
-    expect(await screen.findByText('KCCP 출석 시스템')).toBeInTheDocument()
+    expect(await screen.findByText('한 사람을 기억하는 주일 출석')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '체크인' })).not.toBeInTheDocument()
   })
 
@@ -55,6 +55,6 @@ describe('routes', () => {
 
   it('renders the 404 page for an unknown path', () => {
     renderAt('/does-not-exist')
-    expect(screen.getByText('404')).toBeInTheDocument()
+    expect(screen.getByText('Error · 404')).toBeInTheDocument()
   })
 })

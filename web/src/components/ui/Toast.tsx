@@ -8,9 +8,9 @@ const ToastCtx = createContext<(t: ToastState) => void>(() => {})
 export const useToast = () => useContext(ToastCtx)
 
 const toneClass: Record<Tone, string> = {
-  ok: 'bg-success text-white',
-  warn: 'bg-warning text-[#3a2a08]',
-  err: 'bg-danger text-white',
+  ok: 'border-success/40 bg-surface text-success',
+  warn: 'border-warning/40 bg-surface text-warning',
+  err: 'border-danger/40 bg-surface text-danger',
 }
 
 export function ToastProvider({ children }: { children: ReactNode }) {
@@ -23,11 +23,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {children}
         {toast && (
           <RToast.Root open={open} onOpenChange={setOpen}
-            className={`rounded-md px-4 py-2.5 text-sm font-semibold shadow-lg ${toneClass[toast.tone]}`}>
+            className={`rounded-md border px-4 py-3 text-sm font-semibold shadow-xl ${toneClass[toast.tone]}`}>
             <RToast.Title>{toast.title}</RToast.Title>
           </RToast.Root>
         )}
-        <RToast.Viewport className="fixed left-1/2 -translate-x-1/2 bottom-20 z-[1100] flex flex-col gap-2 outline-none" />
+        <RToast.Viewport className="fixed bottom-6 left-1/2 z-[1100] flex w-[min(420px,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-2 outline-none" />
       </RToast.Provider>
     </ToastCtx.Provider>
   )

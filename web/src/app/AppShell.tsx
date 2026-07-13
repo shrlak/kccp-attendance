@@ -24,9 +24,9 @@ export function AppShell() {
   return (
     <ToastProvider>
       {offline && (
-        <div className="fixed top-0 inset-x-0 z-[200] bg-warning text-[#3a2a08] text-center text-xs font-semibold py-1.5
-                        pt-[calc(0.375rem+env(safe-area-inset-top))]">
-          오프라인 모드
+        <div className="fixed inset-x-0 top-0 z-[200] border-b border-warning/30 bg-surface text-center text-xs font-semibold text-warning
+                        py-1.5 pt-[calc(0.375rem+env(safe-area-inset-top))]">
+          네트워크 연결이 없습니다 · 오프라인 모드
         </div>
       )}
       <Outlet />

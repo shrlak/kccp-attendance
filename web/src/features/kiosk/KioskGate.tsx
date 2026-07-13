@@ -1,10 +1,9 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAdminAuth } from '../../stores/useAdminAuth'
-import { KccpMark } from '../checkin/KccpMark'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
-import { ThemeLangToggle } from '../../components/ui/ThemeLangToggle'
+import { AccessShell } from '../../components/layout/AccessShell'
 
 // Login gate for /kiosk reached from the public landing page. Same credentials as the
 // admin panel — any team password or an authorized Google account — but unlocking lands
@@ -29,15 +28,8 @@ export function KioskGate() {
   }
 
   return (
-    <main className="grid min-h-dvh place-items-center px-6">
-      <div className="absolute right-4 top-4 flex items-center gap-1 pt-[env(safe-area-inset-top)]">
-        <ThemeLangToggle />
-      </div>
-      <div className="w-full max-w-xs text-center">
-        <KccpMark size={56} className="mx-auto mb-5 text-primary" />
-        <h1 className="mb-1 font-display text-2xl font-semibold text-text">{t('kiosk.gate.title')}</h1>
-        <p className="mb-6 text-sm text-muted">{t('kiosk.gate.subtitle')}</p>
-
+    <AccessShell eyebrow={t('access.kioskEyebrow')} title={t('kiosk.gate.title')} subtitle={t('kiosk.gate.subtitle')}>
+      <div>
         <Input
           type="password"
           value={pw}
@@ -57,7 +49,7 @@ export function KioskGate() {
           {busy && method === 'password' ? t('common.loading') : t('kiosk.gate.submit')}
         </Button>
 
-        <div className="my-4 flex items-center gap-3 text-xs text-subtle">
+        <div className="my-5 flex items-center gap-3 text-xs text-subtle">
           <span className="h-px flex-1 bg-border" aria-hidden />
           {t('kiosk.gate.or')}
           <span className="h-px flex-1 bg-border" aria-hidden />
@@ -78,6 +70,6 @@ export function KioskGate() {
           <p className="mt-2 text-xs text-danger">{t('admin.googleError')}</p>
         )}
       </div>
-    </main>
+    </AccessShell>
   )
 }
