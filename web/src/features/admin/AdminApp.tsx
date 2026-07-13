@@ -42,8 +42,8 @@ type Tab =
   | 'dongsan'
   | 'settings'
 
-// Authenticated ministry workspace. Navigation stays visible on desktop and becomes a
-// horizontally scrollable work bar on smaller church tablets and phones.
+// Compact administration shell: a 64 px icon rail expands only when someone needs its
+// labels, keeping the attendance workspace visually quiet on desktop and tablet.
 export function AdminApp() {
   const { t } = useTranslation()
   const lang = useLang((s) => s.lang)
@@ -52,8 +52,10 @@ export function AdminApp() {
   const signOut = useAdminAuth((s) => s.signOut)
   const [tab, setTab] = useState<Tab>('today')
   const [kiosk, setKiosk] = useState(false)
+  const [navOpen, setNavOpen] = useState(false)
   function selectTab(id: Tab) {
     setTab(id)
+    setNavOpen(false)
   }
   // Sign out drops back to the public landing page.
   function handleSignOut() {
@@ -100,22 +102,29 @@ export function AdminApp() {
 
   return (
     <div className="min-h-dvh bg-canvas">
-      <aside className="sticky top-0 z-30 flex flex-col border-b border-nav-border bg-nav text-white md:fixed md:inset-y-0 md:left-0 md:w-[248px] md:border-b-0 md:border-r">
-        <div className="flex h-16 shrink-0 items-center justify-between px-4 pt-[env(safe-area-inset-top)] md:h-auto md:justify-start md:gap-3 md:px-6 md:pb-7 md:pt-8">
-          <KccpMark size={32} />
-          <div>
-            <div className="text-sm font-bold leading-none tracking-tight">KCCP</div>
-            <div className="mt-1 text-[10px] font-semibold tracking-[0.08em] text-nav-muted">{t('admin.workspace')}</div>
-          </div>
-          <div className="ml-auto flex items-center gap-1 md:hidden">
-            <ThemeLangToggle />
+      <aside
+        className={
+          'fixed inset-y-0 left-0 z-30 flex flex-col overflow-hidden border-r border-border bg-canvas/[0.92] backdrop-blur-xl transition-[width] duration-200 ease-out ' +
+          (navOpen ? 'w-60' : 'w-16')
+        }
+        onMouseEnter={() => setNavOpen(true)}
+        onMouseLeave={() => setNavOpen(false)}
+        onFocusCapture={() => setNavOpen(true)}
+        onBlurCapture={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setNavOpen(false)
+        }}
+      >
+        <div className="flex h-16 shrink-0 items-center pt-[env(safe-area-inset-top)]">
+          <span className="grid w-16 shrink-0 place-items-center">
+            <KccpMark size={24} />
+          </span>
+          <div className={'whitespace-nowrap transition-opacity duration-150 ' + (navOpen ? 'opacity-100' : 'opacity-0')}>
+            <div className="text-sm font-semibold tracking-tight text-text">KCCP</div>
+            <div className="mt-0.5 text-[10px] font-medium text-muted">{t('admin.workspace')}</div>
           </div>
         </div>
 
-        <div className="hidden px-6 pb-3 font-mono text-[9px] font-semibold uppercase tracking-[0.2em] text-nav-muted md:block">
-          {t('admin.serviceOps')}
-        </div>
-        <nav aria-label={t('admin.pageTitle')} className="flex gap-1 overflow-x-auto px-3 pb-3 md:flex-1 md:flex-col md:gap-1 md:overflow-y-auto md:px-3 md:pb-5">
+        <nav aria-label={t('admin.pageTitle')} className="flex flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden py-2">
           {tabs
             .filter((item) => item.show)
             .map((item) => (
@@ -124,43 +133,36 @@ export function AdminApp() {
                 icon={item.icon}
                 label={t(`admin.nav.${item.id}`)}
                 active={tab === item.id}
+                open={navOpen}
                 onClick={() => selectTab(item.id)}
                 badge={item.badge}
               />
             ))}
         </nav>
-
-        <div className="hidden border-t border-nav-border px-5 py-5 md:block">
-          <div className="text-xs font-semibold text-white">{roleScope}</div>
-          <button type="button" onClick={handleSignOut} className="mt-3 text-xs font-semibold text-nav-muted hover:text-white">
-            {t('admin.signOut')}
-          </button>
-        </div>
       </aside>
 
-      <main className="min-h-dvh md:pl-[248px]">
-        <header className="sticky top-[7.25rem] z-20 border-b border-border bg-canvas/95 px-5 py-4 backdrop-blur md:top-0 md:px-8 md:py-5 md:pt-[calc(1.25rem+env(safe-area-inset-top))]">
+      <main className="min-h-dvh pl-16">
+        <header className="sticky top-0 z-20 border-b border-border bg-canvas/[0.82] px-5 py-3 pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur-xl">
           <div className="mx-auto flex max-w-[1480px] items-center justify-between gap-4">
             <div className="min-w-0">
-              <div className="section-kicker hidden sm:block">{dateLabel}</div>
-              <h1 className="mt-1 truncate font-display text-xl font-bold tracking-[-0.02em] text-text md:text-2xl">{t(`admin.nav.${tab}`)}</h1>
-              <p className="mt-1 hidden truncate text-xs text-muted sm:block">{t(`admin.navHelp.${tab}`)} · {roleScope}</p>
+              <h1 className="truncate font-display text-lg font-semibold tracking-tight text-text">{t(`admin.nav.${tab}`)}</h1>
+              <p className="mt-0.5 truncate text-xs text-muted">{dateLabel} · {roleScope}</p>
             </div>
-            <div className="flex shrink-0 items-center gap-1.5">
-              <span className="hidden md:contents"><ThemeLangToggle /></span>
+            <div className="flex shrink-0 items-center gap-1">
+              <ThemeLangToggle />
               {canKiosk && (
-                <Button size="sm" onClick={() => setKiosk(true)}>
+                <Button variant="secondary" size="sm" onClick={() => setKiosk(true)}>
                   {t('kiosk.enter')}
                 </Button>
               )}
-              <Button variant="ghost" size="sm" onClick={handleSignOut} className="md:hidden">
+              <Button variant="ghost" size="sm" onClick={handleSignOut}>
                 {t('admin.signOut')}
               </Button>
             </div>
           </div>
         </header>
 
-        <div className="mx-auto max-w-[1480px] px-5 py-6 md:px-8 md:py-8">
+        <div className="mx-auto max-w-[1480px] px-5 py-5 md:px-8 md:py-7">
           {tab === 'today' && <AdminToday />}
           {tab === 'sheet' && <AdminSheet />}
           {tab === 'members' && <AdminMembers />}
@@ -182,12 +184,14 @@ function TabItem({
   icon: Icon,
   label,
   active,
+  open,
   onClick,
   badge = 0,
 }: {
   icon: LucideIcon
   label: string
   active: boolean
+  open: boolean
   onClick: () => void
   badge?: number
 }) {
@@ -199,13 +203,14 @@ function TabItem({
       aria-label={label}
       aria-current={active ? 'page' : undefined}
       className={
-        'relative flex min-w-fit shrink-0 items-center gap-2.5 rounded-sm px-3 py-2.5 text-sm font-semibold transition-colors md:w-full ' +
-        (active ? 'bg-white/[0.12] text-white' : 'text-nav-muted hover:bg-white/[0.07] hover:text-white')
+        'relative flex w-full items-center py-2.5 text-sm font-semibold transition-colors ' +
+        (active ? 'bg-primary/10 text-primary' : 'text-muted hover:bg-surface-alt hover:text-text')
       }
     >
-      <span className="grid h-5 w-5 shrink-0 place-items-center">
+      {active && <span className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-primary" aria-hidden />}
+      <span className="grid w-16 shrink-0 place-items-center">
         <span className="relative">
-          <Icon className="size-[18px]" strokeWidth={active ? 2.2 : 1.8} aria-hidden />
+          <Icon className="size-5" strokeWidth={active ? 2.2 : 1.8} aria-hidden />
           {badge > 0 && (
             <span className="absolute -right-2.5 -top-2.5 grid h-4 min-w-4 place-items-center rounded-full bg-danger px-1 text-[9px] font-bold text-white">
               {badge}
@@ -213,7 +218,9 @@ function TabItem({
           )}
         </span>
       </span>
-      <span className="whitespace-nowrap">{label}</span>
+      <span className={'whitespace-nowrap pr-3 transition-opacity duration-150 ' + (open ? 'opacity-100' : 'opacity-0')}>
+        {label}
+      </span>
     </button>
   )
 }

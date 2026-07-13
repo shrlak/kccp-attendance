@@ -37,28 +37,32 @@ function renderApp() {
 }
 
 describe('AdminApp ministry navigation', () => {
-  it('keeps the ministry navigation visible and marks Today as current', () => {
+  it('starts as a compact 64 px rail and expands on hover', () => {
     const { container } = renderApp()
     const aside = container.querySelector('aside')!
-    expect(aside.className).toContain('md:w-[248px]')
-    expect(screen.getByRole('button', { name: '오늘' })).toHaveAttribute('aria-current', 'page')
+    expect(aside.className).toContain('w-16')
+    fireEvent.mouseEnter(aside)
+    expect(aside.className).toContain('w-60')
   })
 
-  it('switches tabs without changing the persistent navigation', () => {
+  it('switches tabs and returns the rail to its compact state', () => {
     const { container } = renderApp()
     const aside = container.querySelector('aside')!
+    fireEvent.mouseEnter(aside)
     const sheetTab = screen.getByRole('button', { name: '출석부' })
     fireEvent.click(sheetTab)
-    expect(aside.className).toContain('md:w-[248px]')
+    expect(aside.className).toContain('w-16')
     expect(sheetTab).toHaveAttribute('aria-current', 'page')
   })
 
-  it('uses one horizontally scrollable nav that also works on smaller screens', () => {
+  it('expands for keyboard focus and collapses when focus leaves', () => {
     const { container } = renderApp()
-    const nav = container.querySelector('nav')!
-    expect(nav.className).toContain('overflow-x-auto')
-    fireEvent.click(screen.getByRole('button', { name: '멤버' }))
-    expect(screen.getByRole('button', { name: '멤버' })).toHaveAttribute('aria-current', 'page')
+    const aside = container.querySelector('aside')!
+    const todayTab = screen.getByRole('button', { name: '오늘' })
+    fireEvent.focus(todayTab)
+    expect(aside.className).toContain('w-60')
+    fireEvent.blur(todayTab)
+    expect(aside.className).toContain('w-16')
   })
 
   it('staff (break-glass 운영진) sees operational tabs but not super-only ones', () => {

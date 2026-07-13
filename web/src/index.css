@@ -25,14 +25,14 @@
   --color-nav-muted: var(--nav-muted);
   --color-nav-border: var(--nav-border);
 
-  --font-display: 'Pretendard Variable', 'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', system-ui, sans-serif;
-  --font-sans: 'Pretendard Variable', 'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', system-ui, sans-serif;
-  --font-mono: 'SFMono-Regular', 'Roboto Mono', ui-monospace, monospace;
+  --font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Apple SD Gothic Neo', 'Pretendard Variable', 'Pretendard', system-ui, sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Apple SD Gothic Neo', 'Pretendard Variable', 'Pretendard', system-ui, sans-serif;
+  --font-mono: 'SFMono-Regular', ui-monospace, 'Roboto Mono', monospace;
 
-  --radius-sm: 4px;
-  --radius-md: 7px;
-  --radius-lg: 10px;
-  --radius-xl: 14px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
 }
 
 @layer base {
@@ -54,12 +54,12 @@
 
 /* Motion is reserved for state changes: loading, result confirmation, and page entry. */
 @keyframes kccp-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
-@keyframes kccp-rise { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+@keyframes kccp-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes kccp-draw { to { stroke-dashoffset: 0; } }
 @keyframes kccp-countdown { from { transform: scaleX(1); } to { transform: scaleX(0); } }
 
 .fx-pulse { animation: kccp-pulse 1.6s ease-in-out infinite; }
-.fx-rise { animation: kccp-rise .28s ease-out both; }
+.fx-rise { animation: kccp-rise .42s cubic-bezier(.2,.65,.3,1) both; }
 .fx-draw { stroke-dasharray: 56; stroke-dashoffset: 56; animation: kccp-draw .45s .15s ease-out forwards; }
 .fx-countdown { transform-origin: left; animation: kccp-countdown linear forwards; }
 
@@ -71,7 +71,7 @@
   }
 
   .section-kicker {
-    @apply font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-subtle;
+    @apply text-[11px] font-semibold tracking-wide text-subtle;
   }
 
   .rule-label {

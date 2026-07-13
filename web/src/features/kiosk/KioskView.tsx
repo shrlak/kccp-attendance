@@ -23,7 +23,7 @@ import { KccpMark } from '../checkin/KccpMark'
 // Dept color survives only as the section-header underline; tiles themselves stay neutral.
 const DEPT_COLOR: Record<KioskDept, string> = { 대학부: 'var(--warning)', 청년부: 'var(--info)' }
 const TILE = 'border-border bg-surface text-text hover:border-primary/35 hover:bg-surface-alt'
-const DONE_TILE = 'border-success bg-success text-white dark:text-[#102219]'
+const DONE_TILE = 'border-primary bg-primary text-white'
 
 // Full-screen kiosk for touchscreen attendance (Phase 3). Runs on an already-verified
 // admin device, so taps go through the hardened member-checkin endpoint. Auto-refreshes
@@ -96,7 +96,7 @@ export function KioskView({ onExit }: { onExit: () => void }) {
       <button
         type="button"
         onClick={() => void tap(m)}
-        className={'flex min-h-14 items-center justify-center gap-1.5 rounded-md border px-2 py-3 text-sm font-semibold transition-colors active:translate-y-px ' + (done ? DONE_TILE : TILE)}
+        className={'flex min-h-14 items-center justify-center gap-1.5 rounded-xl border px-2 py-3 text-sm font-semibold transition-[background-color,border-color,transform] active:scale-[0.985] ' + (done ? DONE_TILE : TILE)}
       >
         {done && <Check className="size-3.5 shrink-0" aria-hidden />}
         {m.name}
@@ -107,18 +107,18 @@ export function KioskView({ onExit }: { onExit: () => void }) {
   return (
     <div className="fixed inset-0 z-[999] flex flex-col bg-canvas">
       {/* Header: title + live attendance count + exit */}
-      <header className="flex items-center justify-between gap-3 border-b border-nav-border bg-nav px-5 py-3 text-white pt-[calc(0.75rem+env(safe-area-inset-top))] sm:px-7">
+      <header className="flex items-center justify-between gap-3 border-b border-border bg-surface/[0.88] px-5 py-3 text-text pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur-xl sm:px-7">
         <div className="flex items-center gap-3">
           <KccpMark size={32} />
           <div>
             <div className="font-display text-lg font-bold tracking-tight">{t('kiosk.title')}</div>
-            <div className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-nav-muted">KCCP Sunday Check-in</div>
+            <div className="mt-0.5 text-[10px] font-semibold tracking-wide text-muted">KCCP Sunday Check-in</div>
           </div>
         </div>
         <div className="flex items-center gap-1">
-          <div className="mr-2 hidden border-r border-nav-border pr-4 text-right sm:block">
+          <div className="mr-2 hidden border-r border-border pr-4 text-right sm:block">
             <div className="text-xl font-bold tabular-nums">{count}</div>
-            <div className="text-[10px] font-semibold text-nav-muted">{t('kiosk.count', { n: count })}</div>
+            <div className="text-[10px] font-semibold text-muted">{t('kiosk.count', { n: count })}</div>
           </div>
           <ThemeLangToggle />
           {/* One-tap exit, no confirmation — the session stays signed in and lands on
@@ -127,7 +127,7 @@ export function KioskView({ onExit }: { onExit: () => void }) {
           <button
             type="button"
             onClick={onExit}
-            className="min-h-10 rounded-sm border border-nav-border bg-white/[0.06] px-3.5 text-sm font-semibold text-white hover:bg-white/[0.12]"
+            className="min-h-10 rounded-full border border-border bg-surface-alt px-4 text-sm font-semibold text-muted hover:text-text"
           >
             {t('kiosk.exit')}
           </button>
@@ -145,7 +145,7 @@ export function KioskView({ onExit }: { onExit: () => void }) {
           autoComplete="off"
           autoCorrect="off"
           spellCheck={false}
-          className="w-full rounded-md border border-border bg-surface py-3.5 pl-10 pr-4 text-base text-text shadow-sm outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/15"
+          className="w-full rounded-xl border border-border bg-surface py-3.5 pl-10 pr-4 text-base text-text shadow-sm outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/15"
         />
         </div>
         <div className="mt-2 text-right text-xs font-semibold text-muted sm:hidden">{t('kiosk.count', { n: count })}</div>
@@ -206,14 +206,14 @@ export function KioskView({ onExit }: { onExit: () => void }) {
         <button
           type="button"
           onClick={() => setDialog('guest')}
-          className="min-h-12 flex-1 rounded-md border border-border bg-surface text-sm font-semibold text-text hover:border-primary/35 hover:bg-surface-alt"
+          className="min-h-12 flex-1 rounded-full border border-border bg-surface text-sm font-semibold text-text hover:bg-surface-alt"
         >
           {t('kiosk.guest.action')}
         </button>
         <button
           type="button"
           onClick={() => setDialog('newMember')}
-          className="min-h-12 flex-1 rounded-md border border-primary bg-primary text-sm font-semibold text-primary-fg hover:bg-primary-hover"
+          className="min-h-12 flex-1 rounded-full border border-primary bg-primary text-sm font-semibold text-primary-fg hover:bg-primary-hover"
         >
           {t('kiosk.newMember.action')}
         </button>
@@ -248,7 +248,7 @@ function SuccessOverlay({ tone, name, detail }: { tone: OverlayTone; name: strin
     <div
       role="status"
       aria-live="polite"
-      className="fixed inset-0 z-[1002] flex flex-col items-center justify-center bg-nav/95 px-6 text-center backdrop-blur"
+      className="fixed inset-0 z-[1002] flex flex-col items-center justify-center bg-canvas/[0.96] px-6 text-center backdrop-blur-xl"
     >
       <div
         className="mb-6 flex h-20 w-20 items-center justify-center rounded-xl border"
@@ -267,8 +267,8 @@ function SuccessOverlay({ tone, name, detail }: { tone: OverlayTone; name: strin
                 ? t('kiosk.fail')
                 : t('kiosk.success')}
       </div>
-      <div className="mt-2 text-base font-semibold text-white">{name}</div>
-      {tone === 'error' && detail && <div className="mt-3 max-w-xs text-xs text-nav-muted">{detail}</div>}
+      <div className="mt-2 text-base font-semibold text-text">{name}</div>
+      {tone === 'error' && detail && <div className="mt-3 max-w-xs text-xs text-muted">{detail}</div>}
     </div>
   )
 }

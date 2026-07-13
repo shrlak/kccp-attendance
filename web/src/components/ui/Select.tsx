@@ -17,7 +17,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSel
         ...style,
       }}
       className={
-        'w-full rounded-md border border-border bg-surface pl-3.5 pr-10 py-2.5 text-text ' +
+        'w-full rounded-xl border border-border bg-surface pl-3.5 pr-10 py-2.5 text-text ' +
         'text-sm font-sans min-h-11 outline-none appearance-none ' +
         'focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/30 ' +
         className

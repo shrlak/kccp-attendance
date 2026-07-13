@@ -6,9 +6,8 @@ import { easternNow } from '../../lib/checkinWindow'
 import { todaysCheckins, weeklyComparison, presentNamesToday, checkinCandidates } from './today'
 import { checkinTag } from './todaySheet'
 import { filterMembers, filterLog, NO_FILTER, type Filter } from './filters'
-import { computeStats, leaderDashboard } from './stats'
+import { leaderDashboard } from './stats'
 import { GroupFilter } from './GroupFilter'
-import { StatsBar } from './StatsBar'
 import { IconKey } from './IconKey'
 import { memberCheckin, type Member, type RosterResponse } from '../../lib/api'
 import { exportTodaySheets } from './todaySheetImage'
@@ -65,7 +64,6 @@ export function AdminToday() {
 
   return (
     <>
-      <StatsBar stats={computeStats(members, log, today)} />
       <GroupFilter members={data.members} value={filter} onChange={setFilter} />
 
       {/* One row: 오늘 · 지난 주 · 증감 (thisWeek === today's count for a weekly-service
@@ -136,7 +134,7 @@ export function AdminToday() {
                     <div className="text-base font-semibold text-text">
                       {e.name}
                       {tag && (
-                        <span className="ml-2 rounded-sm bg-primary/10 px-1.5 py-0.5 align-middle text-[10px] font-semibold text-primary">
+                        <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 align-middle text-[10px] font-semibold text-primary">
                           {t(tag === 'visitor' ? 'admin.iconKey.visitor' : 'admin.iconKey.newFamily')}
                         </span>
                       )}

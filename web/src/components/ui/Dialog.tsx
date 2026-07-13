@@ -19,7 +19,7 @@ export function Dialog({ open, onOpenChange, title, children, wide }: DialogProp
           render the modal *behind* the opaque kiosk and it would silently not appear.
           Kept below the toast viewport (z-[1100]) so toasts still surface over dialogs. */}
       <RDialog.Portal>
-        <RDialog.Overlay className="fixed inset-0 z-[1000] bg-[#07100c]/65 backdrop-blur-[2px]" />
+        <RDialog.Overlay className="fixed inset-0 z-[1000] bg-black/45 backdrop-blur-[2px]" />
         <RDialog.Content
           className={`fixed left-1/2 top-1/2 z-[1001] -translate-x-1/2 -translate-y-1/2
             max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-xl border border-border bg-surface p-6 shadow-2xl focus:outline-none sm:p-7
@@ -27,10 +27,10 @@ export function Dialog({ open, onOpenChange, title, children, wide }: DialogProp
         >
           <div className="mb-5 flex items-start justify-between gap-4 border-b border-border pb-4">
             <div>
-              <div className="section-kicker mb-1">KCCP · Attendance</div>
+              <div className="section-kicker mb-1">KCCP Attendance</div>
               <RDialog.Title className="font-display text-lg font-bold tracking-tight text-text">{title}</RDialog.Title>
             </div>
-            <RDialog.Close aria-label="Close" className="-mr-2 flex min-h-10 min-w-10 items-center justify-center rounded-sm text-subtle hover:bg-surface-alt hover:text-text">
+            <RDialog.Close aria-label="Close" className="-mr-2 flex min-h-10 min-w-10 items-center justify-center rounded-lg text-subtle hover:bg-surface-alt hover:text-text">
               <X size={20} strokeWidth={2} aria-hidden />
             </RDialog.Close>
           </div>

@@ -47,7 +47,7 @@ function Pill({ active, onClick, children }: { active: boolean; onClick: () => v
       type="button"
       onClick={onClick}
       className={
-        'min-h-8 rounded-sm px-3 py-1 text-xs font-semibold transition-colors ' +
+        'min-h-8 rounded-full px-3 py-1 text-xs font-semibold transition-colors ' +
         (active ? 'border border-primary bg-primary text-primary-fg' : 'border border-border bg-surface text-muted hover:border-primary/30 hover:bg-surface-alt')
       }
     >
