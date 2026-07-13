@@ -106,10 +106,10 @@ describe('normalizeExtractedCard', () => {
     expect(card.baptismStatus).toBe('해당없음')
     expect(card.faithDuration).toBe('모태신앙')
   })
-  it('falls back to today for a missing/invalid 등록일 and false for null 심방', () => {
+  it('falls back to today for a missing/invalid 등록일 and blank for null 심방', () => {
     const card = normalizeExtractedCard({ registrationDate: null, pastoralVisitRequested: null }, TODAY)
     expect(card.registrationDate).toBe(TODAY)
-    expect(card.pastoralVisitRequested).toBe(false)
+    expect(card.pastoralVisitRequested).toBe(null)
   })
   it('all-null payload ≙ blank card; non-object payloads too', () => {
     const nulls = Object.fromEntries(

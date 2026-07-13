@@ -260,29 +260,39 @@ export async function copyCanvasToClipboard(canvas: HTMLCanvasElement): Promise<
   }
 }
 
-// Build the 대학부 + 청년부 sheets for `today`, download each as a JPG, and also copy
-// both pages (stacked into one image) to the clipboard. `newMemberNames` flags 새가족
-// (is_new_member) so they get the ✝️ icon. Returns whether the clipboard copy succeeded.
-export async function exportTodaySheets(
+// Render the 대학부 + 청년부 sheets for `today`. `newMemberNames` flags 새가족
+// (is_new_member) so they get the ✝️ icon. Shared by the copy/save actions below so
+// there's one render pass regardless of which (or both) the operator picks.
+async function buildTodaySheetCanvases(
+  log: LogEntry[],
+  today: string,
+  newMemberNames: Set<string>,
+): Promise<HTMLCanvasElement[]> {
+  await ensureSheetFonts()
+  return TODAY_SHEET_GROUPS.map((group) =>
+    renderTodaySheet(group, todayGroupRoster(log, today, group, newMemberNames), today),
+  )
+}
+
+// Copy both pages (stacked into one image) to the clipboard. Returns whether the copy
+// succeeded — false (no throw) when the browser can't do it.
+export async function copyTodaySheets(
   log: LogEntry[],
   today: string,
   newMemberNames: Set<string>,
 ): Promise<{ copied: boolean }> {
-  await ensureSheetFonts()
-  const canvases = TODAY_SHEET_GROUPS.map((group) =>
-    renderTodaySheet(group, todayGroupRoster(log, today, group, newMemberNames), today),
-  )
-
-  // Copy first — closest to the originating click, so the clipboard write keeps its
-  // transient user activation before the downloads (and their delays) run.
+  const canvases = await buildTodaySheetCanvases(log, today, newMemberNames)
   const copied = await copyCanvasToClipboard(combineVertical(canvases, 80))
+  return { copied }
+}
 
+// Download each 부서's sheet as its own JPG.
+export async function saveTodaySheets(log: LogEntry[], today: string, newMemberNames: Set<string>): Promise<void> {
+  const canvases = await buildTodaySheetCanvases(log, today, newMemberNames)
   for (let i = 0; i < TODAY_SHEET_GROUPS.length; i++) {
     const blob = await canvasToBlob(canvases[i], 'image/jpeg', 0.95)
     if (blob) downloadBlob(blob, todaySheetFilename(TODAY_SHEET_GROUPS[i], today, 'jpg'))
     // A short gap so the browser accepts the second (back-to-back) download.
-    await new Promise((resolve) => setTimeout(resolve, 250))
+    if (i < TODAY_SHEET_GROUPS.length - 1) await new Promise((resolve) => setTimeout(resolve, 250))
   }
-
-  return { copied }
 }

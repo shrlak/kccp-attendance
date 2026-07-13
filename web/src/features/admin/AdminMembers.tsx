@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRoster } from './useRoster'
-import { mergeMembers, bulkSetSubgroup, type Member } from '../../lib/api'
+import { mergeMembers, bulkSetSubgroup, getConfig, type Member } from '../../lib/api'
 import { Dialog } from '../../components/ui/Dialog'
 import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
@@ -12,6 +12,7 @@ import { mergeTargets, canMerge, mergeSummary, type MergeState } from './merge'
 import { groupsOf } from './filters'
 import { IconKey } from './IconKey'
 import { EditModal, AttendanceModal, Field } from './MemberDialogs'
+import { resolveGroupColor, hexTint } from './groupColors'
 
 // Members management: searchable card grid; tap a card to edit (scoped + read-only
 // enforced server-side). Renaming, group/동산 changes (= transfer), role, new-member,
@@ -21,6 +22,7 @@ export function AdminMembers() {
   const qc = useQueryClient()
   const toast = useToast()
   const { data, isLoading, isError } = useRoster(true)
+  const { data: cfg } = useQuery({ queryKey: ['config'], queryFn: getConfig })
   const [editing, setEditing] = useState<Member | null>(null)
   const [attendanceFor, setAttendanceFor] = useState<Member | null>(null)
   const [merging, setMerging] = useState(false)
@@ -126,7 +128,11 @@ export function AdminMembers() {
         </div>
       )}
       <IconKey items={['newMemberStar']} />
-      {sections.map(({ group, list }) => (
+      {sections.map(({ group, list }) => {
+        // 대학부/청년부 cards get a faint per-부서 tint (configurable in 관리자 › 설정);
+        // every other section (EM, staff-ish groups, no 부서) stays the plain surface.
+        const tint = group === '대학부' || group === '청년부' ? hexTint(resolveGroupColor(cfg?.groupColors, group), 0.07) : undefined
+        return (
         <section key={group || 'none'} className="mb-8">
           <h3 className="mb-3 border-b border-border pb-2 font-display text-base font-bold text-text">
             {group || '—'} <span className="text-sm font-normal text-muted">· {list.length}</span>
@@ -139,9 +145,10 @@ export function AdminMembers() {
                   key={m.id}
                   type="button"
                   onClick={() => (selectMode ? toggleSel(m.id) : setEditing(m))}
+                  style={sel ? undefined : { background: tint }}
                   className={
-                    'min-h-20 rounded-xl border bg-surface p-3.5 text-left transition-colors hover:border-primary/30 hover:bg-surface-alt ' +
-                    (sel ? 'border-primary ring-2 ring-primary/40' : 'border-border')
+                    'min-h-20 rounded-xl border p-3.5 text-left transition-colors hover:border-primary/30 hover:bg-surface-alt ' +
+                    (sel ? 'border-primary bg-surface ring-2 ring-primary/40' : 'border-border' + (tint ? '' : ' bg-surface'))
                   }
                 >
                   <div className="text-base font-semibold text-text">
@@ -164,7 +171,8 @@ export function AdminMembers() {
             })}
           </div>
         </section>
-      ))}
+        )
+      })}
       {staffMembers.length > 0 && (
         <>
           <div className="mb-3 mt-6 font-mono text-xs uppercase tracking-wide text-subtle">

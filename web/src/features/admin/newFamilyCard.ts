@@ -89,7 +89,9 @@ export interface CardFormValue {
   baptismStatus: string
   faithDuration: string
   registrationDate: string // ISO or ''
-  pastoralVisitRequested: boolean
+  // null = blank (neither O nor X ticked yet) — the default for a fresh card. true/false
+  // once the operator taps a side.
+  pastoralVisitRequested: boolean | null
 }
 
 // Seed the form from a stored member (소속 category recovered from school_or_work).
@@ -106,7 +108,7 @@ export function cardFormFromMember(m: Member): CardFormValue {
     baptismStatus: m.baptism_status || '',
     faithDuration: m.faith_duration || '',
     registrationDate: m.registration_date || '',
-    pastoralVisitRequested: !!m.pastoral_visit_requested,
+    pastoralVisitRequested: m.pastoral_visit_requested ?? null,
   }
 }
 
@@ -121,7 +123,8 @@ const EMPTY_CARD: CardFormValue = {
   baptismStatus: '',
   faithDuration: '',
   registrationDate: '',
-  pastoralVisitRequested: false,
+  // Blank by default — the paper card starts with neither 목사님 심방 요청 box ticked.
+  pastoralVisitRequested: null,
 }
 
 // A blank card with 등록일 stamped to the given day (the kiosk's "day they were added").
@@ -216,8 +219,9 @@ export function cardModel(m: Member): CardModel {
           content: {
             kind: 'checks',
             options: [
-              { label: 'O', checked: !!m.pastoral_visit_requested },
-              { label: 'X', checked: !m.pastoral_visit_requested },
+              // Neither ticks when the value is null/undefined (blank — not yet asked).
+              { label: 'O', checked: m.pastoral_visit_requested === true },
+              { label: 'X', checked: m.pastoral_visit_requested === false },
             ],
             extra: '',
           },

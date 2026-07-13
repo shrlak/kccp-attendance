@@ -11,6 +11,7 @@ vi.mock('../../lib/api', () => ({
   setAdminPassword: vi.fn(),
   setAdminToken: vi.fn(),
   getRoster: vi.fn().mockResolvedValue({ role: 'welcoming', members: [], log: [] }),
+  getConfig: vi.fn().mockResolvedValue({ groupColors: {} }),
   memberCheckin: vi.fn(),
   removeAttendance: vi.fn(),
   guestCheckin: vi.fn(),

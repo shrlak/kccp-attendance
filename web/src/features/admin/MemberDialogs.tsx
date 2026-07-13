@@ -22,7 +22,7 @@ import { memberHistory, hasEntryOn } from './attendance'
 import { easternNow } from '../../lib/checkinWindow'
 import { NewFamilyCardForm } from './NewFamilyCardForm'
 import { cardFormFromMember, joinAffiliation, type CardFormValue } from './newFamilyCard'
-import { exportNewFamilyCards } from './newFamilyCardImage'
+import { saveNewFamilyCards } from './newFamilyCardImage'
 
 // 상태 표기 quick presets — canonical note values the 출석부 renders as grey spans.
 const STATUS_PRESETS = ['이주', '한국 귀국']
@@ -112,10 +112,10 @@ export function EditModal({
   async function downloadCard() {
     setExporting(true)
     try {
-      await exportNewFamilyCards([member], easternNow().date)
+      await saveNewFamilyCards([member], easternNow().date)
       toast({ title: t('admin.members.card.done'), tone: 'ok' })
     } catch {
-      toast({ title: t('admin.newfamily.export.failed'), tone: 'err' })
+      toast({ title: t('admin.newfamily.export.cardsSaveFailed'), tone: 'err' })
     } finally {
       setExporting(false)
     }

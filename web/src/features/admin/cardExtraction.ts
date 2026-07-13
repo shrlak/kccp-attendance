@@ -80,6 +80,8 @@ export function normalizeExtractedCard(raw: unknown, today: string): CardFormVal
     baptismStatus: clampEnum(r.baptismStatus, BAPTISM_OPTIONS),
     faithDuration: clampEnum(r.faithDuration, FAITH_OPTIONS),
     registrationDate: normalizeCardDate(r.registrationDate, 'registration') || today,
-    pastoralVisitRequested: r.pastoralVisitRequested === true,
+    // Only a definite true/false reading counts — anything else (null, missing, garbage)
+    // stays blank, same as a freshly opened card.
+    pastoralVisitRequested: r.pastoralVisitRequested === true ? true : r.pastoralVisitRequested === false ? false : null,
   }
 }
