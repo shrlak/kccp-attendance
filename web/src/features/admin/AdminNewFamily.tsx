@@ -282,14 +282,14 @@ function ExportModal({ members, today, onClose }: { members: Member[]; today: st
         ))}
       </ul>
       <div className="mt-4 flex flex-wrap gap-2">
-        <Button onClick={() => void confirmCopyCards()} disabled={busy !== null || selected.size === 0} className="flex-1">
+        <Button onClick={() => void confirmCopyCards()} disabled={busy !== null || selected.size === 0} className="flex-1 whitespace-pre-line text-center leading-tight">
           {busy === 'cardsCopy' ? t('admin.newfamily.export.cardsCopyBusy') : t('admin.newfamily.export.cardsCopyConfirm', { n: selected.size })}
         </Button>
         <Button
           variant="secondary"
           onClick={() => void confirmSaveCards()}
           disabled={busy !== null || selected.size === 0}
-          className="flex-1"
+          className="flex-1 whitespace-pre-line text-center leading-tight"
         >
           {busy === 'cardsSave' ? t('admin.newfamily.export.cardsSaveBusy') : t('admin.newfamily.export.cardsSaveConfirm', { n: selected.size })}
         </Button>
@@ -297,7 +297,7 @@ function ExportModal({ members, today, onClose }: { members: Member[]; today: st
           variant="secondary"
           onClick={() => void confirmExcel()}
           disabled={busy !== null || selected.size === 0}
-          className="flex-1"
+          className="flex-1 whitespace-pre-line text-center leading-tight"
         >
           {busy === 'excel' ? t('admin.newfamily.export.excelBusy') : t('admin.newfamily.export.excelConfirm', { n: selected.size })}
         </Button>
