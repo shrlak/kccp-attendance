@@ -21,6 +21,9 @@ npm-debug.log*
 package.json
 package-lock.json
 
+# Cloudflare Workers local dev state (wrangler dev / D1 local emulation)
+.wrangler/
+
 # Dev tools
 tools/
 
@@ -35,7 +38,10 @@ docs/*
 !docs/manual/
 .superpowers/
 
-# React re-platform app (web/) — keep its package manifests tracked
-# (root patterns above ignore package.json / package-lock.json globally)
+# React re-platform app (web/) and the Cloudflare Worker (cloudflare/worker/) — keep their
+# package manifests tracked (root patterns above ignore package.json / package-lock.json
+# globally)
 !web/package.json
 !web/package-lock.json
+!cloudflare/worker/package.json
+!cloudflare/worker/package-lock.json

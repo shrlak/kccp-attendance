@@ -5,8 +5,11 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // Served from a GitHub Project Pages subpath (https://shrlak.github.io/kccp-attendance/),
 // so assets, the router basename, and the PWA scope must all be prefixed with it — a
-// root-based ('/') build 404s every asset under the subpath and renders blank.
-const base = '/kccp-attendance/'
+// root-based ('/') build 404s every asset under the subpath and renders blank. Cloudflare
+// Pages (the parallel deployment) serves from the domain root instead, and auto-sets
+// CF_PAGES=1 at build time, so that one build target gets '/' and every other build
+// (GitHub Pages, local dev) is unaffected.
+const base = process.env.CF_PAGES ? '/' : '/kccp-attendance/'
 
 // https://vite.dev/config/
 export default defineConfig({

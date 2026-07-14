@@ -1,0 +1,29 @@
+name = "kccp-attendance-worker"
+main = "src/index.ts"
+compatibility_date = "2025-01-09"
+
+# CORS is wide open (mirrors the existing Supabase edge function) since this is a
+# parallel, non-production environment with no fixed frontend origin yet.
+
+[[d1_databases]]
+binding = "DB"
+database_name = "kccp-attendance"
+# Placeholder — replace with the real id printed by `wrangler d1 create kccp-attendance`
+# (see cloudflare/README.md). Only `--local` dev works until this is a real id.
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+# Public-by-design values (same fallbacks already committed in web/src/lib/supabase.ts) —
+# used ONLY to verify a Google-signed Supabase Auth JWT via a plain fetch to Supabase's
+# Auth REST endpoint. No other Supabase dependency remains; all data lives in D1 above.
+[vars]
+SUPABASE_URL = "https://loovulhchmmwagtvjnhc.supabase.co"
+SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxvb3Z1bGhjaG1td2FndHZqbmhjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxMjgwMjYsImV4cCI6MjA5NDcwNDAyNn0.pas9sWiiT26k-VDSAhj5U5mnhw20QyMzTcfzjeE2aD8"
+
+# Secrets (never in this file) — set once per environment with:
+#   wrangler secret put SUPER_PASSWORD
+#   wrangler secret put LEADER_PASSWORD
+#   wrangler secret put WELCOMING_PASSWORD
+#   wrangler secret put GEMINI_API_KEY
+# Falls back to the same defaults as the Supabase function (auth.ts) if unset, so local
+# dev works without configuring anything.

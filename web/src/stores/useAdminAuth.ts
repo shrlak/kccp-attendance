@@ -84,9 +84,12 @@ export const useAdminAuth = create<AdminAuthState>((set) => ({
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       // Redirect to the site root (a real file) so GitHub Pages serves it directly — no
-      // dependence on the 404.html SPA fallback. The auth handler routes to /admin once
-      // the session verifies.
-      options: { redirectTo: 'https://shrlak.github.io/kccp-attendance/' },
+      // dependence on the 404.html SPA fallback. Derived from the current origin + Vite's
+      // base path so this also works from a Cloudflare Pages deployment (root path), not
+      // just the hardcoded GitHub Pages subpath. The auth handler routes to /admin once
+      // the session verifies. NOTE: this origin must also be added to Supabase Auth's
+      // allowed redirect URLs list for the OAuth callback to succeed.
+      options: { redirectTo: window.location.origin + import.meta.env.BASE_URL },
     })
     // Page redirects away — control does not return here.
   },
@@ -142,7 +145,10 @@ function navigateAfterOAuth(): void {
     if (sessionStorage.getItem(RETURN_KEY) === '/kiosk') path = '/kiosk'
     sessionStorage.removeItem(RETURN_KEY)
   } catch { /* non-fatal */ }
-  const full = `/kccp-attendance${path}`
+  // Same derivation main.tsx uses for the router basename, so this tracks whichever
+  // host/subpath actually served the app (GitHub Pages subpath or a Cloudflare Pages root).
+  const prefix = import.meta.env.BASE_URL.replace(/\/$/, '')
+  const full = `${prefix}${path}`
   if (window.location.pathname.startsWith(full)) return
   window.history.pushState({}, '', full)
   window.dispatchEvent(new PopStateEvent('popstate', { state: {} }))

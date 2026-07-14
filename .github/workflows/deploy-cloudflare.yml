@@ -1,0 +1,85 @@
+name: Deploy Cloudflare parallel stack
+
+# Parallel, non-production deployment: Cloudflare Workers (API) + D1 (database) + Cloudflare
+# Pages (frontend), alongside the existing Supabase + GitHub Pages production stack in
+# deploy.yml (untouched). Every job is gated on CLOUDFLARE_API_TOKEN so this workflow
+# no-ops harmlessly until that secret (and CLOUDFLARE_ACCOUNT_ID) is added — see
+# cloudflare/README.md for one-time setup (free Cloudflare account, D1 database, Worker,
+# Pages project).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: cloudflare
+  cancel-in-progress: true
+
+jobs:
+  deploy-worker:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        if: ${{ env.CLOUDFLARE_API_TOKEN != '' }}
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: web/.nvmrc
+          cache: npm
+          cache-dependency-path: cloudflare/worker/package-lock.json
+
+      - name: Apply D1 migrations + deploy Worker
+        if: ${{ env.CLOUDFLARE_API_TOKEN != '' }}
+        working-directory: cloudflare/worker
+        run: |
+          npm ci
+          npx wrangler d1 migrations apply kccp-attendance --remote
+          npx wrangler deploy
+
+      - name: Skip (no token configured)
+        if: ${{ env.CLOUDFLARE_API_TOKEN == '' }}
+        run: echo "CLOUDFLARE_API_TOKEN secret not set — skipping Worker/D1 deploy. See cloudflare/README.md to set up a free Cloudflare account and add the secret."
+
+  deploy-pages:
+    needs: deploy-worker
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      # The deployed Worker's public URL (e.g. https://kccp-attendance-worker.<subdomain>.workers.dev)
+      # — a repo *variable* (not secret; it's a public URL), set once Phase 2 setup knows it.
+      VITE_API_BASE: ${{ vars.CLOUDFLARE_WORKER_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        if: ${{ env.CLOUDFLARE_API_TOKEN != '' }}
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: web/.nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build web app (Cloudflare Pages target)
+        if: ${{ env.CLOUDFLARE_API_TOKEN != '' }}
+        run: |
+          npm ci --prefix web
+          CF_PAGES=1 npm --prefix web run build
+
+      - name: Deploy to Cloudflare Pages
+        if: ${{ env.CLOUDFLARE_API_TOKEN != '' }}
+        working-directory: cloudflare/worker
+        run: |
+          npm ci
+          npx wrangler pages deploy ../../web/dist --project-name=kccp-attendance --branch=main
+
+      - name: Skip (no token configured)
+        if: ${{ env.CLOUDFLARE_API_TOKEN == '' }}
+        run: echo "CLOUDFLARE_API_TOKEN secret not set — skipping Cloudflare Pages deploy."
