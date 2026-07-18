@@ -3,7 +3,7 @@ export type { LucideIcon } from 'lucide-react'
 export {
   Home, CheckCircle, Users, BarChart3, Settings, Globe, Moon, Sun, Share2, ChevronRight,
   // Admin nav rail
-  CalendarCheck, ClipboardList, UserPlus, DoorOpen, Shield, Sprout, Medal,
+  CalendarCheck, ClipboardList, UserPlus, GraduationCap, DoorOpen, Shield, Sprout, Medal,
   // Check-in / kiosk states + chrome
   Check, Search, Monitor, MapPin, WifiOff, Clock, RotateCcw, AlertTriangle, Star,
 } from 'lucide-react'

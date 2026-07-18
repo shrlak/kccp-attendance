@@ -9,6 +9,7 @@ import { CardScanDialog } from './CardScanDialog'
 vi.mock('../../lib/api', () => ({
   extractCard: vi.fn(),
   kioskNewMember: vi.fn(),
+  getCardScanUsage: vi.fn().mockResolvedValue({ limit: 60, used: 3 }),
 }))
 
 // Canvas isn't available in jsdom — return a fixed payload per file so the queue

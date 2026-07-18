@@ -1,10 +1,10 @@
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Dialog } from '../../components/ui/Dialog'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
-import { extractCard, kioskNewMember, type NewMemberFields } from '../../lib/api'
+import { extractCard, kioskNewMember, getCardScanUsage, type NewMemberFields } from '../../lib/api'
 import { easternNow } from '../../lib/checkinWindow'
 import { NewFamilyCardForm } from './NewFamilyCardForm'
 import { blankCardForm, groupForAffiliation, joinAffiliation, type CardFormValue } from './newFamilyCard'
@@ -25,6 +25,10 @@ export function CardScanDialog({ open, onClose }: { open: boolean; onClose: () =
   const { t } = useTranslation()
   const qc = useQueryClient()
   const toast = useToast()
+  // Always refetched on open (rather than trusting the 30s default staleTime) and
+  // invalidated after every successful extraction below, so the count shown here never
+  // lags behind what the server will actually enforce.
+  const { data: usage } = useQuery({ queryKey: ['cardScanUsage'], queryFn: getCardScanUsage, refetchOnMount: 'always' })
   const fileRef = useRef<HTMLInputElement>(null)
   const [phase, setPhase] = useState<Phase>('pick')
   const [queue, setQueue] = useState<File[]>([])
@@ -85,8 +89,8 @@ export function CardScanDialog({ open, onClose }: { open: boolean; onClose: () =
       const res = await extractCard(image.base64, image.mediaType)
       setCard(normalizeExtractedCard(res.card, easternNow().date))
       setPhase('review')
-      // A successful extraction consumes one unit of the monthly quota — refresh the
-      // usage the 새가족 tab shows next to the scan button.
+      // A successful extraction consumes one unit of the monthly quota — refetch so the
+      // count shown above stays accurate as the operator works through a multi-card batch.
       void qc.invalidateQueries({ queryKey: ['cardScanUsage'] })
     } catch (e) {
       // Surface the server's reason (missing secret, quota, unreadable card) —
@@ -152,6 +156,11 @@ export function CardScanDialog({ open, onClose }: { open: boolean; onClose: () =
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && close()} title={t('admin.newfamily.scan.title')} wide>
+      {usage && (
+        <p className="mb-3 font-mono text-[11px] text-subtle">
+          {t('admin.newfamily.scan.usage', { available: Math.max(0, usage.limit - usage.used), used: usage.used })}
+        </p>
+      )}
       {phase === 'pick' && (
         <div className="flex flex-col gap-3">
           <p className="text-sm text-muted">{t('admin.newfamily.scan.hint')}</p>

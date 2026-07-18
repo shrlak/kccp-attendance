@@ -1,14 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  getConfig,
-  getDongsanNames,
-  updateDongsanNames,
-  getNewMemberDongsanNames,
-  updateNewMemberDongsanNames,
-  type DongsanNames,
-} from '../../lib/api'
+import { getConfig, getDongsanNames, updateDongsanNames, type DongsanNames } from '../../lib/api'
 import { useToast } from '../../components/ui/Toast'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
@@ -17,19 +10,18 @@ import { DongsanLeadersEditor } from './DongsanLeaders'
 
 const KM_GROUPS = ['대학부', '청년부']
 
-// 동산 admin tab (super-admin only): edit 동산 names (both the regular list and the
-// separate 새가족 교육 동산 list) + 동산지기/부동산지기. In summer mode each names editor
-// collapses to ONE combined set of 동산 (no 대학부/청년부 split) which is written to both
-// KM departments, matching how summer mode merges them everywhere else.
+// 동산 admin tab (super-admin only): edit 동산 names + 동산지기/부동산지기. In summer mode the
+// names editor collapses to ONE combined set of 동산 (no 대학부/청년부 split) which is written
+// to both KM departments, matching how summer mode merges them everywhere else. (The separate
+// 새가족 교육 동산 names live on the 새가족 교육 tab, next to the education tracking they configure.)
 export function AdminDongsan() {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const { data: cfg } = useQuery({ queryKey: ['config'], queryFn: getConfig })
   const { data: loaded } = useQuery({ queryKey: ['dongsanNames'], queryFn: getDongsanNames })
-  const { data: eduLoaded } = useQuery({ queryKey: ['newMemberDongsanNames'], queryFn: getNewMemberDongsanNames })
   const summer = !!cfg?.summerMode
 
-  if (!loaded || !eduLoaded) return <p className="text-sm text-muted">{t('common.loading')}</p>
+  if (!loaded) return <p className="text-sm text-muted">{t('common.loading')}</p>
 
   return (
     <div className="w-full">
@@ -46,28 +38,15 @@ export function AdminDongsan() {
 
       <hr className="my-8 border-border" />
 
-      <DongsanNamesEditor
-        loaded={eduLoaded}
-        summer={summer}
-        title={t('admin.settings.newMemberDongsanNames')}
-        desc={t('admin.settings.newMemberDongsanNamesDesc')}
-        onSave={async (next) => {
-          await updateNewMemberDongsanNames(next)
-          await qc.invalidateQueries({ queryKey: ['newMemberDongsanNames'] })
-        }}
-      />
-
-      <hr className="my-8 border-border" />
-
       <DongsanLeadersEditor />
     </div>
   )
 }
 
 // A 동산-names list editor (add/rename/remove per 부서, or one combined list in summer
-// mode) — shared by the regular 동산 names and the separate 새가족 교육 동산 names, which
-// differ only in their data source and save endpoint.
-function DongsanNamesEditor({
+// mode) — shared by the regular 동산 tab and the 새가족 교육 tab's separate 새가족 교육
+// 동산 names, which differ only in their data source and save endpoint.
+export function DongsanNamesEditor({
   loaded,
   summer,
   title,

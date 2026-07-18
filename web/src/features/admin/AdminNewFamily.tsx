@@ -1,15 +1,14 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRoster } from './useRoster'
 import { easternNow } from '../../lib/checkinWindow'
 import { filterMembers, NO_FILTER, type Filter } from './filters'
-import { semesterKey, newFamilyByDate, monthlyRegistrations, matchesEduFilter, type EduFilter } from './newFamily'
+import { semesterKey, newFamilyByDate, monthlyRegistrations } from './newFamily'
 import { copyNewFamilyCards, saveNewFamilyCards } from './newFamilyCardImage'
 import { newFamilySheets, NEW_FAMILY_HEADER } from './exports'
 import { toggleId } from './bulk'
-import { GroupFilter, Pill } from './GroupFilter'
-import { updateMember, getCardScanUsage, type Member, type MemberEdit } from '../../lib/api'
+import { GroupFilter } from './GroupFilter'
+import { type Member } from '../../lib/api'
 import { Dialog } from '../../components/ui/Dialog'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
@@ -17,14 +16,14 @@ import { useToast } from '../../components/ui/Toast'
 import { EditModal, AttendanceModal } from './MemberDialogs'
 import { CardScanDialog } from './CardScanDialog'
 
-// 새가족 (new-family) tab: the current-semester new members with inline education
-// tracking, plus a monthly-registrations roll-up. Visible to every admin.
+// 새가족 (new-family) tab: registration tracking — current-semester new members grouped
+// by 등록일, a monthly-registrations roll-up, card-photo registration, and export.
+// Education tracking (1·2주차, 새가족 교육 동산) lives on the dedicated 새가족 교육 tab.
+// Visible to every admin.
 export function AdminNewFamily() {
   const { t } = useTranslation()
   const { data, isLoading, isError } = useRoster(true)
-  const { data: scanUsage } = useQuery({ queryKey: ['cardScanUsage'], queryFn: getCardScanUsage })
   const [filter, setFilter] = useState<Filter>(NO_FILTER)
-  const [eduFilter, setEduFilter] = useState<EduFilter>('all')
   const [editing, setEditing] = useState<Member | null>(null)
   const [attendanceFor, setAttendanceFor] = useState<Member | null>(null)
   const [exportOpen, setExportOpen] = useState(false)
@@ -36,15 +35,9 @@ export function AdminNewFamily() {
 
   const today = easternNow().date
   const scopedMembers = filterMembers(data.members, filter)
-  // The export/count baseline stays independent of the education filter below — that
-  // filter only narrows what's shown in the card grid, not what can be exported.
-  const fullDateGroups = newFamilyByDate(scopedMembers, today)
-  const allNewFamily = fullDateGroups.flatMap((g) => g.members)
-  const dateGroups =
-    eduFilter === 'all'
-      ? fullDateGroups
-      : newFamilyByDate(scopedMembers.filter((m) => matchesEduFilter(m, eduFilter)), today)
-  const visibleCount = dateGroups.reduce((n, g) => n + g.members.length, 0)
+  const dateGroups = newFamilyByDate(scopedMembers, today)
+  const allNewFamily = dateGroups.flatMap((g) => g.members)
+  const total = allNewFamily.length
   const months = monthlyRegistrations(scopedMembers)
   const [, season] = semesterKey(today).split('-')
   const year = semesterKey(today).split('-')[0]
@@ -54,39 +47,14 @@ export function AdminNewFamily() {
     <>
       <GroupFilter members={data.members} value={filter} onChange={setFilter} />
 
-      {/* 새가족 교육 이수 필터: 1주차만 / 2주차만 / 둘 다 / 아무것도 안 들음 — narrows the
-          card grid below only (월별 등록 and the 내보내기 candidate pool are unaffected). */}
-      <div className="mb-4 flex flex-wrap gap-1.5">
-        <Pill active={eduFilter === 'all'} onClick={() => setEduFilter('all')}>
-          {t('admin.filter.all')}
-        </Pill>
-        <Pill active={eduFilter === 'week1'} onClick={() => setEduFilter('week1')}>
-          {t('admin.newfamily.eduFilter.week1')}
-        </Pill>
-        <Pill active={eduFilter === 'week2'} onClick={() => setEduFilter('week2')}>
-          {t('admin.newfamily.eduFilter.week2')}
-        </Pill>
-        <Pill active={eduFilter === 'both'} onClick={() => setEduFilter('both')}>
-          {t('admin.newfamily.eduFilter.both')}
-        </Pill>
-        <Pill active={eduFilter === 'none'} onClick={() => setEduFilter('none')}>
-          {t('admin.newfamily.eduFilter.none')}
-        </Pill>
-      </div>
-
       <div className="mb-1.5 flex items-center gap-2">
         <span className="rounded-full bg-primary/15 px-3 py-1 text-xs font-semibold text-primary">
           {year} {t(`admin.newfamily.season.${season}`)}
         </span>
         <span className="font-mono text-xs uppercase tracking-wide text-subtle">
-          {t('admin.newfamily.title')} · {visibleCount}
+          {t('admin.newfamily.title')} · {total}
         </span>
-        <div className="ml-auto flex items-center gap-2">
-          {!readOnly && scanUsage && (
-            <span className="font-mono text-[11px] text-subtle">
-              {t('admin.newfamily.scan.usage', { available: Math.max(0, scanUsage.limit - scanUsage.used), used: scanUsage.used })}
-            </span>
-          )}
+        <div className="ml-auto flex gap-2">
           {!readOnly && (
             <Button variant="secondary" size="sm" onClick={() => setScanOpen(true)}>
               {t('admin.newfamily.scan.action')}
@@ -101,9 +69,7 @@ export function AdminNewFamily() {
       <p className="mb-3 text-xs text-subtle">{t('admin.newfamily.legend')}</p>
 
       {dateGroups.length === 0 ? (
-        <p className="text-sm text-muted">
-          {t(allNewFamily.length === 0 ? 'admin.newfamily.empty' : 'admin.newfamily.noFilterMatch')}
-        </p>
+        <p className="text-sm text-muted">{t('admin.newfamily.empty')}</p>
       ) : (
         <div className="flex flex-col gap-5">
           {dateGroups.map((g) => (
@@ -118,7 +84,7 @@ export function AdminNewFamily() {
               </div>
               <ul className="grid grid-cols-4 gap-2">
                 {g.members.map((m) => (
-                  <NewFamilyCard key={m.id} member={m} readOnly={readOnly} onOpen={() => setEditing(m)} />
+                  <NewFamilyCard key={m.id} member={m} onOpen={() => setEditing(m)} />
                 ))}
               </ul>
             </div>
@@ -347,35 +313,15 @@ function ExportModal({ members, today, onClose }: { members: Member[]; today: st
   )
 }
 
-function NewFamilyCard({
-  member,
-  readOnly,
-  onOpen,
-}: {
-  member: Member
-  readOnly: boolean
-  onOpen: () => void
-}) {
+function NewFamilyCard({ member, onOpen }: { member: Member; onOpen: () => void }) {
   const { t } = useTranslation()
-  const qc = useQueryClient()
-  const toast = useToast()
-  const [busy, setBusy] = useState<keyof MemberEdit | null>(null)
-
-  async function toggle(field: 'newMemberEduWeek1' | 'newMemberEduWeek2', value: boolean) {
-    setBusy(field)
-    try {
-      await updateMember(member.id, { [field]: value })
-      await qc.invalidateQueries({ queryKey: ['roster'] })
-    } catch {
-      toast({ title: t('common.error'), tone: 'err' })
-    } finally {
-      setBusy(null)
-    }
-  }
 
   return (
     <li className="rounded-lg border border-border bg-surface p-3">
-      {/* Tap the body to open the member's full info/editor (feature parity with 멤버 tab) */}
+      {/* Tap the card to open the member's full info/editor (feature parity with 멤버 탭).
+          Education tracking (1·2주차, 새가족 교육 동산) lives on the 새가족 교육 탭 — this
+          card stays focused on registration info, with a read-only glance at their
+          education status. */}
       <button type="button" onClick={onOpen} className="block w-full text-left">
         <div className="text-sm font-semibold text-text">
           {member.name}
@@ -390,30 +336,17 @@ function NewFamilyCard({
           </div>
         )}
         {member.phone && <div className="text-xs text-subtle">{member.phone}</div>}
+        {(member.new_member_edu_week1 || member.new_member_edu_week2) && (
+          <div className="mt-1 flex gap-1">
+            {member.new_member_edu_week1 && (
+              <span className="rounded-full bg-info/10 px-1.5 py-0.5 text-[10px] font-semibold text-info">{t('admin.iconKey.eduWeek1')}</span>
+            )}
+            {member.new_member_edu_week2 && (
+              <span className="rounded-full bg-info/10 px-1.5 py-0.5 text-[10px] font-semibold text-info">{t('admin.iconKey.eduWeek2')}</span>
+            )}
+          </div>
+        )}
       </button>
-      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
-        <EduCheck
-          label={t('admin.newfamily.edu1')}
-          checked={!!member.new_member_edu_week1}
-          disabled={readOnly || busy !== null}
-          onChange={(v) => toggle('newMemberEduWeek1', v)}
-        />
-        <EduCheck
-          label={t('admin.newfamily.edu2')}
-          checked={!!member.new_member_edu_week2}
-          disabled={readOnly || busy !== null}
-          onChange={(v) => toggle('newMemberEduWeek2', v)}
-        />
-      </div>
     </li>
-  )
-}
-
-function EduCheck({ label, checked, disabled, onChange }: { label: string; checked: boolean; disabled: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <label className="flex items-center gap-1.5 text-xs text-text">
-      <input type="checkbox" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
-      {label}
-    </label>
   )
 }
