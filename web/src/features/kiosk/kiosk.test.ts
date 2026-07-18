@@ -37,7 +37,7 @@ const log = (name: string, date: string, role?: string, extra: Partial<LogEntry>
 })
 
 describe('splitThirds', () => {
-  it('splits into ceil(n/3), ceil(rest/2), rest', () => {
+  it('splits into balanced columns (same sizes as before)', () => {
     expect(splitThirds([1, 2, 3, 4, 5, 6, 7]).map((c) => c.length)).toEqual([3, 2, 2])
     expect(splitThirds([1, 2, 3, 4]).map((c) => c.length)).toEqual([2, 1, 1])
     expect(splitThirds([1]).map((c) => c.length)).toEqual([1, 0, 0])
@@ -45,9 +45,12 @@ describe('splitThirds', () => {
   it('always returns three columns, even when empty', () => {
     expect(splitThirds([]).map((c) => c.length)).toEqual([0, 0, 0])
   })
-  it('preserves order and covers every element exactly once', () => {
+  it('distributes round-robin (item i -> column i % 3), so a sorted input reads left-to-right then down', () => {
+    expect(splitThirds([1, 2, 3, 4, 5, 6, 7])).toEqual([[1, 4, 7], [2, 5], [3, 6]])
+  })
+  it('covers every element exactly once', () => {
     const all = [1, 2, 3, 4, 5]
-    expect(splitThirds(all).flat()).toEqual(all)
+    expect(splitThirds(all).flat().sort()).toEqual(all)
   })
 })
 
@@ -74,6 +77,17 @@ describe('kioskColumns', () => {
     const cols = kioskColumns(members)
     const all = [...cols.depts.flatMap((d) => d.thirds.flat()), ...cols.others]
     expect(all.find((m) => m.name === 'V')).toBeUndefined()
+  })
+
+  it('sorts each 부서 bucket 가나다 순 regardless of roster order', () => {
+    const unordered = [member('다영', '대학부'), member('가영', '대학부'), member('나영', '대학부')]
+    const cols = kioskColumns(unordered)
+    expect(cols.depts[0].thirds.flat().map((m) => m.name)).toEqual(['가영', '나영', '다영'])
+  })
+
+  it('sorts others 가나다 순 too', () => {
+    const unordered = [member('나', 'EM'), member('가', 'EM')]
+    expect(kioskColumns(unordered).others.map((m) => m.name)).toEqual(['가', '나'])
   })
 })
 

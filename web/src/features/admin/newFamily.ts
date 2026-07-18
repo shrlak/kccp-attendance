@@ -50,6 +50,32 @@ export function semesterSundays(today: string, through: string = today): string[
   return out
 }
 
+// A 새가족 keeps showing the 새가족 mark (출석표 note, 오늘 tab tag) until they finish
+// BOTH weeks of newcomer education — after that they've effectively graduated from
+// newcomer status even though is_new_member (their historical registration flag, which
+// drives the 멤버/새가족 tabs) stays true. Members-tab badges and the 새가족 tab itself
+// are unaffected — they track the full history, not just "still an active newcomer".
+export function isActiveNewFamily(m: Pick<Member, 'is_new_member' | 'new_member_edu_week1' | 'new_member_edu_week2'>): boolean {
+  return !!m.is_new_member && !(m.new_member_edu_week1 && m.new_member_edu_week2)
+}
+
+// The 새가족 tab's 4-way education filter: 1주차만 이수 / 2주차만 이수 / 둘 다 이수 /
+// 아무것도 안 들음 — an exhaustive, mutually-exclusive partition of the two checkboxes.
+export type EduFilter = 'all' | 'week1' | 'week2' | 'both' | 'none'
+
+export function matchesEduFilter(
+  m: Pick<Member, 'new_member_edu_week1' | 'new_member_edu_week2'>,
+  filter: EduFilter,
+): boolean {
+  if (filter === 'all') return true
+  const w1 = !!m.new_member_edu_week1
+  const w2 = !!m.new_member_edu_week2
+  if (filter === 'both') return w1 && w2
+  if (filter === 'week1') return w1 && !w2
+  if (filter === 'week2') return !w1 && w2
+  return !w1 && !w2 // 'none'
+}
+
 // 새가족 currently in scope: flagged is_new_member and either registered in the current
 // semester or missing a registration date (kept visible). Newest registration first.
 export function currentNewFamily(members: Member[], today: string): Member[] {

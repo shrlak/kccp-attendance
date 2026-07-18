@@ -121,13 +121,14 @@
     "noMembers": "표시할 멤버가 없습니다",
     "scopeAll": "전체",
     "roles": { "super_admin": "최고관리자", "leader": "리더", "pastor": "목사님", "welcoming": "새가족팀", "staff": "운영진" },
-    "nav": { "today": "오늘", "sheet": "출석부", "members": "멤버", "analytics": "통계", "newfamily": "새가족", "visitors": "방문자", "admins": "관리자", "dongsan": "동산", "settings": "설정" },
+    "nav": { "today": "오늘", "sheet": "출석부", "members": "멤버", "analytics": "통계", "newfamily": "새가족", "newfamilyEdu": "새가족 교육", "visitors": "방문자", "admins": "관리자", "dongsan": "동산", "settings": "설정" },
     "navHelp": {
       "today": "오늘 출석 현황과 주간 비교",
       "sheet": "주일별 출석 기록 확인과 내보내기",
       "members": "공동체 명단과 개인 기록 관리",
       "analytics": "출석 흐름과 부서별 변화 확인",
       "newfamily": "새가족 등록과 정착 과정 관리",
+      "newfamilyEdu": "새가족 교육 이수와 교육 동산 배정 관리",
       "visitors": "방문자 기록과 재방문 확인",
       "admins": "운영 권한과 승인 요청 관리",
       "dongsan": "동산 구성과 리더 배정",
@@ -137,12 +138,13 @@
     "dongsanRole": { "leader": "동산지기", "subleader": "부동산지기" },
     "analytics": { "trend": "출석 추이", "groupCompare": "부서별 비교", "attendance": "출석", "monthly": "월별 요약", "semester": "학기별 요약", "weeklyRecap": "주간 요약", "month": "월", "date": "날짜", "sundays": "주일", "attendees": "출석 인원", "firstVisits": "첫출석", "half1": "상반기", "half2": "하반기", "copy": "복사", "copied": "클립보드에 복사되었습니다" },
     "admins": { "clearReq": { "title": "출석 삭제 요청", "by": "{{name}} 님이 요청", "approve": "승인 후 삭제", "reject": "거절", "rejected": "삭제 요청이 거절되었습니다" }, "approval": "등록 승인", "approvalDesc": "켜면 새 등록이 승인 대기열로 들어갑니다.", "adminsList": "관리자 목록", "noAdmins": "관리자가 없습니다", "auditLog": "활동 기록", "loadAudit": "활동 기록 불러오기", "noAudit": "기록이 없습니다", "loginLog": "로그인 기록", "loadLogins": "로그인 기록 불러오기", "noLogins": "로그인 기록이 없습니다", "sharedLogin": "공용 비밀번호", "method": { "password": "비밀번호", "google": "구글" }, "pending": "승인 대기", "approve": "승인", "reject": "거절", "addAdmin": "관리자 추가", "remove": "삭제", "member": "멤버", "role": "역할", "backup": "백업 / 복원", "backupDesc": "모든 데이터의 전체 JSON 스냅샷을 다운로드하거나 복원합니다. 복원은 모든 데이터를 덮어씁니다.", "download": "백업 다운로드", "restore": "복원", "restoreConfirm": "복원 확인 (모든 데이터 교체)", "restored": "복원 완료" },
-    "newfamily": { "title": "새가족", "empty": "이번 학기 새가족이 없습니다", "monthly": "월별 등록", "noRegDate": "등록일 미입력", "pastoralVisit": "심방 요청", "legend": "🙏 심방 요청", "edu1": "교육 1주차", "edu2": "교육 2주차", "season": { "spring": "봄학기", "summer": "여름학기", "fall": "가을학기" }, "export": { "action": "내보내기", "title": "새가족 내보내기", "select": "내보낼 새가족을 선택하세요. 오늘 등록된 새가족은 미리 선택되어 있습니다.", "selected": "선택 {{n}}명", "all": "전체 선택", "none": "선택 해제", "noMatch": "멤버를 찾을 수 없습니다", "cardsCopyConfirm": "카드 복사\n({{n}}명)", "cardsCopyBusy": "복사하는 중…", "cardsCopyDone": "새가족 등록 카드를 클립보드에 복사했습니다", "cardsCopyFailed": "클립보드 복사를 지원하지 않는 브라우저입니다", "cardsSaveConfirm": "카드 저장\n({{n}}명)", "cardsSaveBusy": "저장하는 중…", "cardsSaveDone": "새가족 등록 카드(JPG)를 저장했습니다", "cardsSaveFailed": "이미지를 만들지 못했습니다", "excelConfirm": "엑셀로\n내보내기\n({{n}}명)", "excelBusy": "엑셀 만드는 중…", "excelDone": "새가족 정보를 엑셀 파일로 저장했습니다", "excelFailed": "엑셀 파일을 만들지 못했습니다" }, "scan": { "action": "카드 사진 등록", "title": "카드 사진으로 등록", "hint": "새가족 등록 카드를 촬영하거나 사진을 업로드하세요. 여러 장을 한 번에 선택할 수 있습니다.", "pick": "카드 사진 선택", "extracting": "카드 인식 중… 잠시만 기다려주세요", "reviewHint": "인식된 내용을 확인하고 잘못 읽힌 부분을 수정한 뒤 등록하세요.", "checkinToday": "오늘 출석 체크", "retake": "다시 선택", "skip": "이 카드 건너뛰기", "progress": "카드 {{n}} / {{total}}", "submit": "등록", "done": "{{name}} 등록 완료", "failed": "카드 인식에 실패했습니다", "badImage": "이미지를 읽을 수 없습니다" } },
+    "newfamily": { "title": "새가족", "empty": "이번 학기 새가족이 없습니다", "noFilterMatch": "조건에 맞는 새가족이 없습니다", "monthly": "월별 등록", "noRegDate": "등록일 미입력", "pastoralVisit": "심방 요청", "legend": "🙏 심방 요청", "edu1": "교육 1주차", "edu2": "교육 2주차", "eduDongsanTag": "교육동산", "eduFilter": { "week1": "1주차만", "week2": "2주차만", "both": "둘 다", "none": "안 들음" }, "season": { "spring": "봄학기", "summer": "여름학기", "fall": "가을학기" }, "export": { "action": "내보내기", "title": "새가족 내보내기", "select": "내보낼 새가족을 선택하세요. 오늘 등록된 새가족은 미리 선택되어 있습니다.", "selected": "선택 {{n}}명", "all": "전체 선택", "none": "선택 해제", "noMatch": "멤버를 찾을 수 없습니다", "cardsCopyConfirm": "카드 복사\n({{n}}명)", "cardsCopyBusy": "복사하는 중…", "cardsCopyDone": "새가족 등록 카드를 클립보드에 복사했습니다", "cardsCopyFailed": "클립보드 복사를 지원하지 않는 브라우저입니다", "cardsSaveConfirm": "카드 저장\n({{n}}명)", "cardsSaveBusy": "저장하는 중…", "cardsSaveDone": "새가족 등록 카드(JPG)를 저장했습니다", "cardsSaveFailed": "이미지를 만들지 못했습니다", "excelConfirm": "엑셀로\n내보내기\n({{n}}명)", "excelBusy": "엑셀 만드는 중…", "excelDone": "새가족 정보를 엑셀 파일로 저장했습니다", "excelFailed": "엑셀 파일을 만들지 못했습니다" }, "scan": { "action": "카드 사진 등록", "usage": "이번 달 사용 가능 {{available}}회 · 사용 {{used}}회", "title": "카드 사진으로 등록", "hint": "새가족 등록 카드를 촬영하거나 사진을 업로드하세요. 여러 장을 한 번에 선택할 수 있습니다.", "pick": "카드 사진 선택", "extracting": "카드 인식 중… 잠시만 기다려주세요", "reviewHint": "인식된 내용을 확인하고 잘못 읽힌 부분을 수정한 뒤 등록하세요.", "checkinToday": "오늘 출석 체크", "retake": "다시 선택", "skip": "이 카드 건너뛰기", "progress": "카드 {{n}} / {{total}}", "submit": "등록", "done": "{{name}} 등록 완료", "failed": "카드 인식에 실패했습니다", "badImage": "이미지를 읽을 수 없습니다" } },
+    "newfamilyEdu": { "title": "새가족 교육" },
     "visitors": { "title": "방문 기록", "empty": "방문자 기록이 없습니다", "today": "오늘", "returning": "재방문 {{n}}회", "stats": { "today": "오늘 방문", "total": "총 방문", "unique": "방문자 수" } },
     "stats": { "today": "오늘 출석 인원", "members": "전체 멤버 수", "records": "출석", "days": "예배 주일 수" },
-    "iconKey": { "legend": "상태 안내", "newFamily": "새가족", "visitor": "방문자", "firstVisit": "첫출석", "newMemberStar": "새가족" },
+    "iconKey": { "legend": "상태 안내", "newFamily": "새가족", "visitor": "방문자", "firstVisit": "첫출석", "newMemberStar": "새가족", "eduWeek1": "1", "eduWeek2": "2" },
     "dashboard": { "present": "출석", "absent": "결석", "avgRate": "4주 평균" },
-    "members": { "search": "이름 검색", "bulkMove": { "action": "동산 이동", "selected": "{{n}}명 선택", "placeholder": "동산 선택", "moveTo": "이 동산으로", "remove": "동산에서 빼기", "done": "{{n}}명 이동되었습니다" }, "edit": "멤버 편집", "saved": "저장되었습니다", "name": "이름", "group": "부서", "subgroup": "동산", "memberRole": "역할", "gender": "성별", "phone": "전화", "kakaoId": "카톡ID", "birthDate": "생일", "notes": "메모", "isNewMember": "새가족", "card": { "section": "새가족 등록 카드", "download": "카드 다운로드 (JPG)", "done": "등록 카드(JPG)를 저장했습니다", "removeReg": "등록일 제거 · 새가족 목록에서 제외" }, "sectionBasic": "기본 정보", "sectionPersonal": "개인 정보", "statusSection": "상태 표기", "statusHelp": "이주 혹은 귀국 시에만 작성해주세요. 작성한 기간은 출석부에 회색으로 표시됩니다.", "statusNote": "상태 표기 (한국 귀국 · 이주 등)", "statusStart": "표기 시작일", "statusEnd": "표기 종료일 (비우면 학기 끝까지)", "merge": { "action": "병합", "title": "멤버 병합", "help": "한 멤버의 기기와 출석 기록을 다른 멤버로 옮기고, 원래 멤버는 삭제합니다. 되돌릴 수 없습니다.", "from": "병합할 멤버 (삭제됨)", "to": "남길 멤버", "warn": "{{summary}} — 되돌릴 수 없습니다.", "confirm": "병합", "done": "병합되었습니다" }, "delete": { "action": "멤버 삭제", "warn": "이 멤버와 모든 출석 기록이 영구적으로 삭제됩니다. 되돌릴 수 없습니다.", "confirm": "삭제", "done": "{{name}} 님이 삭제되었습니다" }, "attendance": { "action": "출석 기록", "title": "출석 기록", "date": "날짜", "add": "추가", "remove": "삭제", "total": "기록 {{n}}건", "empty": "출석 기록이 없습니다", "added": "출석이 추가되었습니다", "removed": "출석이 삭제되었습니다", "already": "해당 날짜에 이미 출석 기록이 있습니다" }, "staffSection": "운영 계정" },
+    "members": { "search": "이름 검색", "bulkMove": { "action": "동산 이동", "selected": "{{n}}명 선택", "placeholder": "동산 선택", "moveTo": "이 동산으로", "remove": "동산에서 빼기", "done": "{{n}}명 이동되었습니다" }, "edit": "멤버 편집", "saved": "저장되었습니다", "name": "이름", "group": "부서", "subgroup": "동산", "eduDongsan": "새가족 교육 동산", "memberRole": "역할", "gender": "성별", "phone": "전화", "kakaoId": "카톡ID", "birthDate": "생일", "notes": "메모", "isNewMember": "새가족", "card": { "section": "새가족 등록 카드", "copy": "카드 복사 (JPG)", "download": "카드 다운로드 (JPG)", "done": "등록 카드(JPG)를 저장했습니다", "removeReg": "등록일 제거 · 새가족 목록에서 제외" }, "sectionBasic": "기본 정보", "sectionPersonal": "개인 정보", "statusSection": "상태 표기", "statusHelp": "이주 혹은 귀국 시에만 작성해주세요. 작성한 기간은 출석부에 회색으로 표시됩니다.", "statusNote": "상태 표기 (한국 귀국 · 이주 등)", "statusStart": "표기 시작일", "statusEnd": "표기 종료일 (비우면 학기 끝까지)", "merge": { "action": "병합", "title": "멤버 병합", "help": "한 멤버의 기기와 출석 기록을 다른 멤버로 옮기고, 원래 멤버는 삭제합니다. 되돌릴 수 없습니다.", "from": "병합할 멤버 (삭제됨)", "to": "남길 멤버", "warn": "{{summary}} — 되돌릴 수 없습니다.", "confirm": "병합", "done": "병합되었습니다" }, "delete": { "action": "멤버 삭제", "warn": "이 멤버와 모든 출석 기록이 영구적으로 삭제됩니다. 되돌릴 수 없습니다.", "confirm": "삭제", "done": "{{name}} 님이 삭제되었습니다" }, "attendance": { "action": "출석 기록", "title": "출석 기록", "date": "날짜", "add": "추가", "remove": "삭제", "total": "기록 {{n}}건", "empty": "출석 기록이 없습니다", "added": "출석이 추가되었습니다", "removed": "출석이 삭제되었습니다", "already": "해당 날짜에 이미 출석 기록이 있습니다" }, "staffSection": "운영 계정" },
     "today": { "title": "오늘 출석", "none": "아직 출석이 없습니다", "thisWeek": "이번 주 출석 인원", "lastWeek": "지난 주 출석 인원", "change": "지난 주 대비 증감", "manualCheckin": { "none": "멤버를 찾을 수 없습니다" }, "export": { "copy": "복사", "save": "저장", "busy": "내보내는 중…", "copyDone": "출석표 이미지를 클립보드에 복사했습니다", "copyFailed": "클립보드 복사를 지원하지 않는 브라우저입니다", "saveDone": "출석표 이미지(JPG)를 저장했습니다", "saveFailed": "이미지를 만들지 못했습니다" } },
     "sheet": { "grid": "표", "log": "기록", "total": "합계", "empty": "출석 기록이 없습니다", "clearAll": { "action": "전체 삭제", "title": "모든 출석 기록 삭제", "warnSuper": "모든 출석 기록이 영구적으로 삭제됩니다. 되돌릴 수 없습니다.", "warnRequest": "삭제 요청을 보냅니다. 최고관리자 승인 후 삭제됩니다.", "confirm": "모두 삭제", "request": "삭제 요청", "cleared": "모든 출석 기록이 삭제되었습니다", "requested": "삭제 요청이 제출되었습니다 (승인 대기)" }, "bulk": { "action": "일괄 출석", "title": "일괄 출석", "date": "날짜", "selected": "선택 {{n}}명", "all": "전체 선택", "none": "선택 해제", "confirm": "{{n}}명 출석", "done": "{{n}}명 출석 처리되었습니다" }, "export": { "action": "내보내기", "title": "내보내기", "excel": "엑셀 (.xlsx)", "excelDesc": "출석표 + 전체 기록", "kakao": "카카오톡 요약", "kakaoDesc": "오늘 출석 요약을 클립보드에 복사", "report": "PDF 보고서", "reportDesc": "학기 출석부를 PDF로 저장 (인쇄 → PDF)", "copied": "요약이 클립보드에 복사되었습니다", "copyFailed": "복사하지 못했습니다 — 직접 복사해주세요", "popupBlocked": "보고서가 차단되었습니다 — 팝업을 허용해주세요", "excelFailed": "엑셀 내보내기에 실패했습니다" } },
     "settings": {
@@ -168,6 +170,8 @@
       "addDongsan": "동산 추가",
       "dongsanPlaceholder": "동산 이름",
       "removeDongsan": "삭제",
+      "newMemberDongsanNames": "새가족 교육 동산 이름",
+      "newMemberDongsanNamesDesc": "새가족 교육 기간에만 쓰이는 동산 이름을 추가·수정·삭제합니다. 일반 동산과는 별개입니다.",
       "dongsanLeaders": "동산지기 / 부동산지기",
       "dongsanLeadersDesc": "동산별 동산지기와 부동산지기를 지정합니다. 멤버 카드와 오늘 출석 목록에 배지로 표시됩니다.",
       "leader": "동산지기",
@@ -177,7 +181,10 @@
       "summerCombined": "☀️ 여름 모드 — 합동 동산 (대학부·청년부 통합)",
       "groupColors": "부서 색상",
       "groupColorsDesc": "대학부·청년부의 강조 색상입니다. 오늘 탭 이름 아이콘, 키오스크 배경, 멤버 카드 배경에 적용됩니다.",
-      "groupColorInvalid": "올바른 6자리 hex 코드를 입력하세요 (예: #E0A800)"
+      "groupColorInvalid": "올바른 6자리 hex 코드를 입력하세요 (예: #E0A800)",
+      "cardScanLimit": "카드 사진 등록 한도",
+      "cardScanLimitDesc": "매달 카드 사진 등록(자동 인식)에 사용할 수 있는 횟수입니다.",
+      "cardScanLimitField": "월별 한도"
     }
   }
 }

@@ -1,5 +1,15 @@
 import { describe, it, expect } from 'vitest'
-import { semesterKey, semesterBounds, semesterSundays, currentNewFamily, newFamilyByDate, monthlyRegistrations, registeredOnDate } from './newFamily'
+import {
+  semesterKey,
+  semesterBounds,
+  semesterSundays,
+  currentNewFamily,
+  newFamilyByDate,
+  monthlyRegistrations,
+  registeredOnDate,
+  isActiveNewFamily,
+  matchesEduFilter,
+} from './newFamily'
 import type { Member } from '../../lib/api'
 
 const m = (id: string, isNew: boolean, reg: string | null): Member => ({
@@ -86,6 +96,49 @@ describe('registeredOnDate (등록 카드 export set)', () => {
   })
   it('returns empty when nobody registered that day', () => {
     expect(registeredOnDate(members, '2026-07-06')).toEqual([])
+  })
+})
+
+describe('isActiveNewFamily', () => {
+  it('is false for a non-새가족', () => {
+    expect(isActiveNewFamily({ is_new_member: false, new_member_edu_week1: false, new_member_edu_week2: false })).toBe(false)
+  })
+  it('is true for a 새가족 who has not finished both education weeks', () => {
+    expect(isActiveNewFamily({ is_new_member: true, new_member_edu_week1: false, new_member_edu_week2: false })).toBe(true)
+    expect(isActiveNewFamily({ is_new_member: true, new_member_edu_week1: true, new_member_edu_week2: false })).toBe(true)
+    expect(isActiveNewFamily({ is_new_member: true, new_member_edu_week1: undefined, new_member_edu_week2: undefined })).toBe(true)
+  })
+  it('is false once both weeks are done, even though is_new_member stays true', () => {
+    expect(isActiveNewFamily({ is_new_member: true, new_member_edu_week1: true, new_member_edu_week2: true })).toBe(false)
+  })
+})
+
+describe('matchesEduFilter', () => {
+  const both = { new_member_edu_week1: true, new_member_edu_week2: true }
+  const week1 = { new_member_edu_week1: true, new_member_edu_week2: false }
+  const week2 = { new_member_edu_week1: false, new_member_edu_week2: true }
+  const none = { new_member_edu_week1: false, new_member_edu_week2: false }
+
+  it("'all' matches everyone", () => {
+    for (const c of [both, week1, week2, none]) expect(matchesEduFilter(c, 'all')).toBe(true)
+  })
+  it('the 4 filters partition the 2x2 truth table exactly (no overlap, full coverage)', () => {
+    expect(matchesEduFilter(week1, 'week1')).toBe(true)
+    expect(matchesEduFilter(week2, 'week1')).toBe(false)
+    expect(matchesEduFilter(both, 'week1')).toBe(false)
+    expect(matchesEduFilter(none, 'week1')).toBe(false)
+
+    expect(matchesEduFilter(week2, 'week2')).toBe(true)
+    expect(matchesEduFilter(week1, 'week2')).toBe(false)
+    expect(matchesEduFilter(both, 'week2')).toBe(false)
+
+    expect(matchesEduFilter(both, 'both')).toBe(true)
+    expect(matchesEduFilter(week1, 'both')).toBe(false)
+    expect(matchesEduFilter(week2, 'both')).toBe(false)
+
+    expect(matchesEduFilter(none, 'none')).toBe(true)
+    expect(matchesEduFilter(week1, 'none')).toBe(false)
+    expect(matchesEduFilter(both, 'none')).toBe(false)
   })
 })
 

@@ -127,7 +127,7 @@ export function AdminMembers() {
           {t('admin.nav.members')} · {members.length}
         </div>
       )}
-      <IconKey items={['newMemberStar']} />
+      <IconKey items={['newMemberStar', 'eduWeek1', 'eduWeek2']} />
       {sections.map(({ group, list }) => {
         // 대학부/청년부 cards get a faint per-부서 tint (configurable in 관리자 › 설정);
         // every other section (EM, staff-ish groups, no 부서) stays the plain surface.
@@ -137,7 +137,7 @@ export function AdminMembers() {
           <h3 className="mb-3 border-b border-border pb-2 font-display text-base font-bold text-text">
             {group || '—'} <span className="text-sm font-normal text-muted">· {list.length}</span>
           </h3>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
             {list.map((m) => {
               const sel = selectMode && selected.has(m.id)
               return (
@@ -163,6 +163,16 @@ export function AdminMembers() {
                         {t('admin.iconKey.newMemberStar')}
                       </span>
                     )}
+                    {m.is_new_member && m.new_member_edu_week1 && (
+                      <span className="ml-1 rounded-full bg-info/10 px-2 py-0.5 align-middle text-[10px] font-semibold text-info">
+                        {t('admin.iconKey.eduWeek1')}
+                      </span>
+                    )}
+                    {m.is_new_member && m.new_member_edu_week2 && (
+                      <span className="ml-1 rounded-full bg-info/10 px-2 py-0.5 align-middle text-[10px] font-semibold text-info">
+                        {t('admin.iconKey.eduWeek2')}
+                      </span>
+                    )}
                   </div>
                   <div className="text-xs text-muted">{[m.group_name, m.subgroup].filter(Boolean).join(' · ') || '—'}</div>
                   {m.member_role && <div className="mt-1 font-mono text-[11px] text-subtle">{m.member_role}</div>}
@@ -178,7 +188,7 @@ export function AdminMembers() {
           <div className="mb-3 mt-6 font-mono text-xs uppercase tracking-wide text-subtle">
             {t('admin.members.staffSection')} · {staffMembers.length}
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
             {staffMembers.map((m) => (
               <button
                 key={m.id}

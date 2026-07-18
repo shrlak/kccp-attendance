@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useQueryClient } from '@tanstack/react-query'
 import { useRoster } from './useRoster'
 import { easternNow } from '../../lib/checkinWindow'
 import { filterMembers, NO_FILTER, type Filter } from './filters'
@@ -9,7 +8,7 @@ import { copyNewFamilyCards, saveNewFamilyCards } from './newFamilyCardImage'
 import { newFamilySheets, NEW_FAMILY_HEADER } from './exports'
 import { toggleId } from './bulk'
 import { GroupFilter } from './GroupFilter'
-import { updateMember, type Member, type MemberEdit } from '../../lib/api'
+import { type Member } from '../../lib/api'
 import { Dialog } from '../../components/ui/Dialog'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
@@ -17,8 +16,10 @@ import { useToast } from '../../components/ui/Toast'
 import { EditModal, AttendanceModal } from './MemberDialogs'
 import { CardScanDialog } from './CardScanDialog'
 
-// 새가족 (new-family) tab: the current-semester new members with inline education
-// tracking, plus a monthly-registrations roll-up. Visible to every admin.
+// 새가족 (new-family) tab: registration tracking — current-semester new members grouped
+// by 등록일, a monthly-registrations roll-up, card-photo registration, and export.
+// Education tracking (1·2주차, 새가족 교육 동산) lives on the dedicated 새가족 교육 tab.
+// Visible to every admin.
 export function AdminNewFamily() {
   const { t } = useTranslation()
   const { data, isLoading, isError } = useRoster(true)
@@ -83,7 +84,7 @@ export function AdminNewFamily() {
               </div>
               <ul className="grid grid-cols-4 gap-2">
                 {g.members.map((m) => (
-                  <NewFamilyCard key={m.id} member={m} readOnly={readOnly} onOpen={() => setEditing(m)} />
+                  <NewFamilyCard key={m.id} member={m} onOpen={() => setEditing(m)} />
                 ))}
               </ul>
             </div>
@@ -102,11 +103,17 @@ export function AdminNewFamily() {
                 </div>
                 <ul className="flex flex-wrap gap-1.5">
                   {g.members.map((m) => (
-                    <li key={m.id} className="rounded-md border border-border bg-surface px-2.5 py-1 text-xs text-muted">
-                      {m.name}
-                      {[m.group_name, m.subgroup].filter(Boolean).length ? (
-                        <span className="ml-1 text-subtle">· {[m.group_name, m.subgroup].filter(Boolean).join(' ')}</span>
-                      ) : null}
+                    <li key={m.id}>
+                      <button
+                        type="button"
+                        onClick={() => setEditing(m)}
+                        className="rounded-md border border-border bg-surface px-2.5 py-1 text-xs text-muted transition-colors hover:border-primary/30 hover:bg-surface-alt hover:text-text"
+                      >
+                        {m.name}
+                        {[m.group_name, m.subgroup].filter(Boolean).length ? (
+                          <span className="ml-1 text-subtle">· {[m.group_name, m.subgroup].filter(Boolean).join(' ')}</span>
+                        ) : null}
+                      </button>
                     </li>
                   ))}
                 </ul>
@@ -306,35 +313,15 @@ function ExportModal({ members, today, onClose }: { members: Member[]; today: st
   )
 }
 
-function NewFamilyCard({
-  member,
-  readOnly,
-  onOpen,
-}: {
-  member: Member
-  readOnly: boolean
-  onOpen: () => void
-}) {
+function NewFamilyCard({ member, onOpen }: { member: Member; onOpen: () => void }) {
   const { t } = useTranslation()
-  const qc = useQueryClient()
-  const toast = useToast()
-  const [busy, setBusy] = useState<keyof MemberEdit | null>(null)
-
-  async function toggle(field: 'newMemberEduWeek1' | 'newMemberEduWeek2', value: boolean) {
-    setBusy(field)
-    try {
-      await updateMember(member.id, { [field]: value })
-      await qc.invalidateQueries({ queryKey: ['roster'] })
-    } catch {
-      toast({ title: t('common.error'), tone: 'err' })
-    } finally {
-      setBusy(null)
-    }
-  }
 
   return (
     <li className="rounded-lg border border-border bg-surface p-3">
-      {/* Tap the body to open the member's full info/editor (feature parity with 멤버 tab) */}
+      {/* Tap the card to open the member's full info/editor (feature parity with 멤버 탭).
+          Education tracking (1·2주차, 새가족 교육 동산) lives on the 새가족 교육 탭 — this
+          card stays focused on registration info, with a read-only glance at their
+          education status. */}
       <button type="button" onClick={onOpen} className="block w-full text-left">
         <div className="text-sm font-semibold text-text">
           {member.name}
@@ -343,31 +330,23 @@ function NewFamilyCard({
           )}
         </div>
         <div className="text-xs text-muted">{[member.group_name, member.subgroup].filter(Boolean).join(' · ') || '—'}</div>
+        {member.new_member_dongsan && (
+          <div className="text-xs text-info">
+            {t('admin.newfamily.eduDongsanTag')} {member.new_member_dongsan}
+          </div>
+        )}
         {member.phone && <div className="text-xs text-subtle">{member.phone}</div>}
+        {(member.new_member_edu_week1 || member.new_member_edu_week2) && (
+          <div className="mt-1 flex gap-1">
+            {member.new_member_edu_week1 && (
+              <span className="rounded-full bg-info/10 px-1.5 py-0.5 text-[10px] font-semibold text-info">{t('admin.iconKey.eduWeek1')}</span>
+            )}
+            {member.new_member_edu_week2 && (
+              <span className="rounded-full bg-info/10 px-1.5 py-0.5 text-[10px] font-semibold text-info">{t('admin.iconKey.eduWeek2')}</span>
+            )}
+          </div>
+        )}
       </button>
-      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
-        <EduCheck
-          label={t('admin.newfamily.edu1')}
-          checked={!!member.new_member_edu_week1}
-          disabled={readOnly || busy !== null}
-          onChange={(v) => toggle('newMemberEduWeek1', v)}
-        />
-        <EduCheck
-          label={t('admin.newfamily.edu2')}
-          checked={!!member.new_member_edu_week2}
-          disabled={readOnly || busy !== null}
-          onChange={(v) => toggle('newMemberEduWeek2', v)}
-        />
-      </div>
     </li>
-  )
-}
-
-function EduCheck({ label, checked, disabled, onChange }: { label: string; checked: boolean; disabled: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <label className="flex items-center gap-1.5 text-xs text-text">
-      <input type="checkbox" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
-      {label}
-    </label>
   )
 }

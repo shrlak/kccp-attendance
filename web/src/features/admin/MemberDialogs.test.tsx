@@ -14,6 +14,7 @@ vi.mock('../../lib/api', () => ({
   removeAttendance: vi.fn(),
   getConfig: vi.fn().mockResolvedValue({ summerMode: false }),
   getDongsanNames: vi.fn().mockResolvedValue({ 대학부: ['1동산', '2동산'], 청년부: ['해동산'] }),
+  getNewMemberDongsanNames: vi.fn().mockResolvedValue({ 대학부: ['교육동산A'], 청년부: ['교육동산B'] }),
 }))
 
 beforeAll(async () => { await i18n.init() })

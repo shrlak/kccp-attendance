@@ -140,6 +140,19 @@ describe('buildAttendanceModel', () => {
     expect(nfRow.marks).toEqual([{ kind: 'note', note: '새가족', span: 1 }, { kind: 'present' }])
     expect(nfRow.total).toBe(1)
   })
+  it('stops deriving the 새가족 pre-등록일자 span once both education weeks are done', () => {
+    // Same as above, but B has graduated (both weeks checked) — the pre-등록일자 5/31
+    // cell falls back to blank instead of the 새가족 note.
+    const graduated = {
+      ...member('2', 'B'),
+      is_new_member: true,
+      registration_date: '2026-06-01',
+      new_member_edu_week1: true,
+      new_member_edu_week2: true,
+    }
+    const row = buildAttendanceModel([member('1', 'A'), graduated], log, dates, today, labels).sections[0].rows[1]
+    expect(row.marks).toEqual([{ kind: 'blank' }, { kind: 'present' }])
+  })
 })
 
 describe('formatGridDate', () => {

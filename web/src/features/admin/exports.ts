@@ -1,6 +1,6 @@
 import type { Member, LogEntry } from '../../lib/api'
 import { buildGrid } from './sheet'
-import { semesterBounds, semesterKey, semesterSundays } from './newFamily'
+import { semesterBounds, semesterKey, semesterSundays, isActiveNewFamily } from './newFamily'
 import { splitAffiliation } from './newFamilyCard'
 
 // ── Pure export helpers ──────────────────────────────────────────────────────
@@ -192,7 +192,7 @@ export function buildAttendanceModel(
     const rows: AttendanceMemberRow[] = sectionMembers.map((m, mi) => {
       const present = presents[mi]
       const marks: CellMark[] = dates.map((d, di) => {
-        const note = statusNote(m, d) ?? (m.is_new_member && beforeRegistration(m, d) ? labels.newFamily : null)
+        const note = statusNote(m, d) ?? (isActiveNewFamily(m) && beforeRegistration(m, d) ? labels.newFamily : null)
         if (note) return { kind: 'note', note, span: 1 }
         if (beforeRegistration(m, d)) return { kind: 'blank' }
         if (isFutureDate(d, today) || !hasData[di]) return { kind: 'blank' }

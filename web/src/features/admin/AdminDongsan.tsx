@@ -12,20 +12,58 @@ const KM_GROUPS = ['대학부', '청년부']
 
 // 동산 admin tab (super-admin only): edit 동산 names + 동산지기/부동산지기. In summer mode the
 // names editor collapses to ONE combined set of 동산 (no 대학부/청년부 split) which is written
-// to both KM departments, matching how summer mode merges them everywhere else.
+// to both KM departments, matching how summer mode merges them everywhere else. (The separate
+// 새가족 교육 동산 names live on the 새가족 교육 tab, next to the education tracking they configure.)
 export function AdminDongsan() {
   const { t } = useTranslation()
-  const toast = useToast()
   const qc = useQueryClient()
   const { data: cfg } = useQuery({ queryKey: ['config'], queryFn: getConfig })
   const { data: loaded } = useQuery({ queryKey: ['dongsanNames'], queryFn: getDongsanNames })
   const summer = !!cfg?.summerMode
 
+  if (!loaded) return <p className="text-sm text-muted">{t('common.loading')}</p>
+
+  return (
+    <div className="w-full">
+      <DongsanNamesEditor
+        loaded={loaded}
+        summer={summer}
+        title={t('admin.settings.dongsanNames')}
+        desc={t('admin.settings.dongsanNamesDesc')}
+        onSave={async (next) => {
+          await updateDongsanNames(next)
+          await qc.invalidateQueries({ queryKey: ['dongsanNames'] })
+        }}
+      />
+
+      <hr className="my-8 border-border" />
+
+      <DongsanLeadersEditor />
+    </div>
+  )
+}
+
+// A 동산-names list editor (add/rename/remove per 부서, or one combined list in summer
+// mode) — shared by the regular 동산 tab and the 새가족 교육 tab's separate 새가족 교육
+// 동산 names, which differ only in their data source and save endpoint.
+export function DongsanNamesEditor({
+  loaded,
+  summer,
+  title,
+  desc,
+  onSave,
+}: {
+  loaded: DongsanNames
+  summer: boolean
+  title: string
+  desc: string
+  onSave: (next: DongsanNames) => Promise<void>
+}) {
+  const { t } = useTranslation()
+  const toast = useToast()
   const [edits, setEdits] = useState<DongsanNames | undefined>(undefined) // per-group (semester)
   const [combined, setCombined] = useState<string[] | undefined>(undefined) // single list (summer)
   const [saving, setSaving] = useState(false)
-
-  if (!loaded) return <p className="text-sm text-muted">{t('common.loading')}</p>
 
   const names = edits ?? loaded
   const groups = Object.keys(names)
@@ -43,8 +81,7 @@ export function AdminDongsan() {
       } else {
         next = cleanNames(names)
       }
-      await updateDongsanNames(next)
-      await qc.invalidateQueries({ queryKey: ['dongsanNames'] })
+      await onSave(next)
       setEdits(undefined)
       setCombined(undefined)
       toast({ title: t('admin.settings.saved'), tone: 'ok' })
@@ -56,9 +93,9 @@ export function AdminDongsan() {
   }
 
   return (
-    <div className="w-full">
-      <h2 className="font-display text-lg font-semibold text-text">{t('admin.settings.dongsanNames')}</h2>
-      <p className="mb-4 mt-1 text-sm text-muted">{t('admin.settings.dongsanNamesDesc')}</p>
+    <div>
+      <h2 className="font-display text-lg font-semibold text-text">{title}</h2>
+      <p className="mb-4 mt-1 text-sm text-muted">{desc}</p>
 
       {summer && (
         <p className="mb-4 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs font-semibold text-warning">
@@ -126,10 +163,6 @@ export function AdminDongsan() {
       <Button className="mt-5" onClick={save} disabled={saving || !dirty}>
         {saving ? t('common.loading') : t('admin.settings.save')}
       </Button>
-
-      <hr className="my-8 border-border" />
-
-      <DongsanLeadersEditor />
     </div>
   )
 }

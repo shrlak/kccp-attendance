@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 
-export type IconKeyItem = 'newFamily' | 'visitor' | 'firstVisit' | 'newMemberStar'
+export type IconKeyItem = 'newFamily' | 'visitor' | 'firstVisit' | 'newMemberStar' | 'eduWeek1' | 'eduWeek2'
 
 // Compact status legend shared by roster and attendance views.
 export function IconKey({ items }: { items: IconKeyItem[] }) {

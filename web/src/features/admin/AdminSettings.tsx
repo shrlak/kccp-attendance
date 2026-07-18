@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { getConfig, updateCheckinWindow, updateSettings, type SettingsPatch } from '../../lib/api'
+import { getConfig, getCardScanUsage, updateCheckinWindow, updateSettings, type SettingsPatch } from '../../lib/api'
 import { useToast } from '../../components/ui/Toast'
 import { useLang } from '../../stores/useLang'
 import { Button } from '../../components/ui/Button'
@@ -29,6 +29,7 @@ export function AdminSettings() {
   const toast = useToast()
   const qc = useQueryClient()
   const { data: cfg } = useQuery({ queryKey: ['config'], queryFn: getConfig })
+  const { data: scanUsage } = useQuery({ queryKey: ['cardScanUsage'], queryFn: getCardScanUsage })
   const [edits, setEdits] = useState<{ days?: number[]; start?: string; end?: string }>({})
   const [saving, setSaving] = useState(false)
   const [ann, setAnn] = useState<string | undefined>(undefined)
@@ -36,6 +37,8 @@ export function AdminSettings() {
   const [busyToggle, setBusyToggle] = useState<keyof SettingsPatch | null>(null)
   const [colorEdits, setColorEdits] = useState<Record<string, string> | undefined>(undefined)
   const [colorsSaving, setColorsSaving] = useState(false)
+  const [limitEdit, setLimitEdit] = useState<string | undefined>(undefined)
+  const [limitSaving, setLimitSaving] = useState(false)
 
   const days = edits.days ?? cfg?.checkinDays ?? [0]
   const start = edits.start ?? (cfg ? minutesToHHMM(cfg.checkinStartMin) : '13:00')
@@ -44,6 +47,8 @@ export function AdminSettings() {
   const colors = colorEdits ?? cfg?.groupColors ?? DEFAULT_GROUP_COLORS
   const colorsDirty = colorEdits !== undefined
   const colorsValid = GROUPS.every((g) => isValidHex(colors[g] ?? ''))
+  const limitValue = limitEdit ?? (scanUsage ? String(scanUsage.limit) : '')
+  const limitValid = limitValue.trim() !== '' && Number.isFinite(Number(limitValue)) && Number(limitValue) >= 0
 
   function toggleDay(d: number) {
     const next = days.includes(d) ? days.filter((x) => x !== d) : [...days, d].sort((a, b) => a - b)
@@ -94,6 +99,21 @@ export function AdminSettings() {
       toast({ title: t('common.error'), tone: 'err' })
     } finally {
       setColorsSaving(false)
+    }
+  }
+
+  async function saveLimit() {
+    if (!limitValid) return
+    setLimitSaving(true)
+    try {
+      await updateSettings({ cardScanMonthlyLimit: Number(limitValue) })
+      await qc.invalidateQueries({ queryKey: ['cardScanUsage'] })
+      setLimitEdit(undefined)
+      toast({ title: t('admin.settings.saved'), tone: 'ok' })
+    } catch {
+      toast({ title: t('common.error'), tone: 'err' })
+    } finally {
+      setLimitSaving(false)
     }
   }
 
@@ -221,6 +241,33 @@ export function AdminSettings() {
       {!colorsValid && <p className="mb-3 text-xs font-semibold text-danger">{t('admin.settings.groupColorInvalid')}</p>}
       <Button onClick={saveColors} disabled={colorsSaving || !colorsDirty || !colorsValid}>
         {colorsSaving ? t('common.loading') : t('admin.settings.save')}
+      </Button>
+
+      <hr className="my-8 border-border" />
+
+      <h2 className="font-display text-lg font-semibold text-text">{t('admin.settings.cardScanLimit')}</h2>
+      <p className="mb-3 mt-1 text-sm text-muted">{t('admin.settings.cardScanLimitDesc')}</p>
+      <div className="mb-3 flex flex-wrap items-end gap-3">
+        <label className="w-32">
+          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-subtle">
+            {t('admin.settings.cardScanLimitField')}
+          </span>
+          <Input
+            type="number"
+            min={0}
+            value={limitValue}
+            onChange={(e) => setLimitEdit(e.target.value)}
+            className={limitValid ? '' : 'border-danger focus-visible:border-danger'}
+          />
+        </label>
+        {scanUsage && (
+          <span className="pb-2.5 font-mono text-xs text-subtle">
+            {t('admin.newfamily.scan.usage', { available: Math.max(0, scanUsage.limit - scanUsage.used), used: scanUsage.used })}
+          </span>
+        )}
+      </div>
+      <Button onClick={saveLimit} disabled={limitSaving || limitEdit === undefined || !limitValid}>
+        {limitSaving ? t('common.loading') : t('admin.settings.save')}
       </Button>
     </div>
   )
