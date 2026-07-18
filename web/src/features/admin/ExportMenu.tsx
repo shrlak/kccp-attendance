@@ -38,7 +38,7 @@ export function ExportMenu({ members, log, filter }: { members: Member[]; log: L
       // of the main bundle.
       const XLSX = await import('xlsx-js-style')
       const wb = XLSX.utils.book_new()
-      const { aoa, merges, fills } = gridSheet(members, log, lang, today)
+      const { aoa, merges, fills } = gridSheet(members, log, lang, today, cfg?.semesterDates)
       const attendance = XLSX.utils.aoa_to_sheet(aoa)
       attendance['!merges'] = merges
       // Paint the per-동산 header colors onto the cells the grid marked.
@@ -72,7 +72,13 @@ export function ExportMenu({ members, log, filter }: { members: Member[]; log: L
   }
 
   function doReport() {
-    const html = reportHtml(members, log, { group: filter.group, subgroup: filter.subgroup, today, lang })
+    const html = reportHtml(members, log, {
+      group: filter.group,
+      subgroup: filter.subgroup,
+      today,
+      lang,
+      semesterDates: cfg?.semesterDates,
+    })
     const win = window.open('', '_blank')
     if (!win) {
       toast({ title: t('admin.sheet.export.popupBlocked'), tone: 'err' })

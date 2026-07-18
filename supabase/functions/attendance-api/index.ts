@@ -139,19 +139,37 @@ async function checkedToday(sb: SB, name: string, today: string) {
 async function addAudit(sb: SB, action: string, adminId: string, details: any) {
   try {
     const {data:d}=await sb.from("devices").select("name").eq("id",adminId).single();
-    await sb.from("audit_log").insert({ts:Date.now(),action,admin_id:adminId,admin_name:d?.name||adminId,details:typeof details==="string"?{info:details}:details});
-  } catch(_){}
+    const {error}=await sb.from("audit_log").insert({ts:Date.now(),action,admin_id:adminId,admin_name:d?.name||adminId,details:typeof details==="string"?{info:details}:details});
+    return !error;
+  } catch(_){return false;}
+}
+const SEMESTER_SEASONS=["spring","summer","fall"] as const;
+function monthDayNumber(value: unknown): number | null {
+  if(typeof value!=="string"||!/^\d{2}-\d{2}$/.test(value)) return null;
+  const [month,day]=value.split("-").map(Number);
+  const date=new Date(Date.UTC(2001,month-1,day));
+  if(date.getUTCFullYear()!==2001||date.getUTCMonth()!==month-1||date.getUTCDate()!==day) return null;
+  return month*100+day;
+}
+function validSemesterDates(value: unknown): boolean {
+  if(!value||typeof value!=="object"||Array.isArray(value)) return false;
+  const ranges=value as Record<string,{start?:unknown;end?:unknown}>;
+  const nums=SEMESTER_SEASONS.map((season)=>({start:monthDayNumber(ranges[season]?.start),end:monthDayNumber(ranges[season]?.end)}));
+  if(nums.some((range)=>range.start===null||range.end===null)) return false;
+  const [spring,summer,fall]=nums as {start:number;end:number}[];
+  return spring.start<=spring.end&&spring.end<summer.start&&summer.start<=summer.end&&summer.end<fall.start&&fall.start<=fall.end;
 }
 // Card-photo-registration (Gemini /api/admin/extract-card) usage for the current
-// calendar month — derived from audit_log rather than stored separately, since only a
-// SUCCESSFUL extraction is ever audited (a Gemini failure/quota-block never reaches
-// addAudit), so counting audit rows already reflects real quota consumption.
-async function cardScanUsage(sb: SB): Promise<{limit:number;used:number}> {
+// calendar month. Every outbound Gemini request is audited before fetch(), so failed
+// provider responses and network failures count just like successful calls.
+async function cardScanUsage(sb: SB): Promise<{limit:number;used:number;remaining:number;updatedAt:number}> {
   const cfg=await getCfg(sb);
   const limit=Number(cfg.card_scan_monthly_limit ?? 60);
   const monthStart=localDate().slice(0,7)+"-01";
-  const {count}=await sb.from("audit_log").select("id",{count:"exact",head:true}).eq("action","extract-card").gte("created_at",monthStart);
-  return {limit,used:count||0};
+  const {count,error}=await sb.from("audit_log").select("id",{count:"exact",head:true}).eq("action","extract-card").gte("created_at",monthStart);
+  if(error) throw new Error(error.message);
+  const used=count||0;
+  return {limit,used,remaining:Math.max(0,limit-used),updatedAt:Date.now()};
 }
 // Client IP as seen by the edge runtime: first hop of X-Forwarded-For (Supabase's proxy
 // appends its own hops after the client), else the CDN/proxy single-IP headers.
@@ -307,7 +325,7 @@ Deno.serve(async (req: Request) => {
     if(req.method==="POST"&&p==="/api/admin/settings") {
       const role=await resolveAdmin(sb,req);
       if(role?.role!=="super_admin") return fail(403,"Super admin required");
-      const {checkinDays,checkinStartMin,checkinEndMin,announcement,summerMode,demoMode,individualCheckinEnabled,requireApproval,groupColors,cardScanMonthlyLimit}=body;
+      const {checkinDays,checkinStartMin,checkinEndMin,announcement,summerMode,demoMode,individualCheckinEnabled,requireApproval,groupColors,cardScanMonthlyLimit,semesterDates}=body;
       const upd: any={updated_at:new Date().toISOString()};
       if(checkinDays!==undefined) upd.checkin_days=checkinDays;
       if(checkinStartMin!==undefined) upd.checkin_start_min=Number(checkinStartMin);
@@ -323,7 +341,12 @@ Deno.serve(async (req: Request) => {
         upd.group_colors=clean;
       }
       if(cardScanMonthlyLimit!==undefined) upd.card_scan_monthly_limit=Math.max(0,Math.round(Number(cardScanMonthlyLimit))||0);
-      await sb.from("config").update(upd).eq("id",1);
+      if(semesterDates!==undefined){
+        if(!validSemesterDates(semesterDates)) return fail(400,"Invalid semester dates");
+        upd.semester_dates=semesterDates;
+      }
+      const {error}=await sb.from("config").update(upd).eq("id",1);
+      if(error) throw new Error(error.message);
       return ok({status:"ok"});
     }
 
@@ -464,7 +487,7 @@ Deno.serve(async (req: Request) => {
       if(role?.role!=="super_admin") return fail(403,"Super admin required");
       const [{data:dd},{data:ld},{data:ed},{data:ad},{data:pd},cfg]=await Promise.all([sb.from("devices").select("*"),sb.from("attendance_log").select("*").order("ts",{ascending:false}),sb.from("events").select("*, event_attendees(device_id, name)"),sb.from("audit_log").select("*").order("ts",{ascending:false}),sb.from("pending_registrations").select("*"),getCfg(sb)]);
       const devices: Record<string,any>={}; (dd||[]).forEach((d:any)=>{devices[d.id]=rowToDev(d);});
-      const bk={version:2,exportedAt:Date.now(),attendance:{devices,log:(ld||[]).map(rowToLog)},config:{adminDevices:cfg.admin_devices||[],nameOrder:cfg.name_order||[],dongsanNames:cfg.dongsan_names,checkinDays:cfg.checkin_days||[0],checkinStartMin:cfg.checkin_start_min??780,checkinEndMin:cfg.checkin_end_min??900,dongsanLeaders:cfg.dongsan_leaders||{},requireApproval:cfg.require_approval||false,announcement:cfg.announcement||"",individualCheckinEnabled:cfg.individual_checkin_enabled||false},events:{events:(ed||[]).map((e:any)=>({id:e.id,name:e.name,date:e.date,type:e.type,group:e.group_name,notes:e.notes,createdBy:e.created_by,createdAt:new Date(e.created_at).getTime(),attendees:(e.event_attendees||[]).map((a:any)=>a.name||a.device_id)}))},audit:(ad||[]).map((e:any)=>({ts:e.ts,action:e.action,adminId:e.admin_id,adminName:e.admin_name,details:e.details})),pending:(pd||[]).map((p:any)=>({deviceId:p.device_id,name:p.name,group:p.group_name,subgroup:p.subgroup,requestedAt:new Date(p.requested_at).getTime()}))};
+      const bk={version:2,exportedAt:Date.now(),attendance:{devices,log:(ld||[]).map(rowToLog)},config:{adminDevices:cfg.admin_devices||[],nameOrder:cfg.name_order||[],dongsanNames:cfg.dongsan_names,checkinDays:cfg.checkin_days||[0],checkinStartMin:cfg.checkin_start_min??780,checkinEndMin:cfg.checkin_end_min??900,dongsanLeaders:cfg.dongsan_leaders||{},requireApproval:cfg.require_approval||false,announcement:cfg.announcement||"",individualCheckinEnabled:cfg.individual_checkin_enabled||false,semesterDates:validSemesterDates(cfg.semester_dates)?cfg.semester_dates:null},events:{events:(ed||[]).map((e:any)=>({id:e.id,name:e.name,date:e.date,type:e.type,group:e.group_name,notes:e.notes,createdBy:e.created_by,createdAt:new Date(e.created_at).getTime(),attendees:(e.event_attendees||[]).map((a:any)=>a.name||a.device_id)}))},audit:(ad||[]).map((e:any)=>({ts:e.ts,action:e.action,adminId:e.admin_id,adminName:e.admin_name,details:e.details})),pending:(pd||[]).map((p:any)=>({deviceId:p.device_id,name:p.name,group:p.group_name,subgroup:p.subgroup,requestedAt:new Date(p.requested_at).getTime()}))};
       return new Response(JSON.stringify(bk,null,2),{headers:{...CORS,"Content-Type":"application/json","Content-Disposition":'attachment; filename="kccp-backup-'+localDate()+'.json"'}});
     }
 
@@ -477,7 +500,7 @@ Deno.serve(async (req: Request) => {
       const bk=body; if(!bk.version||!bk.attendance) return fail(400,"Invalid backup file");
       if(bk.attendance?.devices){await sb.from("devices").delete().neq("id","");const dr=Object.entries(bk.attendance.devices).map(([id,v]:any)=>({id,name:v.name,group_name:v.group||"",subgroup:v.subgroup||"",notes:v.notes||"",member_role:v.memberRole||"",gender:v.gender||"",phone:v.phone||"",birth_date:v.birthDate||null,baptism_status:v.baptismStatus||"해당없음",school_or_work:v.schoolOrWork||"",faith_duration:v.faithDuration||"",registration_date:v.registrationDate||null,pastoral_visit_requested:v.pastoralVisitRequested||false,is_new_member:v.isNewMember||false,new_member_edu_week1:v.newMemberEduWeek1||false,new_member_edu_week2:v.newMemberEduWeek2||false}));if(dr.length) await sb.from("devices").insert(dr);}
       if(bk.attendance?.log){await sb.from("attendance_log").delete().neq("id",0);const lr=bk.attendance.log.map((e:any)=>({device_id:e.deviceId,name:e.name,group_name:e.group||"",subgroup:e.subgroup||"",date:e.date,time_str:e.time,ts:e.ts,location_verified:!!e.locationVerified,admin_added:!!e.adminAdded,first_visit:!!e.firstVisit,is_manual:!!e.manual,is_bulk:!!e.bulk,is_guest:!!e.guest,member_role:e.memberRole||null}));if(lr.length) await sb.from("attendance_log").insert(lr);}
-      if(bk.config){const c=bk.config;await sb.from("config").update({admin_devices:c.adminDevices||[],name_order:c.nameOrder||[],dongsan_names:c.dongsanNames,checkin_days:c.checkinDays||[0],checkin_start_min:c.checkinStartMin??780,checkin_end_min:c.checkinEndMin??900,dongsan_leaders:c.dongsanLeaders||{},require_approval:c.requireApproval||false,announcement:c.announcement||"",individual_checkin_enabled:c.individualCheckinEnabled||false}).eq("id",1);}
+      if(bk.config){const c=bk.config;await sb.from("config").update({admin_devices:c.adminDevices||[],name_order:c.nameOrder||[],dongsan_names:c.dongsanNames,checkin_days:c.checkinDays||[0],checkin_start_min:c.checkinStartMin??780,checkin_end_min:c.checkinEndMin??900,dongsan_leaders:c.dongsanLeaders||{},require_approval:c.requireApproval||false,announcement:c.announcement||"",individual_checkin_enabled:c.individualCheckinEnabled||false,semester_dates:validSemesterDates(c.semesterDates)?c.semesterDates:null}).eq("id",1);}
       if(bk.events?.events){await sb.from("events").delete().neq("id","");for(const e of bk.events.events){await sb.from("events").insert({id:e.id,name:e.name,date:e.date,type:e.type||"기타",group_name:e.group||"",notes:e.notes||"",created_by:e.createdBy,created_at:e.createdAt?new Date(e.createdAt).toISOString():new Date().toISOString()});if(e.attendees?.length) await sb.from("event_attendees").insert(e.attendees.map((a:string)=>({event_id:e.id,device_id:"NAME-"+a,name:a})));}}
       await addAudit(sb,"restore",xDev,"Restored backup from "+(bk.exportedAt?new Date(bk.exportedAt).toLocaleString("ko-KR",{timeZone:"America/New_York"}):"unknown"));
       return ok({status:"ok"});
@@ -951,6 +974,10 @@ Deno.serve(async (req: Request) => {
       if(usage.used>=usage.limit) return fail(429,"이번 달 카드 스캔 한도("+usage.limit+"회)를 모두 사용했습니다");
       const key=Deno.env.get("GEMINI_API_KEY");
       if(!key) return fail(500,"GEMINI_API_KEY not configured — set it in Supabase Edge Function secrets");
+      // Record the actual provider call before sending it so every consumed request is
+      // reflected in the live usage counter, even when Gemini returns an error.
+      const usageRecorded=await addAudit(sb,"extract-card",xDev,mediaType+" | "+Math.round(image.length*3/4/1024)+"KB | api-call");
+      if(!usageRecorded) return fail(500,"Could not record card API usage — retry");
       const gr=await fetch(GEMINI_URL,{method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":key},body:JSON.stringify(buildGeminiBody(image,mediaType))});
       if(!gr.ok) {
         const detail=await gr.text().catch(()=>"");
@@ -959,7 +986,6 @@ Deno.serve(async (req: Request) => {
       }
       const card=parseGeminiCard(await gr.json().catch(()=>null));
       if(!card) return fail(502,"Could not read card fields from the image");
-      await addAudit(sb,"extract-card",xDev,mediaType+" | "+Math.round(image.length*3/4/1024)+"KB");
       return ok({status:"ok",card});
     }
 
@@ -1247,6 +1273,7 @@ Deno.serve(async (req: Request) => {
         demoMode:cfg.demo_mode||false,
         individualCheckinEnabled:cfg.individual_checkin_enabled||false,
         groupColors:cfg.group_colors||{"대학부":"#E0A800","청년부":"#3B82F6"},
+        semesterDates:validSemesterDates(cfg.semester_dates)?cfg.semester_dates:null,
       });
     }
 
@@ -1354,7 +1381,7 @@ Deno.serve(async (req: Request) => {
       const adminId=xDev||url.searchParams.get("deviceId")||""; if(!await isAdmin(sb,adminId)) return fail(403,"Not authorized");
       const [{data:dd},{data:ld},{data:ed},{data:ad},{data:pd},cfg]=await Promise.all([sb.from("devices").select("*"),sb.from("attendance_log").select("*").order("ts",{ascending:false}),sb.from("events").select("*, event_attendees(device_id, name)"),sb.from("audit_log").select("*").order("ts",{ascending:false}),sb.from("pending_registrations").select("*"),getCfg(sb)]);
       const devices: Record<string,any>={}; (dd||[]).forEach((d:any)=>{devices[d.id]=rowToDev(d);});
-      const bk={version:2,exportedAt:Date.now(),attendance:{devices,log:(ld||[]).map(rowToLog)},config:{adminDevices:cfg.admin_devices||[],nameOrder:cfg.name_order||[],dongsanNames:cfg.dongsan_names,checkinDays:cfg.checkin_days||[0],checkinStartMin:cfg.checkin_start_min??780,checkinEndMin:cfg.checkin_end_min??900,dongsanLeaders:cfg.dongsan_leaders||{},requireApproval:cfg.require_approval||false,announcement:cfg.announcement||"",individualCheckinEnabled:cfg.individual_checkin_enabled||false},events:{events:(ed||[]).map((e:any)=>({id:e.id,name:e.name,date:e.date,type:e.type,group:e.group_name,notes:e.notes,createdBy:e.created_by,createdAt:new Date(e.created_at).getTime(),attendees:(e.event_attendees||[]).map((a:any)=>a.name||a.device_id)}))},audit:(ad||[]).map((e:any)=>({ts:e.ts,action:e.action,adminId:e.admin_id,adminName:e.admin_name,details:e.details})),pending:(pd||[]).map((p:any)=>({deviceId:p.device_id,name:p.name,group:p.group_name,subgroup:p.subgroup,requestedAt:new Date(p.requested_at).getTime()}))};
+      const bk={version:2,exportedAt:Date.now(),attendance:{devices,log:(ld||[]).map(rowToLog)},config:{adminDevices:cfg.admin_devices||[],nameOrder:cfg.name_order||[],dongsanNames:cfg.dongsan_names,checkinDays:cfg.checkin_days||[0],checkinStartMin:cfg.checkin_start_min??780,checkinEndMin:cfg.checkin_end_min??900,dongsanLeaders:cfg.dongsan_leaders||{},requireApproval:cfg.require_approval||false,announcement:cfg.announcement||"",individualCheckinEnabled:cfg.individual_checkin_enabled||false,semesterDates:validSemesterDates(cfg.semester_dates)?cfg.semester_dates:null},events:{events:(ed||[]).map((e:any)=>({id:e.id,name:e.name,date:e.date,type:e.type,group:e.group_name,notes:e.notes,createdBy:e.created_by,createdAt:new Date(e.created_at).getTime(),attendees:(e.event_attendees||[]).map((a:any)=>a.name||a.device_id)}))},audit:(ad||[]).map((e:any)=>({ts:e.ts,action:e.action,adminId:e.admin_id,adminName:e.admin_name,details:e.details})),pending:(pd||[]).map((p:any)=>({deviceId:p.device_id,name:p.name,group:p.group_name,subgroup:p.subgroup,requestedAt:new Date(p.requested_at).getTime()}))};
       return new Response(JSON.stringify(bk,null,2),{headers:{...CORS,"Content-Type":"application/json","Content-Disposition":'attachment; filename="kccp-backup-'+localDate()+'.json"'}});
     }
 
@@ -1362,7 +1389,7 @@ Deno.serve(async (req: Request) => {
       if(!await isAdmin(sb,xDev)) return fail(403,"Not authorized"); const bk=body; if(!bk.version||!bk.attendance) return fail(400,"Invalid backup file");
       if(bk.attendance?.devices){await sb.from("devices").delete().neq("id","");const dr=Object.entries(bk.attendance.devices).map(([id,v]:any)=>({id,name:v.name,group_name:v.group||"",subgroup:v.subgroup||"",notes:v.notes||"",member_role:v.memberRole||"",gender:v.gender||"",phone:v.phone||"",birth_date:v.birthDate||null,baptism_status:v.baptismStatus||"해당없음",school_or_work:v.schoolOrWork||"",faith_duration:v.faithDuration||"",registration_date:v.registrationDate||null,pastoral_visit_requested:v.pastoralVisitRequested||false,is_new_member:v.isNewMember||false,new_member_edu_week1:v.newMemberEduWeek1||false,new_member_edu_week2:v.newMemberEduWeek2||false}));if(dr.length) await sb.from("devices").insert(dr);}
       if(bk.attendance?.log){await sb.from("attendance_log").delete().neq("id",0);const lr=bk.attendance.log.map((e:any)=>({device_id:e.deviceId,name:e.name,group_name:e.group||"",subgroup:e.subgroup||"",date:e.date,time_str:e.time,ts:e.ts,location_verified:!!e.locationVerified,admin_added:!!e.adminAdded,first_visit:!!e.firstVisit,is_manual:!!e.manual,is_bulk:!!e.bulk,is_guest:!!e.guest,member_role:e.memberRole||null}));if(lr.length) await sb.from("attendance_log").insert(lr);}
-      if(bk.config){const c=bk.config;await sb.from("config").update({admin_devices:c.adminDevices||[],name_order:c.nameOrder||[],dongsan_names:c.dongsanNames,checkin_days:c.checkinDays||[0],checkin_start_min:c.checkinStartMin??780,checkin_end_min:c.checkinEndMin??900,dongsan_leaders:c.dongsanLeaders||{},require_approval:c.requireApproval||false,announcement:c.announcement||"",individual_checkin_enabled:c.individualCheckinEnabled||false}).eq("id",1);}
+      if(bk.config){const c=bk.config;await sb.from("config").update({admin_devices:c.adminDevices||[],name_order:c.nameOrder||[],dongsan_names:c.dongsanNames,checkin_days:c.checkinDays||[0],checkin_start_min:c.checkinStartMin??780,checkin_end_min:c.checkinEndMin??900,dongsan_leaders:c.dongsanLeaders||{},require_approval:c.requireApproval||false,announcement:c.announcement||"",individual_checkin_enabled:c.individualCheckinEnabled||false,semester_dates:validSemesterDates(c.semesterDates)?c.semesterDates:null}).eq("id",1);}
       if(bk.events?.events){await sb.from("events").delete().neq("id","");for(const e of bk.events.events){await sb.from("events").insert({id:e.id,name:e.name,date:e.date,type:e.type||"기타",group_name:e.group||"",notes:e.notes||"",created_by:e.createdBy,created_at:e.createdAt?new Date(e.createdAt).toISOString():new Date().toISOString()});if(e.attendees?.length) await sb.from("event_attendees").insert(e.attendees.map((a:string)=>({event_id:e.id,device_id:"NAME-"+a,name:a})));}}
       await addAudit(sb,"restore",xDev,"Restored backup from "+(bk.exportedAt?new Date(bk.exportedAt).toLocaleString("ko-KR",{timeZone:"America/New_York"}):"unknown"));
       return ok({status:"ok"});

@@ -19,6 +19,7 @@ import {
 } from './exports'
 import { semesterSundays } from './newFamily'
 import type { Member, LogEntry } from '../../lib/api'
+import type { SemesterDates } from '../../lib/semester'
 
 const member = (id: string, name: string, group = '청년부', subgroup = '건영동산'): Member => ({
   id, name, group_name: group, subgroup, member_role: '', gender: '', phone: '', birth_date: null, kakao_id: '', is_new_member: false, notes: '',
@@ -179,6 +180,21 @@ describe('exportSundays', () => {
     const fall = '2026-09-06'
     expect(exportSundays(fall)).toEqual(semesterSundays(fall))
     expect(exportSundays('2026-01-10')).toEqual(['2026-01-04'])
+  })
+  it('uses the complete saved term instead of legacy one-off overrides', () => {
+    const custom: SemesterDates = {
+      spring: { start: '01-05', end: '04-26' },
+      summer: { start: '06-14', end: '07-19' },
+      fall: { start: '09-06', end: '12-13' },
+    }
+    expect(exportSundays('2026-06-21', custom)).toEqual([
+      '2026-06-14',
+      '2026-06-21',
+      '2026-06-28',
+      '2026-07-05',
+      '2026-07-12',
+      '2026-07-19',
+    ])
   })
 })
 

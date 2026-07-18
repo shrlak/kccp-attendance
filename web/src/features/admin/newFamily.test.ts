@@ -11,6 +11,7 @@ import {
   matchesEduFilter,
 } from './newFamily'
 import type { Member } from '../../lib/api'
+import type { SemesterDates } from '../../lib/semester'
 
 const m = (id: string, isNew: boolean, reg: string | null): Member => ({
   id, name: id, group_name: '', subgroup: '', member_role: '', gender: '', phone: '', birth_date: null, kakao_id: '', is_new_member: isNew, notes: '', registration_date: reg,
@@ -32,6 +33,19 @@ describe('semesterBounds', () => {
     expect(semesterBounds('2026-03-01')).toEqual({ year: 2026, season: 'spring', start: '2026-01-01', end: '2026-05-09' })
     expect(semesterBounds('2026-06-07')).toEqual({ year: 2026, season: 'summer', start: '2026-05-10', end: '2026-08-14' })
     expect(semesterBounds('2026-09-01')).toEqual({ year: 2026, season: 'fall', start: '2026-08-15', end: '2026-12-31' })
+  })
+  it('uses a saved recurring schedule for the requested year', () => {
+    const custom: SemesterDates = {
+      spring: { start: '01-12', end: '05-02' },
+      summer: { start: '05-24', end: '08-02' },
+      fall: { start: '08-23', end: '12-13' },
+    }
+    expect(semesterBounds('2027-06-01', custom)).toEqual({
+      year: 2027,
+      season: 'summer',
+      start: '2027-05-24',
+      end: '2027-08-02',
+    })
   })
 })
 
@@ -59,6 +73,19 @@ describe('currentNewFamily', () => {
   ]
   it('keeps current-semester new members and undated ones, drops the rest', () => {
     expect(currentNewFamily(members, '2026-06-08').map((x) => x.id).sort()).toEqual(['cur', 'noreg'])
+  })
+  it('uses both configured start and end dates when filtering', () => {
+    const custom: SemesterDates = {
+      spring: { start: '01-01', end: '04-30' },
+      summer: { start: '06-01', end: '07-31' },
+      fall: { start: '09-01', end: '12-31' },
+    }
+    const candidates = [
+      m('before', true, '2026-05-31'),
+      m('inside', true, '2026-06-01'),
+      m('after', true, '2026-08-01'),
+    ]
+    expect(currentNewFamily(candidates, '2026-07-01', custom).map((x) => x.id)).toEqual(['inside'])
   })
 })
 

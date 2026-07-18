@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useQuery } from '@tanstack/react-query'
 import { useRoster } from './useRoster'
 import { easternNow } from '../../lib/checkinWindow'
 import { filterMembers, NO_FILTER, type Filter } from './filters'
@@ -8,7 +9,7 @@ import { copyNewFamilyCards, saveNewFamilyCards } from './newFamilyCardImage'
 import { newFamilySheets, NEW_FAMILY_HEADER } from './exports'
 import { toggleId } from './bulk'
 import { GroupFilter } from './GroupFilter'
-import { type Member } from '../../lib/api'
+import { getConfig, type Member } from '../../lib/api'
 import { Dialog } from '../../components/ui/Dialog'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
@@ -23,6 +24,7 @@ import { CardScanDialog } from './CardScanDialog'
 export function AdminNewFamily() {
   const { t } = useTranslation()
   const { data, isLoading, isError } = useRoster(true)
+  const { data: cfg } = useQuery({ queryKey: ['config'], queryFn: getConfig })
   const [filter, setFilter] = useState<Filter>(NO_FILTER)
   const [editing, setEditing] = useState<Member | null>(null)
   const [attendanceFor, setAttendanceFor] = useState<Member | null>(null)
@@ -35,12 +37,12 @@ export function AdminNewFamily() {
 
   const today = easternNow().date
   const scopedMembers = filterMembers(data.members, filter)
-  const dateGroups = newFamilyByDate(scopedMembers, today)
+  const dateGroups = newFamilyByDate(scopedMembers, today, cfg?.semesterDates)
   const allNewFamily = dateGroups.flatMap((g) => g.members)
   const total = allNewFamily.length
   const months = monthlyRegistrations(scopedMembers)
-  const [, season] = semesterKey(today).split('-')
-  const year = semesterKey(today).split('-')[0]
+  const [, season] = semesterKey(today, cfg?.semesterDates).split('-')
+  const year = semesterKey(today, cfg?.semesterDates).split('-')[0]
   const readOnly = data.role === 'pastor'
 
   return (

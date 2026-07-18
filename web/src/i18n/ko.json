@@ -155,6 +155,12 @@
       "end": "종료",
       "save": "저장",
       "saved": "저장되었습니다",
+      "semesterDates": "학기 일정",
+      "semesterDatesDesc": "{{year}}년 달력에서 봄·여름·가을학기의 시작일과 종료일을 설정합니다. 저장한 월·일은 매년 적용됩니다.",
+      "semester": { "spring": "봄학기", "summer": "여름학기", "fall": "가을학기" },
+      "semesterStart": "시작일",
+      "semesterEnd": "종료일",
+      "semesterDatesInvalid": "각 학기의 시작일이 종료일보다 빠르고, 학기끼리 겹치지 않도록 설정해주세요.",
       "announcement": "공지사항",
       "announcementDesc": "체크인 화면에 표시되는 공지입니다.",
       "announcementPlaceholder": "공지 내용을 입력하세요",
@@ -180,11 +186,13 @@
       "noDongsanMembers": "이 동산에 멤버가 없습니다",
       "summerCombined": "☀️ 여름 모드 — 합동 동산 (대학부·청년부 통합)",
       "groupColors": "부서 색상",
-      "groupColorsDesc": "대학부·청년부의 강조 색상입니다. 오늘 탭 이름 아이콘, 키오스크 배경, 멤버 카드 배경에 적용됩니다.",
+      "groupColorsDesc": "대학부·청년부의 강조 색상입니다. 오늘 탭 이름 아이콘, 키오스크 배경, 멤버 카드 배경, 통계의 부서별 비교 그래프에 적용됩니다.",
       "groupColorInvalid": "올바른 6자리 hex 코드를 입력하세요 (예: #E0A800)",
       "cardScanLimit": "카드 사진 등록 한도",
-      "cardScanLimitDesc": "매달 카드 사진 등록(자동 인식)에 사용할 수 있는 횟수입니다.",
-      "cardScanLimitField": "월별 한도"
+      "cardScanLimitDesc": "카드 자동 인식에 실제로 호출된 Gemini API 사용량을 5초마다 갱신합니다.",
+      "cardScanLimitField": "월별 허용 한도",
+      "cardScanLive": "실시간 API 사용량",
+      "cardScanUsageDetail": "{{used}} / {{limit}}회 사용 · {{available}}회 남음"
     }
   }
 }

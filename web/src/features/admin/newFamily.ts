@@ -1,4 +1,9 @@
 import type { Member } from '../../lib/api'
+import {
+  DEFAULT_SEMESTER_DATES,
+  dateForYear,
+  type SemesterDates,
+} from '../../lib/semester'
 import type { Filter } from './filters'
 
 export type Season = 'spring' | 'summer' | 'fall'
@@ -10,18 +15,39 @@ export interface SemesterBounds {
   end: string // ISO date, inclusive
 }
 
-// Semester bounds for the term containing `dateStr` (matches legacy): Spring Jan 1–May 9 ·
-// Summer May 10–Aug 14 · Fall Aug 15–Dec 31.
-export function semesterBounds(dateStr: string): SemesterBounds {
-  const [y, m, d] = dateStr.split('-').map(Number)
-  if (m < 5 || (m === 5 && d < 10)) return { year: y, season: 'spring', start: `${y}-01-01`, end: `${y}-05-09` }
-  if (m < 8 || (m === 8 && d < 15)) return { year: y, season: 'summer', start: `${y}-05-10`, end: `${y}-08-14` }
-  return { year: y, season: 'fall', start: `${y}-08-15`, end: `${y}-12-31` }
+// Semester bounds for the term containing `dateStr`. Saved month/day ranges are
+// projected into that date's year; the legacy boundaries remain the fallback. During a
+// configured break between terms, the most recently started term remains the label, but
+// membership/date columns are still clamped to its explicit end.
+export function semesterBounds(dateStr: string, semesterDates?: SemesterDates | null): SemesterBounds {
+  const year = Number(dateStr.slice(0, 4))
+  const dates = semesterDates ?? DEFAULT_SEMESTER_DATES
+  const spring = {
+    year,
+    season: 'spring' as const,
+    start: dateForYear(year, dates.spring.start),
+    end: dateForYear(year, dates.spring.end),
+  }
+  const summer = {
+    year,
+    season: 'summer' as const,
+    start: dateForYear(year, dates.summer.start),
+    end: dateForYear(year, dates.summer.end),
+  }
+  const fall = {
+    year,
+    season: 'fall' as const,
+    start: dateForYear(year, dates.fall.start),
+    end: dateForYear(year, dates.fall.end),
+  }
+  if (dateStr >= fall.start) return fall
+  if (dateStr >= summer.start) return summer
+  return spring
 }
 
 // Semester key like "2026-spring" for the term containing `dateStr`.
-export function semesterKey(dateStr: string): string {
-  const { year, season } = semesterBounds(dateStr)
+export function semesterKey(dateStr: string, semesterDates?: SemesterDates | null): string {
+  const { year, season } = semesterBounds(dateStr, semesterDates)
   return `${year}-${season}`
 }
 
@@ -29,8 +55,12 @@ export function semesterKey(dateStr: string): string {
 // through `through` (inclusive). `through` defaults to `today` (future Sundays excluded);
 // pass a later date to include upcoming Sundays — e.g. the export's fixed term columns,
 // which show every worship date through the term end and fill in as they pass. ISO ascending.
-export function semesterSundays(today: string, through: string = today): string[] {
-  const { start } = semesterBounds(today)
+export function semesterSundays(
+  today: string,
+  through: string = today,
+  semesterDates?: SemesterDates | null,
+): string[] {
+  const { start, end } = semesterBounds(today, semesterDates)
   const DAY = 86_400_000
   const toUTC = (s: string) => {
     const [y, m, d] = s.split('-').map(Number)
@@ -40,7 +70,7 @@ export function semesterSundays(today: string, through: string = today): string[
   let t = toUTC(start)
   const dow = new Date(t).getUTCDay()
   if (dow !== 0) t += (7 - dow) * DAY
-  const endT = toUTC(through)
+  const endT = toUTC(through < end ? through : end)
   const out: string[] = []
   for (; t <= endT; t += 7 * DAY) {
     const dt = new Date(t)
@@ -100,10 +130,14 @@ export function filterByEduDongsan(members: Member[], f: Filter): Member[] {
 
 // 새가족 currently in scope: flagged is_new_member and either registered in the current
 // semester or missing a registration date (kept visible). Newest registration first.
-export function currentNewFamily(members: Member[], today: string): Member[] {
-  const cur = semesterKey(today)
+export function currentNewFamily(
+  members: Member[],
+  today: string,
+  semesterDates?: SemesterDates | null,
+): Member[] {
+  const { start, end } = semesterBounds(today, semesterDates)
   return members
-    .filter((m) => m.is_new_member && (!m.registration_date || semesterKey(m.registration_date) === cur))
+    .filter((m) => m.is_new_member && (!m.registration_date || (m.registration_date >= start && m.registration_date <= end)))
     .sort(
       (a, b) =>
         (b.registration_date || '').localeCompare(a.registration_date || '') || a.name.localeCompare(b.name),
@@ -117,9 +151,13 @@ export interface DateGroup {
 
 // Current-semester 새가족 split by registration date, newest date first; members missing a
 // registration date form a trailing group. Relies on currentNewFamily's ordering.
-export function newFamilyByDate(members: Member[], today: string): DateGroup[] {
+export function newFamilyByDate(
+  members: Member[],
+  today: string,
+  semesterDates?: SemesterDates | null,
+): DateGroup[] {
   const out: DateGroup[] = []
-  for (const m of currentNewFamily(members, today)) {
+  for (const m of currentNewFamily(members, today, semesterDates)) {
     const date = m.registration_date || null
     const last = out[out.length - 1]
     if (last && last.date === date) last.members.push(m)

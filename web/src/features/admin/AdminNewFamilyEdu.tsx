@@ -52,7 +52,7 @@ export function AdminNewFamilyEdu() {
 
   const today = easternNow().date
   const scopedMembers = filterByEduDongsan(data.members, filter)
-  const currentSemester = currentNewFamily(scopedMembers, today)
+  const currentSemester = currentNewFamily(scopedMembers, today, cfg?.semesterDates)
   const visible = eduFilter === 'all' ? currentSemester : currentSemester.filter((m) => matchesEduFilter(m, eduFilter))
   const readOnly = data.role === 'pastor'
   const summerMode = !!cfg?.summerMode

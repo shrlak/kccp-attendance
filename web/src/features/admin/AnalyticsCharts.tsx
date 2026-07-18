@@ -1,20 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useQuery } from '@tanstack/react-query'
 import type { Chart as ChartType, ChartConfiguration, Plugin } from 'chart.js'
 import { useTheme } from '../../stores/useTheme'
 import { shortDate } from './sheet'
 import { trendSeries, groupSeries } from './analytics'
-import type { Member, LogEntry } from '../../lib/api'
-
-// Per-부서 bar colors (대학부 yellow, 청년부 blue, then a small palette).
-const GROUP_COLORS: Record<string, string> = {
-  대학부: '#9A682C',
-  청년부: '#315F78',
-  EM: '#2F704F',
-  'Adult Ministry': '#75567D',
-}
-const FALLBACK = ['#A33E34', '#4A7182', '#9A682C', '#637A52', '#835E70']
-const colorFor = (group: string, i: number) => GROUP_COLORS[group] ?? FALLBACK[i % FALLBACK.length]
+import { getConfig, type Member, type LogEntry } from '../../lib/api'
+import { resolveGroupColor } from './groupColors'
 
 // Inline plugin that prints each datapoint's value just above its dot on the trend
 // line. `tick` is the theme-aware label color already resolved for the axes.
@@ -82,6 +74,7 @@ function ChartCanvas({ build }: { build: (tick: string, grid: string) => ChartCo
 // 4.1 + 4.2 — trend line + (when more than one 부서 is in scope) the grouped bar chart.
 export function AnalyticsCharts({ members, log }: { members: Member[]; log: LogEntry[] }) {
   const { t } = useTranslation()
+  const { data: cfg } = useQuery({ queryKey: ['config'], queryFn: getConfig })
   const trend = useMemo(() => trendSeries(log), [log])
   const groups = useMemo(() => groupSeries(members, log), [members, log])
   const showGroups = groups.groups.length > 1 && groups.dates.length > 0
@@ -127,10 +120,10 @@ export function AnalyticsCharts({ members, log }: { members: Member[]; log: LogE
       type: 'bar',
       data: {
         labels: groups.dates.map((d) => shortDate(d)),
-        datasets: groups.groups.map((g, i) => ({
+        datasets: groups.groups.map((g) => ({
           label: g,
           data: groups.counts[g],
-          backgroundColor: colorFor(g, i),
+          backgroundColor: resolveGroupColor(cfg?.groupColors, g),
         })),
       },
       options: {
@@ -143,7 +136,7 @@ export function AnalyticsCharts({ members, log }: { members: Member[]; log: LogE
         },
       },
     }),
-    [groups],
+    [cfg?.groupColors, groups],
   )
 
   if (trend.length === 0) return <p className="text-sm text-muted">{t('admin.sheet.empty')}</p>

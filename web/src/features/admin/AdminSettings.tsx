@@ -9,6 +9,16 @@ import { Input } from '../../components/ui/Input'
 import { Switch } from '../../components/ui/Switch'
 import { minutesToHHMM, hhmmToMinutes } from './time'
 import { DEFAULT_GROUP_COLORS, isValidHex } from './groupColors'
+import { easternNow } from '../../lib/checkinWindow'
+import {
+  DEFAULT_SEMESTER_DATES,
+  SEMESTER_SEASONS,
+  dateForYear,
+  isValidSemesterDates,
+  monthDayFromDate,
+  type SemesterDates,
+  type SemesterSeason,
+} from '../../lib/semester'
 
 const GROUPS = ['대학부', '청년부'] as const
 
@@ -29,7 +39,13 @@ export function AdminSettings() {
   const toast = useToast()
   const qc = useQueryClient()
   const { data: cfg } = useQuery({ queryKey: ['config'], queryFn: getConfig })
-  const { data: scanUsage } = useQuery({ queryKey: ['cardScanUsage'], queryFn: getCardScanUsage })
+  const { data: scanUsage, isFetching: scanUsageRefreshing } = useQuery({
+    queryKey: ['cardScanUsage'],
+    queryFn: getCardScanUsage,
+    staleTime: 0,
+    refetchInterval: 5_000,
+    refetchOnWindowFocus: true,
+  })
   const [edits, setEdits] = useState<{ days?: number[]; start?: string; end?: string }>({})
   const [saving, setSaving] = useState(false)
   const [ann, setAnn] = useState<string | undefined>(undefined)
@@ -39,6 +55,8 @@ export function AdminSettings() {
   const [colorsSaving, setColorsSaving] = useState(false)
   const [limitEdit, setLimitEdit] = useState<string | undefined>(undefined)
   const [limitSaving, setLimitSaving] = useState(false)
+  const [semesterEdits, setSemesterEdits] = useState<SemesterDates | undefined>(undefined)
+  const [semesterSaving, setSemesterSaving] = useState(false)
 
   const days = edits.days ?? cfg?.checkinDays ?? [0]
   const start = edits.start ?? (cfg ? minutesToHHMM(cfg.checkinStartMin) : '13:00')
@@ -49,6 +67,17 @@ export function AdminSettings() {
   const colorsValid = GROUPS.every((g) => isValidHex(colors[g] ?? ''))
   const limitValue = limitEdit ?? (scanUsage ? String(scanUsage.limit) : '')
   const limitValid = limitValue.trim() !== '' && Number.isFinite(Number(limitValue)) && Number(limitValue) >= 0
+  const currentYear = Number(easternNow().date.slice(0, 4))
+  const semesterDates = semesterEdits ?? cfg?.semesterDates ?? DEFAULT_SEMESTER_DATES
+  const semesterDatesValid = isValidSemesterDates(semesterDates)
+  const usageRemaining = scanUsage?.remaining ?? (scanUsage ? Math.max(0, scanUsage.limit - scanUsage.used) : 0)
+  const usagePercent = scanUsage
+    ? scanUsage.limit > 0
+      ? Math.min(100, Math.round((scanUsage.used / scanUsage.limit) * 100))
+      : scanUsage.used > 0
+        ? 100
+        : 0
+    : 0
 
   function toggleDay(d: number) {
     const next = days.includes(d) ? days.filter((x) => x !== d) : [...days, d].sort((a, b) => a - b)
@@ -117,6 +146,28 @@ export function AdminSettings() {
     }
   }
 
+  function setSemesterDate(season: SemesterSeason, field: 'start' | 'end', date: string) {
+    setSemesterEdits({
+      ...semesterDates,
+      [season]: { ...semesterDates[season], [field]: date ? monthDayFromDate(date) : '' },
+    })
+  }
+
+  async function saveSemesterDates() {
+    if (!semesterDatesValid) return
+    setSemesterSaving(true)
+    try {
+      await updateSettings({ semesterDates })
+      await qc.invalidateQueries({ queryKey: ['config'] })
+      setSemesterEdits(undefined)
+      toast({ title: t('admin.settings.saved'), tone: 'ok' })
+    } catch {
+      toast({ title: t('common.error'), tone: 'err' })
+    } finally {
+      setSemesterSaving(false)
+    }
+  }
+
   async function flip(field: keyof SettingsPatch, value: boolean) {
     setBusyToggle(field)
     try {
@@ -132,6 +183,57 @@ export function AdminSettings() {
 
   return (
     <div className="w-full">
+      <h2 className="font-display text-lg font-semibold text-text">{t('admin.settings.semesterDates')}</h2>
+      <p className="mb-4 mt-1 text-sm text-muted">
+        {t('admin.settings.semesterDatesDesc', { year: currentYear })}
+      </p>
+      <div className="mb-3 grid gap-3 lg:grid-cols-3">
+        {SEMESTER_SEASONS.map((season) => (
+          <fieldset key={season} className="rounded-lg border border-border bg-surface-alt/40 p-3">
+            <legend className="px-1 text-sm font-semibold text-text">
+              {t(`admin.settings.semester.${season}`)}
+            </legend>
+            <div className="mt-1 grid grid-cols-2 gap-2">
+              <label>
+                <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-subtle">
+                  {t('admin.settings.semesterStart')}
+                </span>
+                <Input
+                  type="date"
+                  min={`${currentYear}-01-01`}
+                  max={`${currentYear}-12-31`}
+                  value={dateForYear(currentYear, semesterDates[season].start)}
+                  onChange={(e) => setSemesterDate(season, 'start', e.target.value)}
+                />
+              </label>
+              <label>
+                <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-subtle">
+                  {t('admin.settings.semesterEnd')}
+                </span>
+                <Input
+                  type="date"
+                  min={`${currentYear}-01-01`}
+                  max={`${currentYear}-12-31`}
+                  value={dateForYear(currentYear, semesterDates[season].end)}
+                  onChange={(e) => setSemesterDate(season, 'end', e.target.value)}
+                />
+              </label>
+            </div>
+          </fieldset>
+        ))}
+      </div>
+      {!semesterDatesValid && (
+        <p className="mb-3 text-xs font-semibold text-danger">{t('admin.settings.semesterDatesInvalid')}</p>
+      )}
+      <Button
+        onClick={saveSemesterDates}
+        disabled={semesterSaving || semesterEdits === undefined || !semesterDatesValid}
+      >
+        {semesterSaving ? t('common.loading') : t('admin.settings.save')}
+      </Button>
+
+      <hr className="my-8 border-border" />
+
       <h2 className="font-display text-lg font-semibold text-text">{t('admin.settings.checkinWindow')}</h2>
       <p className="mb-5 mt-1 text-sm text-muted">{t('admin.settings.checkinWindowDesc')}</p>
 
@@ -247,6 +349,32 @@ export function AdminSettings() {
 
       <h2 className="font-display text-lg font-semibold text-text">{t('admin.settings.cardScanLimit')}</h2>
       <p className="mb-3 mt-1 text-sm text-muted">{t('admin.settings.cardScanLimitDesc')}</p>
+      <div className="mb-4 rounded-lg border border-border bg-surface-alt/50 p-3" aria-live="polite">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <span className="inline-flex items-center gap-2 text-sm font-semibold text-text">
+            <span
+              className={'h-2 w-2 rounded-full ' + (scanUsageRefreshing ? 'bg-warning' : 'bg-success')}
+              aria-hidden
+            />
+            {t('admin.settings.cardScanLive')}
+          </span>
+          {scanUsage && (
+            <span className="font-mono text-xs tabular-nums text-subtle">
+              {t('admin.settings.cardScanUsageDetail', {
+                used: scanUsage.used,
+                limit: scanUsage.limit,
+                available: usageRemaining,
+              })}
+            </span>
+          )}
+        </div>
+        <div className="h-2 overflow-hidden rounded-full bg-border" role="progressbar" aria-valuemin={0} aria-valuemax={scanUsage?.limit ?? 0} aria-valuenow={scanUsage?.used ?? 0}>
+          <div
+            className={'h-full rounded-full transition-[width] duration-300 ' + (usagePercent >= 90 ? 'bg-danger' : 'bg-primary')}
+            style={{ width: `${usagePercent}%` }}
+          />
+        </div>
+      </div>
       <div className="mb-3 flex flex-wrap items-end gap-3">
         <label className="w-32">
           <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-subtle">
@@ -262,7 +390,7 @@ export function AdminSettings() {
         </label>
         {scanUsage && (
           <span className="pb-2.5 font-mono text-xs text-subtle">
-            {t('admin.newfamily.scan.usage', { available: Math.max(0, scanUsage.limit - scanUsage.used), used: scanUsage.used })}
+            {t('admin.newfamily.scan.usage', { available: usageRemaining, used: scanUsage.used })}
           </span>
         )}
       </div>

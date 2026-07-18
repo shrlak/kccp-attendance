@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRoster } from './useRoster'
 import {
   buildAttendanceModel,
@@ -14,7 +14,8 @@ import {
   NOTE_FILL,
   type Lang,
 } from './exports'
-import { addBulkAttendance, clearAttendance, type LogEntry, type Member, type RosterResponse } from '../../lib/api'
+import { addBulkAttendance, clearAttendance, getConfig, type LogEntry, type Member, type RosterResponse } from '../../lib/api'
+import type { SemesterDates } from '../../lib/semester'
 import { easternNow } from '../../lib/checkinWindow'
 import { checkinCandidates } from './today'
 import { memberIdsPresentOn, toggleId } from './bulk'
@@ -41,6 +42,7 @@ export function AdminSheet() {
   const [clearing, setClearing] = useState(false)
   const [filter, setFilter] = useState<Filter>(NO_FILTER)
   const { data, isLoading, isError } = useRoster(true)
+  const { data: cfg } = useQuery({ queryKey: ['config'], queryFn: getConfig })
 
   if (isLoading) return <p className="text-sm text-muted">{t('common.loading')}</p>
   if (isError) return <p className="text-sm text-danger">{t('common.error')}</p>
@@ -82,7 +84,14 @@ export function AdminSheet() {
       </div>
       {view === 'log' && <IconKey items={['firstVisit']} />}
       {view === 'grid' ? (
-        <GridView members={members} log={fLog} lang={lang} today={today} filter={filter} />
+        <GridView
+          members={members}
+          log={fLog}
+          lang={lang}
+          today={today}
+          filter={filter}
+          semesterDates={cfg?.semesterDates}
+        />
       ) : (
         <LogView log={log} empty={t('admin.sheet.empty')} />
       )}
@@ -253,7 +262,21 @@ const NAME_COL = 160
 const TOTAL_COL = 120
 const DATE_COL = 72
 
-function GridView({ members, log, lang, today, filter }: { members: Member[]; log: LogEntry[]; lang: Lang; today: string; filter: Filter }) {
+function GridView({
+  members,
+  log,
+  lang,
+  today,
+  filter,
+  semesterDates,
+}: {
+  members: Member[]
+  log: LogEntry[]
+  lang: Lang
+  today: string
+  filter: Filter
+  semesterDates?: SemesterDates | null
+}) {
   const roleOf = useDongsanRole()
   const L =
     lang === 'ko'
@@ -262,7 +285,7 @@ function GridView({ members, log, lang, today, filter }: { members: Member[]; lo
 
   // 동산지기/부동산지기 float to the top of their own 동산 block (roster order otherwise).
   const ordered = orderByDongsanRole(members, roleOf)
-  const model = buildAttendanceModel(ordered, log, exportSundays(today), today, { unassigned: L.unassigned, newFamily: L.newFamily })
+  const model = buildAttendanceModel(ordered, log, exportSundays(today, semesterDates), today, { unassigned: L.unassigned, newFamily: L.newFamily })
   const pink = cssColor(HEADER_TOTAL_FILL)
   const grey = cssColor(NOTE_FILL)
 
@@ -271,7 +294,7 @@ function GridView({ members, log, lang, today, filter }: { members: Member[]; lo
   return (
     <div className="overflow-x-auto">
       <p className="mb-3 text-sm text-muted">
-        {semesterLabel(today, lang)} · {filterLabel(filter.group, filter.subgroup, lang)}
+        {semesterLabel(today, lang, semesterDates)} · {filterLabel(filter.group, filter.subgroup, lang)}
       </p>
       <div className="mb-3 flex flex-wrap items-center gap-4 text-sm" style={{ color: '#374151' }}>
         <b className="rounded px-2.5 py-0.5 text-white" style={{ background: cssColor(KEY_FILL) }}>{L.key}</b>
