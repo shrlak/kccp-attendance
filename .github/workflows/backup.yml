@@ -1,0 +1,86 @@
+name: Weekly Encrypted Backup
+
+on:
+  schedule:
+    # Sundays 09:00 UTC — after the morning check-in window, before the following week's
+    # edits pile up.
+    - cron: '0 9 * * 0'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: write
+    # A disposable Postgres the dump gets restored into so verification never touches
+    # production — the backup is only trusted once a fresh restore from it round-trips
+    # back to matching row counts.
+    services:
+      verify_db:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: verify
+          POSTGRES_DB: postgres
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DB_URL: ${{ secrets.SUPABASE_BACKUP_DB_URL }}
+      VERIFY_DB_URL: postgresql://postgres:verify@localhost:5433/postgres
+      AGE_PUBLIC_KEY: ${{ secrets.BACKUP_AGE_PUBLIC_KEY }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_BUCKET: kccp-attendance-backups
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: auto
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Check required secrets are configured
+        run: |
+          missing=()
+          [ -z "$DB_URL" ] && missing+=(SUPABASE_BACKUP_DB_URL)
+          [ -z "$AGE_PUBLIC_KEY" ] && missing+=(BACKUP_AGE_PUBLIC_KEY)
+          [ -z "$R2_ENDPOINT" ] && missing+=(R2_ENDPOINT)
+          [ -z "$AWS_ACCESS_KEY_ID" ] && missing+=(R2_ACCESS_KEY_ID)
+          [ -z "$AWS_SECRET_ACCESS_KEY" ] && missing+=(R2_SECRET_ACCESS_KEY)
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing required secrets: ${missing[*]}. See docs/backup-setup.md."
+            exit 1
+          fi
+
+      - name: Install age + postgresql-client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y age postgresql-client
+
+      - name: Run backup
+        run: bash scripts/backup/run-backup.sh
+
+      - name: Prune old backups (retention policy)
+        run: python3 scripts/backup/prune-retention.py
+
+      - name: Open/update issue on failure
+        if: failure()
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { owner, repo } = context.repo
+            const runUrl = `https://github.com/${owner}/${repo}/actions/runs/${context.runId}`
+            const body = `The scheduled backup run failed.\n\n${runUrl}\n\nCheck the job log for which step failed (secret check, dump, verify-restore, encrypt, or upload) and re-run manually (workflow_dispatch) once fixed.`
+            const { data: existing } = await github.rest.issues.listForRepo({ owner, repo, state: 'open', labels: 'backup-failure' })
+            if (existing.length > 0) {
+              await github.rest.issues.createComment({ owner, repo, issue_number: existing[0].number, body })
+            } else {
+              await github.rest.issues.create({ owner, repo, title: 'Weekly backup failed', body, labels: ['backup-failure'] })
+            }

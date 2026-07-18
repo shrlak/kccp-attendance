@@ -21,6 +21,10 @@ npm-debug.log*
 package.json
 package-lock.json
 
+# Python (scripts/backup/prune-retention.py)
+__pycache__/
+*.pyc
+
 # Dev tools
 tools/
 
