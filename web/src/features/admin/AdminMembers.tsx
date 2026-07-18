@@ -161,16 +161,16 @@ export function AdminMembers() {
                   </div>
                   {m.is_new_member && (
                     <div className="mt-1 flex flex-wrap gap-1">
-                      <span className="rounded-full bg-gold/10 px-2 py-0.5 text-[10px] font-semibold text-gold">
+                      <span className="shrink-0 whitespace-nowrap rounded-full bg-gold/10 px-2 py-0.5 text-[10px] font-semibold text-gold">
                         {t('admin.iconKey.newMemberStar')}
                       </span>
                       {m.new_member_edu_week1 && (
-                        <span className="rounded-full bg-info/10 px-2 py-0.5 text-[10px] font-semibold text-info">
+                        <span className="shrink-0 whitespace-nowrap rounded-full bg-info/10 px-2 py-0.5 text-[10px] font-semibold text-info">
                           {t('admin.iconKey.eduWeek1')}
                         </span>
                       )}
                       {m.new_member_edu_week2 && (
-                        <span className="rounded-full bg-info/10 px-2 py-0.5 text-[10px] font-semibold text-info">
+                        <span className="shrink-0 whitespace-nowrap rounded-full bg-info/10 px-2 py-0.5 text-[10px] font-semibold text-info">
                           {t('admin.iconKey.eduWeek2')}
                         </span>
                       )}
