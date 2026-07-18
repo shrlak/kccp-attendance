@@ -1,6 +1,6 @@
 import type { Member, LogEntry } from '../../lib/api'
 
-// The two 부서 (departments) shown as paired 3-column blocks in the kiosk grid;
+// The two 부서 (departments) shown as paired multi-column blocks in the kiosk grid;
 // everything else falls into a separate "other" section below.
 export const KIOSK_DEPTS = ['대학부', '청년부'] as const
 export type KioskDept = (typeof KIOSK_DEPTS)[number]
@@ -47,27 +47,30 @@ export function hiddenByStatus(m: Member, today: string): boolean {
   return m.status_note.includes('이주') || m.status_note.includes('귀국')
 }
 
+// Columns per department block (대학부/청년부 each get their own 4-column grid).
+export const KIOSK_COLS = 4
+
 export interface KioskColumns {
-  // One entry per department, in KIOSK_DEPTS order. `thirds` is always length 3
-  // (the three columns); `total` is the department's member count for the header.
-  depts: { key: KioskDept; total: number; thirds: Member[][] }[]
-  // Non-대학부/청년부 members, rendered in a flat section below the 6-column grid.
+  // One entry per department, in KIOSK_DEPTS order. `columns` is always length
+  // KIOSK_COLS; `total` is the department's member count for the header.
+  depts: { key: KioskDept; total: number; columns: Member[][] }[]
+  // Non-대학부/청년부 members, rendered in a flat section below the department grids.
   others: Member[]
 }
 
-// Split a department's members into three columns round-robin (item i → column i % 3),
-// so — given an already 가나다-sorted `list` — reading the grid left-to-right across a
-// row, then down to the next row, follows alphabetical order. Still balances column
-// lengths the same way the old contiguous-chunk split did (e.g. n=7 → [3,2,2]).
-export function splitThirds<T>(list: T[]): [T[], T[], T[]] {
-  const cols: [T[], T[], T[]] = [[], [], []]
-  list.forEach((item, i) => cols[i % 3].push(item))
+// Split a list into `n` columns round-robin (item i → column i % n), so — given an
+// already 가나다-sorted `list` — reading the grid left-to-right across a row, then down
+// to the next row, follows alphabetical order. Balances column lengths as evenly as
+// possible, earlier columns getting any remainder (e.g. n=4, list of 7 → [2,2,2,1]).
+export function splitColumns<T>(list: T[], n: number): T[][] {
+  const cols: T[][] = Array.from({ length: n }, () => [])
+  list.forEach((item, i) => cols[i % n].push(item))
   return cols
 }
 
 const byName = (a: Member, b: Member) => a.name.localeCompare(b.name)
 
-// Bucket non-visitor members into the 6-column dept layout + the "other" overflow, each
+// Bucket non-visitor members into the department grids + the "other" overflow, each
 // bucket explicitly sorted 가나다 순 (name.localeCompare) so the kiosk grid reads
 // alphabetically regardless of the roster's incoming order.
 export function kioskColumns(members: Member[]): KioskColumns {
@@ -81,7 +84,7 @@ export function kioskColumns(members: Member[]): KioskColumns {
   return {
     depts: KIOSK_DEPTS.map((key) => {
       const sorted = [...buckets[key]].sort(byName)
-      return { key, total: sorted.length, thirds: splitThirds(sorted) }
+      return { key, total: sorted.length, columns: splitColumns(sorted, KIOSK_COLS) }
     }),
     others: others.sort(byName),
   }

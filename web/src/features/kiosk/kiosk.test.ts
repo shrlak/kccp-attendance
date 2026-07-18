@@ -3,8 +3,9 @@ import {
   presentNamesToday,
   attendanceCount,
   filterByName,
-  splitThirds,
+  splitColumns,
   kioskColumns,
+  KIOSK_COLS,
   todayEntryFor,
   hiddenByStatus,
 } from './kiosk'
@@ -36,21 +37,21 @@ const log = (name: string, date: string, role?: string, extra: Partial<LogEntry>
   ...extra,
 })
 
-describe('splitThirds', () => {
-  it('splits into balanced columns (same sizes as before)', () => {
-    expect(splitThirds([1, 2, 3, 4, 5, 6, 7]).map((c) => c.length)).toEqual([3, 2, 2])
-    expect(splitThirds([1, 2, 3, 4]).map((c) => c.length)).toEqual([2, 1, 1])
-    expect(splitThirds([1]).map((c) => c.length)).toEqual([1, 0, 0])
+describe('splitColumns', () => {
+  it('splits into balanced columns, earlier columns getting any remainder', () => {
+    expect(splitColumns([1, 2, 3, 4, 5, 6, 7], 4).map((c) => c.length)).toEqual([2, 2, 2, 1])
+    expect(splitColumns([1, 2, 3, 4], 4).map((c) => c.length)).toEqual([1, 1, 1, 1])
+    expect(splitColumns([1], 4).map((c) => c.length)).toEqual([1, 0, 0, 0])
   })
-  it('always returns three columns, even when empty', () => {
-    expect(splitThirds([]).map((c) => c.length)).toEqual([0, 0, 0])
+  it('always returns n columns, even when empty', () => {
+    expect(splitColumns([], 4).map((c) => c.length)).toEqual([0, 0, 0, 0])
   })
-  it('distributes round-robin (item i -> column i % 3), so a sorted input reads left-to-right then down', () => {
-    expect(splitThirds([1, 2, 3, 4, 5, 6, 7])).toEqual([[1, 4, 7], [2, 5], [3, 6]])
+  it('distributes round-robin (item i -> column i % n), so a sorted input reads left-to-right then down', () => {
+    expect(splitColumns([1, 2, 3, 4, 5, 6, 7], 4)).toEqual([[1, 5], [2, 6], [3, 7], [4]])
   })
   it('covers every element exactly once', () => {
     const all = [1, 2, 3, 4, 5]
-    expect(splitThirds(all).flat().sort()).toEqual(all)
+    expect(splitColumns(all, 4).flat().sort()).toEqual(all)
   })
 })
 
@@ -63,26 +64,27 @@ describe('kioskColumns', () => {
     member('V', '대학부', 'visitor'),
   ]
 
-  it('buckets 대학부/청년부 into 3 columns each, rest into others', () => {
+  it('buckets 대학부/청년부 into KIOSK_COLS columns each, rest into others', () => {
     const cols = kioskColumns(members)
+    expect(KIOSK_COLS).toBe(4)
     expect(cols.depts.map((d) => d.key)).toEqual(['대학부', '청년부'])
     expect(cols.depts[0].total).toBe(2) // A, B (visitor excluded)
-    expect(cols.depts[0].thirds).toHaveLength(3)
-    expect(cols.depts[0].thirds.flat().map((m) => m.name)).toEqual(['A', 'B'])
+    expect(cols.depts[0].columns).toHaveLength(4)
+    expect(cols.depts[0].columns.flat().map((m) => m.name)).toEqual(['A', 'B'])
     expect(cols.depts[1].total).toBe(1) // C
     expect(cols.others.map((m) => m.name)).toEqual(['D'])
   })
 
   it('excludes visitors from every bucket', () => {
     const cols = kioskColumns(members)
-    const all = [...cols.depts.flatMap((d) => d.thirds.flat()), ...cols.others]
+    const all = [...cols.depts.flatMap((d) => d.columns.flat()), ...cols.others]
     expect(all.find((m) => m.name === 'V')).toBeUndefined()
   })
 
   it('sorts each 부서 bucket 가나다 순 regardless of roster order', () => {
     const unordered = [member('다영', '대학부'), member('가영', '대학부'), member('나영', '대학부')]
     const cols = kioskColumns(unordered)
-    expect(cols.depts[0].thirds.flat().map((m) => m.name)).toEqual(['가영', '나영', '다영'])
+    expect(cols.depts[0].columns.flat().map((m) => m.name)).toEqual(['가영', '나영', '다영'])
   })
 
   it('sorts others 가나다 순 too', () => {
