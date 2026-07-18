@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { sortAdminRoles, auditDetail, roleNeedsScope, backupFilename } from './admins'
+import { sortAdminRoles, auditDetail, roleNeedsScope, backupFilename, formatBytes } from './admins'
 import type { AdminRoleRow } from '../../lib/api'
 
 const row = (name: string, role: AdminRoleRow['role']): AdminRoleRow => ({
@@ -41,5 +41,18 @@ describe('backupFilename', () => {
   it('formats a zero-padded date into the backup filename', () => {
     expect(backupFilename(new Date(2026, 5, 9))).toBe('kccp-backup-2026-06-09.json')
     expect(backupFilename(new Date(2026, 11, 25))).toBe('kccp-backup-2026-12-25.json')
+  })
+})
+
+describe('formatBytes', () => {
+  it('stays in bytes under 1000', () => {
+    expect(formatBytes(0)).toBe('0 B')
+    expect(formatBytes(999)).toBe('999 B')
+  })
+  it('steps up through KB/MB/GB', () => {
+    expect(formatBytes(1000)).toBe('1.0 KB')
+    expect(formatBytes(123_456)).toBe('123.5 KB')
+    expect(formatBytes(1_500_000)).toBe('1.5 MB')
+    expect(formatBytes(2_300_000_000)).toBe('2.3 GB')
   })
 })

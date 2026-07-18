@@ -17,10 +17,15 @@ import {
   getClearPending,
   approveClear,
   rejectClear,
+  runDbBackupNow,
+  listDbBackups,
+  getDbBackupDownloadUrl,
+  restoreDbBackup,
   type AdminRole,
   type RoleAssignment,
+  type DbBackupEntry,
 } from '../../lib/api'
-import { sortAdminRoles, auditDetail, roleNeedsScope, backupFilename } from './admins'
+import { sortAdminRoles, auditDetail, roleNeedsScope, backupFilename, formatBytes } from './admins'
 import { useRoster } from './useRoster'
 import { groupsOf, subgroupsOf } from './filters'
 import { checkinCandidates } from './today'
@@ -32,6 +37,20 @@ import { Select } from '../../components/ui/Select'
 import { useToast } from '../../components/ui/Toast'
 
 const ROLES: AdminRole[] = ['super_admin', 'leader', 'pastor', 'welcoming']
+
+type DbRestoreTarget = { source: 'online'; key: string; date: string } | { source: 'upload'; file: File }
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = reader.result as string
+      resolve(result.slice(result.indexOf(',') + 1))
+    }
+    reader.onerror = () => reject(reader.error ?? new Error('file read failed'))
+    reader.readAsDataURL(file)
+  })
+}
 
 // Admins tab (super-admin): registration-approval toggle, pending queue, the admin
 // roster with add/remove, and the audit log.
@@ -110,6 +129,43 @@ export function AdminAdmins() {
   const [restoreFile, setRestoreFile] = useState<File | null>(null)
   const [restoreArmed, setRestoreArmed] = useState(false)
   const [restoreBusy, setRestoreBusy] = useState(false)
+
+  // ── Off-site encrypted DB backup (scripts/backup/) ──────────────────────
+  const dbRestoreFileRef = useRef<HTMLInputElement>(null)
+  const [showDbBackups, setShowDbBackups] = useState(false)
+  const { data: dbBackupsData, isLoading: dbBackupsLoading } = useQuery({
+    queryKey: ['dbBackups'],
+    queryFn: listDbBackups,
+    enabled: showDbBackups,
+  })
+  const [dbBackupRunBusy, setDbBackupRunBusy] = useState(false)
+  const [dbRestoreTarget, setDbRestoreTarget] = useState<DbRestoreTarget | null>(null)
+
+  async function runDbBackup() {
+    setDbBackupRunBusy(true)
+    try {
+      await runDbBackupNow()
+      toast({ title: t('admin.admins.dbBackup.dispatched'), tone: 'ok' })
+    } catch (e) {
+      toast({ title: e instanceof Error ? e.message : t('common.error'), tone: 'err' })
+    } finally {
+      setDbBackupRunBusy(false)
+    }
+  }
+
+  async function downloadDbBackup(key: string) {
+    try {
+      const { url } = await getDbBackupDownloadUrl(key)
+      window.open(url, '_blank')
+    } catch (e) {
+      toast({ title: e instanceof Error ? e.message : t('common.error'), tone: 'err' })
+    }
+  }
+
+  function pickDbRestoreFile(file: File | null) {
+    if (file) setDbRestoreTarget({ source: 'upload', file })
+    if (dbRestoreFileRef.current) dbRestoreFileRef.current.value = ''
+  }
 
   async function downloadBackup() {
     setBackupBusy(true)
@@ -385,6 +441,64 @@ export function AdminAdmins() {
           </div>
         )}
       </div>
+
+      <hr className="my-6 border-border" />
+
+      <h2 className="mb-1 font-display text-lg font-semibold text-text">{t('admin.admins.dbBackup.title')}</h2>
+      <p className="mb-3 text-xs text-muted">{t('admin.admins.dbBackup.desc')}</p>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="secondary" onClick={runDbBackup} disabled={dbBackupRunBusy}>
+          {dbBackupRunBusy ? t('common.loading') : t('admin.admins.dbBackup.runNow')}
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => setShowDbBackups((v) => !v)}>
+          {showDbBackups ? t('admin.admins.dbBackup.hideList') : t('admin.admins.dbBackup.showList')}
+        </Button>
+      </div>
+
+      {showDbBackups && (
+        <div className="mt-3">
+          {dbBackupsLoading ? (
+            <p className="text-sm text-muted">{t('common.loading')}</p>
+          ) : !dbBackupsData?.backups.length ? (
+            <p className="text-sm text-muted">{t('admin.admins.dbBackup.none')}</p>
+          ) : (
+            <ul className="flex flex-col gap-1.5">
+              {dbBackupsData.backups.map((b: DbBackupEntry) => (
+                <li key={b.date} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-surface px-3 py-2 text-xs">
+                  <span className="font-semibold text-text">
+                    {b.date}
+                    {b.sqlSize != null && <span className="ml-2 font-normal text-subtle">{formatBytes(b.sqlSize)}</span>}
+                  </span>
+                  {b.sqlKey && (
+                    <div className="flex gap-1.5">
+                      <Button size="sm" variant="ghost" onClick={() => downloadDbBackup(b.sqlKey!)}>
+                        {t('admin.admins.dbBackup.download')}
+                      </Button>
+                      <Button size="sm" variant="danger" onClick={() => setDbRestoreTarget({ source: 'online', key: b.sqlKey!, date: b.date })}>
+                        {t('admin.admins.dbBackup.restore')}
+                      </Button>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      <div className="mt-4 flex flex-col gap-2 rounded-lg border border-danger/40 bg-danger/5 p-3">
+        <label className="text-sm font-semibold text-text">{t('admin.admins.dbBackup.restoreFromFile')}</label>
+        <input
+          ref={dbRestoreFileRef}
+          type="file"
+          accept=".age"
+          onChange={(e) => pickDbRestoreFile(e.target.files?.[0] ?? null)}
+          className="text-xs text-muted file:mr-3 file:rounded-sm file:border file:border-border file:bg-surface file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-text"
+        />
+      </div>
+
+      {dbRestoreTarget && <RestoreDbDialog target={dbRestoreTarget} onClose={() => setDbRestoreTarget(null)} />}
     </div>
   )
 }
@@ -485,6 +599,87 @@ function AddAdminModal({ onClose }: { onClose: () => void }) {
         </Button>
         <Button onClick={save} disabled={!valid || saving} className="flex-1">
           {saving ? t('common.loading') : t('admin.admins.addAdmin')}
+        </Button>
+      </div>
+    </Dialog>
+  )
+}
+
+// Confirms + runs a destructive DB-level restore (see /api/admin/db-backup/restore).
+// Stronger gate than the JSON restore above: a private key must be typed in fresh (it is
+// never stored anywhere, client or server) and the literal word RESTORE must be typed to
+// enable the button, on top of this already only being reachable via its own confirm step.
+function RestoreDbDialog({ target, onClose }: { target: DbRestoreTarget; onClose: () => void }) {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const toast = useToast()
+  const [privateKey, setPrivateKey] = useState('')
+  const [confirmText, setConfirmText] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const valid = privateKey.trim().startsWith('AGE-SECRET-KEY-1') && confirmText === 'RESTORE'
+
+  async function run() {
+    if (!valid) return
+    setBusy(true)
+    try {
+      const fileBase64 = target.source === 'upload' ? await fileToBase64(target.file) : undefined
+      const result = await restoreDbBackup({
+        source: target.source,
+        key: target.source === 'online' ? target.key : undefined,
+        fileBase64,
+        privateKey: privateKey.trim(),
+        confirm: confirmText,
+      })
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['roster'] }),
+        qc.invalidateQueries({ queryKey: ['config'] }),
+        qc.invalidateQueries({ queryKey: ['adminRoles'] }),
+        qc.invalidateQueries({ queryKey: ['pending'] }),
+        qc.invalidateQueries({ queryKey: ['dbBackups'] }),
+      ])
+      toast({ title: t('admin.admins.dbBackup.restored', { count: result.tables }), tone: 'ok' })
+      onClose()
+    } catch (e) {
+      toast({ title: e instanceof Error ? e.message : t('common.error'), tone: 'err' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && !busy && onClose()} title={t('admin.admins.dbBackup.restoreTitle')}>
+      <div className="flex flex-col gap-3">
+        <div className="rounded-lg border border-danger/40 bg-danger/5 p-3 text-xs text-danger">
+          {t('admin.admins.dbBackup.restoreWarning')}
+        </div>
+        <p className="text-xs text-muted">
+          {target.source === 'online'
+            ? t('admin.admins.dbBackup.restoreFromOnline', { date: target.date })
+            : t('admin.admins.dbBackup.restoreFromUpload', { name: target.file.name })}
+        </p>
+        <label className="block">
+          <span className="mb-1 block text-xs font-semibold text-subtle">{t('admin.admins.dbBackup.privateKey')}</span>
+          <textarea
+            value={privateKey}
+            onChange={(e) => setPrivateKey(e.target.value)}
+            placeholder="AGE-SECRET-KEY-1..."
+            rows={3}
+            className="w-full rounded-md border border-border bg-surface px-3 py-2 font-mono text-xs text-text outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/30"
+          />
+          <span className="mt-1 block text-[11px] text-subtle">{t('admin.admins.dbBackup.privateKeyHint')}</span>
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs font-semibold text-subtle">{t('admin.admins.dbBackup.confirmPhrase', { phrase: 'RESTORE' })}</span>
+          <Input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder="RESTORE" />
+        </label>
+      </div>
+      <div className="mt-4 flex gap-2">
+        <Button variant="secondary" onClick={onClose} disabled={busy} className="flex-1">
+          {t('common.cancel')}
+        </Button>
+        <Button variant="danger" onClick={run} disabled={!valid || busy} className="flex-1">
+          {busy ? t('common.loading') : t('admin.admins.dbBackup.restoreConfirm')}
         </Button>
       </div>
     </Dialog>

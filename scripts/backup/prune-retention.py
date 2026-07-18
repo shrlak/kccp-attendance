@@ -10,6 +10,11 @@ most recent backup of each of the last 5 distinct years (for backups aged out of
 The tiers are evaluated in that order and don't overlap in what they keep, but a date
 that would qualify for more than one tier only needs to win one to survive.
 
+Each backup date is two encrypted files — backup-DATE.sql.age (the restorable data dump)
+and backup-DATE.schema.tar.gz.age (migrations + edge-function source, archival only) —
+plus a .sha256 checksum next to each. All four share one fate: a date is either fully kept
+or fully deleted, decided once at the date level and then applied to every file under it.
+
 Env vars (all set by .github/workflows/backup.yml):
   R2_ENDPOINT   https://<account-id>.r2.cloudflarestorage.com
   R2_BUCKET     target bucket name
@@ -25,7 +30,7 @@ import subprocess
 BUCKET = os.environ["R2_BUCKET"]
 ENDPOINT = os.environ["R2_ENDPOINT"]
 PREFIX = "backups/"
-KEY_RE = re.compile(r"^backups/backup-(\d{4}-\d{2}-\d{2})\.tar\.age$")
+KEY_RE = re.compile(r"^backups/backup-(\d{4}-\d{2}-\d{2})\.(sql\.age|schema\.tar\.gz\.age)$")
 
 WEEKLY_KEEP = 13
 MONTHLY_KEEP = 12
@@ -43,16 +48,18 @@ def aws_json(*args):
 
 
 def list_backups():
+    """Returns {date: [(key, size), ...]} — every .sql.age / .schema.tar.gz.age object
+    grouped under the date in its filename. .sha256 companions aren't listed here (they
+    don't match KEY_RE); they're derived by appending ".sha256" wherever needed below."""
     resp = aws_json("s3api", "list-objects-v2", "--bucket", BUCKET, "--prefix", PREFIX)
-    items = []
+    by_date = {}
     for obj in resp.get("Contents", []):
         m = KEY_RE.match(obj["Key"])
         if not m:
             continue
         d = datetime.date.fromisoformat(m.group(1))
-        items.append((d, obj["Key"], obj["Size"]))
-    items.sort(key=lambda x: x[0], reverse=True)
-    return items
+        by_date.setdefault(d, []).append((obj["Key"], obj["Size"]))
+    return by_date
 
 
 def first_per_group(dates_desc, key_fn, n):
@@ -86,25 +93,27 @@ def keep_set(dates_desc):
 
 
 def main():
-    items = list_backups()
-    if not items:
+    by_date = list_backups()
+    if not by_date:
         print(f"No backups found under {PREFIX}")
         return
 
-    dates_desc = [d for d, _, _ in items]
+    dates_desc = sorted(by_date.keys(), reverse=True)
     keep = keep_set(dates_desc)
 
-    total_size = sum(size for _, _, size in items)
-    kept_size = sum(size for d, _, size in items if d in keep)
+    total_size = sum(size for items in by_date.values() for _, size in items)
+    kept_size = sum(size for d, items in by_date.items() if d in keep for _, size in items)
     deleted_keys = []
 
     summary_rows = []
-    for d, key, size in items:
+    for d in dates_desc:
         is_kept = d in keep
-        summary_rows.append(f"| {d} | {key} | {size:,} B | {'kept' if is_kept else 'deleted'} |")
+        for key, size in sorted(by_date[d]):
+            summary_rows.append(f"| {d} | {key} | {size:,} B | {'kept' if is_kept else 'deleted'} |")
         if not is_kept:
-            deleted_keys.append(key)
-            deleted_keys.append(key + ".sha256")
+            for key, _ in by_date[d]:
+                deleted_keys.append(key)
+                deleted_keys.append(key + ".sha256")
 
     for key in deleted_keys:
         # check=False: the .sha256 companion of an already-deleted-in-a-prior-run object
@@ -114,7 +123,8 @@ def main():
             check=False,
         )
 
-    print(f"Backups: {len(items)} total, {len(keep)} kept, {len(deleted_keys) // 2} deleted.")
+    deleted_dates = len(dates_desc) - len(keep)
+    print(f"Backups: {len(dates_desc)} total, {len(keep)} kept, {deleted_dates} deleted.")
     print(f"Storage: {total_size / 1e9:.2f} GB total -> {kept_size / 1e9:.2f} GB after pruning.")
 
     step_summary = os.environ.get("GITHUB_STEP_SUMMARY")
