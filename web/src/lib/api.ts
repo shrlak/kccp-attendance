@@ -429,6 +429,42 @@ export const getBackup = () => api<Record<string, unknown>>('GET', '/api/admin/b
 export const postRestore = (data: unknown) =>
   api<{ status: string }>('POST', '/api/admin/restore', data)
 
+// ── Off-site encrypted DB backup (super-admin) ────────────────────────────
+// Distinct from getBackup/postRestore above (a JSON app-data snapshot): this is the full
+// weekly Postgres dump pipeline to Cloudflare R2 (scripts/backup/, .github/workflows/backup.yml).
+export interface DbBackupEntry {
+  date: string
+  sqlKey?: string
+  sqlSize?: number
+  schemaKey?: string
+  schemaSize?: number
+}
+
+// Triggers the scheduled GH Actions workflow immediately instead of waiting for Sunday.
+export const runDbBackupNow = () => api<{ status: string }>('POST', '/api/admin/db-backup/run')
+
+export const listDbBackups = () => api<{ backups: DbBackupEntry[] }>('GET', '/api/admin/db-backup/list')
+
+// Short-lived presigned R2 URL — the browser downloads the still-encrypted file directly.
+export const getDbBackupDownloadUrl = (key: string) =>
+  api<{ url: string }>('GET', `/api/admin/db-backup/download?key=${encodeURIComponent(key)}`)
+
+export interface RestoreDbBackupPayload {
+  source: 'online' | 'upload'
+  key?: string
+  fileBase64?: string
+  privateKey: string
+  confirm: string
+}
+
+// Destructive: decrypts the given backup with a private key supplied fresh in this one
+// call (never persisted anywhere) and replaces every table's contents. Requires the
+// literal confirmation phrase "RESTORE" as a server-side backstop behind the UI's own
+// confirm gate. Generous timeout — decrypt + full-table reload over a cold pooler
+// connection can run past the default budget even though this DB is tiny.
+export const restoreDbBackup = (payload: RestoreDbBackupPayload) =>
+  api<{ status: string; tables: number }>('POST', '/api/admin/db-backup/restore', payload, undefined, 60_000)
+
 // ── Kiosk (runs on a verified admin device) ───────────────────────────────
 // Guest (방문자) check-in from the kiosk: records a visitor attendance row for today
 // (is_manual + is_guest, member_role "visitor"), bypassing day/time/location. Hardened

@@ -77,13 +77,55 @@ are set. Confirms the whole chain (dump → verify-restore → encrypt → uploa
 before waiting for the next scheduled Sunday. If a secret is missing, the run fails fast
 at the "Check required secrets are configured" step and names exactly which one.
 
-## Rotating the DB password
+## 6. In-app backup/restore (Admins tab)
 
-If the `backup_reader` password is ever lost or needs rotating, run against the prod
-project (via `mcp__Supabase__execute_sql` or the SQL editor):
+The Admins tab's "전체 암호화 백업" section lets a super-admin trigger a backup, list and
+download stored ones, and restore — all from the website, without touching GitHub or
+Cloudflare directly. This runs through the edge function (`supabase/functions/attendance-api`),
+which needs its **own** copies of some of the same credentials — Supabase Edge Function
+secrets are a separate store from the GitHub Actions repo secrets above, even when the
+values are identical. Set these via the Supabase dashboard (Project Settings → Edge
+Functions → your function → Secrets) or the CLI:
+
+```sh
+supabase secrets set --project-ref loovulhchmmwagtvjnhc \
+  GITHUB_PAT=<step a> \
+  R2_ENDPOINT=<same value as the GitHub secret> \
+  R2_ACCESS_KEY_ID=<same value as the GitHub secret> \
+  R2_SECRET_ACCESS_KEY=<same value as the GitHub secret> \
+  RESTORE_DB_URL=<step b>
+```
+
+**a. `GITHUB_PAT`** — a fine-grained GitHub personal access token, scoped to **this repo
+only**, with **Actions: Read and write** permission (nothing else). Create it at
+GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens.
+This is what lets the "지금 백업 실행" (run backup now) button dispatch the workflow — it
+cannot read secrets or touch code, only start a run.
+
+**b. `RESTORE_DB_URL`** — same shape as `SUPABASE_BACKUP_DB_URL` in step 3, but for the
+`backup_restorer` role (read **and** write — `TRUNCATE`+`INSERT`, still no schema/DDL
+privileges) instead of `backup_reader`:
+
+```
+postgresql://backup_restorer.loovulhchmmwagtvjnhc:<password>@<same pooler host as step 3>:5432/postgres
+```
+
+The `backup_restorer` password was generated and shown once in chat alongside
+`backup_reader`'s, the same way — not repeated here. Lost it? See **Rotating a DB
+password** below, using `backup_restorer` in place of `backup_reader`.
+
+Restoring itself never needs a stored secret for the `age` **private** key — the admin
+performing the restore pastes it into the confirmation dialog at the moment they use it,
+and the edge function uses it in-memory for that one request only. Nothing server-side
+ever holds it.
+
+## Rotating a DB password
+
+If either role's password is ever lost or needs rotating, run against the prod project
+(via `mcp__Supabase__execute_sql` or the SQL editor), substituting the role name:
 
 ```sql
-ALTER ROLE backup_reader WITH PASSWORD '<new-strong-password>';
+ALTER ROLE backup_reader WITH PASSWORD '<new-strong-password>';    -- or backup_restorer
 ```
 
 Then update `SUPABASE_BACKUP_DB_URL` (the password segment) in the GitHub secret to
@@ -91,19 +133,28 @@ match.
 
 ## Quarterly restore drill
 
-The in-CI verification step only proves the dump restores cleanly — it never exercises
-your actual private key. Periodically (recommend quarterly) prove the real, full chain
-end to end on your own machine:
+The Admins tab's restore button (see step 6) is the normal path, and it depends on the
+edge function being up. This manual drill is the fallback that doesn't — decrypting and
+loading a backup with nothing but the private key file, `age`, and `psql` on your own
+machine, the same way you'd have to if Supabase itself were ever unreachable. The in-CI
+verification step proves the dump *content* restores cleanly every week; this is the one
+that proves *you* still have everything needed to do it by hand. Recommend quarterly:
 
 ```sh
-# Download the latest backup from the R2 bucket (dashboard, or aws s3 cp with the
+# Download backup-<date>.sql.age from the R2 bucket (dashboard, or aws s3 cp with the
 # R2_* credentials from step 2), then:
-age -d -i backup-key.txt -o backup.tar backup-2026-07-19.tar.age
-tar xf backup.tar        # -> db.dump, schema-source.tar.gz
-pg_restore --list db.dump               # sanity-check contents without restoring
+age -d -i backup-key.txt -o backup.sql backup-2026-07-19.sql.age
+
+# Data-only — needs an existing schema to load into. A scratch DB with just-applied
+# migrations mirrors what the CI verify step does:
 createdb restore_drill
-pg_restore --no-owner --no-privileges -d restore_drill db.dump
+for f in supabase/migrations/*.sql; do psql restore_drill -v ON_ERROR_STOP=1 -f "$f"; done
+psql restore_drill --single-transaction -v ON_ERROR_STOP=1 -f backup.sql
 ```
+
+The `schema-source.tar.gz.age` file alongside it isn't needed for this — it's the
+migrations + edge-function source, archival reference for a from-scratch project rebuild,
+not something you load into a database.
 
 If this ever fails, the automated pipeline's in-CI verification wouldn't have caught it —
 that's exactly what makes the manual drill worth doing.

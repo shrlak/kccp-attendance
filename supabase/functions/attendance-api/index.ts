@@ -2,6 +2,15 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { resolveAdmin, scopeFilter } from "./auth.ts";
 import { GEMINI_URL, buildGeminiBody, parseGeminiCard } from "./gemini.ts";
+// Decrypt-side of the weekly R2 backup pipeline (see scripts/backup/). age-encryption is
+// FiloSottile's own pure-JS port of `age` (no native/subprocess dependency, which Deno
+// edge functions can't shell out to anyway); postgres.js's .unsafe() with no parameters
+// sends the query over the simple protocol, which is what lets a whole multi-statement
+// pg_dump script run in one call without a pg_restore binary.
+import * as age from "npm:age-encryption@0.3.0";
+import postgres from "npm:postgres@3.4.9";
+import { S3Client, ListObjectsV2Command, GetObjectCommand } from "npm:@aws-sdk/client-s3@3.1090.0";
+import { getSignedUrl } from "npm:@aws-sdk/s3-request-presigner@3.1090.0";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -142,6 +151,16 @@ async function addAudit(sb: SB, action: string, adminId: string, details: any) {
     const {error}=await sb.from("audit_log").insert({ts:Date.now(),action,admin_id:adminId,admin_name:d?.name||adminId,details:typeof details==="string"?{info:details}:details});
     return !error;
   } catch(_){return false;}
+}
+// R2 access for the db-backup list/download/restore endpoints (scripts/backup/ writes
+// here on its own schedule; these just read). Returns null when the edge-function-side R2
+// secrets haven't been configured yet, so callers can fail with a clear setup message
+// instead of a raw SDK error.
+function r2Bucket() { return Deno.env.get("R2_BUCKET")||"kccp-attendance-backups"; }
+function r2Client(): InstanceType<typeof S3Client> | null {
+  const endpoint=Deno.env.get("R2_ENDPOINT"), accessKeyId=Deno.env.get("R2_ACCESS_KEY_ID"), secretAccessKey=Deno.env.get("R2_SECRET_ACCESS_KEY");
+  if(!endpoint||!accessKeyId||!secretAccessKey) return null;
+  return new S3Client({region:"auto",endpoint,credentials:{accessKeyId,secretAccessKey}});
 }
 const SEMESTER_SEASONS=["spring","summer","fall"] as const;
 function monthDayNumber(value: unknown): number | null {
@@ -504,6 +523,119 @@ Deno.serve(async (req: Request) => {
       if(bk.events?.events){await sb.from("events").delete().neq("id","");for(const e of bk.events.events){await sb.from("events").insert({id:e.id,name:e.name,date:e.date,type:e.type||"기타",group_name:e.group||"",notes:e.notes||"",created_by:e.createdBy,created_at:e.createdAt?new Date(e.createdAt).toISOString():new Date().toISOString()});if(e.attendees?.length) await sb.from("event_attendees").insert(e.attendees.map((a:string)=>({event_id:e.id,device_id:"NAME-"+a,name:a})));}}
       await addAudit(sb,"restore",xDev,"Restored backup from "+(bk.exportedAt?new Date(bk.exportedAt).toLocaleString("ko-KR",{timeZone:"America/New_York"}):"unknown"));
       return ok({status:"ok"});
+    }
+
+    // ── Off-site encrypted DB backup (scripts/backup/, .github/workflows/backup.yml) ──
+    // Distinct from /api/admin/backup+restore above (a JSON app-data snapshot): this is
+    // the full weekly Postgres dump pipeline to Cloudflare R2. Namespaced under
+    // /api/admin/db-backup/ so the two systems' routes can't collide. Super-admin only.
+
+    // Triggers the GH Actions workflow on demand instead of waiting for Sunday.
+    if(req.method==="POST"&&p==="/api/admin/db-backup/run") {
+      const role=await resolveAdmin(sb,req);
+      if(role?.role!=="super_admin") return fail(403,"Super admin required");
+      const pat=Deno.env.get("GITHUB_PAT");
+      if(!pat) return fail(500,"GITHUB_PAT not configured — set it in Supabase Edge Function secrets");
+      const res=await fetch("https://api.github.com/repos/shrlak/kccp-attendance/actions/workflows/backup.yml/dispatches",{
+        method:"POST",
+        headers:{"Authorization":"Bearer "+pat,"Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28","Content-Type":"application/json"},
+        body:JSON.stringify({ref:"main"}),
+      });
+      if(!res.ok) return fail(502,"GitHub dispatch failed ("+res.status+")");
+      await addAudit(sb,"db-backup-run",xDev,"Triggered weekly backup workflow manually");
+      return ok({status:"dispatched"});
+    }
+
+    // Lists backups by date — each date is a .sql.age (restorable data) and a
+    // .schema.tar.gz.age (migrations + function source, archival only) pair.
+    if(req.method==="GET"&&p==="/api/admin/db-backup/list") {
+      const role=await resolveAdmin(sb,req);
+      if(role?.role!=="super_admin") return fail(403,"Super admin required");
+      const s3=r2Client();
+      if(!s3) return fail(500,"R2 credentials not configured — set R2_ENDPOINT/R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY in Supabase Edge Function secrets");
+      const listing=await s3.send(new ListObjectsV2Command({Bucket:r2Bucket(),Prefix:"backups/"}));
+      const byDate: Record<string,{date:string;sqlKey?:string;sqlSize?:number;schemaKey?:string;schemaSize?:number}>={};
+      for(const o of listing.Contents||[]){
+        const key=o.Key||"";
+        let m=/^backups\/backup-(\d{4}-\d{2}-\d{2})\.sql\.age$/.exec(key);
+        if(m){const e=byDate[m[1]]??={date:m[1]};e.sqlKey=key;e.sqlSize=o.Size||0;continue;}
+        m=/^backups\/backup-(\d{4}-\d{2}-\d{2})\.schema\.tar\.gz\.age$/.exec(key);
+        if(m){const e=byDate[m[1]]??={date:m[1]};e.schemaKey=key;e.schemaSize=o.Size||0;}
+      }
+      const backups=Object.values(byDate).sort((a,b)=>b.date.localeCompare(a.date));
+      return ok({backups});
+    }
+
+    // Short-lived presigned URL so the browser downloads the (still-encrypted) file
+    // directly from R2 instead of proxying bytes through this function.
+    if(req.method==="GET"&&p==="/api/admin/db-backup/download") {
+      const role=await resolveAdmin(sb,req);
+      if(role?.role!=="super_admin") return fail(403,"Super admin required");
+      const key=url.searchParams.get("key")||"";
+      if(!/^backups\/backup-\d{4}-\d{2}-\d{2}\.(sql\.age|schema\.tar\.gz\.age)$/.test(key)) return fail(400,"Invalid backup key");
+      const s3=r2Client();
+      if(!s3) return fail(500,"R2 credentials not configured");
+      const signedUrl=await getSignedUrl(s3,new GetObjectCommand({Bucket:r2Bucket(),Key:key}),{expiresIn:300});
+      await addAudit(sb,"db-backup-download",xDev,"Downloaded "+key);
+      return ok({url:signedUrl});
+    }
+
+    // Destructive restore: decrypts an encrypted data dump — fetched from R2 by key, or
+    // posted directly as base64 — with a private key supplied fresh in THIS request only
+    // (never stored, never logged), then truncates and reloads every public table inside
+    // one transaction so a failure midway leaves the database exactly as it was. The
+    // literal confirmation phrase is a server-side backstop behind the UI's own confirm
+    // gate, since this replaces ALL current data with the backup's snapshot.
+    if(req.method==="POST"&&p==="/api/admin/db-backup/restore") {
+      const role=await resolveAdmin(sb,req);
+      if(role?.role!=="super_admin") return fail(403,"Super admin required");
+      const {source,key,fileBase64,privateKey,confirm}=body;
+      if(confirm!=="RESTORE") return fail(400,"Confirmation phrase required");
+      if(!privateKey||typeof privateKey!=="string") return fail(400,"Private key required");
+
+      let ciphertext: Uint8Array;
+      if(source==="online") {
+        if(typeof key!=="string"||!/^backups\/backup-\d{4}-\d{2}-\d{2}\.sql\.age$/.test(key)) return fail(400,"Invalid backup key");
+        const s3=r2Client();
+        if(!s3) return fail(500,"R2 credentials not configured");
+        const obj=await s3.send(new GetObjectCommand({Bucket:r2Bucket(),Key:key}));
+        const bytes=await obj.Body?.transformToByteArray();
+        if(!bytes) return fail(404,"Backup not found");
+        ciphertext=bytes;
+      } else if(source==="upload") {
+        if(typeof fileBase64!=="string"||!fileBase64) return fail(400,"File required");
+        ciphertext=Uint8Array.from(atob(fileBase64),c=>c.charCodeAt(0));
+      } else {
+        return fail(400,"Invalid source");
+      }
+
+      let sqlText: string;
+      try {
+        const d=new age.Decrypter();
+        d.addIdentity(privateKey.trim());
+        const plaintext=await d.decrypt(ciphertext);
+        sqlText=new TextDecoder().decode(plaintext);
+      } catch(_e) {
+        return fail(400,"Decryption failed — check the private key and file");
+      }
+
+      const restoreDbUrl=Deno.env.get("RESTORE_DB_URL");
+      if(!restoreDbUrl) return fail(500,"RESTORE_DB_URL not configured — set it in Supabase Edge Function secrets");
+      const pgSql=postgres(restoreDbUrl,{max:1});
+      try {
+        const tables=await pgSql`SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'`;
+        if(!tables.length) return fail(500,"No tables found to restore into");
+        const tableList=tables.map((t: any)=>`"public"."${t.table_name}"`).join(", ");
+        await pgSql.begin(async (tx: any)=>{
+          await tx.unsafe(`TRUNCATE ${tableList} RESTART IDENTITY CASCADE;\n`+sqlText);
+        });
+        await addAudit(sb,"db-restore",xDev,"Restored from "+(source==="online"?key:"uploaded file")+" ("+tables.length+" tables)");
+        return ok({status:"restored",tables:tables.length});
+      } catch(e: any) {
+        return fail(500,"Restore failed: "+(e?.message||"unknown error"));
+      } finally {
+        await pgSql.end({timeout:5});
+      }
     }
 
     // Pending self-registrations (when require_approval is on). Any verified admin may

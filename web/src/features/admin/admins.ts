@@ -32,3 +32,17 @@ export function backupFilename(date: Date = new Date()): string {
   const d = String(date.getDate()).padStart(2, '0')
   return `kccp-backup-${y}-${m}-${d}.json`
 }
+
+// Human-readable file size, e.g. 1234 -> "1.2 KB". Decimal (1000-based), matching
+// scripts/backup/prune-retention.py's GB math so the two size displays agree.
+export function formatBytes(bytes: number): string {
+  if (bytes < 1000) return `${bytes} B`
+  const units = ['KB', 'MB', 'GB', 'TB']
+  let value = bytes / 1000
+  let i = 0
+  while (value >= 1000 && i < units.length - 1) {
+    value /= 1000
+    i++
+  }
+  return `${value.toFixed(1)} ${units[i]}`
+}
