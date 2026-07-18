@@ -164,8 +164,8 @@ export function KioskView({ onExit }: { onExit: () => void }) {
                 const color = resolveGroupColor(cfg?.groupColors, dept.key)
                 return (
                   <div key={dept.key} className="rounded-2xl p-3" style={{ background: hexTint(color, 0.07) }}>
-                    <div className="grid grid-cols-2 gap-x-3 gap-y-5 min-[480px]:grid-cols-3">
-                      {dept.thirds.map((part, i) => (
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-5 min-[480px]:grid-cols-4">
+                      {dept.columns.map((part, i) => (
                         <div key={`${dept.key}-${i}`} className="flex flex-col gap-2">
                           <div
                             className="border-b-2 pb-2 text-xs font-bold uppercase tracking-wide"

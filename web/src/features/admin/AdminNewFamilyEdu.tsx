@@ -3,10 +3,10 @@ import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRoster } from './useRoster'
 import { easternNow } from '../../lib/checkinWindow'
-import { filterMembers, NO_FILTER, type Filter } from './filters'
-import { currentNewFamily, matchesEduFilter, type EduFilter } from './newFamily'
+import { groupsOf, NO_FILTER, type Filter } from './filters'
+import { currentNewFamily, matchesEduFilter, eduDongsansOf, filterByEduDongsan, type EduFilter } from './newFamily'
 import { summerDongsanList } from './dongsan'
-import { GroupFilter, Pill } from './GroupFilter'
+import { Pill } from './GroupFilter'
 import { DongsanNamesEditor } from './AdminDongsan'
 import {
   getConfig,
@@ -16,6 +16,8 @@ import {
   type Member,
   type DongsanNames,
 } from '../../lib/api'
+import { Dialog } from '../../components/ui/Dialog'
+import { Button } from '../../components/ui/Button'
 import { Select } from '../../components/ui/Select'
 import { useToast } from '../../components/ui/Toast'
 import { EditModal, AttendanceModal } from './MemberDialogs'
@@ -42,13 +44,14 @@ export function AdminNewFamilyEdu() {
   const [eduFilter, setEduFilter] = useState<EduFilter>('all')
   const [editing, setEditing] = useState<Member | null>(null)
   const [attendanceFor, setAttendanceFor] = useState<Member | null>(null)
+  const [dongsanNamesOpen, setDongsanNamesOpen] = useState(false)
 
   if (isLoading) return <p className="text-sm text-muted">{t('common.loading')}</p>
   if (isError) return <p className="text-sm text-danger">{t('common.error')}</p>
   if (!data) return null
 
   const today = easternNow().date
-  const scopedMembers = filterMembers(data.members, filter)
+  const scopedMembers = filterByEduDongsan(data.members, filter)
   const currentSemester = currentNewFamily(scopedMembers, today)
   const visible = eduFilter === 'all' ? currentSemester : currentSemester.filter((m) => matchesEduFilter(m, eduFilter))
   const readOnly = data.role === 'pastor'
@@ -56,7 +59,16 @@ export function AdminNewFamilyEdu() {
 
   return (
     <>
-      <GroupFilter members={data.members} value={filter} onChange={setFilter} />
+      {/* 새가족 교육 동산 이름 설정 — top-right, opens in a dialog instead of an inline
+          section so the tab stays focused on the roster. */}
+      <div className="mb-3 flex justify-end">
+        <Button variant="secondary" size="sm" onClick={() => setDongsanNamesOpen(true)}>
+          {t('admin.settings.newMemberDongsanNames')}
+        </Button>
+      </div>
+
+      {/* 부서 + 새가족 교육 동산 필터 (일반 동산이 아니라 새가족 교육 동산으로 거른다). */}
+      <EduDongsanFilter members={data.members} value={filter} onChange={setFilter} />
 
       {/* 새가족 교육 이수 필터: 1주차만 / 2주차만 / 둘 다 / 아무것도 안 들음 */}
       <div className="mb-4 flex flex-wrap gap-1.5">
@@ -93,19 +105,18 @@ export function AdminNewFamilyEdu() {
         </ul>
       )}
 
-      {eduDongsanNames && (
-        <div className="mt-10 border-t border-border pt-6">
+      {dongsanNamesOpen && eduDongsanNames && (
+        <Dialog open onOpenChange={(o) => !o && setDongsanNamesOpen(false)} title={t('admin.settings.newMemberDongsanNames')}>
           <DongsanNamesEditor
             loaded={eduDongsanNames}
             summer={summerMode}
-            title={t('admin.settings.newMemberDongsanNames')}
             desc={t('admin.settings.newMemberDongsanNamesDesc')}
             onSave={async (next) => {
               await updateNewMemberDongsanNames(next)
               await qc.invalidateQueries({ queryKey: ['newMemberDongsanNames'] })
             }}
           />
-        </div>
+        </Dialog>
       )}
 
       {editing && (
@@ -127,6 +138,45 @@ export function AdminNewFamilyEdu() {
         />
       )}
     </>
+  )
+}
+
+// 부서 (전체/대학부/청년부) + 새가족 교육 동산 pill filter — mirrors GroupFilter's layout
+// exactly, but the second row is scoped to member.new_member_dongsan instead of the
+// regular subgroup, since that's what this tab is about filtering by.
+function EduDongsanFilter({ members, value, onChange }: { members: Member[]; value: Filter; onChange: (f: Filter) => void }) {
+  const { t } = useTranslation()
+  const groups = groupsOf(members)
+  const eduDongsans = eduDongsansOf(members, value.group)
+  if (groups.length <= 1 && eduDongsans.length <= 1) return null
+
+  return (
+    <div className="mb-5 flex flex-col gap-2 border-b border-border pb-4">
+      {groups.length > 1 && (
+        <div className="flex flex-wrap gap-1.5">
+          <Pill active={!value.group} onClick={() => onChange({ group: '', subgroup: '' })}>
+            {t('admin.filter.all')}
+          </Pill>
+          {groups.map((g) => (
+            <Pill key={g} active={value.group === g} onClick={() => onChange({ group: g, subgroup: '' })}>
+              {g}
+            </Pill>
+          ))}
+        </div>
+      )}
+      {eduDongsans.length > 1 && (
+        <div className="flex flex-wrap gap-1.5 border-l-2 border-primary/30 pl-3">
+          <Pill active={!value.subgroup} onClick={() => onChange({ ...value, subgroup: '' })}>
+            {t('admin.filter.all')}
+          </Pill>
+          {eduDongsans.map((d) => (
+            <Pill key={d} active={value.subgroup === d} onClick={() => onChange({ ...value, subgroup: d })}>
+              {d}
+            </Pill>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 

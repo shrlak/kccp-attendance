@@ -44,8 +44,9 @@ export function AdminDongsan() {
 }
 
 // A 동산-names list editor (add/rename/remove per 부서, or one combined list in summer
-// mode) — shared by the regular 동산 tab and the 새가족 교육 tab's separate 새가족 교육
-// 동산 names, which differ only in their data source and save endpoint.
+// mode) — shared by the regular 동산 tab (its own title/desc heading) and the 새가족 교육
+// tab's separate 새가족 교육 동산 names (title/desc omitted there — it's embedded in a
+// Dialog that already supplies its own title).
 export function DongsanNamesEditor({
   loaded,
   summer,
@@ -55,8 +56,8 @@ export function DongsanNamesEditor({
 }: {
   loaded: DongsanNames
   summer: boolean
-  title: string
-  desc: string
+  title?: string
+  desc?: string
   onSave: (next: DongsanNames) => Promise<void>
 }) {
   const { t } = useTranslation()
@@ -94,8 +95,8 @@ export function DongsanNamesEditor({
 
   return (
     <div>
-      <h2 className="font-display text-lg font-semibold text-text">{title}</h2>
-      <p className="mb-4 mt-1 text-sm text-muted">{desc}</p>
+      {title && <h2 className="font-display text-lg font-semibold text-text">{title}</h2>}
+      {desc && <p className={`text-sm text-muted ${title ? 'mb-4 mt-1' : 'mb-4'}`}>{desc}</p>}
 
       {summer && (
         <p className="mb-4 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs font-semibold text-warning">
