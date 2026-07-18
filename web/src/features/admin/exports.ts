@@ -1,4 +1,5 @@
 import type { Member, LogEntry } from '../../lib/api'
+import type { SemesterDates } from '../../lib/semester'
 import { buildGrid } from './sheet'
 import { semesterBounds, semesterKey, semesterSundays, isActiveNewFamily } from './newFamily'
 import { splitAffiliation } from './newFamilyCard'
@@ -56,7 +57,14 @@ const TERM_END_OVERRIDES: Record<string, string> = {
 // Worship Sundays shown in the export for the term containing `today`: the semester Sundays
 // (semesterSundays), clamped to the term's effective start (TERM_START_OVERRIDES) and run
 // through the term-end override when set — otherwise only through `today`. ISO ascending.
-export function exportSundays(today: string): string[] {
+export function exportSundays(today: string, semesterDates?: SemesterDates | null): string[] {
+  // Once an administrator saves explicit term dates, they are the source of truth and
+  // the sheet exposes the whole configured term (future Sundays remain blank until they
+  // occur). Before that, preserve the one-off legacy 2026 overrides below.
+  if (semesterDates) {
+    const { end } = semesterBounds(today, semesterDates)
+    return semesterSundays(today, end, semesterDates)
+  }
   const key = semesterKey(today)
   // With an end override the columns are fixed for the whole term (upcoming Sundays included,
   // shown blank); without one they run only through today.
@@ -225,8 +233,8 @@ export function buildAttendanceModel(
 }
 
 // Human label for the semester containing `today`, e.g. "2026 여름 학기" / "Summer 2026".
-export function semesterLabel(today: string, lang: Lang): string {
-  const { year, season } = semesterBounds(today)
+export function semesterLabel(today: string, lang: Lang, semesterDates?: SemesterDates | null): string {
+  const { year, season } = semesterBounds(today, semesterDates)
   if (lang === 'ko') {
     const ko = season === 'spring' ? '봄' : season === 'summer' ? '여름' : '가을'
     return `${year} ${ko} 학기`
@@ -270,13 +278,19 @@ export function cssColor(argb: string): string {
 // worship Sundays (see exportSundays — the summer term starts at the 동산 formation date;
 // the original's 동산모임 column is dropped, the system only records 예배 worship check-ins).
 // Returns the array-of-rows, the cell-merges and the header/note fills (ARGB).
-export function gridSheet(members: Member[], log: LogEntry[], lang: Lang, today: string): SheetData {
+export function gridSheet(
+  members: Member[],
+  log: LogEntry[],
+  lang: Lang,
+  today: string,
+  semesterDates?: SemesterDates | null,
+): SheetData {
   const L =
     lang === 'ko'
       ? { name: '이름', memberTotal: '예배 총 출석', total: '총 출석', key: 'KEY', present: '출석', absent: '결석', etc: '기타', unassigned: '동산 미지정', newFamily: '새가족' }
       : { name: 'Name', memberTotal: 'Worship Total', total: 'Total', key: 'KEY', present: 'Present', absent: 'Absent', etc: 'Other', unassigned: 'Unassigned', newFamily: 'New family' }
 
-  const model = buildAttendanceModel(members, log, exportSundays(today), today, { unassigned: L.unassigned, newFamily: L.newFamily })
+  const model = buildAttendanceModel(members, log, exportSundays(today, semesterDates), today, { unassigned: L.unassigned, newFamily: L.newFamily })
   const nDates = model.dates.length
 
   const aoa: (string | number)[][] = []
@@ -503,6 +517,7 @@ export interface ReportOpts {
   subgroup: string
   today: string
   lang: Lang
+  semesterDates?: SemesterDates | null
 }
 
 function escapeHtml(s: string): string {
@@ -525,7 +540,7 @@ export function reportHtml(members: Member[], log: LogEntry[], opts: ReportOpts)
       ? { title: 'KCCP 출석부', name: '이름', memberTotal: '예배 총 출석', total: '총 출석', key: 'KEY', present: '출석', absent: '결석', etc: '기타', unassigned: '동산 미지정', newFamily: '새가족', save: 'PDF로 저장', empty: '출석 기록이 없습니다' }
       : { title: 'KCCP Attendance', name: 'Name', memberTotal: 'Worship Total', total: 'Total', key: 'KEY', present: 'Present', absent: 'Absent', etc: 'Other', unassigned: 'Unassigned', newFamily: 'New family', save: 'Save as PDF', empty: 'No attendance records' }
 
-  const model = buildAttendanceModel(members, log, exportSundays(opts.today), opts.today, { unassigned: L.unassigned, newFamily: L.newFamily })
+  const model = buildAttendanceModel(members, log, exportSundays(opts.today, opts.semesterDates), opts.today, { unassigned: L.unassigned, newFamily: L.newFamily })
   const pink = cssColor(HEADER_TOTAL_FILL)
 
   const blocks = model.sections
@@ -600,7 +615,7 @@ export function reportHtml(members: Member[], log: LogEntry[], opts: ReportOpts)
 <body>
   <div class="actions"><button onclick="window.print()">${escapeHtml(L.save)}</button></div>
   <h1>${escapeHtml(L.title)}</h1>
-  <div class="sub">${escapeHtml(semesterLabel(opts.today, lang))} · ${escapeHtml(formatHeaderDate(opts.today, lang))} · ${escapeHtml(filterLabel(opts.group, opts.subgroup, lang))}</div>
+  <div class="sub">${escapeHtml(semesterLabel(opts.today, lang, opts.semesterDates))} · ${escapeHtml(formatHeaderDate(opts.today, lang))} · ${escapeHtml(filterLabel(opts.group, opts.subgroup, lang))}</div>
   ${content}
   <div class="key"><b class="kchip" style="background:${cssColor(KEY_FILL)}">${escapeHtml(L.key)}</b><span><b>O</b> ${escapeHtml(L.present)}</span><span><b>X</b> ${escapeHtml(L.absent)}</span><span><b class="kchip" style="background:${cssColor(NOTE_FILL)};color:#1f2937">&nbsp;&nbsp;&nbsp;</b> ${escapeHtml(L.etc)}</span></div>
   <script>window.addEventListener('load', function () { setTimeout(function () { window.print() }, 350) })</script>

@@ -1,4 +1,5 @@
 import { getDeviceId } from './device'
+import type { SemesterDates } from './semester'
 
 const API_BASE =
   (import.meta.env.VITE_API_BASE as string | undefined) ??
@@ -70,6 +71,9 @@ export interface AppConfig {
   // Keyed by group name; falls back to DEFAULT_GROUP_COLORS (./features/admin/groupColors)
   // for any group not present.
   groupColors: Record<string, string>
+  // Optional until the semester-dates migration is applied and a super-admin saves a
+  // schedule. Consumers retain the legacy boundaries when this is null/absent.
+  semesterDates?: SemesterDates | null
 }
 
 export const getConfig = () => api<AppConfig>('GET', '/api/config')
@@ -229,6 +233,7 @@ export interface SettingsPatch {
   requireApproval?: boolean
   groupColors?: Record<string, string>
   cardScanMonthlyLimit?: number
+  semesterDates?: SemesterDates
 }
 
 // Update any subset of the app-wide settings (super-admin). Same endpoint as the
@@ -467,8 +472,11 @@ export const extractCard = (image: string, mediaType: string) =>
 export interface CardScanUsage {
   limit: number
   used: number
+  remaining: number
+  updatedAt: number
 }
 
-// 카드 사진 등록 (extractCard) usage for the current calendar month (any verified admin).
+// Live card-recognition API-call usage for the current calendar month (any verified
+// admin). The server counts every outbound Gemini request, including failed responses;
 // `limit` is super-admin-configurable via updateSettings({ cardScanMonthlyLimit }).
 export const getCardScanUsage = () => api<CardScanUsage>('GET', '/api/admin/card-scan-usage')

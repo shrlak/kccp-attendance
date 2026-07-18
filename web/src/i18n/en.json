@@ -155,6 +155,12 @@
       "end": "End",
       "save": "Save",
       "saved": "Saved",
+      "semesterDates": "Semester dates",
+      "semesterDatesDesc": "Set the spring, summer, and fall start and end dates on the {{year}} calendar. The saved month and day repeat every year.",
+      "semester": { "spring": "Spring", "summer": "Summer", "fall": "Fall" },
+      "semesterStart": "Start date",
+      "semesterEnd": "End date",
+      "semesterDatesInvalid": "Each semester must start before it ends, and semester ranges cannot overlap.",
       "announcement": "Announcement",
       "announcementDesc": "Shown on the check-in screen.",
       "announcementPlaceholder": "Enter an announcement",
@@ -180,11 +186,13 @@
       "noDongsanMembers": "No members in this 동산",
       "summerCombined": "☀️ Summer mode — combined 동산 (대학부·청년부)",
       "groupColors": "Group colors",
-      "groupColorsDesc": "Accent colors for 대학부/청년부 — used on the Today tab's name icons, the kiosk backgrounds, and the Members tab card backgrounds.",
+      "groupColorsDesc": "Accent colors for 대학부/청년부 — used on Today name icons, kiosk backgrounds, Members cards, and the Analytics group-comparison chart.",
       "groupColorInvalid": "Enter a valid 6-digit hex code (e.g. #E0A800)",
       "cardScanLimit": "Card-scan limit",
-      "cardScanLimitDesc": "How many card-photo scans (auto-read) are allowed per month.",
-      "cardScanLimitField": "Monthly limit"
+      "cardScanLimitDesc": "Live Gemini API calls made by card recognition, refreshed every five seconds.",
+      "cardScanLimitField": "Monthly allowed limit",
+      "cardScanLive": "Live API usage",
+      "cardScanUsageDetail": "{{used}} / {{limit}} used · {{available}} remaining"
     }
   }
 }
