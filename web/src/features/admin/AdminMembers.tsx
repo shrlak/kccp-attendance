@@ -151,29 +151,31 @@ export function AdminMembers() {
                     (sel ? 'border-primary bg-surface ring-2 ring-primary/40' : 'border-border' + (tint ? '' : ' bg-surface'))
                   }
                 >
-                  <div className="text-base font-semibold text-text">
+                  <div className="break-words text-base font-semibold text-text">
                     {selectMode && (
                       <span className="mr-2 inline-grid h-4 w-4 place-items-center rounded-[2px] border border-primary align-middle text-[10px] text-primary">
                         {sel ? '✓' : ''}
                       </span>
                     )}
                     {m.name}
-                    {m.is_new_member && (
-                      <span className="ml-2 rounded-full bg-gold/10 px-2 py-0.5 align-middle text-[10px] font-semibold text-gold">
+                  </div>
+                  {m.is_new_member && (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      <span className="rounded-full bg-gold/10 px-2 py-0.5 text-[10px] font-semibold text-gold">
                         {t('admin.iconKey.newMemberStar')}
                       </span>
-                    )}
-                    {m.is_new_member && m.new_member_edu_week1 && (
-                      <span className="ml-1 rounded-full bg-info/10 px-2 py-0.5 align-middle text-[10px] font-semibold text-info">
-                        {t('admin.iconKey.eduWeek1')}
-                      </span>
-                    )}
-                    {m.is_new_member && m.new_member_edu_week2 && (
-                      <span className="ml-1 rounded-full bg-info/10 px-2 py-0.5 align-middle text-[10px] font-semibold text-info">
-                        {t('admin.iconKey.eduWeek2')}
-                      </span>
-                    )}
-                  </div>
+                      {m.new_member_edu_week1 && (
+                        <span className="rounded-full bg-info/10 px-2 py-0.5 text-[10px] font-semibold text-info">
+                          {t('admin.iconKey.eduWeek1')}
+                        </span>
+                      )}
+                      {m.new_member_edu_week2 && (
+                        <span className="rounded-full bg-info/10 px-2 py-0.5 text-[10px] font-semibold text-info">
+                          {t('admin.iconKey.eduWeek2')}
+                        </span>
+                      )}
+                    </div>
+                  )}
                   <div className="text-xs text-muted">{[m.group_name, m.subgroup].filter(Boolean).join(' · ') || '—'}</div>
                   {m.member_role && <div className="mt-1 font-mono text-[11px] text-subtle">{m.member_role}</div>}
                 </button>
