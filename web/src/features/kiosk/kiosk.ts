@@ -55,17 +55,21 @@ export interface KioskColumns {
   others: Member[]
 }
 
-// Split a department's members into three vertical columns the way the legacy kiosk
-// does: first column ceil(n/3), then ceil(remaining/2), then the rest. This keeps the
-// columns balanced and left-heavy for any n (e.g. n=7 → [3,2,2], n=4 → [2,1,1]).
+// Split a department's members into three columns round-robin (item i → column i % 3),
+// so — given an already 가나다-sorted `list` — reading the grid left-to-right across a
+// row, then down to the next row, follows alphabetical order. Still balances column
+// lengths the same way the old contiguous-chunk split did (e.g. n=7 → [3,2,2]).
 export function splitThirds<T>(list: T[]): [T[], T[], T[]] {
-  const t1 = Math.ceil(list.length / 3)
-  const t2 = Math.ceil((list.length - t1) / 2)
-  return [list.slice(0, t1), list.slice(t1, t1 + t2), list.slice(t1 + t2)]
+  const cols: [T[], T[], T[]] = [[], [], []]
+  list.forEach((item, i) => cols[i % 3].push(item))
+  return cols
 }
 
-// Bucket non-visitor members into the 6-column dept layout + the "other" overflow.
-// Members keep their incoming order within each bucket (the roster is pre-sorted).
+const byName = (a: Member, b: Member) => a.name.localeCompare(b.name)
+
+// Bucket non-visitor members into the 6-column dept layout + the "other" overflow, each
+// bucket explicitly sorted 가나다 순 (name.localeCompare) so the kiosk grid reads
+// alphabetically regardless of the roster's incoming order.
 export function kioskColumns(members: Member[]): KioskColumns {
   const visible = members.filter((m) => !isVisitor(m))
   const buckets: Record<KioskDept, Member[]> = { 대학부: [], 청년부: [] }
@@ -75,11 +79,10 @@ export function kioskColumns(members: Member[]): KioskColumns {
     else others.push(m)
   }
   return {
-    depts: KIOSK_DEPTS.map((key) => ({
-      key,
-      total: buckets[key].length,
-      thirds: splitThirds(buckets[key]),
-    })),
-    others,
+    depts: KIOSK_DEPTS.map((key) => {
+      const sorted = [...buckets[key]].sort(byName)
+      return { key, total: sorted.length, thirds: splitThirds(sorted) }
+    }),
+    others: others.sort(byName),
   }
 }

@@ -142,6 +142,17 @@ async function addAudit(sb: SB, action: string, adminId: string, details: any) {
     await sb.from("audit_log").insert({ts:Date.now(),action,admin_id:adminId,admin_name:d?.name||adminId,details:typeof details==="string"?{info:details}:details});
   } catch(_){}
 }
+// Card-photo-registration (Gemini /api/admin/extract-card) usage for the current
+// calendar month — derived from audit_log rather than stored separately, since only a
+// SUCCESSFUL extraction is ever audited (a Gemini failure/quota-block never reaches
+// addAudit), so counting audit rows already reflects real quota consumption.
+async function cardScanUsage(sb: SB): Promise<{limit:number;used:number}> {
+  const cfg=await getCfg(sb);
+  const limit=Number(cfg.card_scan_monthly_limit ?? 60);
+  const monthStart=localDate().slice(0,7)+"-01";
+  const {count}=await sb.from("audit_log").select("id",{count:"exact",head:true}).eq("action","extract-card").gte("created_at",monthStart);
+  return {limit,used:count||0};
+}
 // Client IP as seen by the edge runtime: first hop of X-Forwarded-For (Supabase's proxy
 // appends its own hops after the client), else the CDN/proxy single-IP headers.
 function clientIp(req: Request): string {
@@ -296,7 +307,7 @@ Deno.serve(async (req: Request) => {
     if(req.method==="POST"&&p==="/api/admin/settings") {
       const role=await resolveAdmin(sb,req);
       if(role?.role!=="super_admin") return fail(403,"Super admin required");
-      const {checkinDays,checkinStartMin,checkinEndMin,announcement,summerMode,demoMode,individualCheckinEnabled,requireApproval,groupColors}=body;
+      const {checkinDays,checkinStartMin,checkinEndMin,announcement,summerMode,demoMode,individualCheckinEnabled,requireApproval,groupColors,cardScanMonthlyLimit}=body;
       const upd: any={updated_at:new Date().toISOString()};
       if(checkinDays!==undefined) upd.checkin_days=checkinDays;
       if(checkinStartMin!==undefined) upd.checkin_start_min=Number(checkinStartMin);
@@ -311,6 +322,7 @@ Deno.serve(async (req: Request) => {
         for(const [g,c] of Object.entries(groupColors)) if(typeof c==="string"&&HEX.test(c)) clean[g]=c;
         upd.group_colors=clean;
       }
+      if(cardScanMonthlyLimit!==undefined) upd.card_scan_monthly_limit=Math.max(0,Math.round(Number(cardScanMonthlyLimit))||0);
       await sb.from("config").update(upd).eq("id",1);
       return ok({status:"ok"});
     }
@@ -334,6 +346,37 @@ Deno.serve(async (req: Request) => {
       await sb.from("config").update({dongsan_names:names,updated_at:new Date().toISOString()}).eq("id",1);
       await addAudit(sb,"config-change",xDev,"동산 이름 수정");
       return ok({status:"ok"});
+    }
+
+    // 새가족 교육 동산 names editor — read (super-admin only). A SEPARATE name list from
+    // config.dongsan_names: the temporary 동산 a newcomer is placed in during education,
+    // distinct from their eventual regular 동산. Returns config.new_member_dongsan_names,
+    // falling back to an empty per-부서 map.
+    if(req.method==="GET"&&p==="/api/admin/new-member-dongsan-names") {
+      const role=await resolveAdmin(sb,req);
+      if(role?.role!=="super_admin") return fail(403,"Super admin required");
+      const cfg=await getCfg(sb);
+      return ok({names:cfg.new_member_dongsan_names||{"대학부":[],"청년부":[]}});
+    }
+
+    // 새가족 교육 동산 names editor — write (super-admin only). Same shape as
+    // /api/admin/dongsan-names but a separate column. Audited as a config-change.
+    if(req.method==="POST"&&p==="/api/admin/new-member-dongsan-names") {
+      const role=await resolveAdmin(sb,req);
+      if(role?.role!=="super_admin") return fail(403,"Super admin required");
+      const {names}=body;
+      if(!names||typeof names!=="object"||Array.isArray(names)) return fail(400,"names map required");
+      await sb.from("config").update({new_member_dongsan_names:names,updated_at:new Date().toISOString()}).eq("id",1);
+      await addAudit(sb,"config-change",xDev,"새가족 교육 동산 이름 수정");
+      return ok({status:"ok"});
+    }
+
+    // 카드 사진 등록 (Gemini extract-card) usage for the current calendar month — any
+    // verified admin may check remaining quota before scanning. { limit, used }.
+    if(req.method==="GET"&&p==="/api/admin/card-scan-usage") {
+      const role=await resolveAdmin(sb,req);
+      if(!role) return fail(401,"Not authorized");
+      return ok(await cardScanUsage(sb));
     }
 
     // 동산지기/부동산지기 display roles — read (any verified admin, so leaders/pastor/
@@ -528,7 +571,7 @@ Deno.serve(async (req: Request) => {
           if(scope.subgroup&&m.subgroup!==scope.subgroup) return fail(403,"Out of scope");
         }
       }
-      const COLS: Record<string,string>={name:"name",group:"group_name",subgroup:"subgroup",notes:"notes",memberRole:"member_role",gender:"gender",phone:"phone",birthDate:"birth_date",baptismStatus:"baptism_status",schoolOrWork:"school_or_work",faithDuration:"faith_duration",registrationDate:"registration_date",pastoralVisitRequested:"pastoral_visit_requested",isNewMember:"is_new_member",newMemberEduWeek1:"new_member_edu_week1",newMemberEduWeek2:"new_member_edu_week2",kakaoId:"kakao_id",statusNote:"status_note",statusStart:"status_start",statusEnd:"status_end"};
+      const COLS: Record<string,string>={name:"name",group:"group_name",subgroup:"subgroup",notes:"notes",memberRole:"member_role",gender:"gender",phone:"phone",birthDate:"birth_date",baptismStatus:"baptism_status",schoolOrWork:"school_or_work",faithDuration:"faith_duration",registrationDate:"registration_date",pastoralVisitRequested:"pastoral_visit_requested",isNewMember:"is_new_member",newMemberEduWeek1:"new_member_edu_week1",newMemberEduWeek2:"new_member_edu_week2",newMemberDongsan:"new_member_dongsan",kakaoId:"kakao_id",statusNote:"status_note",statusStart:"status_start",statusEnd:"status_end"};
       const DATE_COLS=new Set(["birth_date","registration_date","status_start","status_end"]);
       const upd: any={updated_at:new Date().toISOString()};
       for(const [k,col] of Object.entries(COLS)){ if(body[k]!==undefined) upd[col]=DATE_COLS.has(col)?(body[k]||null):body[k]; }
@@ -904,6 +947,8 @@ Deno.serve(async (req: Request) => {
       const mediaType=["image/jpeg","image/png","image/webp"].includes(body.mediaType)?body.mediaType:"image/jpeg";
       if(!image) return fail(400,"image required");
       if(image.length>8_000_000) return fail(413,"Image too large — retake with a smaller photo");
+      const usage=await cardScanUsage(sb);
+      if(usage.used>=usage.limit) return fail(429,"이번 달 카드 스캔 한도("+usage.limit+"회)를 모두 사용했습니다");
       const key=Deno.env.get("GEMINI_API_KEY");
       if(!key) return fail(500,"GEMINI_API_KEY not configured — set it in Supabase Edge Function secrets");
       const gr=await fetch(GEMINI_URL,{method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":key},body:JSON.stringify(buildGeminiBody(image,mediaType))});

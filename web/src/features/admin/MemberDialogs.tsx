@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   getConfig,
   getDongsanNames,
+  getNewMemberDongsanNames,
   updateMember,
   deleteMember,
   addMemberAttendance,
@@ -22,7 +23,7 @@ import { memberHistory, hasEntryOn } from './attendance'
 import { easternNow } from '../../lib/checkinWindow'
 import { NewFamilyCardForm } from './NewFamilyCardForm'
 import { cardFormFromMember, joinAffiliation, type CardFormValue } from './newFamilyCard'
-import { saveNewFamilyCards } from './newFamilyCardImage'
+import { copyNewFamilyCards, saveNewFamilyCards } from './newFamilyCardImage'
 
 // 상태 표기 quick presets — canonical note values the 출석부 renders as grey spans.
 const STATUS_PRESETS = ['이주', '한국 귀국']
@@ -61,6 +62,9 @@ export function EditModal({
   // Configured 동산 names feed the 동산 dropdown (combined list in summer mode).
   const { data: cfg } = useQuery({ queryKey: ['config'], queryFn: getConfig })
   const { data: dongsanNames } = useQuery({ queryKey: ['dongsanNames'], queryFn: getDongsanNames })
+  // 새가족 교육 동산: a separate, education-only 동산 list (config › 동산 tab has its own
+  // editor for this) — distinct from the member's eventual regular 동산 above.
+  const { data: eduDongsanNames } = useQuery({ queryKey: ['newMemberDongsanNames'], queryFn: getNewMemberDongsanNames })
   // The card carries everything printed on the 새가족 등록 카드; `f` keeps the
   // system-only fields (부서/동산/역할/메모/새가족 flag/상태 표기).
   const [card, setCard] = useState<CardFormValue>(() => cardFormFromMember(member))
@@ -73,11 +77,12 @@ export function EditModal({
     statusNote: member.status_note ?? '',
     statusStart: member.status_start ?? null,
     statusEnd: member.status_end ?? null,
+    newMemberDongsan: member.new_member_dongsan ?? '',
   })
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const [exporting, setExporting] = useState(false)
+  const [exporting, setExporting] = useState<'copy' | 'download' | null>(null)
 
   function set<K extends keyof MemberEdit>(k: K, v: MemberEdit[K]) {
     setF((cur) => ({ ...cur, [k]: v }))
@@ -91,6 +96,12 @@ export function EditModal({
     : [...(dongsanNames?.[f.group ?? ''] ?? [])]
   const currentDongsan = f.subgroup ?? ''
   if (currentDongsan && !dongsanOptions.includes(currentDongsan)) dongsanOptions.push(currentDongsan)
+  // Same pattern for the separate 새가족 교육 동산 list.
+  const eduDongsanOptions = cfg?.summerMode
+    ? summerDongsanList(eduDongsanNames ?? {})
+    : [...(eduDongsanNames?.[f.group ?? ''] ?? [])]
+  const currentEduDongsan = f.newMemberDongsan ?? ''
+  if (currentEduDongsan && !eduDongsanOptions.includes(currentEduDongsan)) eduDongsanOptions.push(currentEduDongsan)
   const patchCard = (patch: Partial<CardFormValue>) => setCard((cur) => ({ ...cur, ...patch }))
 
   // "등록일 제거": clears the 등록일 AND the 새가족 flag, so saving drops the member
@@ -107,17 +118,29 @@ export function EditModal({
     setF((cur) => ({ ...cur, statusNote: note, statusStart: cur.statusStart || easternNow().date }))
   }
 
-  // Download this member's 새가족 등록 카드 as a JPG (same renderer as the 새가족 tab's
-  // batch export — one person, so the clipboard gets just their card).
+  // Copy or download this member's 새가족 등록 카드 as a JPG (same renderer as the
+  // 새가족 tab's batch export — one person, so the clipboard/download gets just their card).
+  async function copyCard() {
+    setExporting('copy')
+    try {
+      const { copied } = await copyNewFamilyCards([member])
+      toast({ title: t(copied ? 'admin.newfamily.export.cardsCopyDone' : 'admin.newfamily.export.cardsCopyFailed'), tone: copied ? 'ok' : 'err' })
+    } catch {
+      toast({ title: t('admin.newfamily.export.cardsSaveFailed'), tone: 'err' })
+    } finally {
+      setExporting(null)
+    }
+  }
+
   async function downloadCard() {
-    setExporting(true)
+    setExporting('download')
     try {
       await saveNewFamilyCards([member], easternNow().date)
       toast({ title: t('admin.members.card.done'), tone: 'ok' })
     } catch {
       toast({ title: t('admin.newfamily.export.cardsSaveFailed'), tone: 'err' })
     } finally {
-      setExporting(false)
+      setExporting(null)
     }
   }
 
@@ -168,14 +191,24 @@ export function EditModal({
         {/* ── 새가족 등록 카드 — edit the member's info directly on the paper card ── */}
         <div className="flex items-center justify-between gap-2">
           <div className="text-xs font-bold uppercase tracking-wide text-subtle">{t('admin.members.card.section')}</div>
-          <button
-            type="button"
-            onClick={() => void downloadCard()}
-            disabled={exporting}
-            className="text-xs font-semibold text-primary hover:underline disabled:opacity-50"
-          >
-            {exporting ? t('admin.newfamily.export.busy') : t('admin.members.card.download')}
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => void copyCard()}
+              disabled={exporting !== null}
+              className="text-xs font-semibold text-primary hover:underline disabled:opacity-50"
+            >
+              {exporting === 'copy' ? t('admin.newfamily.export.busy') : t('admin.members.card.copy')}
+            </button>
+            <button
+              type="button"
+              onClick={() => void downloadCard()}
+              disabled={exporting !== null}
+              className="text-xs font-semibold text-primary hover:underline disabled:opacity-50"
+            >
+              {exporting === 'download' ? t('admin.newfamily.export.busy') : t('admin.members.card.download')}
+            </button>
+          </div>
         </div>
         <NewFamilyCardForm value={card} onChange={patchCard} />
         {(card.registrationDate || f.isNewMember) && (
@@ -246,6 +279,18 @@ export function EditModal({
             ))}
           </Select>
         </Field>
+        {f.isNewMember && (
+          <Field label={t('admin.members.eduDongsan')}>
+            <Select value={currentEduDongsan} onChange={(e) => set('newMemberDongsan', e.target.value)}>
+              <option value="">—</option>
+              {eduDongsanOptions.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        )}
         <Field label={t('admin.members.memberRole')}>
           <Select value={f.memberRole ?? ''} onChange={(e) => set('memberRole', e.target.value)}>
             {MEMBER_ROLES.map((r) => (

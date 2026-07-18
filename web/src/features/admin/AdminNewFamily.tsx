@@ -1,15 +1,15 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRoster } from './useRoster'
 import { easternNow } from '../../lib/checkinWindow'
 import { filterMembers, NO_FILTER, type Filter } from './filters'
-import { semesterKey, newFamilyByDate, monthlyRegistrations } from './newFamily'
+import { semesterKey, newFamilyByDate, monthlyRegistrations, matchesEduFilter, type EduFilter } from './newFamily'
 import { copyNewFamilyCards, saveNewFamilyCards } from './newFamilyCardImage'
 import { newFamilySheets, NEW_FAMILY_HEADER } from './exports'
 import { toggleId } from './bulk'
-import { GroupFilter } from './GroupFilter'
-import { updateMember, type Member, type MemberEdit } from '../../lib/api'
+import { GroupFilter, Pill } from './GroupFilter'
+import { updateMember, getCardScanUsage, type Member, type MemberEdit } from '../../lib/api'
 import { Dialog } from '../../components/ui/Dialog'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
@@ -22,7 +22,9 @@ import { CardScanDialog } from './CardScanDialog'
 export function AdminNewFamily() {
   const { t } = useTranslation()
   const { data, isLoading, isError } = useRoster(true)
+  const { data: scanUsage } = useQuery({ queryKey: ['cardScanUsage'], queryFn: getCardScanUsage })
   const [filter, setFilter] = useState<Filter>(NO_FILTER)
+  const [eduFilter, setEduFilter] = useState<EduFilter>('all')
   const [editing, setEditing] = useState<Member | null>(null)
   const [attendanceFor, setAttendanceFor] = useState<Member | null>(null)
   const [exportOpen, setExportOpen] = useState(false)
@@ -34,9 +36,15 @@ export function AdminNewFamily() {
 
   const today = easternNow().date
   const scopedMembers = filterMembers(data.members, filter)
-  const dateGroups = newFamilyByDate(scopedMembers, today)
-  const allNewFamily = dateGroups.flatMap((g) => g.members)
-  const total = allNewFamily.length
+  // The export/count baseline stays independent of the education filter below — that
+  // filter only narrows what's shown in the card grid, not what can be exported.
+  const fullDateGroups = newFamilyByDate(scopedMembers, today)
+  const allNewFamily = fullDateGroups.flatMap((g) => g.members)
+  const dateGroups =
+    eduFilter === 'all'
+      ? fullDateGroups
+      : newFamilyByDate(scopedMembers.filter((m) => matchesEduFilter(m, eduFilter)), today)
+  const visibleCount = dateGroups.reduce((n, g) => n + g.members.length, 0)
   const months = monthlyRegistrations(scopedMembers)
   const [, season] = semesterKey(today).split('-')
   const year = semesterKey(today).split('-')[0]
@@ -46,14 +54,39 @@ export function AdminNewFamily() {
     <>
       <GroupFilter members={data.members} value={filter} onChange={setFilter} />
 
+      {/* 새가족 교육 이수 필터: 1주차만 / 2주차만 / 둘 다 / 아무것도 안 들음 — narrows the
+          card grid below only (월별 등록 and the 내보내기 candidate pool are unaffected). */}
+      <div className="mb-4 flex flex-wrap gap-1.5">
+        <Pill active={eduFilter === 'all'} onClick={() => setEduFilter('all')}>
+          {t('admin.filter.all')}
+        </Pill>
+        <Pill active={eduFilter === 'week1'} onClick={() => setEduFilter('week1')}>
+          {t('admin.newfamily.eduFilter.week1')}
+        </Pill>
+        <Pill active={eduFilter === 'week2'} onClick={() => setEduFilter('week2')}>
+          {t('admin.newfamily.eduFilter.week2')}
+        </Pill>
+        <Pill active={eduFilter === 'both'} onClick={() => setEduFilter('both')}>
+          {t('admin.newfamily.eduFilter.both')}
+        </Pill>
+        <Pill active={eduFilter === 'none'} onClick={() => setEduFilter('none')}>
+          {t('admin.newfamily.eduFilter.none')}
+        </Pill>
+      </div>
+
       <div className="mb-1.5 flex items-center gap-2">
         <span className="rounded-full bg-primary/15 px-3 py-1 text-xs font-semibold text-primary">
           {year} {t(`admin.newfamily.season.${season}`)}
         </span>
         <span className="font-mono text-xs uppercase tracking-wide text-subtle">
-          {t('admin.newfamily.title')} · {total}
+          {t('admin.newfamily.title')} · {visibleCount}
         </span>
-        <div className="ml-auto flex gap-2">
+        <div className="ml-auto flex items-center gap-2">
+          {!readOnly && scanUsage && (
+            <span className="font-mono text-[11px] text-subtle">
+              {t('admin.newfamily.scan.usage', { available: Math.max(0, scanUsage.limit - scanUsage.used), used: scanUsage.used })}
+            </span>
+          )}
           {!readOnly && (
             <Button variant="secondary" size="sm" onClick={() => setScanOpen(true)}>
               {t('admin.newfamily.scan.action')}
@@ -68,7 +101,9 @@ export function AdminNewFamily() {
       <p className="mb-3 text-xs text-subtle">{t('admin.newfamily.legend')}</p>
 
       {dateGroups.length === 0 ? (
-        <p className="text-sm text-muted">{t('admin.newfamily.empty')}</p>
+        <p className="text-sm text-muted">
+          {t(allNewFamily.length === 0 ? 'admin.newfamily.empty' : 'admin.newfamily.noFilterMatch')}
+        </p>
       ) : (
         <div className="flex flex-col gap-5">
           {dateGroups.map((g) => (
@@ -102,11 +137,17 @@ export function AdminNewFamily() {
                 </div>
                 <ul className="flex flex-wrap gap-1.5">
                   {g.members.map((m) => (
-                    <li key={m.id} className="rounded-md border border-border bg-surface px-2.5 py-1 text-xs text-muted">
-                      {m.name}
-                      {[m.group_name, m.subgroup].filter(Boolean).length ? (
-                        <span className="ml-1 text-subtle">· {[m.group_name, m.subgroup].filter(Boolean).join(' ')}</span>
-                      ) : null}
+                    <li key={m.id}>
+                      <button
+                        type="button"
+                        onClick={() => setEditing(m)}
+                        className="rounded-md border border-border bg-surface px-2.5 py-1 text-xs text-muted transition-colors hover:border-primary/30 hover:bg-surface-alt hover:text-text"
+                      >
+                        {m.name}
+                        {[m.group_name, m.subgroup].filter(Boolean).length ? (
+                          <span className="ml-1 text-subtle">· {[m.group_name, m.subgroup].filter(Boolean).join(' ')}</span>
+                        ) : null}
+                      </button>
                     </li>
                   ))}
                 </ul>
@@ -343,6 +384,11 @@ function NewFamilyCard({
           )}
         </div>
         <div className="text-xs text-muted">{[member.group_name, member.subgroup].filter(Boolean).join(' · ') || '—'}</div>
+        {member.new_member_dongsan && (
+          <div className="text-xs text-info">
+            {t('admin.newfamily.eduDongsanTag')} {member.new_member_dongsan}
+          </div>
+        )}
         {member.phone && <div className="text-xs text-subtle">{member.phone}</div>}
       </button>
       <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">

@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useRoster } from './useRoster'
 import { easternNow } from '../../lib/checkinWindow'
 import { todaysCheckins, weeklyComparison } from './today'
+import { isActiveNewFamily } from './newFamily'
 import { checkinTag } from './todaySheet'
 import { filterMembers, filterLog, NO_FILTER, type Filter } from './filters'
 import { leaderDashboard } from './stats'
@@ -31,8 +32,9 @@ export function AdminToday() {
 
   const today = easternNow().date
   // 새가족 by name — with checkinTag they drive the ✝️ 새가족 / 👋 방문자 icons in
-  // today's list, matching the exported 출석부.
-  const newMemberNames = new Set(data.members.filter((m) => m.is_new_member).map((m) => m.name))
+  // today's list, matching the exported 출석부. Stops once a newcomer finishes both
+  // weeks of education (isActiveNewFamily), even though is_new_member itself stays true.
+  const newMemberNames = new Set(data.members.filter((m) => isActiveNewFamily(m)).map((m) => m.name))
 
   // Copy or save the 대학부/청년부 sheets as JPGs — separate actions since only the
   // clipboard copy is usually needed. Built from the full visible roster so both 부서

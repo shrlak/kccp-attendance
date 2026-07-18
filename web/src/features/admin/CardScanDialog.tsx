@@ -85,6 +85,9 @@ export function CardScanDialog({ open, onClose }: { open: boolean; onClose: () =
       const res = await extractCard(image.base64, image.mediaType)
       setCard(normalizeExtractedCard(res.card, easternNow().date))
       setPhase('review')
+      // A successful extraction consumes one unit of the monthly quota — refresh the
+      // usage the 새가족 tab shows next to the scan button.
+      void qc.invalidateQueries({ queryKey: ['cardScanUsage'] })
     } catch (e) {
       // Surface the server's reason (missing secret, quota, unreadable card) —
       // these are actionable, unlike a generic failure.

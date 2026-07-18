@@ -41,7 +41,7 @@ export function GroupFilter({ members, value, onChange }: { members: Member[]; v
   )
 }
 
-function Pill({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
+export function Pill({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
   return (
     <button
       type="button"
