@@ -110,8 +110,10 @@ cannot read secrets or touch code, only start a run.
 privileges):
 
 ```
-postgresql://backup_restorer.loovulhchmmwagtvjnhc:<password>@<same pooler host as step 3>:5432/postgres
+postgresql://backup_restorer.loovulhchmmwagtvjnhc:<password>@aws-1-us-east-1.pooler.supabase.com:5432/postgres
 ```
+
+Use the exact Session Pooler host shown by the project's **Connect** panel if it differs.
 
 The `backup_restorer` password was generated and shown once in chat alongside
 `backup_reader`'s, the same way — not repeated here. Lost it? See **Rotating a DB
