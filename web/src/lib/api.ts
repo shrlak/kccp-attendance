@@ -232,7 +232,6 @@ export interface SettingsPatch {
   individualCheckinEnabled?: boolean
   requireApproval?: boolean
   groupColors?: Record<string, string>
-  cardScanDailyLimit?: number
   semesterDates?: SemesterDates
 }
 

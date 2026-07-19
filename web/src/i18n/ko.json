@@ -191,8 +191,7 @@
       "groupColorsDesc": "대학부·청년부의 강조 색상입니다. 오늘 탭 이름 아이콘, 키오스크 배경, 멤버 카드 배경, 통계의 부서별 비교 그래프에 적용됩니다.",
       "groupColorInvalid": "올바른 6자리 hex 코드를 입력하세요 (예: #E0A800)",
       "cardScanLimit": "카드 사진 등록 한도",
-      "cardScanLimitDesc": "카드 자동 인식에 남은 오늘의 Gemini API 횟수를 2초마다 갱신합니다. 피츠버그 자정에 자동으로 초기화됩니다.",
-      "cardScanLimitField": "일일 허용 한도",
+      "cardScanLimitDesc": "카드 자동 인식에 남은 오늘의 Gemini API 횟수를 2초마다 갱신합니다. 한도는 Gemini 무료 최대치인 하루 250회로 자동 설정되며, 피츠버그 자정에 초기화됩니다.",
       "cardScanLive": "오늘 남은 API 횟수",
       "cardScanUsageDetail": "오늘 {{available}}회 남음"
     }
