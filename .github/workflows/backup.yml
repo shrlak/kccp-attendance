@@ -66,10 +66,12 @@ jobs:
             exit 1
           fi
 
-      - name: Install age + postgresql-client
+      - name: Install age + PostgreSQL 17 client
         run: |
           sudo apt-get update
-          sudo apt-get install -y age postgresql-client
+          sudo apt-get install -y age postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+          /usr/lib/postgresql/17/bin/pg_dump --version
 
       - name: Verify backup database login
         run: |
