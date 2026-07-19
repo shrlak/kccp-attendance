@@ -197,9 +197,11 @@ function validSemesterDates(value: unknown): boolean {
 // Card-photo-registration (Gemini /api/admin/extract-card) usage for the current
 // Pittsburgh calendar day. Every outbound Gemini request is audited before fetch(), so
 // failed provider responses and network failures count just like successful calls.
+// The allowance is fixed at the Gemini free-tier daily maximum for gemini-2.5-flash
+// (250 requests/day) — not admin-configurable; Gemini's own 429 covers anything beyond.
+const CARD_SCAN_DAILY_LIMIT=250;
 async function cardScanUsage(sb: SB): Promise<{limit:number;used:number;remaining:number;day:string;resetsAt:number;updatedAt:number}> {
-  const cfg=await getCfg(sb);
-  const limit=Math.max(0,Number(cfg.card_scan_daily_limit ?? cfg.card_scan_monthly_limit ?? 60)||0);
+  const limit=CARD_SCAN_DAILY_LIMIT;
   const day=localDate();
   const startsAt=easternDayStartMs(day),resetsAt=easternDayStartMs(addIsoDays(day,1));
   const {count,error}=await sb.from("audit_log").select("id",{count:"exact",head:true})
@@ -362,7 +364,7 @@ Deno.serve(async (req: Request) => {
     if(req.method==="POST"&&p==="/api/admin/settings") {
       const role=await resolveAdmin(sb,req);
       if(role?.role!=="super_admin") return fail(403,"Super admin required");
-      const {checkinDays,checkinStartMin,checkinEndMin,announcement,summerMode,demoMode,individualCheckinEnabled,requireApproval,groupColors,cardScanDailyLimit,cardScanMonthlyLimit,semesterDates}=body;
+      const {checkinDays,checkinStartMin,checkinEndMin,announcement,summerMode,demoMode,individualCheckinEnabled,requireApproval,groupColors,semesterDates}=body;
       const upd: any={updated_at:new Date().toISOString()};
       if(checkinDays!==undefined) upd.checkin_days=checkinDays;
       if(checkinStartMin!==undefined) upd.checkin_start_min=Number(checkinStartMin);
@@ -377,10 +379,8 @@ Deno.serve(async (req: Request) => {
         for(const [g,c] of Object.entries(groupColors)) if(typeof c==="string"&&HEX.test(c)) clean[g]=c;
         upd.group_colors=clean;
       }
-      // Accept the former monthly property for one release so an older tab that was
-      // already open when this deploys can still save the new daily allowance safely.
-      const cardScanLimit=cardScanDailyLimit??cardScanMonthlyLimit;
-      if(cardScanLimit!==undefined) upd.card_scan_daily_limit=Math.max(0,Math.round(Number(cardScanLimit))||0);
+      // card_scan_daily_limit is intentionally NOT accepted here anymore — the card-scan
+      // allowance is fixed at CARD_SCAN_DAILY_LIMIT (an older open tab posting it is a no-op).
       if(semesterDates!==undefined){
         if(!validSemesterDates(semesterDates)) return fail(400,"Invalid semester dates");
         upd.semester_dates=semesterDates;

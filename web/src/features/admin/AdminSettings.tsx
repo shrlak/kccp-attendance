@@ -55,8 +55,6 @@ export function AdminSettings() {
   const [busyToggle, setBusyToggle] = useState<keyof SettingsPatch | null>(null)
   const [colorEdits, setColorEdits] = useState<Record<string, string> | undefined>(undefined)
   const [colorsSaving, setColorsSaving] = useState(false)
-  const [limitEdit, setLimitEdit] = useState<string | undefined>(undefined)
-  const [limitSaving, setLimitSaving] = useState(false)
   const [semesterEdits, setSemesterEdits] = useState<SemesterDates | undefined>(undefined)
   const [semesterSaving, setSemesterSaving] = useState(false)
 
@@ -67,8 +65,6 @@ export function AdminSettings() {
   const colors = colorEdits ?? cfg?.groupColors ?? DEFAULT_GROUP_COLORS
   const colorsDirty = colorEdits !== undefined
   const colorsValid = GROUPS.every((g) => isValidHex(colors[g] ?? ''))
-  const limitValue = limitEdit ?? (scanUsage ? String(scanUsage.limit) : '')
-  const limitValid = limitValue.trim() !== '' && Number.isFinite(Number(limitValue)) && Number(limitValue) >= 0
   const currentYear = Number(easternNow().date.slice(0, 4))
   const semesterDates = semesterEdits ?? cfg?.semesterDates ?? DEFAULT_SEMESTER_DATES
   const semesterDatesValid = isValidSemesterDates(semesterDates)
@@ -128,21 +124,6 @@ export function AdminSettings() {
       toast({ title: t('common.error'), tone: 'err' })
     } finally {
       setColorsSaving(false)
-    }
-  }
-
-  async function saveLimit() {
-    if (!limitValid) return
-    setLimitSaving(true)
-    try {
-      await updateSettings({ cardScanDailyLimit: Number(limitValue) })
-      await qc.invalidateQueries({ queryKey: ['cardScanUsage'] })
-      setLimitEdit(undefined)
-      toast({ title: t('admin.settings.saved'), tone: 'ok' })
-    } catch {
-      toast({ title: t('common.error'), tone: 'err' })
-    } finally {
-      setLimitSaving(false)
     }
   }
 
@@ -373,28 +354,6 @@ export function AdminSettings() {
           />
         </div>
       </div>
-      <div className="mb-3 flex flex-wrap items-end gap-3">
-        <label className="w-32">
-          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-subtle">
-            {t('admin.settings.cardScanLimitField')}
-          </span>
-          <Input
-            type="number"
-            min={0}
-            value={limitValue}
-            onChange={(e) => setLimitEdit(e.target.value)}
-            className={limitValid ? '' : 'border-danger focus-visible:border-danger'}
-          />
-        </label>
-        {scanUsage && (
-          <span className="pb-2.5 font-mono text-xs text-subtle">
-            {t('admin.settings.cardScanUsageDetail', { available: usageRemaining })}
-          </span>
-        )}
-      </div>
-      <Button onClick={saveLimit} disabled={limitSaving || limitEdit === undefined || !limitValid}>
-        {limitSaving ? t('common.loading') : t('admin.settings.save')}
-      </Button>
     </div>
   )
 }

@@ -191,8 +191,7 @@
       "groupColorsDesc": "Accent colors for 대학부/청년부 — used on Today name icons, kiosk backgrounds, Members cards, and the Analytics group-comparison chart.",
       "groupColorInvalid": "Enter a valid 6-digit hex code (e.g. #E0A800)",
       "cardScanLimit": "Card-scan limit",
-      "cardScanLimitDesc": "Today's remaining Gemini API calls for card recognition, refreshed every two seconds. The allowance resets automatically at Pittsburgh midnight.",
-      "cardScanLimitField": "Daily allowed limit",
+      "cardScanLimitDesc": "Today's remaining Gemini API calls for card recognition, refreshed every two seconds. The allowance is set automatically to the Gemini free-tier maximum (250 per day) and resets at Pittsburgh midnight.",
       "cardScanLive": "Today's API calls remaining",
       "cardScanUsageDetail": "{{available}} left today"
     }
