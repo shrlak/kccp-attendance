@@ -1,4 +1,4 @@
-import type { AdminRoleRow, AdminRole } from '../../lib/api'
+import type { AdminRoleRow, AdminRole, DbBackupEntry } from '../../lib/api'
 
 // 'staff' is a synthetic break-glass role, never stored as an admin row, so its rank only
 // satisfies the exhaustive Record type; it won't actually appear in the admins list.
@@ -45,4 +45,28 @@ export function formatBytes(bytes: number): string {
     i++
   }
   return `${value.toFixed(1)} ${units[i]}`
+}
+
+// Prefer the server-computed encrypted payload size, but derive it for legacy dated
+// entries returned during the one-time transition to the stable current.* object names.
+export function backupTotalSize(backup: DbBackupEntry): number | undefined {
+  if (backup.totalSize != null) return backup.totalSize
+  if (backup.sqlSize == null && backup.schemaSize == null) return undefined
+  return (backup.sqlSize ?? 0) + (backup.schemaSize ?? 0)
+}
+
+// Backup times are operational Pittsburgh times regardless of the browser's location.
+export function formatBackupTimestamp(updatedAt: string | undefined, locale = 'ko'): string {
+  if (!updatedAt) return ''
+  const date = new Date(updatedAt)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleString(locale, {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZoneName: 'short',
+  })
 }

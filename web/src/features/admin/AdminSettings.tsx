@@ -43,8 +43,10 @@ export function AdminSettings() {
     queryKey: ['cardScanUsage'],
     queryFn: getCardScanUsage,
     staleTime: 0,
-    refetchInterval: 5_000,
+    refetchInterval: 2_000,
+    refetchOnMount: 'always',
     refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   })
   const [edits, setEdits] = useState<{ days?: number[]; start?: string; end?: string }>({})
   const [saving, setSaving] = useState(false)
@@ -70,13 +72,11 @@ export function AdminSettings() {
   const currentYear = Number(easternNow().date.slice(0, 4))
   const semesterDates = semesterEdits ?? cfg?.semesterDates ?? DEFAULT_SEMESTER_DATES
   const semesterDatesValid = isValidSemesterDates(semesterDates)
-  const usageRemaining = scanUsage?.remaining ?? (scanUsage ? Math.max(0, scanUsage.limit - scanUsage.used) : 0)
-  const usagePercent = scanUsage
+  const usageRemaining = scanUsage?.remaining ?? 0
+  const remainingPercent = scanUsage
     ? scanUsage.limit > 0
-      ? Math.min(100, Math.round((scanUsage.used / scanUsage.limit) * 100))
-      : scanUsage.used > 0
-        ? 100
-        : 0
+      ? Math.min(100, Math.round((scanUsage.remaining / scanUsage.limit) * 100))
+      : 0
     : 0
 
   function toggleDay(d: number) {
@@ -135,7 +135,7 @@ export function AdminSettings() {
     if (!limitValid) return
     setLimitSaving(true)
     try {
-      await updateSettings({ cardScanMonthlyLimit: Number(limitValue) })
+      await updateSettings({ cardScanDailyLimit: Number(limitValue) })
       await qc.invalidateQueries({ queryKey: ['cardScanUsage'] })
       setLimitEdit(undefined)
       toast({ title: t('admin.settings.saved'), tone: 'ok' })
@@ -361,17 +361,15 @@ export function AdminSettings() {
           {scanUsage && (
             <span className="font-mono text-xs tabular-nums text-subtle">
               {t('admin.settings.cardScanUsageDetail', {
-                used: scanUsage.used,
-                limit: scanUsage.limit,
                 available: usageRemaining,
               })}
             </span>
           )}
         </div>
-        <div className="h-2 overflow-hidden rounded-full bg-border" role="progressbar" aria-valuemin={0} aria-valuemax={scanUsage?.limit ?? 0} aria-valuenow={scanUsage?.used ?? 0}>
+        <div className="h-2 overflow-hidden rounded-full bg-border" role="progressbar" aria-valuemin={0} aria-valuemax={scanUsage?.limit ?? 0} aria-valuenow={usageRemaining}>
           <div
-            className={'h-full rounded-full transition-[width] duration-300 ' + (usagePercent >= 90 ? 'bg-danger' : 'bg-primary')}
-            style={{ width: `${usagePercent}%` }}
+            className={'h-full rounded-full transition-[width] duration-300 ' + (remainingPercent <= 10 ? 'bg-danger' : 'bg-primary')}
+            style={{ width: `${remainingPercent}%` }}
           />
         </div>
       </div>
@@ -390,7 +388,7 @@ export function AdminSettings() {
         </label>
         {scanUsage && (
           <span className="pb-2.5 font-mono text-xs text-subtle">
-            {t('admin.newfamily.scan.usage', { available: usageRemaining, used: scanUsage.used })}
+            {t('admin.settings.cardScanUsageDetail', { available: usageRemaining })}
           </span>
         )}
       </div>

@@ -21,6 +21,22 @@ function localDate() { return new Date().toLocaleDateString("en-CA",{timeZone:"A
 function localTime() { return new Date().toLocaleTimeString("en-US",{timeZone:"America/New_York",hour:"2-digit",minute:"2-digit",second:"2-digit"}); }
 function fmtDateWithDay(d: string) { return new Date(d+"T12:00:00").toLocaleDateString("en-US",{timeZone:"America/New_York",weekday:"short",month:"short",day:"numeric",year:"numeric"}); }
 function fmtMin(m: number) { const h=Math.floor(m/60),mn=m%60,h12=h%12||12; return String(h12).padStart(2,"0")+":"+String(mn).padStart(2,"0")+" "+(h>=12?"PM":"AM"); }
+function addIsoDays(day: string, amount: number) {
+  const date=new Date(day+"T12:00:00Z");
+  date.setUTCDate(date.getUTCDate()+amount);
+  return date.toISOString().slice(0,10);
+}
+// Exact Pittsburgh midnight as an epoch, including DST transition days. 05:00 UTC is
+// midnight or 01:00 in America/New_York year-round and therefore still carries the
+// offset that was active at the beginning of that local calendar day.
+function easternDayStartMs(day: string) {
+  const probe=new Date(day+"T05:00:00Z");
+  const offsetPart=new Intl.DateTimeFormat("en-US",{timeZone:"America/New_York",timeZoneName:"longOffset"})
+    .formatToParts(probe).find((part)=>part.type==="timeZoneName")?.value||"";
+  const offset=offsetPart.replace("GMT","");
+  if(!/^[+-]\d{2}:\d{2}$/.test(offset)) throw new Error("Could not determine Pittsburgh UTC offset");
+  return Date.parse(day+"T00:00:00"+offset);
+}
 
 const CHURCH_LAT=40.450218535488325, CHURCH_LNG=-79.93480148825721;
 function checkLocation(lat?: number | null, lng?: number | null) {
@@ -179,16 +195,18 @@ function validSemesterDates(value: unknown): boolean {
   return spring.start<=spring.end&&spring.end<summer.start&&summer.start<=summer.end&&summer.end<fall.start&&fall.start<=fall.end;
 }
 // Card-photo-registration (Gemini /api/admin/extract-card) usage for the current
-// calendar month. Every outbound Gemini request is audited before fetch(), so failed
-// provider responses and network failures count just like successful calls.
-async function cardScanUsage(sb: SB): Promise<{limit:number;used:number;remaining:number;updatedAt:number}> {
+// Pittsburgh calendar day. Every outbound Gemini request is audited before fetch(), so
+// failed provider responses and network failures count just like successful calls.
+async function cardScanUsage(sb: SB): Promise<{limit:number;used:number;remaining:number;day:string;resetsAt:number;updatedAt:number}> {
   const cfg=await getCfg(sb);
-  const limit=Number(cfg.card_scan_monthly_limit ?? 60);
-  const monthStart=localDate().slice(0,7)+"-01";
-  const {count,error}=await sb.from("audit_log").select("id",{count:"exact",head:true}).eq("action","extract-card").gte("created_at",monthStart);
+  const limit=Math.max(0,Number(cfg.card_scan_daily_limit ?? cfg.card_scan_monthly_limit ?? 60)||0);
+  const day=localDate();
+  const startsAt=easternDayStartMs(day),resetsAt=easternDayStartMs(addIsoDays(day,1));
+  const {count,error}=await sb.from("audit_log").select("id",{count:"exact",head:true})
+    .eq("action","extract-card").gte("ts",startsAt).lt("ts",resetsAt);
   if(error) throw new Error(error.message);
   const used=count||0;
-  return {limit,used,remaining:Math.max(0,limit-used),updatedAt:Date.now()};
+  return {limit,used,remaining:Math.max(0,limit-used),day,resetsAt,updatedAt:Date.now()};
 }
 // Client IP as seen by the edge runtime: first hop of X-Forwarded-For (Supabase's proxy
 // appends its own hops after the client), else the CDN/proxy single-IP headers.
@@ -344,7 +362,7 @@ Deno.serve(async (req: Request) => {
     if(req.method==="POST"&&p==="/api/admin/settings") {
       const role=await resolveAdmin(sb,req);
       if(role?.role!=="super_admin") return fail(403,"Super admin required");
-      const {checkinDays,checkinStartMin,checkinEndMin,announcement,summerMode,demoMode,individualCheckinEnabled,requireApproval,groupColors,cardScanMonthlyLimit,semesterDates}=body;
+      const {checkinDays,checkinStartMin,checkinEndMin,announcement,summerMode,demoMode,individualCheckinEnabled,requireApproval,groupColors,cardScanDailyLimit,cardScanMonthlyLimit,semesterDates}=body;
       const upd: any={updated_at:new Date().toISOString()};
       if(checkinDays!==undefined) upd.checkin_days=checkinDays;
       if(checkinStartMin!==undefined) upd.checkin_start_min=Number(checkinStartMin);
@@ -359,7 +377,10 @@ Deno.serve(async (req: Request) => {
         for(const [g,c] of Object.entries(groupColors)) if(typeof c==="string"&&HEX.test(c)) clean[g]=c;
         upd.group_colors=clean;
       }
-      if(cardScanMonthlyLimit!==undefined) upd.card_scan_monthly_limit=Math.max(0,Math.round(Number(cardScanMonthlyLimit))||0);
+      // Accept the former monthly property for one release so an older tab that was
+      // already open when this deploys can still save the new daily allowance safely.
+      const cardScanLimit=cardScanDailyLimit??cardScanMonthlyLimit;
+      if(cardScanLimit!==undefined) upd.card_scan_daily_limit=Math.max(0,Math.round(Number(cardScanLimit))||0);
       if(semesterDates!==undefined){
         if(!validSemesterDates(semesterDates)) return fail(400,"Invalid semester dates");
         upd.semester_dates=semesterDates;
@@ -413,12 +434,13 @@ Deno.serve(async (req: Request) => {
       return ok({status:"ok"});
     }
 
-    // 카드 사진 등록 (Gemini extract-card) usage for the current calendar month — any
-    // verified admin may check remaining quota before scanning. { limit, used }.
+    // 카드 사진 등록 (Gemini extract-card) usage for today's Pittsburgh calendar day.
+    // The public response deliberately exposes tries left, not tries already used.
     if(req.method==="GET"&&p==="/api/admin/card-scan-usage") {
       const role=await resolveAdmin(sb,req);
       if(!role) return fail(401,"Not authorized");
-      return ok(await cardScanUsage(sb));
+      const {limit,remaining,day,resetsAt,updatedAt}=await cardScanUsage(sb);
+      return ok({limit,remaining,day,resetsAt,updatedAt});
     }
 
     // 동산지기/부동산지기 display roles — read (any verified admin, so leaders/pastor/
@@ -546,23 +568,36 @@ Deno.serve(async (req: Request) => {
       return ok({status:"dispatched"});
     }
 
-    // Lists backups by date — each date is a .sql.age (restorable data) and a
-    // .schema.tar.gz.age (migrations + function source, archival only) pair.
+    // Lists the one current overwrite-in-place backup. During the first deployment,
+    // before current.* exists, dated legacy objects remain visible as a safe fallback.
     if(req.method==="GET"&&p==="/api/admin/db-backup/list") {
       const role=await resolveAdmin(sb,req);
       if(role?.role!=="super_admin") return fail(403,"Super admin required");
       const s3=r2Client();
       if(!s3) return fail(500,"R2 credentials not configured — set R2_ENDPOINT/R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY in Supabase Edge Function secrets");
       const listing=await s3.send(new ListObjectsV2Command({Bucket:r2Bucket(),Prefix:"backups/"}));
-      const byDate: Record<string,{date:string;sqlKey?:string;sqlSize?:number;schemaKey?:string;schemaSize?:number}>={};
+      const objects=new Map<string,any>((listing.Contents||[]).map((o:any)=>[o.Key||"",o] as [string,any]));
+      const currentSql=objects.get("backups/current.sql.age"),currentSchema=objects.get("backups/current.schema.tar.gz.age");
+      const currentSqlChecksum=objects.get("backups/current.sql.age.sha256"),currentSchemaChecksum=objects.get("backups/current.schema.tar.gz.age.sha256");
+      if(currentSql&&currentSchema&&currentSqlChecksum&&currentSchemaChecksum) {
+        const completedAt=currentSchemaChecksum.LastModified||currentSchema.LastModified||currentSql.LastModified;
+        const sqlSize=currentSql.Size||0,schemaSize=currentSchema.Size||0;
+        return ok({backups:[{
+          date:completedAt?new Date(completedAt).toLocaleDateString("en-CA",{timeZone:"America/New_York"}):localDate(),
+          current:true,updatedAt:completedAt?new Date(completedAt).toISOString():undefined,
+          totalSize:sqlSize+schemaSize,sqlKey:"backups/current.sql.age",sqlSize,
+          schemaKey:"backups/current.schema.tar.gz.age",schemaSize,
+        }]});
+      }
+      const byDate: Record<string,{date:string;current:boolean;updatedAt?:string;totalSize?:number;sqlKey?:string;sqlSize?:number;schemaKey?:string;schemaSize?:number}>={};
       for(const o of listing.Contents||[]){
         const key=o.Key||"";
         let m=/^backups\/backup-(\d{4}-\d{2}-\d{2})\.sql\.age$/.exec(key);
-        if(m){const e=byDate[m[1]]??={date:m[1]};e.sqlKey=key;e.sqlSize=o.Size||0;continue;}
+        if(m){const e=byDate[m[1]]??={date:m[1],current:false};e.sqlKey=key;e.sqlSize=o.Size||0;e.updatedAt=o.LastModified?new Date(o.LastModified).toISOString():e.updatedAt;continue;}
         m=/^backups\/backup-(\d{4}-\d{2}-\d{2})\.schema\.tar\.gz\.age$/.exec(key);
-        if(m){const e=byDate[m[1]]??={date:m[1]};e.schemaKey=key;e.schemaSize=o.Size||0;}
+        if(m){const e=byDate[m[1]]??={date:m[1],current:false};e.schemaKey=key;e.schemaSize=o.Size||0;if(o.LastModified)e.updatedAt=new Date(o.LastModified).toISOString();}
       }
-      const backups=Object.values(byDate).sort((a,b)=>b.date.localeCompare(a.date));
+      const backups=Object.values(byDate).map((e)=>({...e,totalSize:(e.sqlSize||0)+(e.schemaSize||0)})).sort((a,b)=>b.date.localeCompare(a.date));
       return ok({backups});
     }
 
@@ -572,7 +607,7 @@ Deno.serve(async (req: Request) => {
       const role=await resolveAdmin(sb,req);
       if(role?.role!=="super_admin") return fail(403,"Super admin required");
       const key=url.searchParams.get("key")||"";
-      if(!/^backups\/backup-\d{4}-\d{2}-\d{2}\.(sql\.age|schema\.tar\.gz\.age)$/.test(key)) return fail(400,"Invalid backup key");
+      if(!/^backups\/(?:current|backup-\d{4}-\d{2}-\d{2})\.(sql\.age|schema\.tar\.gz\.age)$/.test(key)) return fail(400,"Invalid backup key");
       const s3=r2Client();
       if(!s3) return fail(500,"R2 credentials not configured");
       const signedUrl=await getSignedUrl(s3,new GetObjectCommand({Bucket:r2Bucket(),Key:key}),{expiresIn:300});
@@ -595,7 +630,7 @@ Deno.serve(async (req: Request) => {
 
       let ciphertext: Uint8Array;
       if(source==="online") {
-        if(typeof key!=="string"||!/^backups\/backup-\d{4}-\d{2}-\d{2}\.sql\.age$/.test(key)) return fail(400,"Invalid backup key");
+        if(typeof key!=="string"||!/^backups\/(?:current|backup-\d{4}-\d{2}-\d{2})\.sql\.age$/.test(key)) return fail(400,"Invalid backup key");
         const s3=r2Client();
         if(!s3) return fail(500,"R2 credentials not configured");
         const obj=await s3.send(new GetObjectCommand({Bucket:r2Bucket(),Key:key}));
@@ -1103,7 +1138,7 @@ Deno.serve(async (req: Request) => {
       if(!image) return fail(400,"image required");
       if(image.length>8_000_000) return fail(413,"Image too large — retake with a smaller photo");
       const usage=await cardScanUsage(sb);
-      if(usage.used>=usage.limit) return fail(429,"이번 달 카드 스캔 한도("+usage.limit+"회)를 모두 사용했습니다");
+      if(usage.used>=usage.limit) return fail(429,"오늘 카드 스캔 한도("+usage.limit+"회)를 모두 사용했습니다");
       const key=Deno.env.get("GEMINI_API_KEY");
       if(!key) return fail(500,"GEMINI_API_KEY not configured — set it in Supabase Edge Function secrets");
       // Record the actual provider call before sending it so every consumed request is
@@ -1118,7 +1153,10 @@ Deno.serve(async (req: Request) => {
       }
       const card=parseGeminiCard(await gr.json().catch(()=>null));
       if(!card) return fail(502,"Could not read card fields from the image");
-      return ok({status:"ok",card});
+      // The audit row above is already committed, so return the new remaining value
+      // immediately instead of making the client wait for its next polling interval.
+      const publicUsage={limit:usage.limit,remaining:Math.max(0,usage.remaining-1),day:usage.day,resetsAt:usage.resetsAt,updatedAt:Date.now()};
+      return ok({status:"ok",card,usage:publicUsage});
     }
 
     if(req.method==="POST"&&p==="/api/check-admin") {

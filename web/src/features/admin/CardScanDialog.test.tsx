@@ -9,7 +9,13 @@ import { CardScanDialog } from './CardScanDialog'
 vi.mock('../../lib/api', () => ({
   extractCard: vi.fn(),
   kioskNewMember: vi.fn(),
-  getCardScanUsage: vi.fn().mockResolvedValue({ limit: 60, used: 3 }),
+  getCardScanUsage: vi.fn().mockResolvedValue({
+    limit: 60,
+    remaining: 57,
+    day: '2026-07-19',
+    resetsAt: 1_774_158_400_000,
+    updatedAt: 1_774_072_000_000,
+  }),
 }))
 
 // Canvas isn't available in jsdom — return a fixed payload per file so the queue
@@ -36,11 +42,25 @@ function renderDialog(onClose = vi.fn()) {
 const cardJson = (name: string) => ({
   status: 'ok',
   card: { name, affiliationCategory: '대학생', affiliationDetail: 'Pitt' },
+  usage: {
+    limit: 60,
+    remaining: 56,
+    day: '2026-07-19',
+    resetsAt: 1_774_158_400_000,
+    updatedAt: 1_774_072_001_000,
+  },
 })
 
 const file = (name: string) => new File(['x'], name, { type: 'image/jpeg' })
 
 describe('CardScanDialog — multi-card batch', () => {
+  it('shows only the number of tries remaining today', async () => {
+    renderDialog()
+
+    expect(await screen.findByText('오늘 57회 남음')).toBeInTheDocument()
+    expect(screen.queryByText(/사용|used/i)).not.toBeInTheDocument()
+  })
+
   it('walks a two-photo batch card by card: extract → review → 등록 → next, closing after the last', async () => {
     const { extractCard, kioskNewMember } = await import('../../lib/api')
     ;(extractCard as ReturnType<typeof vi.fn>)

@@ -25,7 +25,15 @@ import {
   type RoleAssignment,
   type DbBackupEntry,
 } from '../../lib/api'
-import { sortAdminRoles, auditDetail, roleNeedsScope, backupFilename, formatBytes } from './admins'
+import {
+  sortAdminRoles,
+  auditDetail,
+  roleNeedsScope,
+  backupFilename,
+  formatBytes,
+  backupTotalSize,
+  formatBackupTimestamp,
+} from './admins'
 import { useRoster } from './useRoster'
 import { groupsOf, subgroupsOf } from './filters'
 import { checkinCandidates } from './today'
@@ -55,7 +63,7 @@ function fileToBase64(file: File): Promise<string> {
 // Admins tab (super-admin): registration-approval toggle, pending queue, the admin
 // roster with add/remove, and the audit log.
 export function AdminAdmins() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const qc = useQueryClient()
   const toast = useToast()
   const { data: cfg } = useQuery({ queryKey: ['config'], queryFn: getConfig })
@@ -136,7 +144,10 @@ export function AdminAdmins() {
   const { data: dbBackupsData, isLoading: dbBackupsLoading } = useQuery({
     queryKey: ['dbBackups'],
     queryFn: listDbBackups,
-    enabled: showDbBackups,
+    staleTime: 0,
+    refetchInterval: 15_000,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   })
   const [dbBackupRunBusy, setDbBackupRunBusy] = useState(false)
   const [dbRestoreTarget, setDbRestoreTarget] = useState<DbRestoreTarget | null>(null)
@@ -236,6 +247,9 @@ export function AdminAdmins() {
   const roles = sortAdminRoles(rolesData?.roles ?? [])
   const pending = pendingData?.pending ?? []
   const clearReqs = clearPending ?? []
+  const currentBackup = dbBackupsData?.backups[0]
+  const currentBackupSize = currentBackup ? backupTotalSize(currentBackup) : undefined
+  const currentBackupTime = formatBackupTimestamp(currentBackup?.updatedAt, i18n.resolvedLanguage || i18n.language)
 
   return (
     <div className="w-full">
@@ -444,8 +458,15 @@ export function AdminAdmins() {
 
       <hr className="my-6 border-border" />
 
-      <h2 className="mb-1 font-display text-lg font-semibold text-text">{t('admin.admins.dbBackup.title')}</h2>
-      <p className="mb-3 text-xs text-muted">{t('admin.admins.dbBackup.desc')}</p>
+      <div className="mb-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <h2 className="font-display text-lg font-semibold text-text">{t('admin.admins.dbBackup.title')}</h2>
+        {currentBackup && currentBackupSize != null && currentBackupTime && (
+          <span className="font-mono text-xs tabular-nums text-subtle" aria-live="polite">
+            {t('admin.dbBackupCurrentMeta', { size: formatBytes(currentBackupSize), time: currentBackupTime })}
+          </span>
+        )}
+      </div>
+      <p className="mb-3 text-xs text-muted">{t('admin.dbBackupCurrentDesc')}</p>
 
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="secondary" onClick={runDbBackup} disabled={dbBackupRunBusy}>
@@ -464,24 +485,28 @@ export function AdminAdmins() {
             <p className="text-sm text-muted">{t('admin.admins.dbBackup.none')}</p>
           ) : (
             <ul className="flex flex-col gap-1.5">
-              {dbBackupsData.backups.map((b: DbBackupEntry) => (
-                <li key={b.date} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-surface px-3 py-2 text-xs">
+              {dbBackupsData.backups.map((b: DbBackupEntry) => {
+                const size = backupTotalSize(b)
+                const time = formatBackupTimestamp(b.updatedAt, i18n.resolvedLanguage || i18n.language)
+                return (
+                <li key={b.sqlKey ?? b.date} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-surface px-3 py-2 text-xs">
                   <span className="font-semibold text-text">
-                    {b.date}
-                    {b.sqlSize != null && <span className="ml-2 font-normal text-subtle">{formatBytes(b.sqlSize)}</span>}
+                    {time || b.date}
+                    {size != null && <span className="ml-2 font-normal text-subtle">{formatBytes(size)}</span>}
                   </span>
                   {b.sqlKey && (
                     <div className="flex gap-1.5">
                       <Button size="sm" variant="ghost" onClick={() => downloadDbBackup(b.sqlKey!)}>
                         {t('admin.admins.dbBackup.download')}
                       </Button>
-                      <Button size="sm" variant="danger" onClick={() => setDbRestoreTarget({ source: 'online', key: b.sqlKey!, date: b.date })}>
+                      <Button size="sm" variant="danger" onClick={() => setDbRestoreTarget({ source: 'online', key: b.sqlKey!, date: time || b.date })}>
                         {t('admin.admins.dbBackup.restore')}
                       </Button>
                     </div>
                   )}
                 </li>
-              ))}
+                )
+              })}
             </ul>
           )}
         </div>

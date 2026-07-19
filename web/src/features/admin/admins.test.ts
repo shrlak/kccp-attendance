@@ -1,6 +1,14 @@
 import { describe, it, expect } from 'vitest'
-import { sortAdminRoles, auditDetail, roleNeedsScope, backupFilename, formatBytes } from './admins'
-import type { AdminRoleRow } from '../../lib/api'
+import {
+  sortAdminRoles,
+  auditDetail,
+  roleNeedsScope,
+  backupFilename,
+  formatBytes,
+  backupTotalSize,
+  formatBackupTimestamp,
+} from './admins'
+import type { AdminRoleRow, DbBackupEntry } from '../../lib/api'
 
 const row = (name: string, role: AdminRoleRow['role']): AdminRoleRow => ({
   memberId: name, name, role, group: '', subgroup: '', ministry: '',
@@ -54,5 +62,25 @@ describe('formatBytes', () => {
     expect(formatBytes(123_456)).toBe('123.5 KB')
     expect(formatBytes(1_500_000)).toBe('1.5 MB')
     expect(formatBytes(2_300_000_000)).toBe('2.3 GB')
+  })
+})
+
+describe('backup metadata', () => {
+  const backup: DbBackupEntry = {
+    date: '2026-07-19',
+    current: true,
+    sqlSize: 1_500_000,
+    schemaSize: 250_000,
+  }
+
+  it('uses the encrypted SQL and schema sizes when the API total is absent', () => {
+    expect(backupTotalSize(backup)).toBe(1_750_000)
+    expect(backupTotalSize({ ...backup, totalSize: 2_000_000 })).toBe(2_000_000)
+  })
+
+  it('formats the completion time in Pittsburgh rather than the browser timezone', () => {
+    expect(formatBackupTimestamp('2026-07-19T21:15:00.000Z', 'en-US')).toContain('5:15 PM')
+    expect(formatBackupTimestamp(undefined, 'en-US')).toBe('')
+    expect(formatBackupTimestamp('not-a-date', 'en-US')).toBe('')
   })
 })
