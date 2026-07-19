@@ -2,8 +2,9 @@
 # Weekly encrypted backup: dump -> restore-verify -> encrypt -> upload.
 #
 # Invoked by .github/workflows/backup.yml, which sets:
-#   DB_URL          postgresql://backup_reader.<ref>:<password>@<pooler-host>:5432/postgres
-#   VERIFY_DB_URL   connection string for the throwaway verification Postgres (service container)
+#   PGHOST/PGPORT/PGDATABASE/PGUSER/PGPASSWORD/PGSSLMODE
+#                    libpq settings for the read-only production connection
+#   VERIFY_DB_URL    connection string for the throwaway verification Postgres (service container)
 #   AGE_PUBLIC_KEY  age recipient public key (age1...)
 #   R2_ENDPOINT     https://<account-id>.r2.cloudflarestorage.com
 #   R2_BUCKET       target bucket name
@@ -22,8 +23,14 @@ DATE=$(date -u +%F)
 WORKDIR=$(mktemp -d)
 trap 'rm -rf "$WORKDIR"' EXIT
 
-echo "== 1/6 Dumping database (data only) =="
-pg_dump "$DB_URL" --data-only --column-inserts --no-owner --no-privileges --file="$WORKDIR/db.sql"
+echo "== 1/6 Dumping public schema data only =="
+pg_dump \
+  --schema=public \
+  --data-only \
+  --column-inserts \
+  --no-owner \
+  --no-privileges \
+  --file="$WORKDIR/db.sql"
 
 echo "== 2/6 Building schema in throwaway database (replays the real migrations, so this also proves they're self-sufficient) =="
 for f in supabase/migrations/*.sql; do
@@ -37,7 +44,7 @@ psql "$VERIFY_DB_URL" --single-transaction -v ON_ERROR_STOP=1 -f "$WORKDIR/db.sq
 # newly added table is picked up automatically instead of silently skipped by a stale
 # hardcoded table list. query_to_xml is a built-in SQL/XML function, no extension needed.
 count_query() {
-  psql "$1" -Atc "
+  psql "$@" -X -Atc "
     SELECT table_name,
            (xpath('/row/c/text()',
              query_to_xml(format('select count(*) as c from %I.%I', 'public', table_name), false, true, '')
@@ -49,7 +56,7 @@ count_query() {
 }
 
 echo "== 4/6 Comparing row counts (source vs. restored) =="
-count_query "$DB_URL" > "$WORKDIR/counts-source.txt"
+count_query > "$WORKDIR/counts-source.txt"
 count_query "$VERIFY_DB_URL" > "$WORKDIR/counts-restored.txt"
 if ! diff -u "$WORKDIR/counts-source.txt" "$WORKDIR/counts-restored.txt"; then
   echo "::error::Row counts differ between source and restored backup — see diff above."

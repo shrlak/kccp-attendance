@@ -41,7 +41,8 @@ jobs:
       PGUSER: backup_reader.loovulhchmmwagtvjnhc
       PGPASSWORD: ${{ secrets.SUPABASE_BACKUP_DB_PASSWORD }}
       PGSSLMODE: require
-      VERIFY_DB_URL: postgresql://postgres:verify@localhost:5433/postgres
+      PGCONNECT_TIMEOUT: "15"
+      VERIFY_DB_URL: postgresql://postgres:verify@localhost:5433/postgres?sslmode=disable
       AGE_PUBLIC_KEY: ${{ secrets.BACKUP_AGE_PUBLIC_KEY }}
       R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
       R2_BUCKET: kccp-attendance-backups
@@ -65,15 +66,19 @@ jobs:
             exit 1
           fi
 
-      - name: Verify backup database login
-        run: |
-          psql -X -v ON_ERROR_STOP=1 -Atc "select 1" >/dev/null
-          echo "Database authentication succeeded."
-          
       - name: Install age + postgresql-client
         run: |
           sudo apt-get update
           sudo apt-get install -y age postgresql-client
+
+      - name: Verify backup database login
+        run: |
+          connected_user=$(psql -X -v ON_ERROR_STOP=1 -Atc "select current_user")
+          if [ "$connected_user" != "backup_reader" ]; then
+            echo "::error::Expected backup_reader, connected as $connected_user."
+            exit 1
+          fi
+          echo "Database authentication succeeded as backup_reader."
 
       - name: Run backup
         run: bash scripts/backup/run-backup.sh

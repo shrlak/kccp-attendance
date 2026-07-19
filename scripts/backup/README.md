@@ -43,20 +43,23 @@ This prints a line like `Public key: age1...` and writes both keys to `backup-ke
    - **Account ID** (shown on the same screen / on the R2 landing page) — used to build the
      endpoint URL `https://<account-id>.r2.cloudflarestorage.com`.
 
-## 3. Build the database connection string
+## 3. Set the backup-reader password
 
-GitHub Actions runners are IPv4-only, and Supabase's direct connection host
-(`db.loovulhchmmwagtvjnhc.supabase.co:5432`) is IPv6-only without the paid IPv4 add-on —
-so this must go through the **Session Pooler**, not the direct host.
+GitHub Actions connects through Supabase's IPv4 Session Pooler using fixed, non-secret
+host/user settings in the workflow. Only the password is stored as a GitHub secret; this
+avoids URI escaping mistakes and prevents password fragments from appearing in connection
+URL errors.
 
-1. Supabase dashboard → **Project Settings** → **Database** → **Connection string** →
-   select **Session pooler** (not Transaction — `pg_dump` needs session-level features).
-2. Copy the connection string. It looks like:
-   `postgresql://postgres.loovulhchmmwagtvjnhc:[YOUR-PASSWORD]@aws-0-us-east-1.pooler.supabase.com:5432/postgres`
-3. Replace `postgres.loovulhchmmwagtvjnhc` with `backup_reader.loovulhchmmwagtvjnhc`, and
-   `[YOUR-PASSWORD]` with the `backup_reader` password Claude generated and displayed once
-   in chat when it created the role (not repeated here — if you didn't save it, see
-   **Rotating the DB password** below).
+1. Generate a strong password in a password manager.
+2. In the Supabase SQL editor, set it on the existing read-only role:
+
+   ```sql
+   SET password_encryption = 'scram-sha-256';
+   ALTER ROLE backup_reader WITH LOGIN PASSWORD '<new-strong-password>';
+   ```
+
+3. Copy that exact password into `SUPABASE_BACKUP_DB_PASSWORD` in step 4. Do not add a
+   username, connection URL, quotes, or surrounding whitespace.
 
 ## 4. Add the GitHub repo secrets
 
@@ -64,7 +67,7 @@ Repo → **Settings** → **Secrets and variables** → **Actions** → **New re
 
 | Secret | Value |
 |---|---|
-| `SUPABASE_BACKUP_DB_URL` | The connection string assembled in step 3 |
+| `SUPABASE_BACKUP_DB_PASSWORD` | Only the `backup_reader` password from step 3 |
 | `BACKUP_AGE_PUBLIC_KEY` | The `age1...` public key from step 1 |
 | `R2_ENDPOINT` | `https://<account-id>.r2.cloudflarestorage.com` from step 2 |
 | `R2_ACCESS_KEY_ID` | From step 2 |
@@ -102,13 +105,15 @@ GitHub → Settings → Developer settings → Personal access tokens → Fine-g
 This is what lets the "지금 백업 실행" (run backup now) button dispatch the workflow — it
 cannot read secrets or touch code, only start a run.
 
-**b. `RESTORE_DB_URL`** — same shape as `SUPABASE_BACKUP_DB_URL` in step 3, but for the
+**b. `RESTORE_DB_URL`** — a Session Pooler connection URL for the
 `backup_restorer` role (read **and** write — `TRUNCATE`+`INSERT`, still no schema/DDL
-privileges) instead of `backup_reader`:
+privileges):
 
 ```
-postgresql://backup_restorer.loovulhchmmwagtvjnhc:<password>@<same pooler host as step 3>:5432/postgres
+postgresql://backup_restorer.loovulhchmmwagtvjnhc:<password>@aws-1-us-east-1.pooler.supabase.com:5432/postgres
 ```
+
+Use the exact Session Pooler host shown by the project's **Connect** panel if it differs.
 
 The `backup_restorer` password was generated and shown once in chat alongside
 `backup_reader`'s, the same way — not repeated here. Lost it? See **Rotating a DB
@@ -128,8 +133,8 @@ If either role's password is ever lost or needs rotating, run against the prod p
 ALTER ROLE backup_reader WITH PASSWORD '<new-strong-password>';    -- or backup_restorer
 ```
 
-Then update `SUPABASE_BACKUP_DB_URL` (the password segment) in the GitHub secret to
-match.
+Then update the password-only `SUPABASE_BACKUP_DB_PASSWORD` GitHub secret to match.
+The workflow supplies the host, port, database, username, and SSL mode separately.
 
 ## Quarterly restore drill
 
