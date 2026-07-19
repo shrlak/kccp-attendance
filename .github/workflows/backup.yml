@@ -2,9 +2,10 @@ name: Weekly Encrypted Backup
 
 on:
   schedule:
-    # Sundays 09:00 UTC — after the morning check-in window, before the following week's
-    # edits pile up.
-    - cron: '0 9 * * 0'
+    # Sundays at 17:00 in Pittsburgh. The IANA timezone keeps this at 5 PM across
+    # Eastern daylight-saving and standard-time transitions.
+    - cron: '0 17 * * 0'
+      timezone: "America/New_York"
   workflow_dispatch: {}
 
 permissions:
