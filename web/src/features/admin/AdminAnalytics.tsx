@@ -4,7 +4,7 @@ import { useRoster } from './useRoster'
 import { filterMembers, filterLog, NO_FILTER, type Filter } from './filters'
 import { GroupFilter } from './GroupFilter'
 import { AnalyticsCharts } from './AnalyticsCharts'
-import { monthlySummary, semesterSummary, weeklyRecap, recapText, type SemesterRow } from './analytics'
+import { monthlySummary, semesterSummary, weeklyRecap, recapText, excludeOnBreak, type SemesterRow } from './analytics'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
 import type { Member, LogEntry } from '../../lib/api'
@@ -22,7 +22,7 @@ export function AdminAnalytics() {
   if (!data) return null
 
   const members = filterMembers(data.members, filter)
-  const log = filterLog(data.log, filter)
+  const log = excludeOnBreak(data.members, filterLog(data.log, filter))
 
   return (
     <>

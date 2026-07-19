@@ -10,6 +10,28 @@ const distinctDates = (log: LogEntry[]): string[] => [...new Set(log.map((e) => 
 const uniqueNamesOn = (log: LogEntry[], date: string): Set<string> =>
   new Set(log.filter((e) => e.date === date).map((e) => e.name))
 
+// Whether a member's 방학 (school break) 상태 표기 covers `date`: status_start through
+// status_end, open-ended when status_end is null — the same covering rule the 출석부
+// and kiosk use for status marks.
+function isOnBreak(m: Member, date: string): boolean {
+  if (!m.status_note || !m.status_start) return false
+  if (date < m.status_start) return false
+  if (m.status_end && date > m.status_end) return false
+  return m.status_note.includes('방학')
+}
+
+// Drops log rows recorded while the member was marked 방학 on that date, so a break
+// doesn't get counted toward attendance analytics until the mark is cleared. Rows with
+// no memberId (guests/legacy) are never covered.
+export function excludeOnBreak(members: Member[], log: LogEntry[]): LogEntry[] {
+  const byId = new Map(members.map((m) => [m.id, m]))
+  return log.filter((e) => {
+    if (!e.memberId) return true
+    const m = byId.get(e.memberId)
+    return !m || !isOnBreak(m, e.date)
+  })
+}
+
 export interface TrendPoint {
   date: string
   count: number // distinct attendees on that date

@@ -26,7 +26,9 @@ import { cardFormFromMember, joinAffiliation, type CardFormValue } from './newFa
 import { copyNewFamilyCards, saveNewFamilyCards } from './newFamilyCardImage'
 
 // 상태 표기 quick presets — canonical note values the 출석부 renders as grey spans.
-const STATUS_PRESETS = ['이주', '한국 귀국']
+// 방학 additionally hides the member from the kiosk and excludes their attendance from
+// analytics while it's active (see kiosk.ts hiddenByStatus / analytics.ts excludeOnBreak).
+const STATUS_PRESETS = ['이주', '한국 귀국', '방학']
 
 const GROUPS = ['대학부', '청년부', 'EM', 'Adult Ministry']
 const MEMBER_ROLES = ['', 'visitor', 'pastor', 'elder', 'deacon', 'mentor']

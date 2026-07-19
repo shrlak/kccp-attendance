@@ -5,5 +5,5 @@ export {
   // Admin nav rail
   CalendarCheck, ClipboardList, UserPlus, GraduationCap, DoorOpen, Shield, Sprout, Medal,
   // Check-in / kiosk states + chrome
-  Check, Search, Monitor, MapPin, WifiOff, Clock, RotateCcw, AlertTriangle, Star,
+  Check, Search, Monitor, MapPin, WifiOff, Clock, RotateCcw, RefreshCw, AlertTriangle, Star,
 } from 'lucide-react'

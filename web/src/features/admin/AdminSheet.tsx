@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRoster } from './useRoster'
 import {
   buildAttendanceModel,
+  attendanceGroupBy,
   blockColors,
   cssColor,
   exportSundays,
@@ -285,7 +286,14 @@ function GridView({
 
   // 동산지기/부동산지기 float to the top of their own 동산 block (roster order otherwise).
   const ordered = orderByDongsanRole(members, roleOf)
-  const model = buildAttendanceModel(ordered, log, exportSundays(today, semesterDates), today, { unassigned: L.unassigned, newFamily: L.newFamily })
+  const model = buildAttendanceModel(
+    ordered,
+    log,
+    exportSundays(today, semesterDates),
+    today,
+    { unassigned: L.unassigned, newFamily: L.newFamily },
+    attendanceGroupBy(today, semesterDates, L.unassigned),
+  )
   const pink = cssColor(HEADER_TOTAL_FILL)
   const grey = cssColor(NOTE_FILL)
 

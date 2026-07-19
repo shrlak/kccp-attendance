@@ -60,3 +60,12 @@ export function monthDayFromDate(date: string): string {
   return date.slice(5)
 }
 
+// Adds `days` (may be negative) to an ISO "YYYY-MM-DD" date, calendar-correct across
+// month/year boundaries. Works entirely in UTC to avoid local-timezone drift.
+export function addIsoDays(date: string, days: number): string {
+  const [y, m, d] = date.split('-').map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d))
+  dt.setUTCDate(dt.getUTCDate() + days)
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`
+}
+

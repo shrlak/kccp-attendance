@@ -3,6 +3,7 @@ import {
   exportFilename,
   gridSheet,
   buildAttendanceModel,
+  attendanceGroupBy,
   exportSundays,
   semesterLabel,
   blockColors,
@@ -65,6 +66,15 @@ describe('semesterLabel', () => {
     expect(semesterLabel('2026-06-07', 'en')).toBe('Summer 2026')
     expect(semesterLabel('2026-02-01', 'ko')).toBe('2026 봄 학기')
     expect(semesterLabel('2026-09-01', 'en')).toBe('Fall 2026')
+  })
+  it('shows a transition-period label instead, when the date falls in a configured gap', () => {
+    const custom: SemesterDates = {
+      spring: { start: '01-12', end: '04-30' },
+      summer: { start: '06-01', end: '07-31' },
+      fall: { start: '09-01', end: '12-15' },
+    }
+    expect(semesterLabel('2026-05-15', 'ko', custom)).toBe('학기 사이 (전환 기간)')
+    expect(semesterLabel('2026-05-15', 'en', custom)).toBe('Between terms')
   })
 })
 
@@ -195,6 +205,34 @@ describe('exportSundays', () => {
       '2026-07-12',
       '2026-07-19',
     ])
+  })
+  it('shows the transition gap\'s own Sundays (through today) instead of freezing on the finished term', () => {
+    const custom: SemesterDates = {
+      spring: { start: '01-05', end: '04-26' },
+      summer: { start: '06-14', end: '07-19' },
+      fall: { start: '09-06', end: '12-13' },
+    }
+    // 07/19 summer ends, 09/06 fall starts — 07/26 and 08/02 are transition Sundays.
+    expect(exportSundays('2026-08-02', custom)).toEqual(['2026-07-26', '2026-08-02'])
+  })
+})
+
+describe('attendanceGroupBy', () => {
+  const custom: SemesterDates = {
+    spring: { start: '01-05', end: '04-26' },
+    summer: { start: '06-14', end: '07-19' },
+    fall: { start: '09-06', end: '12-13' },
+  }
+  it('groups by 동산 inside a configured term', () => {
+    const groupBy = attendanceGroupBy('2026-06-21', custom, '동산 미지정')
+    expect(groupBy(member('1', 'A', '청년부', '건영동산'))).toBe('건영동산')
+    expect(groupBy(member('2', 'B', '청년부', ''))).toBe('동산 미지정')
+  })
+  it('groups by 부서 alone during a transition period, ignoring 동산', () => {
+    const groupBy = attendanceGroupBy('2026-08-02', custom, '동산 미지정')
+    expect(groupBy(member('1', 'A', '청년부', '건영동산'))).toBe('청년부')
+    expect(groupBy(member('2', 'B', '대학부', '중호동산'))).toBe('대학부')
+    expect(groupBy(member('3', 'C', '', ''))).toBe('동산 미지정')
   })
 })
 

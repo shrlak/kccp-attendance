@@ -550,12 +550,14 @@ Deno.serve(async (req: Request) => {
     // ── Off-site encrypted DB backup (scripts/backup/, .github/workflows/backup.yml) ──
     // Distinct from /api/admin/backup+restore above (a JSON app-data snapshot): this is
     // the full weekly Postgres dump pipeline to Cloudflare R2. Namespaced under
-    // /api/admin/db-backup/ so the two systems' routes can't collide. Super-admin only.
+    // /api/admin/db-backup/ so the two systems' routes can't collide. Listing/downloading/
+    // restoring stay super-admin only; triggering a fresh backup is opened to every admin
+    // role except pastor (read-only), so leaders/새가족팀/break-glass staff can run one too.
 
     // Triggers the GH Actions workflow on demand instead of waiting for Sunday.
     if(req.method==="POST"&&p==="/api/admin/db-backup/run") {
       const role=await resolveAdmin(sb,req);
-      if(role?.role!=="super_admin") return fail(403,"Super admin required");
+      if(!role||role.role==="pastor") return fail(403,"Not authorized");
       const pat=Deno.env.get("GITHUB_PAT");
       if(!pat) return fail(500,"GITHUB_PAT not configured — set it in Supabase Edge Function secrets");
       const res=await fetch("https://api.github.com/repos/shrlak/kccp-attendance/actions/workflows/backup.yml/dispatches",{

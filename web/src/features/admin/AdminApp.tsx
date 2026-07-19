@@ -4,9 +4,10 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useAdminAuth } from '../../stores/useAdminAuth'
 import { useLang } from '../../stores/useLang'
-import { getPending } from '../../lib/api'
+import { getPending, runDbBackupNow } from '../../lib/api'
 import { Button } from '../../components/ui/Button'
 import { ThemeLangToggle } from '../../components/ui/ThemeLangToggle'
+import { useToast } from '../../components/ui/Toast'
 import {
   type LucideIcon,
   CalendarCheck,
@@ -49,6 +50,7 @@ type Tab =
 // labels, keeping the attendance workspace visually quiet on desktop and tablet.
 export function AdminApp() {
   const { t } = useTranslation()
+  const toast = useToast()
   const lang = useLang((s) => s.lang)
   const navigate = useNavigate()
   const identity = useAdminAuth((s) => s.identity)
@@ -56,6 +58,7 @@ export function AdminApp() {
   const [tab, setTab] = useState<Tab>('today')
   const [kiosk, setKiosk] = useState(false)
   const [navOpen, setNavOpen] = useState(false)
+  const [backupBusy, setBackupBusy] = useState(false)
   function selectTab(id: Tab) {
     setTab(id)
     setNavOpen(false)
@@ -71,6 +74,22 @@ export function AdminApp() {
   const isStaff = identity?.role === 'staff'
   // Pastors are read-only and can't check anyone in, so they don't get the kiosk.
   const canKiosk = identity?.role !== 'pastor'
+  // Leaders/새가족팀/break-glass staff get just the "run a backup now" trigger from
+  // anywhere in the panel — everything else in the full off-site backup UI (listing,
+  // downloading, restoring) stays behind the super-admin-only Admins tab.
+  const canRunBackup = identity?.role === 'leader' || identity?.role === 'welcoming' || isStaff
+
+  async function runBackup() {
+    setBackupBusy(true)
+    try {
+      await runDbBackupNow()
+      toast({ title: t('admin.admins.dbBackup.dispatched'), tone: 'ok' })
+    } catch (e) {
+      toast({ title: e instanceof Error ? e.message : t('common.error'), tone: 'err' })
+    } finally {
+      setBackupBusy(false)
+    }
+  }
   const { data: pending } = useQuery({ queryKey: ['pending'], queryFn: getPending, enabled: isSuper })
   const pendingCount = pending?.pending.length ?? 0
 
@@ -154,6 +173,11 @@ export function AdminApp() {
             </div>
             <div className="flex shrink-0 items-center gap-1">
               <ThemeLangToggle />
+              {canRunBackup && (
+                <Button variant="secondary" size="sm" onClick={runBackup} disabled={backupBusy}>
+                  {backupBusy ? t('common.loading') : t('admin.admins.dbBackup.runNow')}
+                </Button>
+              )}
               {canKiosk && (
                 <Button variant="secondary" size="sm" onClick={() => setKiosk(true)}>
                   {t('kiosk.enter')}

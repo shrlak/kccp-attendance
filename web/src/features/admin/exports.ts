@@ -1,7 +1,7 @@
 import type { Member, LogEntry } from '../../lib/api'
 import type { SemesterDates } from '../../lib/semester'
 import { buildGrid } from './sheet'
-import { semesterBounds, semesterKey, semesterSundays, isActiveNewFamily } from './newFamily'
+import { semesterBounds, semesterKey, semesterSundays, transitionBounds, transitionSundays, isActiveNewFamily } from './newFamily'
 import { splitAffiliation } from './newFamilyCard'
 
 // ── Pure export helpers ──────────────────────────────────────────────────────
@@ -58,6 +58,11 @@ const TERM_END_OVERRIDES: Record<string, string> = {
 // (semesterSundays), clamped to the term's effective start (TERM_START_OVERRIDES) and run
 // through the term-end override when set — otherwise only through `today`. ISO ascending.
 export function exportSundays(today: string, semesterDates?: SemesterDates | null): string[] {
+  // 예배 doesn't stop just because `today` falls between two configured 학기 — show that
+  // gap's own Sundays (through today) instead of freezing on the previous term's already-
+  // finished columns. Only possible once an admin's saved term dates leave a break.
+  const transition = transitionBounds(today, semesterDates)
+  if (transition) return transitionSundays(transition, today)
   // Once an administrator saves explicit term dates, they are the source of truth and
   // the sheet exposes the whole configured term (future Sundays remain blank until they
   // occur). Before that, preserve the one-off legacy 2026 overrides below.
@@ -155,17 +160,20 @@ export interface AttendanceLabels {
 }
 
 // Shared spine of the Excel sheet, the PDF report and the on-screen grid: the roster split
-// into 동산 blocks and scored against an explicit list of `dates` (the current semester's
-// Sundays). Members without a 동산 bucket last, under `unassigned`. Roster order is preserved.
-// `today` drives the blank-until-data rules: upcoming Sundays and Sundays where the 동산 has
-// no check-ins yet render blank (no O/X) — so e.g. today's column stays empty until the
-// afternoon's check-ins actually land — while status-mark spans render even across them.
+// into blocks (by 동산, or by `groupBy` when given — e.g. a transition-period sheet groups
+// by 부서 only, since 동산 assignments don't cleanly apply between configured 학기) and
+// scored against an explicit list of `dates` (the current semester's Sundays). Members
+// without a bucket land last, under `unassigned`. Roster order is preserved within each
+// bucket. `today` drives the blank-until-data rules: upcoming Sundays and Sundays where the
+// bucket has no check-ins yet render blank (no O/X) — so e.g. today's column stays empty
+// until the afternoon's check-ins actually land — while status-mark spans render even across them.
 export function buildAttendanceModel(
   members: Member[],
   log: LogEntry[],
   dates: string[],
   today: string,
   labels: AttendanceLabels,
+  groupBy: (m: Member) => string = (m) => m.subgroup || labels.unassigned,
 ): AttendanceModel {
   // name -> every date that name attended (the denormalized log carries the name).
   const attended = new Map<string, Set<string>>()
@@ -181,7 +189,7 @@ export function buildAttendanceModel(
   const order: string[] = []
   const byKey = new Map<string, Member[]>()
   for (const m of members) {
-    const key = m.subgroup || labels.unassigned
+    const key = groupBy(m) || labels.unassigned
     let bucket = byKey.get(key)
     if (!bucket) {
       bucket = []
@@ -232,8 +240,22 @@ export function buildAttendanceModel(
   return { dates, dateLabels: dates.map(formatGridDate), sections }
 }
 
-// Human label for the semester containing `today`, e.g. "2026 여름 학기" / "Summer 2026".
+// buildAttendanceModel's groupBy for `today`: by 동산 normally, or by 부서 alone during a
+// transition period (no configured 학기 covers `today`) — 동산 assignments are term-scoped
+// and don't cleanly apply to the gap between them.
+export function attendanceGroupBy(
+  today: string,
+  semesterDates: SemesterDates | null | undefined,
+  unassigned: string,
+): (m: Member) => string {
+  const inTransition = !!transitionBounds(today, semesterDates)
+  return (m: Member) => (inTransition ? m.group_name : m.subgroup) || unassigned
+}
+
+// Human label for the semester containing `today`, e.g. "2026 여름 학기" / "Summer 2026" —
+// or, between two configured 학기, a transition-period label instead.
 export function semesterLabel(today: string, lang: Lang, semesterDates?: SemesterDates | null): string {
+  if (transitionBounds(today, semesterDates)) return lang === 'ko' ? '학기 사이 (전환 기간)' : 'Between terms'
   const { year, season } = semesterBounds(today, semesterDates)
   if (lang === 'ko') {
     const ko = season === 'spring' ? '봄' : season === 'summer' ? '여름' : '가을'
@@ -290,7 +312,14 @@ export function gridSheet(
       ? { name: '이름', memberTotal: '예배 총 출석', total: '총 출석', key: 'KEY', present: '출석', absent: '결석', etc: '기타', unassigned: '동산 미지정', newFamily: '새가족' }
       : { name: 'Name', memberTotal: 'Worship Total', total: 'Total', key: 'KEY', present: 'Present', absent: 'Absent', etc: 'Other', unassigned: 'Unassigned', newFamily: 'New family' }
 
-  const model = buildAttendanceModel(members, log, exportSundays(today, semesterDates), today, { unassigned: L.unassigned, newFamily: L.newFamily })
+  const model = buildAttendanceModel(
+    members,
+    log,
+    exportSundays(today, semesterDates),
+    today,
+    { unassigned: L.unassigned, newFamily: L.newFamily },
+    attendanceGroupBy(today, semesterDates, L.unassigned),
+  )
   const nDates = model.dates.length
 
   const aoa: (string | number)[][] = []
@@ -540,7 +569,14 @@ export function reportHtml(members: Member[], log: LogEntry[], opts: ReportOpts)
       ? { title: 'KCCP 출석부', name: '이름', memberTotal: '예배 총 출석', total: '총 출석', key: 'KEY', present: '출석', absent: '결석', etc: '기타', unassigned: '동산 미지정', newFamily: '새가족', save: 'PDF로 저장', empty: '출석 기록이 없습니다' }
       : { title: 'KCCP Attendance', name: 'Name', memberTotal: 'Worship Total', total: 'Total', key: 'KEY', present: 'Present', absent: 'Absent', etc: 'Other', unassigned: 'Unassigned', newFamily: 'New family', save: 'Save as PDF', empty: 'No attendance records' }
 
-  const model = buildAttendanceModel(members, log, exportSundays(opts.today, opts.semesterDates), opts.today, { unassigned: L.unassigned, newFamily: L.newFamily })
+  const model = buildAttendanceModel(
+    members,
+    log,
+    exportSundays(opts.today, opts.semesterDates),
+    opts.today,
+    { unassigned: L.unassigned, newFamily: L.newFamily },
+    attendanceGroupBy(opts.today, opts.semesterDates, L.unassigned),
+  )
   const pink = cssColor(HEADER_TOTAL_FILL)
 
   const blocks = model.sections
