@@ -25,15 +25,17 @@ export function CardScanDialog({ open, onClose }: { open: boolean; onClose: () =
   const { t } = useTranslation()
   const qc = useQueryClient()
   const toast = useToast()
-  // Refetch on open, every five seconds while the dialog is visible, and after each API
-  // request below. This is the same server-side counter that enforces the monthly limit.
+  // Refetch on open, every two seconds while the dialog is visible, and after each API
+  // request below. This is the same server-side counter that enforces the daily limit.
   const { data: usage } = useQuery({
     queryKey: ['cardScanUsage'],
     queryFn: getCardScanUsage,
+    enabled: open,
     staleTime: 0,
     refetchOnMount: 'always',
-    refetchInterval: 5_000,
+    refetchInterval: open ? 2_000 : false,
     refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   })
   const fileRef = useRef<HTMLInputElement>(null)
   const [phase, setPhase] = useState<Phase>('pick')
@@ -95,14 +97,17 @@ export function CardScanDialog({ open, onClose }: { open: boolean; onClose: () =
       const res = await extractCard(image.base64, image.mediaType)
       setCard(normalizeExtractedCard(res.card, easternNow().date))
       setPhase('review')
-      // Every outbound Gemini request consumes one unit of the app-side monthly quota —
-      // refetch so the count stays accurate through a multi-card batch.
-      void qc.invalidateQueries({ queryKey: ['cardScanUsage'] })
+      // The server returns the post-call allowance so this dialog updates immediately.
+      qc.setQueryData(['cardScanUsage'], res.usage)
     } catch (e) {
       // Surface the server's reason (missing secret, quota, unreadable card) —
       // these are actionable, unlike a generic failure.
       toast({ title: prefix + ((e as Error)?.message || t('admin.newfamily.scan.failed')), tone: 'err' })
       advance(list, i)
+    } finally {
+      // Failed provider calls also consume a try. Refetch after every attempted request
+      // so other open admin tabs and this batch converge on the audited count quickly.
+      void qc.invalidateQueries({ queryKey: ['cardScanUsage'] })
     }
   }
 
@@ -164,9 +169,8 @@ export function CardScanDialog({ open, onClose }: { open: boolean; onClose: () =
     <Dialog open={open} onOpenChange={(o) => !o && close()} title={t('admin.newfamily.scan.title')} wide>
       {usage && (
         <p className="mb-3 font-mono text-[11px] text-subtle">
-          {t('admin.newfamily.scan.usage', {
-            available: usage.remaining ?? Math.max(0, usage.limit - usage.used),
-            used: usage.used,
+          {t('admin.settings.cardScanUsageDetail', {
+            available: usage.remaining,
           })}
         </p>
       )}

@@ -232,7 +232,7 @@ export interface SettingsPatch {
   individualCheckinEnabled?: boolean
   requireApproval?: boolean
   groupColors?: Record<string, string>
-  cardScanMonthlyLimit?: number
+  cardScanDailyLimit?: number
   semesterDates?: SemesterDates
 }
 
@@ -434,6 +434,9 @@ export const postRestore = (data: unknown) =>
 // weekly Postgres dump pipeline to Cloudflare R2 (scripts/backup/, .github/workflows/backup.yml).
 export interface DbBackupEntry {
   date: string
+  current: boolean
+  updatedAt?: string
+  totalSize?: number
   sqlKey?: string
   sqlSize?: number
   schemaKey?: string
@@ -503,16 +506,17 @@ export const kioskNewMember = (fields: NewMemberFields) =>
 // normalized client-side (cardExtraction.ts) before showing it for review. Nothing is
 // saved server-side. Gemini vision can take well over the default 12s budget.
 export const extractCard = (image: string, mediaType: string) =>
-  api<{ status: 'ok'; card: Record<string, unknown> }>('POST', '/api/admin/extract-card', { image, mediaType }, undefined, 60_000)
+  api<{ status: 'ok'; card: Record<string, unknown>; usage: CardScanUsage }>('POST', '/api/admin/extract-card', { image, mediaType }, undefined, 60_000)
 
 export interface CardScanUsage {
   limit: number
-  used: number
   remaining: number
+  day: string
+  resetsAt: number
   updatedAt: number
 }
 
-// Live card-recognition API-call usage for the current calendar month (any verified
+// Live card-recognition API-call allowance for the current Pittsburgh day (any verified
 // admin). The server counts every outbound Gemini request, including failed responses;
-// `limit` is super-admin-configurable via updateSettings({ cardScanMonthlyLimit }).
+// only the number remaining is exposed, and the daily limit is super-admin-configurable.
 export const getCardScanUsage = () => api<CardScanUsage>('GET', '/api/admin/card-scan-usage')

@@ -16,10 +16,10 @@
 # function that can't shell out to pg_restore — it loads plain SQL text straight through a
 # Postgres driver instead. db.sql and schema-source.tar.gz are encrypted as two separate
 # .age files rather than nested in one outer tar, so that restore path never has to parse
-# a tar archive either — it only ever touches backup-$DATE.sql.age.
+# a tar archive either. Stable `current.*` object names make every successful run replace
+# the previous backup instead of accumulating dated copies.
 set -euo pipefail
 
-DATE=$(date -u +%F)
 WORKDIR=$(mktemp -d)
 trap 'rm -rf "$WORKDIR"' EXIT
 
@@ -81,18 +81,18 @@ cat "$WORKDIR/counts-source.txt"
 
 echo "== 5/6 Encrypting =="
 tar czf "$WORKDIR/schema-source.tar.gz" -C supabase migrations functions
-age -r "$AGE_PUBLIC_KEY" -o "$WORKDIR/backup-$DATE.sql.age" "$WORKDIR/db.sql"
-age -r "$AGE_PUBLIC_KEY" -o "$WORKDIR/backup-$DATE.schema.tar.gz.age" "$WORKDIR/schema-source.tar.gz"
-sha256sum "$WORKDIR/backup-$DATE.sql.age" | awk '{print $1}' > "$WORKDIR/backup-$DATE.sql.age.sha256"
-sha256sum "$WORKDIR/backup-$DATE.schema.tar.gz.age" | awk '{print $1}' > "$WORKDIR/backup-$DATE.schema.tar.gz.age.sha256"
+age -r "$AGE_PUBLIC_KEY" -o "$WORKDIR/current.sql.age" "$WORKDIR/db.sql"
+age -r "$AGE_PUBLIC_KEY" -o "$WORKDIR/current.schema.tar.gz.age" "$WORKDIR/schema-source.tar.gz"
+sha256sum "$WORKDIR/current.sql.age" | awk '{print $1}' > "$WORKDIR/current.sql.age.sha256"
+sha256sum "$WORKDIR/current.schema.tar.gz.age" | awk '{print $1}' > "$WORKDIR/current.schema.tar.gz.age.sha256"
 # Scrub plaintext as soon as the ciphertext exists — only the .age files and their
 # checksums are meant to leave this machine.
 rm -f "$WORKDIR/db.sql" "$WORKDIR/schema-source.tar.gz"
 
 echo "== 6/6 Uploading to R2 =="
-for f in "$WORKDIR"/backup-$DATE.sql.age "$WORKDIR"/backup-$DATE.sql.age.sha256 \
-         "$WORKDIR"/backup-$DATE.schema.tar.gz.age "$WORKDIR"/backup-$DATE.schema.tar.gz.age.sha256; do
+for f in "$WORKDIR"/current.sql.age "$WORKDIR"/current.sql.age.sha256 \
+         "$WORKDIR"/current.schema.tar.gz.age "$WORKDIR"/current.schema.tar.gz.age.sha256; do
   aws --endpoint-url "$R2_ENDPOINT" s3 cp "$f" "s3://$R2_BUCKET/backups/$(basename "$f")"
 done
 
-echo "Backup complete: backups/backup-$DATE.sql.age"
+echo "Backup complete: backups/current.sql.age"

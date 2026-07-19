@@ -3,9 +3,10 @@
 `.github/workflows/backup.yml` runs every Sunday (and on-demand via `workflow_dispatch`):
 dumps the production database through a read-only role, restores that dump into a
 throwaway Postgres to verify it, packages it with the migrations + edge-function source,
-encrypts it, uploads it to Cloudflare R2, and prunes old backups down to 13 weekly + 12
-monthly + 5 annual copies (see `prune-retention.py`). On any failure it opens (or comments
-on) a GitHub issue labeled `backup-failure`.
+encrypts it, and overwrites one `backups/current.*` backup set in Cloudflare R2. After all
+four current objects are verified, `prune-retention.py` removes dated objects left by the
+former retention policy. On any failure it opens (or comments on) a GitHub issue labeled
+`backup-failure`.
 
 Already done (by Claude, in-session): the `kccp-attendance-backups` R2 bucket and the
 `backup_reader` Postgres role (`SELECT`-only, `BYPASSRLS` so it can actually read past
@@ -82,9 +83,10 @@ at the "Check required secrets are configured" step and names exactly which one.
 
 ## 6. In-app backup/restore (Admins tab)
 
-The Admins tab's "전체 암호화 백업" section lets a super-admin trigger a backup, list and
-download stored ones, and restore — all from the website, without touching GitHub or
-Cloudflare directly. This runs through the edge function (`supabase/functions/attendance-api`),
+The Admins tab's "전체 암호화 백업" section shows the current backup's encrypted size and
+Pittsburgh completion time. It lets a super-admin trigger a replacement backup, download
+the current one, and restore — all from the website, without touching GitHub or Cloudflare
+directly. This runs through the edge function (`supabase/functions/attendance-api`),
 which needs its **own** copies of some of the same credentials — Supabase Edge Function
 secrets are a separate store from the GitHub Actions repo secrets above, even when the
 values are identical. Set these via the Supabase dashboard (Project Settings → Edge
@@ -146,9 +148,9 @@ verification step proves the dump *content* restores cleanly every week; this is
 that proves *you* still have everything needed to do it by hand. Recommend quarterly:
 
 ```sh
-# Download backup-<date>.sql.age from the R2 bucket (dashboard, or aws s3 cp with the
+# Download current.sql.age from the R2 bucket (dashboard, or aws s3 cp with the
 # R2_* credentials from step 2), then:
-age -d -i backup-key.txt -o backup.sql backup-2026-07-19.sql.age
+age -d -i backup-key.txt -o backup.sql current.sql.age
 
 # Data-only — needs an existing schema to load into. A scratch DB with just-applied
 # migrations mirrors what the CI verify step does:
@@ -157,7 +159,7 @@ for f in supabase/migrations/*.sql; do psql restore_drill -v ON_ERROR_STOP=1 -f 
 psql restore_drill --single-transaction -v ON_ERROR_STOP=1 -f backup.sql
 ```
 
-The `schema-source.tar.gz.age` file alongside it isn't needed for this — it's the
+The `current.schema.tar.gz.age` file alongside it isn't needed for this — it's the
 migrations + edge-function source, archival reference for a from-scratch project rebuild,
 not something you load into a database.
 
