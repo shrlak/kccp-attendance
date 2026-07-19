@@ -37,7 +37,21 @@ for f in supabase/migrations/*.sql; do
   psql "$VERIFY_DB_URL" -v ON_ERROR_STOP=1 -f "$f" > /dev/null
 done
 
-echo "== 3/6 Loading the dump into the throwaway database =="
+echo "== 3/6 Clearing seeded data and loading the dump into the throwaway database =="
+# Some migrations intentionally seed production rows. The real in-app restore truncates
+# every public table before loading a snapshot, so verification must start from that same
+# state or seeded rows can collide with their copies in the data-only dump.
+verify_tables=$(psql "$VERIFY_DB_URL" -X -v ON_ERROR_STOP=1 -Atc "
+  SELECT string_agg(format('%I.%I', table_schema, table_name), ', ' ORDER BY table_name)
+  FROM information_schema.tables
+  WHERE table_schema = 'public' AND table_type = 'BASE TABLE';
+")
+if [ -z "$verify_tables" ]; then
+  echo "::error::No public tables found in the verification database after migrations."
+  exit 1
+fi
+psql "$VERIFY_DB_URL" -X -v ON_ERROR_STOP=1 \
+  -c "TRUNCATE TABLE $verify_tables RESTART IDENTITY CASCADE" > /dev/null
 psql "$VERIFY_DB_URL" --single-transaction -v ON_ERROR_STOP=1 -f "$WORKDIR/db.sql" > /dev/null
 
 # Counts every public base table via one query on each side (source vs. restored) so a
