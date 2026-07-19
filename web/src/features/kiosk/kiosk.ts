@@ -37,14 +37,14 @@ export function todayEntryFor(log: LogEntry[], today: string, m: Member): LogEnt
   return rows.find((e) => e.memberId === m.id) ?? rows.find((e) => !e.memberId && e.name === m.name)
 }
 
-// Members marked 이주 / (한국) 귀국 are hidden from the kiosk while their status span
-// covers today: status_start → status_end, open-ended when status_end is null — the
-// same covering rule the 출석부 uses. Other notes (e.g. 돌아옴) never hide anyone.
+// Members marked 이주 / (한국) 귀국 / 방학 are hidden from the kiosk while their status
+// span covers today: status_start → status_end, open-ended when status_end is null —
+// the same covering rule the 출석부 uses. Other notes (e.g. 돌아옴) never hide anyone.
 export function hiddenByStatus(m: Member, today: string): boolean {
   if (!m.status_note || !m.status_start) return false
   if (today < m.status_start) return false
   if (m.status_end && today > m.status_end) return false
-  return m.status_note.includes('이주') || m.status_note.includes('귀국')
+  return m.status_note.includes('이주') || m.status_note.includes('귀국') || m.status_note.includes('방학')
 }
 
 // Columns per department block (대학부/청년부 each get their own 4-column grid).

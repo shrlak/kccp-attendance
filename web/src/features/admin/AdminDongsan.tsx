@@ -25,20 +25,26 @@ export function AdminDongsan() {
 
   return (
     <div className="w-full">
-      <DongsanNamesEditor
-        loaded={loaded}
-        summer={summer}
-        title={t('admin.settings.dongsanNames')}
-        desc={t('admin.settings.dongsanNamesDesc')}
-        onSave={async (next) => {
-          await updateDongsanNames(next)
-          await qc.invalidateQueries({ queryKey: ['dongsanNames'] })
-        }}
-      />
-
-      <hr className="my-8 border-border" />
-
-      <DongsanLeadersEditor />
+      {/* Side by side on wide screens so neither list has to scroll the whole page to
+          reach the other — 동산이름 is short (a few rows per 부서); 동산지기/부동산지기 is
+          the tall one, so it also gets its own 2-column flow below (see DongsanLeadersEditor). */}
+      <div className="grid grid-cols-1 gap-8 divide-y divide-border lg:grid-cols-2 lg:divide-y-0 lg:divide-x">
+        <div>
+          <DongsanNamesEditor
+            loaded={loaded}
+            summer={summer}
+            title={t('admin.settings.dongsanNames')}
+            desc={t('admin.settings.dongsanNamesDesc')}
+            onSave={async (next) => {
+              await updateDongsanNames(next)
+              await qc.invalidateQueries({ queryKey: ['dongsanNames'] })
+            }}
+          />
+        </div>
+        <div className="pt-8 lg:pl-8 lg:pt-0">
+          <DongsanLeadersEditor />
+        </div>
+      </div>
     </div>
   )
 }
@@ -112,12 +118,14 @@ export function DongsanNamesEditor({
                 value={name}
                 placeholder={t('admin.settings.dongsanPlaceholder')}
                 aria-label={`동산 ${idx + 1}`}
+                className="min-w-0 flex-1"
                 onChange={(e) =>
                   setCombined(combinedList.map((n, i) => (i === idx ? e.target.value : n)))
                 }
               />
               <Button
                 variant="ghost"
+                className="shrink-0"
                 onClick={() => setCombined(combinedList.filter((_, i) => i !== idx))}
                 aria-label={`${t('admin.settings.removeDongsan')} ${name}`}
               >
@@ -141,10 +149,12 @@ export function DongsanNamesEditor({
                       value={name}
                       placeholder={t('admin.settings.dongsanPlaceholder')}
                       aria-label={`${group} ${idx + 1}`}
+                      className="min-w-0 flex-1"
                       onChange={(e) => setEdits(renameAt(names, group, idx, e.target.value))}
                     />
                     <Button
                       variant="ghost"
+                      className="shrink-0"
                       onClick={() => setEdits(removeAt(names, group, idx))}
                       aria-label={`${t('admin.settings.removeDongsan')} ${name}`}
                     >

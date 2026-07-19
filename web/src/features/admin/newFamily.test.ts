@@ -3,6 +3,8 @@ import {
   semesterKey,
   semesterBounds,
   semesterSundays,
+  transitionBounds,
+  transitionSundays,
   currentNewFamily,
   newFamilyByDate,
   monthlyRegistrations,
@@ -61,6 +63,42 @@ describe('semesterSundays', () => {
   })
   it('starts at the first Sunday on/after the semester start (spring 2026 → Jan 4)', () => {
     expect(semesterSundays('2026-01-10')).toEqual(['2026-01-04'])
+  })
+})
+
+describe('transitionBounds', () => {
+  const custom: SemesterDates = {
+    spring: { start: '01-12', end: '04-30' },
+    summer: { start: '06-01', end: '07-31' },
+    fall: { start: '09-01', end: '12-15' },
+  }
+  it('is null inside a configured term', () => {
+    expect(transitionBounds('2026-03-01', custom)).toBeNull()
+    expect(transitionBounds('2026-06-15', custom)).toBeNull()
+    expect(transitionBounds('2026-10-01', custom)).toBeNull()
+  })
+  it('is null under the default back-to-back semester dates (no admin-configured gap yet)', () => {
+    expect(transitionBounds('2026-05-09')).toBeNull()
+    expect(transitionBounds('2026-05-10')).toBeNull()
+    expect(transitionBounds('2027-01-01')).toBeNull()
+  })
+  it('covers the spring -> summer gap', () => {
+    expect(transitionBounds('2026-05-15', custom)).toEqual({ start: '2026-05-01', end: '2026-05-31' })
+  })
+  it('covers the summer -> fall gap', () => {
+    expect(transitionBounds('2026-08-15', custom)).toEqual({ start: '2026-08-01', end: '2026-08-31' })
+  })
+  it('covers the fall -> next spring wraparound gap, on both sides of the new year', () => {
+    expect(transitionBounds('2026-12-25', custom)).toEqual({ start: '2026-12-16', end: '2027-01-11' })
+    expect(transitionBounds('2027-01-05', custom)).toEqual({ start: '2026-12-16', end: '2027-01-11' })
+  })
+})
+
+describe('transitionSundays', () => {
+  it('lists Sundays within the gap through `through`, clamped to the gap end', () => {
+    const bounds = { start: '2026-05-01', end: '2026-05-31' }
+    expect(transitionSundays(bounds, '2026-05-20')).toEqual(['2026-05-03', '2026-05-10', '2026-05-17'])
+    expect(transitionSundays(bounds, '2026-06-30')).toEqual(['2026-05-03', '2026-05-10', '2026-05-17', '2026-05-24', '2026-05-31'])
   })
 })
 

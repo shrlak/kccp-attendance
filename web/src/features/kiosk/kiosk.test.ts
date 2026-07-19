@@ -160,6 +160,10 @@ describe('hiddenByStatus (이주/한국 귀국 hidden from the kiosk)', () => {
     expect(hiddenByStatus(member('C', '대학부', '', { status_note: '돌아옴', status_start: '2026-06-07', status_end: '2026-07-12' }), today)).toBe(false)
     expect(hiddenByStatus(member('D', '대학부'), today)).toBe(false)
   })
+  it('hides 방학 while the span covers today, but not once it starts later', () => {
+    expect(hiddenByStatus(member('F', '대학부', '', { status_note: '방학', status_start: '2026-06-21', status_end: null }), today)).toBe(true)
+    expect(hiddenByStatus(member('G', '대학부', '', { status_note: '여름방학', status_start: '2026-07-12', status_end: null }), today)).toBe(false)
+  })
   it('ignores a note without a start date (mirrors the 출석부 rule)', () => {
     expect(hiddenByStatus(member('E', '대학부', '', { status_note: '이주' }), today)).toBe(false)
   })

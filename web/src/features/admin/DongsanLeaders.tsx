@@ -61,7 +61,8 @@ export function DongsanLeadersEditor() {
         </p>
       )}
 
-      <div className="flex flex-col gap-5">
+      {/* 2 columns once there's room — halves the scroll depth vs. one long vertical list. */}
+      <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
         {blocks.map(({ group, subgroup, members }) => {
           const key = `${group}__${subgroup}`
           const entry = edits[key] ?? leaderEntry(leaders, group, subgroup)
@@ -132,7 +133,7 @@ function LeaderBlock({
   }
 
   return (
-    <div className="border-b border-border pb-4 last:border-0">
+    <div className="rounded-lg border border-border p-3">
       <div className="mb-2.5 text-sm font-semibold text-primary">{header}</div>
 
       {members.length === 0 ? (

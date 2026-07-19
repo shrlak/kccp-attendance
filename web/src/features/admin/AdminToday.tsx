@@ -10,21 +10,25 @@ import { filterMembers, filterLog, NO_FILTER, type Filter } from './filters'
 import { leaderDashboard } from './stats'
 import { GroupFilter } from './GroupFilter'
 import { IconKey } from './IconKey'
-import { getConfig } from '../../lib/api'
+import { getConfig, type Member } from '../../lib/api'
 import { resolveGroupColor, hexTint } from './groupColors'
 import { copyTodaySheets, saveTodaySheets } from './todaySheetImage'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
+import { RefreshCw } from '../../components/ui/Icon'
+import { EditModal, AttendanceModal } from './MemberDialogs'
 
 // Today's live check-in list (scoped) + stats bar, 부서/동산 filter, weekly comparison,
 // and a 동산 leader dashboard.
 export function AdminToday() {
   const { t } = useTranslation()
   const toast = useToast()
-  const { data, isLoading, isError } = useRoster(true)
+  const { data, isLoading, isError, isFetching, refetch } = useRoster(true)
   const { data: cfg } = useQuery({ queryKey: ['config'], queryFn: getConfig })
   const [exporting, setExporting] = useState<'copy' | 'save' | null>(null)
   const [filter, setFilter] = useState<Filter>(NO_FILTER)
+  const [editingMember, setEditingMember] = useState<Member | null>(null)
+  const [attendanceFor, setAttendanceFor] = useState<Member | null>(null)
 
   if (isLoading) return <p className="text-sm text-muted">{t('common.loading')}</p>
   if (isError) return <p className="text-sm text-danger">{t('common.error')}</p>
@@ -118,6 +122,10 @@ export function AdminToday() {
           {t('admin.today.title')} · {todays.length}
         </span>
         <div className="flex flex-wrap items-center gap-2">
+          <Button variant="secondary" size="sm" onClick={() => refetch()} disabled={isFetching}>
+            <RefreshCw className={'size-4' + (isFetching ? ' animate-spin' : '')} aria-hidden />
+            {t('admin.today.reload')}
+          </Button>
           <Button variant="secondary" size="sm" onClick={handleCopy} disabled={exporting !== null || data.log.length === 0}>
             {exporting === 'copy' ? t('admin.today.export.busy') : t('admin.today.export.copy')}
           </Button>
@@ -134,6 +142,9 @@ export function AdminToday() {
           {todays.map((e) => {
             const tag = checkinTag(e, newMemberNames)
             const color = resolveGroupColor(cfg?.groupColors, e.group)
+            const member = e.memberId
+              ? (data.members.find((m) => m.id === e.memberId) ?? data.staffMembers.find((m) => m.id === e.memberId))
+              : undefined
             return (
               <li
                 key={`${e.name}-${e.ts}`}
@@ -148,7 +159,17 @@ export function AdminToday() {
                   </div>
                   <div className="min-w-0">
                     <div className="text-base font-semibold text-text">
-                      {e.name}
+                      {member ? (
+                        <button
+                          type="button"
+                          onClick={() => setEditingMember(member)}
+                          className="text-left hover:text-primary hover:underline focus-visible:text-primary focus-visible:underline focus-visible:outline-none"
+                        >
+                          {e.name}
+                        </button>
+                      ) : (
+                        e.name
+                      )}
                       {tag && (
                         <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 align-middle text-[10px] font-semibold text-primary">
                           {t(tag === 'visitor' ? 'admin.iconKey.visitor' : 'admin.iconKey.newFamily')}
@@ -165,6 +186,25 @@ export function AdminToday() {
             )
           })}
         </ul>
+      )}
+      {editingMember && (
+        <EditModal
+          member={editingMember}
+          allowDelete={data.role !== 'pastor'}
+          onClose={() => setEditingMember(null)}
+          onAttendance={() => {
+            setAttendanceFor(editingMember)
+            setEditingMember(null)
+          }}
+        />
+      )}
+      {attendanceFor && (
+        <AttendanceModal
+          member={attendanceFor}
+          log={data.log}
+          readOnly={data.role === 'pastor'}
+          onClose={() => setAttendanceFor(null)}
+        />
       )}
     </>
   )
