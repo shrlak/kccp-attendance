@@ -10,7 +10,7 @@ import {
   summerDongsanList,
   membersInDongsan,
   withLeader,
-  toggleSubLeader,
+  setSubLeaderAt,
 } from './dongsan'
 import type { DongsanNames, DongsanLeaders, Member } from '../../lib/api'
 
@@ -165,17 +165,27 @@ describe('동산-leader editor helpers', () => {
     expect(summerDongsanList(names)).toEqual(['건영동산', '호연동산', '윤서동산'])
   })
 
-  it('withLeader / toggleSubLeader edit immutably', () => {
+  it('withLeader / setSubLeaderAt edit immutably', () => {
     const base = { leader: '최건영', subLeaders: ['권상운'] }
     const renamed = withLeader(base, '김대균')
     expect(renamed).toEqual({ leader: '김대균', subLeaders: ['권상운'] })
     expect(base.leader).toBe('최건영')
 
-    const added = toggleSubLeader(base, '김꽃별')
-    expect(added.subLeaders).toEqual(['권상운', '김꽃별'])
-    const removed = toggleSubLeader(base, '권상운')
-    expect(removed.subLeaders).toEqual([])
+    const second = setSubLeaderAt(base, 1, '김꽃별')
+    expect(second.subLeaders).toEqual(['권상운', '김꽃별'])
     expect(base.subLeaders).toEqual(['권상운'])
+
+    const replaced = setSubLeaderAt(second, 0, '김대균')
+    expect(replaced.subLeaders).toEqual(['김대균', '김꽃별'])
+  })
+
+  it('setSubLeaderAt clears with "" and de-dupes across slots', () => {
+    const two = { leader: '', subLeaders: ['권상운', '김꽃별'] }
+    expect(setSubLeaderAt(two, 0, '').subLeaders).toEqual(['김꽃별'])
+    // picking a name already held by the other slot vacates that slot
+    expect(setSubLeaderAt(two, 0, '김꽃별').subLeaders).toEqual(['김꽃별'])
+    // setting an empty slot beyond the current list length just appends
+    expect(setSubLeaderAt({ leader: '', subLeaders: [] }, 1, '권상운').subLeaders).toEqual(['권상운'])
   })
 })
 

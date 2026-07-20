@@ -12,7 +12,7 @@ import { useRoster } from './useRoster'
 import { useToast } from '../../components/ui/Toast'
 import { Button } from '../../components/ui/Button'
 import { Select } from '../../components/ui/Select'
-import { leaderEntry, summerDongsanList, membersInDongsan, withLeader, toggleSubLeader } from './dongsan'
+import { leaderEntry, summerDongsanList, membersInDongsan, withLeader, setSubLeaderAt } from './dongsan'
 
 const SUMMER_KEY = '합동'
 
@@ -61,8 +61,9 @@ export function DongsanLeadersEditor() {
         </p>
       )}
 
-      {/* 2 columns once there's room — halves the scroll depth vs. one long vertical list. */}
-      <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
+      {/* Auto-fit columns: the summer 합동 set (4 동산) sits in a single row on desktop;
+          with more 동산 (semester mode lists every 부서's) the cards wrap gracefully. */}
+      <div className="grid grid-cols-1 gap-x-4 gap-y-5 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fit,minmax(10rem,1fr))]">
         {blocks.map(({ group, subgroup, members }) => {
           const key = `${group}__${subgroup}`
           const entry = edits[key] ?? leaderEntry(leaders, group, subgroup)
@@ -74,7 +75,7 @@ export function DongsanLeadersEditor() {
               entry={entry}
               dirty={key in edits}
               onLeader={(name) => setEdits((e) => ({ ...e, [key]: withLeader(entry, name) }))}
-              onToggleSub={(name) => setEdits((e) => ({ ...e, [key]: toggleSubLeader(entry, name) }))}
+              onSub={(idx, name) => setEdits((e) => ({ ...e, [key]: setSubLeaderAt(entry, idx, name) }))}
               onSaved={() =>
                 setEdits((e) => {
                   const next = { ...e }
@@ -92,6 +93,10 @@ export function DongsanLeadersEditor() {
   )
 }
 
+// Two 부동산지기 dropdown slots per 동산 (extra slots appear only for legacy data that
+// already stored more than two).
+const SUB_LEADER_SLOTS = 2
+
 function LeaderBlock({
   header,
   members,
@@ -100,7 +105,7 @@ function LeaderBlock({
   group,
   subgroup,
   onLeader,
-  onToggleSub,
+  onSub,
   onSaved,
 }: {
   header: string
@@ -110,7 +115,7 @@ function LeaderBlock({
   group: string
   subgroup: string
   onLeader: (name: string) => void
-  onToggleSub: (name: string) => void
+  onSub: (idx: number, name: string) => void
   onSaved: () => void
 }) {
   const { t } = useTranslation()
@@ -133,7 +138,7 @@ function LeaderBlock({
   }
 
   return (
-    <div className="rounded-lg border border-border p-3">
+    <div className="min-w-0 rounded-lg border border-border p-3">
       <div className="mb-2.5 text-sm font-semibold text-primary">{header}</div>
 
       {members.length === 0 ? (
@@ -153,17 +158,21 @@ function LeaderBlock({
           </label>
 
           <span className="mb-1.5 block text-xs font-semibold text-subtle">{t('admin.settings.subLeaders')}</span>
-          <div className="mb-3 flex max-h-28 flex-col gap-1 overflow-y-auto rounded-md border border-border bg-surface p-2">
-            {members.map((n) => (
-              <label key={n} className="flex cursor-pointer items-center gap-2 text-sm text-text">
-                <input
-                  type="checkbox"
-                  checked={entry.subLeaders.includes(n)}
-                  onChange={() => onToggleSub(n)}
-                  className="h-3.5 w-3.5 accent-primary"
-                />
-                {n}
-              </label>
+          <div className="mb-3 flex flex-col gap-2">
+            {Array.from({ length: Math.max(SUB_LEADER_SLOTS, entry.subLeaders.length) }, (_, i) => (
+              <Select
+                key={i}
+                value={entry.subLeaders[i] ?? ''}
+                aria-label={`${t('admin.settings.subLeaders')} ${i + 1}`}
+                onChange={(e) => onSub(i, e.target.value)}
+              >
+                <option value="">{t('admin.settings.noLeader')}</option>
+                {members.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </Select>
             ))}
           </div>
 
