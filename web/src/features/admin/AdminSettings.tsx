@@ -170,11 +170,13 @@ export function AdminSettings() {
       </p>
       <div className="mb-3 grid gap-3 lg:grid-cols-3">
         {SEMESTER_SEASONS.map((season) => (
-          <fieldset key={season} className="rounded-lg border border-border bg-surface-alt/40 p-3">
-            <legend className="px-1 text-sm font-semibold text-text">
+          <fieldset key={season} className="rounded-xl border border-border bg-surface-alt/40 p-4">
+            {/* legend renders as an in-card header (float trick) instead of the
+                browser's border-interrupting legend style; fieldset keeps semantics. */}
+            <legend className="float-left mb-2.5 w-full p-0 text-sm font-semibold text-text">
               {t(`admin.settings.semester.${season}`)}
             </legend>
-            <div className="mt-1 grid grid-cols-2 gap-2">
+            <div className="clear-both grid grid-cols-2 gap-2">
               <label>
                 <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-subtle">
                   {t('admin.settings.semesterStart')}

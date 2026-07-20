@@ -350,7 +350,7 @@ export function AdminAdmins() {
                   onClick={() => removeRole(r.memberId)}
                   disabled={roleBusy !== null}
                   aria-label={t('admin.admins.remove')}
-                  className="text-sm font-bold text-danger hover:opacity-70 disabled:opacity-40"
+                  className="-my-2 grid min-h-11 min-w-11 place-items-center rounded-full text-base font-bold text-danger transition-colors hover:bg-danger/10 disabled:opacity-40"
                 >
                   ×
                 </button>
@@ -438,7 +438,7 @@ export function AdminAdmins() {
           type="file"
           accept="application/json,.json"
           onChange={(e) => pickRestoreFile(e.target.files?.[0] ?? null)}
-          className="text-xs text-muted file:mr-3 file:rounded-sm file:border file:border-border file:bg-surface file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-text"
+          className="text-xs text-muted file:mr-3 file:cursor-pointer file:rounded-full file:border file:border-border file:bg-surface file:px-4 file:py-2 file:text-xs file:font-semibold file:text-text hover:file:bg-surface-alt"
         />
         {restoreFile && (
           <div className="flex flex-wrap items-center gap-2">
@@ -556,7 +556,7 @@ export function AdminAdmins() {
           type="file"
           accept=".age"
           onChange={(e) => pickDbRestoreFile(e.target.files?.[0] ?? null)}
-          className="text-xs text-muted file:mr-3 file:rounded-sm file:border file:border-border file:bg-surface file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-text"
+          className="text-xs text-muted file:mr-3 file:cursor-pointer file:rounded-full file:border file:border-border file:bg-surface file:px-4 file:py-2 file:text-xs file:font-semibold file:text-text hover:file:bg-surface-alt"
         />
       </div>
 

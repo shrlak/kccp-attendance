@@ -107,6 +107,7 @@
   "admin": {
     "title": "관리자",
     "pageTitle": "관리자 페이지",
+    "quickNav": "빠른 이동",
     "workspace": "대학 · 청년부 운영",
     "serviceOps": "주일 운영 메뉴",
     "subtitle": "Google 계정으로 로그인하세요",
@@ -121,7 +122,7 @@
     "noMembers": "표시할 멤버가 없습니다",
     "scopeAll": "전체",
     "roles": { "super_admin": "최고관리자", "leader": "리더", "pastor": "목사님", "welcoming": "새가족팀", "staff": "운영진" },
-    "nav": { "today": "오늘", "sheet": "출석부", "members": "멤버", "analytics": "통계", "newfamily": "새가족", "newfamilyEdu": "새가족 교육", "visitors": "방문자", "admins": "관리자", "dongsan": "동산", "settings": "설정" },
+    "nav": { "today": "오늘", "sheet": "출석부", "members": "멤버", "analytics": "통계", "newfamily": "새가족", "newfamilyEdu": "새가족 교육", "visitors": "방문자", "admins": "관리자", "dongsan": "동산", "settings": "설정", "more": "더보기" },
     "navHelp": {
       "today": "오늘 출석 현황과 주간 비교",
       "sheet": "주일별 출석 기록 확인과 내보내기",

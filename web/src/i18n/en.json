@@ -107,6 +107,7 @@
   "admin": {
     "title": "Admin",
     "pageTitle": "Admin Page",
+    "quickNav": "Quick navigation",
     "workspace": "College · Young Adult",
     "serviceOps": "Sunday operations",
     "subtitle": "Sign in with your Google account",
@@ -121,7 +122,7 @@
     "noMembers": "No members to show",
     "scopeAll": "All",
     "roles": { "super_admin": "Super admin", "leader": "Leader", "pastor": "Pastor", "welcoming": "Welcome team", "staff": "Staff" },
-    "nav": { "today": "Today", "sheet": "Sheet", "members": "Members", "analytics": "Analytics", "newfamily": "New family", "newfamilyEdu": "New-family education", "visitors": "Visitors", "admins": "Admins", "dongsan": "동산", "settings": "Settings" },
+    "nav": { "today": "Today", "sheet": "Sheet", "members": "Members", "analytics": "Analytics", "newfamily": "New family", "newfamilyEdu": "New-family education", "visitors": "Visitors", "admins": "Admins", "dongsan": "동산", "settings": "Settings", "more": "More" },
     "navHelp": {
       "today": "Today's attendance and week-over-week view",
       "sheet": "Review and export Sunday attendance records",
