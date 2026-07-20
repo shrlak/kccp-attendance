@@ -30,7 +30,7 @@ jobs:
       id-token: write
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment.outputs.page_url || steps.deployment-retry.outputs.page_url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -63,11 +63,31 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5
         with:
+          # A rerun keeps artifacts from earlier attempts under the same workflow run.
+          # Name this attempt explicitly so deploy-pages always resolves exactly one.
+          name: github-pages-${{ github.run_id }}-${{ github.run_attempt }}
           path: ./dist
 
       - name: Deploy to GitHub Pages
         id: deployment
+        continue-on-error: true
         uses: actions/deploy-pages@v5
+        with:
+          artifact_name: github-pages-${{ github.run_id }}-${{ github.run_attempt }}
+
+      # GitHub's Pages API occasionally returns a transient 5xx while the build and
+      # uploaded artifact are healthy. Retry that external-service failure once instead
+      # of requiring a new commit or a manual workflow rerun.
+      - name: Wait before retrying GitHub Pages
+        if: ${{ steps.deployment.outcome == 'failure' }}
+        run: sleep 30
+
+      - name: Retry GitHub Pages deployment
+        if: ${{ steps.deployment.outcome == 'failure' }}
+        id: deployment-retry
+        uses: actions/deploy-pages@v5
+        with:
+          artifact_name: github-pages-${{ github.run_id }}-${{ github.run_attempt }}
 
   deploy-edge-function:
     runs-on: ubuntu-latest
