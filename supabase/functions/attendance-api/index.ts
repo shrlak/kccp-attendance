@@ -185,6 +185,39 @@ function r2StorageLimitBytes(): number {
   const gb=Number(Deno.env.get("R2_STORAGE_LIMIT_GB")||"10");
   return Math.round((Number.isFinite(gb)&&gb>0?gb:10)*1e9);
 }
+// ── Auto-backup on data change ──────────────────────────────────────────────
+// Every successful non-GET request (i.e. anything that can mutate data) tries to
+// dispatch the off-site backup workflow, coalesced to at most one run per cooldown
+// window: a compare-and-set UPDATE on config.last_auto_backup_at is the claim, so
+// Sunday check-in bursts produce a single run and concurrent isolates can't
+// double-dispatch. The weekly Sunday cron remains the guaranteed floor.
+// Excluded paths: verify (login only), the backup endpoints themselves, and both
+// restore flows — auto-backing-up right after restoring an older snapshot would
+// overwrite current.* in R2 with pre-restore-era data and destroy the newer copy.
+const AUTO_BACKUP_EXCLUDE=[/^\/api\/admin\/verify$/,/^\/api\/admin\/db-backup\//,/^\/api\/admin\/restore$/,/^\/api\/admin\/extract-card$/];
+async function maybeAutoBackup(sb:any,p:string): Promise<void> {
+  if(AUTO_BACKUP_EXCLUDE.some((re)=>re.test(p))) return;
+  const pat=Deno.env.get("GITHUB_PAT"); if(!pat) return;
+  const cooldownMin=Number(Deno.env.get("AUTO_BACKUP_COOLDOWN_MIN")||"60");
+  if(!(Number.isFinite(cooldownMin)&&cooldownMin>0)) return; // 0/invalid disables auto-backup
+  const cutoff=new Date(Date.now()-cooldownMin*60_000).toISOString();
+  const {data:claimed}=await sb.from("config").update({last_auto_backup_at:new Date().toISOString()})
+    .eq("id",1).or(`last_auto_backup_at.is.null,last_auto_backup_at.lt.${cutoff}`).select("id");
+  if(!claimed?.length) return; // within cooldown, or another isolate holds the claim
+  const res=await fetch("https://api.github.com/repos/shrlak/kccp-attendance/actions/workflows/backup.yml/dispatches",{
+    method:"POST",
+    headers:{"Authorization":"Bearer "+pat,"Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28","Content-Type":"application/json"},
+    body:JSON.stringify({ref:"main"}),
+  });
+  if(!res.ok) console.error("auto-backup dispatch failed ("+res.status+")");
+}
+// Fire-and-forget wrapper: the response must never wait on (or fail because of) the
+// backup dispatch. EdgeRuntime.waitUntil keeps the isolate alive until it settles.
+function scheduleAutoBackup(sb:any,p:string): void {
+  const task=maybeAutoBackup(sb,p).catch((e)=>console.error("auto-backup error",e));
+  try{(globalThis as any).EdgeRuntime?.waitUntil?.(task);}catch(_){/* best effort */}
+}
+
 const SEMESTER_SEASONS=["spring","summer","fall"] as const;
 function monthDayNumber(value: unknown): number | null {
   if(typeof value!=="string"||!/^\d{2}-\d{2}$/.test(value)) return null;
@@ -313,7 +346,10 @@ Deno.serve(async (req: Request) => {
   const url=new URL(req.url);
   const raw=url.pathname; const apiIdx=raw.indexOf("/api"); const p=apiIdx>=0?raw.slice(apiIdx):"/";
   const xDev=req.headers.get("x-device-id")||req.headers.get("X-Device-Id")||"";
-  const ok=(obj:any)=>new Response(JSON.stringify(obj),{headers:{...CORS,"Content-Type":"application/json"}});
+  const ok=(obj:any)=>{
+    if(req.method!=="GET") scheduleAutoBackup(sb,p); // success on a mutating route → coalesced auto-backup
+    return new Response(JSON.stringify(obj),{headers:{...CORS,"Content-Type":"application/json"}});
+  };
   const fail=(code:number,msg:string)=>new Response(JSON.stringify({error:msg}),{status:code,headers:{...CORS,"Content-Type":"application/json"}});
   let body: any={};
   if(req.method!=="GET"&&req.method!=="DELETE"){try{body=await req.json();}catch(_){}}

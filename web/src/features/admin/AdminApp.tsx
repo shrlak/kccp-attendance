@@ -215,16 +215,20 @@ export function AdminApp() {
         </header>
 
         <div className="mx-auto max-w-[1480px] px-5 py-5 pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:px-8 md:py-7 md:pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-7">
-          {tab === 'today' && <AdminToday />}
-          {tab === 'sheet' && <AdminSheet />}
-          {tab === 'members' && <AdminMembers />}
-          {tab === 'analytics' && <AdminAnalytics />}
-          {tab === 'newfamily' && <AdminNewFamily />}
-          {tab === 'newfamilyEdu' && <AdminNewFamilyEdu />}
-          {tab === 'visitors' && <AdminVisitors />}
-          {tab === 'admins' && isSuper && <AdminAdmins />}
-          {tab === 'dongsan' && isSuper && <AdminDongsan />}
-          {tab === 'settings' && isSuper && <AdminSettings />}
+          {/* key={tab} remounts the wrapper on every tab switch so the fade runs — a
+              light cross-fade instead of content snapping into place. */}
+          <div key={tab} className="fx-fade">
+            {tab === 'today' && <AdminToday />}
+            {tab === 'sheet' && <AdminSheet />}
+            {tab === 'members' && <AdminMembers />}
+            {tab === 'analytics' && <AdminAnalytics />}
+            {tab === 'newfamily' && <AdminNewFamily />}
+            {tab === 'newfamilyEdu' && <AdminNewFamilyEdu />}
+            {tab === 'visitors' && <AdminVisitors />}
+            {tab === 'admins' && isSuper && <AdminAdmins />}
+            {tab === 'dongsan' && isSuper && <AdminDongsan />}
+            {tab === 'settings' && isSuper && <AdminSettings />}
+          </div>
         </div>
       </main>
 
@@ -301,7 +305,7 @@ function TabItem({
         (active ? 'bg-primary/10 text-primary' : 'text-muted hover:bg-surface-alt hover:text-text')
       }
     >
-      {active && <span className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-primary" aria-hidden />}
+      {active && <span className="fx-fade absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-primary" aria-hidden />}
       <span className="grid w-16 shrink-0 place-items-center">
         <span className="relative">
           <Icon className="size-5" strokeWidth={active ? 2.2 : 1.8} aria-hidden />

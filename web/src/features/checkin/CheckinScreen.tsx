@@ -154,10 +154,12 @@ export function CheckinScreen() {
             <Link
               to="/kiosk"
               className={
-                'fx-rise inline-flex min-h-12 w-full max-w-sm items-center justify-center gap-2.5 rounded-full border px-8 py-3.5 text-base font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas ' +
+                'fx-rise inline-flex min-h-12 w-full max-w-sm items-center justify-center gap-2.5 rounded-full border px-8 py-3.5 text-base font-semibold ' +
+                'transition-[background-color,border-color,color,transform,box-shadow] duration-200 [transition-timing-function:var(--ease-out-soft)] active:scale-[0.97] ' +
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas ' +
                 (config.individualCheckinEnabled
-                  ? 'border-border bg-surface text-text hover:border-primary/35 hover:bg-surface-alt'
-                  : 'border-primary bg-primary text-primary-fg hover:border-primary-hover hover:bg-primary-hover')
+                  ? 'border-border bg-surface text-text hover:border-primary/35 hover:bg-surface-alt hover:shadow-sm'
+                  : 'border-primary bg-primary text-primary-fg shadow-md shadow-primary/20 hover:border-primary-hover hover:bg-primary-hover hover:shadow-lg hover:shadow-primary/25')
               }
             >
               <Monitor className="size-5" aria-hidden />

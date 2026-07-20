@@ -363,7 +363,14 @@ export function AdminAdmins() {
 
       <hr className="my-6 border-border" />
 
-      <h2 className="mb-3 font-display text-lg font-semibold text-text">{t('admin.admins.auditLog')}</h2>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="font-display text-lg font-semibold text-text">{t('admin.admins.auditLog')}</h2>
+        {showAudit && (
+          <Button variant="ghost" size="sm" onClick={() => setShowAudit(false)}>
+            {t('admin.admins.collapse')}
+          </Button>
+        )}
+      </div>
       {!showAudit ? (
         <Button variant="secondary" onClick={() => setShowAudit(true)}>
           {t('admin.admins.loadAudit')}
@@ -373,7 +380,7 @@ export function AdminAdmins() {
       ) : (auditData?.log.length ?? 0) === 0 ? (
         <p className="text-sm text-muted">{t('admin.admins.noAudit')}</p>
       ) : (
-        <ul className="flex flex-col gap-1.5">
+        <ul className="fx-rise flex flex-col gap-1.5">
           {auditData!.log.map((e, i) => (
             <li key={`${e.ts}-${i}`} className="rounded-md border border-border bg-surface px-3 py-2 text-xs">
               <div className="flex items-center justify-between gap-2">
@@ -391,7 +398,14 @@ export function AdminAdmins() {
 
       <hr className="my-6 border-border" />
 
-      <h2 className="mb-3 font-display text-lg font-semibold text-text">{t('admin.admins.loginLog')}</h2>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="font-display text-lg font-semibold text-text">{t('admin.admins.loginLog')}</h2>
+        {showLogins && (
+          <Button variant="ghost" size="sm" onClick={() => setShowLogins(false)}>
+            {t('admin.admins.collapse')}
+          </Button>
+        )}
+      </div>
       {!showLogins ? (
         <Button variant="secondary" onClick={() => setShowLogins(true)}>
           {t('admin.admins.loadLogins')}
@@ -401,7 +415,7 @@ export function AdminAdmins() {
       ) : (loginData?.log.length ?? 0) === 0 ? (
         <p className="text-sm text-muted">{t('admin.admins.noLogins')}</p>
       ) : (
-        <ul className="flex flex-col gap-1.5">
+        <ul className="fx-rise flex flex-col gap-1.5">
           {loginData!.log.map((e, i) => (
             <li key={`${e.ts}-${i}`} className="rounded-md border border-border bg-surface px-3 py-2 text-xs">
               <div className="flex items-center justify-between gap-2">

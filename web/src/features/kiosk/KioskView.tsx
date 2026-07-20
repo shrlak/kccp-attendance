@@ -95,7 +95,7 @@ export function KioskView({ onExit }: { onExit: () => void }) {
       <button
         type="button"
         onClick={() => void tap(m)}
-        className={'flex min-h-14 items-center justify-center gap-1.5 rounded-xl border px-2 py-3 text-sm font-semibold transition-[background-color,border-color,transform] active:scale-[0.985] ' + (done ? DONE_TILE : TILE)}
+        className={'flex min-h-14 items-center justify-center gap-1.5 rounded-xl border px-2 py-3 text-sm font-semibold transition-[background-color,border-color,transform,box-shadow] duration-200 [transition-timing-function:var(--ease-out-soft)] active:scale-[0.94] ' + (done ? DONE_TILE : TILE)}
       >
         {done && <Check className="size-3.5 shrink-0" aria-hidden />}
         {m.name}

@@ -49,7 +49,7 @@ export function AccessShell({
           <ThemeLangToggle />
         </div>
 
-        <div className="w-full max-w-[420px]">
+        <div className="fx-rise w-full max-w-[420px]">
           <Link to="/" className="mb-12 inline-flex items-center gap-2.5 lg:hidden">
             <KccpMark size={32} />
             <span className="text-sm font-bold tracking-tight text-text">KCCP 대학 · 청년부</span>

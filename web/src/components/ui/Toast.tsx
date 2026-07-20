@@ -23,7 +23,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {children}
         {toast && (
           <RToast.Root open={open} onOpenChange={setOpen}
-            className={`rounded-md border px-4 py-3 text-sm font-semibold shadow-xl ${toneClass[toast.tone]}`}>
+            className={`fx-slide-up rounded-xl border px-4 py-3 text-sm font-semibold shadow-xl backdrop-blur-sm ${toneClass[toast.tone]}`}>
             <RToast.Title>{toast.title}</RToast.Title>
           </RToast.Root>
         )}
