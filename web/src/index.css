@@ -36,6 +36,12 @@
 }
 
 @layer base {
+  :root {
+    /* Motion vocabulary — one soft deceleration curve for color/opacity moves and one
+       gently overshooting spring for anything that travels or scales. */
+    --ease-out-soft: cubic-bezier(0.2, 0.65, 0.3, 1);
+    --ease-spring: cubic-bezier(0.34, 1.35, 0.5, 1);
+  }
   html { -webkit-tap-highlight-color: transparent; font-size: 16px; }
   body {
     @apply bg-canvas text-text font-sans antialiased;
@@ -52,14 +58,22 @@
   }
 }
 
-/* Motion is reserved for state changes: loading, result confirmation, and page entry. */
+/* Motion is reserved for state changes: loading, result confirmation, page/section
+   entry, and overlay presentation. All of it is neutralized by the global
+   prefers-reduced-motion rule above. */
 @keyframes kccp-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
 @keyframes kccp-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes kccp-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes kccp-pop { from { opacity: 0; transform: translateY(6px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes kccp-slide-up { from { opacity: 0; transform: translateY(14px) scale(.98); } to { opacity: 1; transform: none; } }
 @keyframes kccp-draw { to { stroke-dashoffset: 0; } }
 @keyframes kccp-countdown { from { transform: scaleX(1); } to { transform: scaleX(0); } }
 
 .fx-pulse { animation: kccp-pulse 1.6s ease-in-out infinite; }
-.fx-rise { animation: kccp-rise .42s cubic-bezier(.2,.65,.3,1) both; }
+.fx-rise { animation: kccp-rise .42s var(--ease-out-soft) both; }
+.fx-fade { animation: kccp-fade .22s ease-out both; }
+.fx-pop { animation: kccp-pop .32s var(--ease-spring) both; }       /* dialogs */
+.fx-slide-up { animation: kccp-slide-up .34s var(--ease-spring) both; } /* toasts / sheets */
 .fx-draw { stroke-dasharray: 56; stroke-dashoffset: 56; animation: kccp-draw .45s .15s ease-out forwards; }
 .fx-countdown { transform-origin: left; animation: kccp-countdown linear forwards; }
 

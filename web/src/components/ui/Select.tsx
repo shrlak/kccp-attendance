@@ -18,8 +18,9 @@ export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSel
       }}
       className={
         'w-full rounded-xl border border-border bg-surface pl-3.5 pr-10 py-2.5 text-text ' +
-        'text-sm font-sans min-h-11 outline-none appearance-none ' +
-        'focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/30 ' +
+        'text-sm font-sans min-h-11 outline-none appearance-none cursor-pointer ' +
+        'transition-[border-color,box-shadow,background-color] duration-200 [transition-timing-function:var(--ease-out-soft)] ' +
+        'hover:border-primary/30 focus-visible:border-primary focus-visible:ring-[3px] focus-visible:ring-primary/20 ' +
         className
       }
       {...props}

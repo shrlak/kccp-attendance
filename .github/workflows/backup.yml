@@ -11,6 +11,14 @@ on:
 permissions:
   contents: read
 
+# Auto-backup dispatches (edge fn fires one per cooldown window after data changes)
+# and the weekly cron must never interleave: current.* in R2 is overwritten in place,
+# so concurrent runs could mix files from two dumps. Queue instead of cancelling —
+# every dispatched run still completes, just serially.
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
 jobs:
   backup:
     runs-on: ubuntu-latest
