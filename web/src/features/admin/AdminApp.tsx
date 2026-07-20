@@ -6,6 +6,8 @@ import { useAdminAuth } from '../../stores/useAdminAuth'
 import { useLang } from '../../stores/useLang'
 import { getPending, runDbBackupNow } from '../../lib/api'
 import { Button } from '../../components/ui/Button'
+import { BottomNav } from '../../components/ui/BottomNav'
+import { Dialog } from '../../components/ui/Dialog'
 import { ThemeLangToggle } from '../../components/ui/ThemeLangToggle'
 import { useToast } from '../../components/ui/Toast'
 import {
@@ -20,6 +22,7 @@ import {
   Shield,
   Sprout,
   Settings,
+  MoreHorizontal,
 } from '../../components/ui/Icon'
 import { KccpMark } from '../checkin/KccpMark'
 import { AdminToday } from './AdminToday'
@@ -46,8 +49,10 @@ type Tab =
   | 'dongsan'
   | 'settings'
 
-// Compact administration shell: a 64 px icon rail expands only when someone needs its
-// labels, keeping the attendance workspace visually quiet on desktop and tablet.
+// Compact administration shell. Desktop (lg+) keeps the 64 px icon rail that expands
+// only when someone needs its labels; below lg the rail (hover-driven, so useless on
+// touch) is replaced by a bottom tab bar — the 4 everyday tabs plus a 더보기 sheet for
+// the rest — per mobile navigation conventions.
 export function AdminApp() {
   const { t } = useTranslation()
   const toast = useToast()
@@ -58,10 +63,12 @@ export function AdminApp() {
   const [tab, setTab] = useState<Tab>('today')
   const [kiosk, setKiosk] = useState(false)
   const [navOpen, setNavOpen] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
   const [backupBusy, setBackupBusy] = useState(false)
   function selectTab(id: Tab) {
     setTab(id)
     setNavOpen(false)
+    setMoreOpen(false)
   }
   // Sign out drops back to the public landing page.
   function handleSignOut() {
@@ -123,11 +130,25 @@ export function AdminApp() {
     { id: 'settings', icon: Settings, show: isSuper },
   ]
 
+  const visibleTabs = tabs.filter((item) => item.show)
+  // Mobile bottom bar: the 4 everyday tabs stay one tap away; everything else lives in
+  // the 더보기 sheet (badges roll up onto 더보기 so pending approvals stay visible).
+  const primaryTabs = visibleTabs.slice(0, 4)
+  const moreTabs = visibleTabs.slice(4)
+  const moreBadge = moreTabs.reduce((n, item) => n + (item.badge ?? 0), 0)
+  const bottomItems = [
+    ...primaryTabs.map((item) => ({ id: item.id as string, label: t(`admin.nav.${item.id}`), icon: item.icon, badge: item.badge })),
+    ...(moreTabs.length > 0
+      ? [{ id: 'more', label: t('admin.nav.more'), icon: MoreHorizontal, badge: moreBadge }]
+      : []),
+  ]
+  const bottomActive = primaryTabs.some((item) => item.id === tab) ? tab : 'more'
+
   return (
     <div className="min-h-dvh bg-canvas">
       <aside
         className={
-          'fixed inset-y-0 left-0 z-30 flex flex-col overflow-hidden border-r border-border bg-canvas/[0.92] backdrop-blur-xl transition-[width] duration-200 ease-out ' +
+          'fixed inset-y-0 left-0 z-30 hidden flex-col overflow-hidden border-r border-border bg-canvas/[0.92] backdrop-blur-xl transition-[width] duration-200 ease-out lg:flex ' +
           (navOpen ? 'w-60' : 'w-16')
         }
         onMouseEnter={() => setNavOpen(true)}
@@ -164,10 +185,13 @@ export function AdminApp() {
         </nav>
       </aside>
 
-      <main className="min-h-dvh pl-16">
+      <main className="min-h-dvh lg:pl-16">
         <header className="sticky top-0 z-20 border-b border-border bg-canvas/[0.82] px-5 py-3 pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur-xl">
           <div className="mx-auto flex max-w-[1480px] items-center justify-between gap-4">
-            <div className="min-w-0">
+            <span className="grid shrink-0 place-items-center lg:hidden" aria-hidden>
+              <KccpMark size={26} />
+            </span>
+            <div className="min-w-0 flex-1">
               <h1 className="truncate font-display text-lg font-semibold tracking-tight text-text">{t(`admin.nav.${tab}`)}</h1>
               <p className="mt-0.5 truncate text-xs text-muted">{dateLabel} · {roleScope}</p>
             </div>
@@ -190,7 +214,7 @@ export function AdminApp() {
           </div>
         </header>
 
-        <div className="mx-auto max-w-[1480px] px-5 py-5 md:px-8 md:py-7">
+        <div className="mx-auto max-w-[1480px] px-5 py-5 pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:px-8 md:py-7 md:pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-7">
           {tab === 'today' && <AdminToday />}
           {tab === 'sheet' && <AdminSheet />}
           {tab === 'members' && <AdminMembers />}
@@ -203,6 +227,47 @@ export function AdminApp() {
           {tab === 'settings' && isSuper && <AdminSettings />}
         </div>
       </main>
+
+      <BottomNav
+        className="lg:hidden"
+        label={t('admin.quickNav')}
+        items={bottomItems}
+        active={bottomActive}
+        onSelect={(id) => (id === 'more' ? setMoreOpen(true) : selectTab(id as Tab))}
+      />
+
+      <Dialog open={moreOpen} onOpenChange={setMoreOpen} title={t('admin.nav.more')}>
+        <div className="grid grid-cols-3 gap-2">
+          {moreTabs.map((item) => {
+            const Icon = item.icon
+            const active = tab === item.id
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => selectTab(item.id)}
+                aria-current={active ? 'page' : undefined}
+                className={
+                  'flex min-h-20 flex-col items-center justify-center gap-1.5 rounded-xl border p-3 text-xs font-semibold transition-colors ' +
+                  (active
+                    ? 'border-primary/40 bg-primary/10 text-primary'
+                    : 'border-border bg-surface text-muted hover:bg-surface-alt hover:text-text')
+                }
+              >
+                <span className="relative">
+                  <Icon className="size-5" strokeWidth={active ? 2.2 : 1.8} aria-hidden />
+                  {(item.badge ?? 0) > 0 && (
+                    <span className="absolute -right-2.5 -top-2 grid h-4 min-w-4 place-items-center rounded-full bg-danger px-1 text-[9px] font-bold text-white">
+                      {item.badge}
+                    </span>
+                  )}
+                </span>
+                {t(`admin.nav.${item.id}`)}
+              </button>
+            )
+          })}
+        </div>
+      </Dialog>
 
       {kiosk && canKiosk && <KioskView onExit={() => setKiosk(false)} />}
     </div>

@@ -134,7 +134,7 @@ export function CheckinScreen() {
             {config.individualCheckinEnabled && (
               <div className="fx-rise mt-8 flex w-full max-w-sm flex-col items-center gap-4">
                 {config.announcement && (
-                  <div className="w-full border-l-2 border-gold bg-gold/[0.08] px-4 py-3 text-left">
+                  <div className="w-full rounded-r-xl border-l-2 border-gold bg-gold/[0.08] px-4 py-3 text-left">
                     <div className="section-kicker text-gold">{t('announce.label')}</div>
                     <div className="mt-1.5 text-sm leading-6 text-text">{config.announcement}</div>
                   </div>
@@ -148,9 +148,17 @@ export function CheckinScreen() {
           </section>
 
           <div className="flex justify-center px-6 pb-[calc(2.5rem+env(safe-area-inset-bottom))]">
+            {/* One primary action per screen: when individual check-in is on, 체크인 is the
+                primary CTA and the kiosk launcher steps back to a secondary style. With
+                individual check-in off, the kiosk launcher is the only action → primary. */}
             <Link
               to="/kiosk"
-              className="fx-rise inline-flex min-h-12 w-full max-w-sm items-center justify-center gap-2.5 rounded-full border border-primary bg-primary px-8 py-3.5 text-base font-semibold text-primary-fg transition-colors hover:border-primary-hover hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+              className={
+                'fx-rise inline-flex min-h-12 w-full max-w-sm items-center justify-center gap-2.5 rounded-full border px-8 py-3.5 text-base font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas ' +
+                (config.individualCheckinEnabled
+                  ? 'border-border bg-surface text-text hover:border-primary/35 hover:bg-surface-alt'
+                  : 'border-primary bg-primary text-primary-fg hover:border-primary-hover hover:bg-primary-hover')
+              }
             >
               <Monitor className="size-5" aria-hidden />
               {t('landing.kioskButton')}

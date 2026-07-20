@@ -304,7 +304,9 @@ function GridView({
       <p className="mb-3 text-sm text-muted">
         {semesterLabel(today, lang, semesterDates)} · {filterLabel(filter.group, filter.subgroup, lang)}
       </p>
-      <div className="mb-3 flex flex-wrap items-center gap-4 text-sm" style={{ color: '#374151' }}>
+      {/* Legend text uses theme tokens so it stays readable in dark mode; only the
+          swatches keep the sheet's hardcoded paper palette. */}
+      <div className="mb-3 flex flex-wrap items-center gap-4 text-sm text-muted">
         <b className="rounded px-2.5 py-0.5 text-white" style={{ background: cssColor(KEY_FILL) }}>{L.key}</b>
         <span><b>O</b> {L.present}</span>
         <span><b>X</b> {L.absent}</span>

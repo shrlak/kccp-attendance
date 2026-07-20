@@ -187,7 +187,7 @@ export function CardScanDialog({ open, onClose }: { open: boolean; onClose: () =
             multiple
             aria-label={t('admin.newfamily.scan.pick')}
             onChange={(e) => pickFiles(e.target.files)}
-            className="text-xs text-muted file:mr-3 file:rounded-sm file:border file:border-border file:bg-surface file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-text"
+            className="text-xs text-muted file:mr-3 file:cursor-pointer file:rounded-full file:border file:border-border file:bg-surface file:px-4 file:py-2 file:text-xs file:font-semibold file:text-text hover:file:bg-surface-alt"
           />
         </div>
       )}

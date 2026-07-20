@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, within } from '@testing-library/react'
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
@@ -49,7 +49,7 @@ describe('AdminApp ministry navigation', () => {
     const { container } = renderApp()
     const aside = container.querySelector('aside')!
     fireEvent.mouseEnter(aside)
-    const sheetTab = screen.getByRole('button', { name: '출석부' })
+    const sheetTab = within(aside).getByRole('button', { name: '출석부' })
     fireEvent.click(sheetTab)
     expect(aside.className).toContain('w-16')
     expect(sheetTab).toHaveAttribute('aria-current', 'page')
@@ -58,11 +58,30 @@ describe('AdminApp ministry navigation', () => {
   it('expands for keyboard focus and collapses when focus leaves', () => {
     const { container } = renderApp()
     const aside = container.querySelector('aside')!
-    const todayTab = screen.getByRole('button', { name: '오늘' })
+    const todayTab = within(aside).getByRole('button', { name: '오늘' })
     fireEvent.focus(todayTab)
     expect(aside.className).toContain('w-60')
     fireEvent.blur(todayTab)
     expect(aside.className).toContain('w-16')
+  })
+
+  it('mobile bottom bar: 4 everyday tabs + 더보기 sheet holding the rest', () => {
+    renderApp()
+    const bottom = screen.getByRole('navigation', { name: '빠른 이동' })
+    for (const name of ['오늘', '출석부', '멤버', '통계', '더보기']) {
+      expect(within(bottom).getByRole('button', { name })).toBeInTheDocument()
+    }
+    // Overflow tabs are not in the bar, only inside the 더보기 sheet.
+    expect(within(bottom).queryByRole('button', { name: '설정' })).toBeNull()
+    fireEvent.click(within(bottom).getByRole('button', { name: '더보기' }))
+    const sheet = screen.getByRole('dialog')
+    for (const name of ['새가족', '방문자', '관리자', '동산', '설정']) {
+      expect(within(sheet).getByRole('button', { name })).toBeInTheDocument()
+    }
+    // Selecting a tab from the sheet closes it and marks 더보기 as the active area.
+    fireEvent.click(within(sheet).getByRole('button', { name: '설정' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(within(bottom).getByRole('button', { name: '더보기' })).toHaveAttribute('aria-current', 'page')
   })
 
   it('staff (break-glass 운영진) sees operational tabs but not super-only ones', () => {
@@ -71,9 +90,10 @@ describe('AdminApp ministry navigation', () => {
       identity: { role: 'staff', group: '', subgroup: '', ministry: '' },
     })
     renderApp()
+    const rail = screen.getByRole('navigation', { name: '관리자 페이지' })
     // 리더+새가족팀 combined: day-to-day tabs + kiosk are available.
     for (const name of ['오늘', '출석부', '멤버', '통계', '새가족', '방문자']) {
-      expect(screen.getByRole('button', { name })).toBeInTheDocument()
+      expect(within(rail).getByRole('button', { name })).toBeInTheDocument()
     }
     // super-only tabs (admins/dongsan/settings) stay hidden.
     for (const name of ['관리자', '동산', '설정']) {
@@ -89,8 +109,9 @@ describe('AdminApp ministry navigation', () => {
       identity: { role: 'super_admin', group: '', subgroup: '', ministry: '' },
     })
     renderApp()
+    const rail = screen.getByRole('navigation', { name: '관리자 페이지' })
     for (const name of ['오늘', '출석부', '멤버', '통계', '새가족', '방문자', '관리자', '동산', '설정']) {
-      expect(screen.getByRole('button', { name })).toBeInTheDocument()
+      expect(within(rail).getByRole('button', { name })).toBeInTheDocument()
     }
   })
 
@@ -100,8 +121,9 @@ describe('AdminApp ministry navigation', () => {
       identity: { role: 'leader', group: '', subgroup: '', ministry: '' },
     })
     renderApp()
+    const rail = screen.getByRole('navigation', { name: '관리자 페이지' })
     for (const name of ['오늘', '출석부', '멤버', '통계', '새가족', '방문자']) {
-      expect(screen.getByRole('button', { name })).toBeInTheDocument()
+      expect(within(rail).getByRole('button', { name })).toBeInTheDocument()
     }
     for (const name of ['관리자', '동산', '설정']) {
       expect(screen.queryByRole('button', { name })).toBeNull()
@@ -116,8 +138,9 @@ describe('AdminApp ministry navigation', () => {
       identity: { role: 'welcoming', group: '', subgroup: '', ministry: '' },
     })
     renderApp()
+    const rail = screen.getByRole('navigation', { name: '관리자 페이지' })
     for (const name of ['오늘', '출석부', '멤버', '통계', '새가족', '방문자']) {
-      expect(screen.getByRole('button', { name })).toBeInTheDocument()
+      expect(within(rail).getByRole('button', { name })).toBeInTheDocument()
     }
     for (const name of ['관리자', '동산', '설정']) {
       expect(screen.queryByRole('button', { name })).toBeNull()

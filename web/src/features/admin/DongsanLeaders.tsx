@@ -56,7 +56,7 @@ export function DongsanLeadersEditor() {
       <p className="mb-4 mt-1 text-sm text-muted">{t('admin.settings.dongsanLeadersDesc')}</p>
 
       {summer && (
-        <p className="mb-4 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs font-semibold text-warning">
+        <p className="mb-4 w-fit rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs font-semibold text-warning">
           {t('admin.settings.summerCombined')}
         </p>
       )}
