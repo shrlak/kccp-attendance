@@ -147,7 +147,8 @@ export function AdminMembers() {
                   onClick={() => (selectMode ? toggleSel(m.id) : setEditing(m))}
                   style={sel ? undefined : { background: tint }}
                   className={
-                    'min-h-20 rounded-xl border p-3.5 text-left transition-colors hover:border-primary/30 hover:bg-surface-alt ' +
+                    'min-h-20 rounded-xl border p-3.5 text-left transition-[background-color,border-color,box-shadow,transform] duration-200 [transition-timing-function:var(--ease-out-soft)] ' +
+                    'hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md active:translate-y-0 active:shadow-sm ' +
                     (sel ? 'border-primary bg-surface ring-2 ring-primary/40' : 'border-border' + (tint ? '' : ' bg-surface'))
                   }
                 >
@@ -196,7 +197,7 @@ export function AdminMembers() {
                 key={m.id}
                 type="button"
                 onClick={() => setEditing(m)}
-                className="min-h-20 rounded-xl border border-border bg-surface p-3.5 text-left transition-colors hover:border-primary/30 hover:bg-surface-alt"
+                className="min-h-20 rounded-xl border border-border bg-surface p-3.5 text-left transition-[background-color,border-color,box-shadow,transform] duration-200 [transition-timing-function:var(--ease-out-soft)] hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md active:translate-y-0 active:shadow-sm"
               >
                 <div className="text-base font-semibold text-text">{m.name}</div>
                 <div className="text-xs text-muted">{m.member_role || '—'}</div>

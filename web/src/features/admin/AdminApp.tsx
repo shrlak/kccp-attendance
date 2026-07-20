@@ -192,7 +192,7 @@ export function AdminApp() {
               <KccpMark size={26} />
             </span>
             <div className="min-w-0 flex-1">
-              <h1 className="truncate font-display text-lg font-semibold tracking-tight text-text">{t(`admin.nav.${tab}`)}</h1>
+              <h1 className="truncate font-display text-xl font-bold tracking-tight text-text">{t(`admin.nav.${tab}`)}</h1>
               <p className="mt-0.5 truncate text-xs text-muted">{dateLabel} · {roleScope}</p>
             </div>
             <div className="flex shrink-0 items-center gap-1">

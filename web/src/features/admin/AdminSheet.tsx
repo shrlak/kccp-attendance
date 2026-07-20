@@ -333,7 +333,7 @@ function GridView({
               <h3 className="mb-1.5 inline-block rounded px-3 py-1 text-base font-bold" style={{ background: medium, color: DARK }}>
                 {s.subgroup}
               </h3>
-              <table className="table-fixed border-collapse">
+              <table className="table-fixed border-collapse bg-white">
                 <colgroup>
                   <col style={{ width: NAME_COL }} />
                   <col style={{ width: TOTAL_COL }} />

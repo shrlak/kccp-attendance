@@ -47,7 +47,7 @@ function WindowBadge({ cfg }: { cfg: AppConfig }) {
   const { t } = useTranslation()
   const open = isCheckinOpen(cfg)
   return (
-    <div className="inline-flex items-center gap-2.5 rounded-full border border-border bg-surface-alt px-3 py-2 text-xs">
+    <div className="inline-flex items-center gap-2.5 rounded-full border border-border bg-surface px-3 py-2 text-xs shadow-sm">
       <span className={'h-1.5 w-1.5 rounded-full ' + (open ? 'bg-success' : 'bg-subtle')} aria-hidden />
       <span className={open ? 'font-semibold text-success' : 'font-semibold text-muted'}>
         {open ? t('checkin.open') : t('checkin.closed')}
