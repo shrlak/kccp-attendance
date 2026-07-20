@@ -7,6 +7,10 @@ import {
   formatBytes,
   backupTotalSize,
   formatBackupTimestamp,
+  isValidNotifyEmail,
+  normalizeNotifyPhone,
+  storagePercent,
+  formatStoragePercent,
 } from './admins'
 import type { AdminRoleRow, DbBackupEntry } from '../../lib/api'
 
@@ -82,5 +86,39 @@ describe('backup metadata', () => {
     expect(formatBackupTimestamp('2026-07-19T21:15:00.000Z', 'en-US')).toContain('5:15 PM')
     expect(formatBackupTimestamp(undefined, 'en-US')).toBe('')
     expect(formatBackupTimestamp('not-a-date', 'en-US')).toBe('')
+  })
+})
+
+describe('notification recipients', () => {
+  it('validates emails (trimmed, needs a dotted domain)', () => {
+    expect(isValidNotifyEmail('kim@example.com')).toBe(true)
+    expect(isValidNotifyEmail('  kim@example.com  ')).toBe(true)
+    expect(isValidNotifyEmail('kim@example')).toBe(false)
+    expect(isValidNotifyEmail('not an email')).toBe(false)
+    expect(isValidNotifyEmail('')).toBe(false)
+  })
+
+  it('normalizes phone numbers for 알림톡 delivery', () => {
+    expect(normalizeNotifyPhone('010-1234-5678')).toBe('01012345678')
+    expect(normalizeNotifyPhone('+1 (412) 555-1234')).toBe('+14125551234')
+    expect(normalizeNotifyPhone('12345')).toBe(null)
+    expect(normalizeNotifyPhone('kakao-id')).toBe(null)
+    expect(normalizeNotifyPhone('')).toBe(null)
+  })
+})
+
+describe('backup storage usage', () => {
+  it('computes a clamped percent', () => {
+    expect(storagePercent(0, 10e9)).toBe(0)
+    expect(storagePercent(5e9, 10e9)).toBe(50)
+    expect(storagePercent(20e9, 10e9)).toBe(100)
+    expect(storagePercent(1, 0)).toBe(0)
+  })
+
+  it('labels tiny-but-nonzero usage as <0.1% instead of rounding to zero', () => {
+    expect(formatStoragePercent(0, 10e9)).toBe('0.0%')
+    expect(formatStoragePercent(700_000, 10e9)).toBe('<0.1%')
+    expect(formatStoragePercent(1.5e9, 10e9)).toBe('15.0%')
+    expect(formatStoragePercent(10e9, 10e9)).toBe('100.0%')
   })
 })

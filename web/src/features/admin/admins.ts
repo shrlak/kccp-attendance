@@ -55,6 +55,35 @@ export function backupTotalSize(backup: DbBackupEntry): number | undefined {
   return (backup.sqlSize ?? 0) + (backup.schemaSize ?? 0)
 }
 
+// Client-side mirrors of the edge function's notification-recipient validation, so bad
+// input is caught before the round-trip (the server re-validates regardless).
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+export function isValidNotifyEmail(raw: string): boolean {
+  return EMAIL_RE.test(raw.trim())
+}
+
+// Normalize a phone number for 알림톡/SMS delivery: strip separators, keep an optional
+// leading +, require 9–15 digits. Returns null when it can't be a deliverable number
+// (Kakao's API only addresses 알림톡 by phone number — a bare 카톡 ID can't receive one).
+export function normalizeNotifyPhone(raw: string): string | null {
+  const cleaned = raw.replace(/[\s\-().]/g, '')
+  return /^\+?\d{9,15}$/.test(cleaned) ? cleaned : null
+}
+
+// Percent of the backup-storage allowance used, clamped to [0, 100] for the bar width.
+export function storagePercent(usedBytes: number, limitBytes: number): number {
+  if (!(limitBytes > 0)) return 0
+  return Math.min(100, Math.max(0, (usedBytes / limitBytes) * 100))
+}
+
+// Label next to the bar: tiny-but-nonzero usage reads "<0.1%" instead of a misleading
+// "0.0%" (a few hundred KB of encrypted dump against a 10 GB allowance rounds to zero).
+export function formatStoragePercent(usedBytes: number, limitBytes: number): string {
+  const pct = storagePercent(usedBytes, limitBytes)
+  if (usedBytes > 0 && pct < 0.1) return '<0.1%'
+  return `${pct.toFixed(1)}%`
+}
+
 // Backup times are operational Pittsburgh times regardless of the browser's location.
 export function formatBackupTimestamp(updatedAt: string | undefined, locale = 'ko'): string {
   if (!updatedAt) return ''

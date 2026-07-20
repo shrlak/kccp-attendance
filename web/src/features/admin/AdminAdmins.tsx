@@ -21,6 +21,8 @@ import {
   listDbBackups,
   getDbBackupDownloadUrl,
   restoreDbBackup,
+  getBackupNotifications,
+  setBackupNotifications,
   type AdminRole,
   type RoleAssignment,
   type DbBackupEntry,
@@ -33,6 +35,10 @@ import {
   formatBytes,
   backupTotalSize,
   formatBackupTimestamp,
+  isValidNotifyEmail,
+  normalizeNotifyPhone,
+  storagePercent,
+  formatStoragePercent,
 } from './admins'
 import { useRoster } from './useRoster'
 import { groupsOf, subgroupsOf } from './filters'
@@ -468,6 +474,41 @@ export function AdminAdmins() {
       </div>
       <p className="mb-3 text-xs text-muted">{t('admin.dbBackupCurrentDesc')}</p>
 
+      {dbBackupsData?.storage && (
+        <div className="mb-3 rounded-lg border border-border bg-surface p-3">
+          <div className="mb-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-xs">
+            <span className="font-semibold text-text">{t('admin.admins.dbBackup.storage')}</span>
+            <span className="font-mono tabular-nums text-subtle">
+              {t('admin.admins.dbBackup.storageUsage', {
+                used: formatBytes(dbBackupsData.storage.usedBytes),
+                limit: formatBytes(dbBackupsData.storage.limitBytes),
+                percent: formatStoragePercent(dbBackupsData.storage.usedBytes, dbBackupsData.storage.limitBytes),
+              })}
+            </span>
+          </div>
+          <div
+            className="h-2 w-full overflow-hidden rounded-full bg-border"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(storagePercent(dbBackupsData.storage.usedBytes, dbBackupsData.storage.limitBytes))}
+            aria-label={t('admin.admins.dbBackup.storage')}
+          >
+            {/* Keep a visible sliver for any nonzero usage — real backups are a few
+                hundred KB against a 10 GB allowance and would otherwise render 0px. */}
+            <div
+              className="h-full rounded-full bg-primary transition-[width]"
+              style={{
+                width: `${Math.max(
+                  storagePercent(dbBackupsData.storage.usedBytes, dbBackupsData.storage.limitBytes),
+                  dbBackupsData.storage.usedBytes > 0 ? 1 : 0,
+                )}%`,
+              }}
+            />
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="secondary" onClick={runDbBackup} disabled={dbBackupRunBusy}>
           {dbBackupRunBusy ? t('common.loading') : t('admin.admins.dbBackup.runNow')}
@@ -512,6 +553,8 @@ export function AdminAdmins() {
         </div>
       )}
 
+      <BackupNotifySection />
+
       <div className="mt-4 flex flex-col gap-2 rounded-lg border border-danger/40 bg-danger/5 p-3">
         <label className="text-sm font-semibold text-text">{t('admin.admins.dbBackup.restoreFromFile')}</label>
         <input
@@ -524,6 +567,166 @@ export function AdminAdmins() {
       </div>
 
       {dbRestoreTarget && <RestoreDbDialog target={dbRestoreTarget} onClose={() => setDbRestoreTarget(null)} />}
+    </div>
+  )
+}
+
+// Backup-completion notification recipients (email + 카카오톡). Saves the whole list on
+// every add/remove/toggle, mirroring the other config editors' immediate-save UX. The
+// per-channel status chip reflects whether the server-side provider secrets are set
+// (Resend for email, Solapi for 알림톡) — recipients can be registered either way.
+function BackupNotifySection() {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const toast = useToast()
+  const { data, isLoading } = useQuery({ queryKey: ['backupNotifications'], queryFn: getBackupNotifications })
+  const [emailInput, setEmailInput] = useState('')
+  const [phoneInput, setPhoneInput] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  async function save(next: { enabled: boolean; emails: string[]; phones: string[] }) {
+    setSaving(true)
+    try {
+      await setBackupNotifications(next)
+      await qc.invalidateQueries({ queryKey: ['backupNotifications'] })
+      toast({ title: t('admin.settings.saved'), tone: 'ok' })
+    } catch (e) {
+      toast({ title: e instanceof Error ? e.message : t('common.error'), tone: 'err' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (isLoading || !data) {
+    return <p className="mt-4 text-sm text-muted">{t('common.loading')}</p>
+  }
+
+  function addEmail() {
+    if (!data) return
+    const v = emailInput.trim().toLowerCase()
+    if (!isValidNotifyEmail(v)) {
+      toast({ title: t('admin.admins.dbBackup.notify.badEmail'), tone: 'err' })
+      return
+    }
+    setEmailInput('')
+    if (data.emails.includes(v)) return
+    void save({ enabled: data.enabled, emails: [...data.emails, v], phones: data.phones })
+  }
+
+  function addPhone() {
+    if (!data) return
+    const v = normalizeNotifyPhone(phoneInput)
+    if (!v) {
+      toast({ title: t('admin.admins.dbBackup.notify.badPhone'), tone: 'err' })
+      return
+    }
+    setPhoneInput('')
+    if (data.phones.includes(v)) return
+    void save({ enabled: data.enabled, emails: data.emails, phones: [...data.phones, v] })
+  }
+
+  const providerChip = (configured: boolean) => (
+    <span
+      className={
+        'rounded-full px-2 py-0.5 text-[11px] font-semibold ' +
+        (configured ? 'bg-primary/15 text-primary' : 'bg-warning/15 text-warning')
+      }
+    >
+      {configured ? t('admin.admins.dbBackup.notify.providerOk') : t('admin.admins.dbBackup.notify.providerMissing')}
+    </span>
+  )
+
+  return (
+    <div className="mt-4 rounded-lg border border-border bg-surface p-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="text-sm font-semibold text-text">{t('admin.admins.dbBackup.notify.title')}</div>
+          <div className="text-xs text-muted">{t('admin.admins.dbBackup.notify.desc')}</div>
+        </div>
+        <Switch
+          checked={data.enabled}
+          onChange={(v) => void save({ enabled: v, emails: data.emails, phones: data.phones })}
+          disabled={saving}
+          label={t('admin.admins.dbBackup.notify.title')}
+        />
+      </div>
+
+      <div className="mt-3">
+        <div className="mb-1 flex flex-wrap items-center gap-2 text-xs font-semibold text-subtle">
+          {t('admin.admins.dbBackup.notify.emails')}
+          {providerChip(data.emailConfigured)}
+        </div>
+        {data.emails.length > 0 && (
+          <ul className="mb-2 flex flex-wrap gap-1.5">
+            {data.emails.map((e) => (
+              <li key={e} className="flex items-center gap-1.5 rounded-full border border-border bg-bg px-2.5 py-0.5 text-xs text-text">
+                {e}
+                <button
+                  type="button"
+                  onClick={() => void save({ enabled: data.enabled, emails: data.emails.filter((x) => x !== e), phones: data.phones })}
+                  disabled={saving}
+                  aria-label={t('admin.admins.remove')}
+                  className="font-bold text-danger hover:opacity-70 disabled:opacity-40"
+                >
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="flex gap-2">
+          <Input
+            value={emailInput}
+            onChange={(e) => setEmailInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && addEmail()}
+            type="email"
+            inputMode="email"
+            placeholder="name@example.com"
+          />
+          <Button size="sm" variant="secondary" onClick={addEmail} disabled={saving || !emailInput.trim()} className="shrink-0 whitespace-nowrap">
+            {t('admin.admins.dbBackup.notify.add')}
+          </Button>
+        </div>
+      </div>
+
+      <div className="mt-3">
+        <div className="mb-1 flex flex-wrap items-center gap-2 text-xs font-semibold text-subtle">
+          {t('admin.admins.dbBackup.notify.phones')}
+          {providerChip(data.kakaoConfigured)}
+        </div>
+        {data.phones.length > 0 && (
+          <ul className="mb-2 flex flex-wrap gap-1.5">
+            {data.phones.map((ph) => (
+              <li key={ph} className="flex items-center gap-1.5 rounded-full border border-border bg-bg px-2.5 py-0.5 font-mono text-xs text-text">
+                {ph}
+                <button
+                  type="button"
+                  onClick={() => void save({ enabled: data.enabled, emails: data.emails, phones: data.phones.filter((x) => x !== ph) })}
+                  disabled={saving}
+                  aria-label={t('admin.admins.remove')}
+                  className="font-bold text-danger hover:opacity-70 disabled:opacity-40"
+                >
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="flex gap-2">
+          <Input
+            value={phoneInput}
+            onChange={(e) => setPhoneInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && addPhone()}
+            type="tel"
+            inputMode="tel"
+            placeholder="010-1234-5678"
+          />
+          <Button size="sm" variant="secondary" onClick={addPhone} disabled={saving || !phoneInput.trim()} className="shrink-0 whitespace-nowrap">
+            {t('admin.admins.dbBackup.notify.add')}
+          </Button>
+        </div>
+        <p className="mt-1.5 text-[11px] text-subtle">{t('admin.admins.dbBackup.notify.phoneHint')}</p>
+      </div>
     </div>
   )
 }
