@@ -455,23 +455,6 @@ export const runDbBackupNow = () => api<{ status: string }>('POST', '/api/admin/
 export const listDbBackups = () =>
   api<{ backups: DbBackupEntry[]; storage?: DbBackupStorage }>('GET', '/api/admin/db-backup/list')
 
-// Backup-completion notification recipients (email + 카카오톡). The *Configured flags
-// report whether the server-side provider secrets (Resend / Solapi) are set, so the UI
-// can distinguish "no recipients yet" from "recipients registered but can't deliver".
-export interface BackupNotificationSettings {
-  enabled: boolean
-  emails: string[]
-  phones: string[]
-  emailConfigured: boolean
-  kakaoConfigured: boolean
-}
-
-export const getBackupNotifications = () =>
-  api<BackupNotificationSettings>('GET', '/api/admin/db-backup/notifications')
-
-export const setBackupNotifications = (payload: { enabled: boolean; emails: string[]; phones: string[] }) =>
-  api<{ status: string }>('POST', '/api/admin/db-backup/notifications', payload)
-
 // Short-lived presigned R2 URL — the browser downloads the still-encrypted file directly.
 export const getDbBackupDownloadUrl = (key: string) =>
   api<{ url: string }>('GET', `/api/admin/db-backup/download?key=${encodeURIComponent(key)}`)

@@ -55,21 +55,6 @@ export function backupTotalSize(backup: DbBackupEntry): number | undefined {
   return (backup.sqlSize ?? 0) + (backup.schemaSize ?? 0)
 }
 
-// Client-side mirrors of the edge function's notification-recipient validation, so bad
-// input is caught before the round-trip (the server re-validates regardless).
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-export function isValidNotifyEmail(raw: string): boolean {
-  return EMAIL_RE.test(raw.trim())
-}
-
-// Normalize a phone number for 알림톡/SMS delivery: strip separators, keep an optional
-// leading +, require 9–15 digits. Returns null when it can't be a deliverable number
-// (Kakao's API only addresses 알림톡 by phone number — a bare 카톡 ID can't receive one).
-export function normalizeNotifyPhone(raw: string): string | null {
-  const cleaned = raw.replace(/[\s\-().]/g, '')
-  return /^\+?\d{9,15}$/.test(cleaned) ? cleaned : null
-}
-
 // Percent of the backup-storage allowance used, clamped to [0, 100] for the bar width.
 export function storagePercent(usedBytes: number, limitBytes: number): number {
   if (!(limitBytes > 0)) return 0

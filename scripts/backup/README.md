@@ -126,51 +126,6 @@ performing the restore pastes it into the confirmation dialog at the moment they
 and the edge function uses it in-memory for that one request only. Nothing server-side
 ever holds it.
 
-## 7. Backup completion notifications (email + 카카오톡)
-
-After every successful run, the workflow's last step (`scripts/backup/notify.sh`) calls
-the edge function's `/api/admin/db-backup/notify` endpoint, which emails and 카카오톡-messages
-the recipients registered in-app (Admins tab → 전체 백업 → **백업 완료 알림**). The Admins tab
-also shows the R2 bucket's storage usage against its allowance (10 GB free-tier default;
-override with an `R2_STORAGE_LIMIT_GB` edge-function secret).
-
-Authentication needs **no new GitHub secret**: the `backup_notifications` migration mints
-a `config.backup_notify_token`, which notify.sh reads over the workflow's existing
-read-only `backup_reader` connection and presents as the `X-Backup-Token` header.
-Notification delivery is best-effort — a failure warns in the workflow log but never
-fails the backup run.
-
-Delivery is off until the provider secrets are set (the recipient lists can be managed
-in-app regardless; each channel shows 발송 설정됨/미설정):
-
-**Email — [Resend](https://resend.com)** (free tier is plenty for weekly mail):
-
-```sh
-supabase secrets set --project-ref loovulhchmmwagtvjnhc \
-  RESEND_API_KEY=<from the Resend dashboard> \
-  BACKUP_EMAIL_FROM='KCCP 출석 <backup@your-verified-domain>'   # optional; defaults to onboarding@resend.dev
-```
-
-Without a verified domain, Resend only delivers from `onboarding@resend.dev` to the
-account owner's own address — verify a domain to notify the whole team.
-
-**카카오톡 — [Solapi](https://solapi.com) 알림톡** (Kakao's API cannot message a bare
-카톡 ID — 알림톡 addresses recipients by the phone number linked to their KakaoTalk
-account, which is why the in-app list stores phone numbers):
-
-```sh
-supabase secrets set --project-ref loovulhchmmwagtvjnhc \
-  SOLAPI_API_KEY=<Solapi API key> \
-  SOLAPI_API_SECRET=<Solapi API secret> \
-  KAKAO_PF_ID=<카카오톡 채널 pfId registered in Solapi> \
-  KAKAO_TEMPLATE_ID=<approved 알림톡 template using #{time} and #{size}> \
-  SOLAPI_SENDER=<registered sender phone number>   # optional; enables SMS fallback
-```
-
-알림톡 requires a 카카오톡 채널 (business channel) plus an approved message template —
-Solapi walks through both. Until a channel/template exists, setting just the Solapi keys
-and `SOLAPI_SENDER` delivers the same notification as plain SMS instead.
-
 ## Rotating a DB password
 
 If either role's password is ever lost or needs rotating, run against the prod project

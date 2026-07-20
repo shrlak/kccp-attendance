@@ -96,11 +96,6 @@ jobs:
       - name: Verify current backup and remove legacy dated copies
         run: python3 scripts/backup/prune-retention.py
 
-      # Best-effort by design (notify.sh warns instead of failing): the backup itself
-      # succeeded by this point, so a notification hiccup must not fail the run.
-      - name: Send completion notifications (email / 카카오톡)
-        run: bash scripts/backup/notify.sh
-
       - name: Open/update issue on failure
         if: failure()
         uses: actions/github-script@v8
