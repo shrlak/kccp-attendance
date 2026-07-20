@@ -225,23 +225,38 @@ export function downloadBlob(blob: Blob, filename: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
+export type ClipboardCopyStatus = 'copied' | 'individual-required' | 'failed'
+
 // Copy each canvas as its own native clipboard item in one write. The async Clipboard
 // API only reliably accepts image/png, so clipboard copies are PNG (downloads stay JPG).
-// Multi-item system clipboards (including macOS) preserve every item as a separate
-// pasteable image; browsers/platforms that reject the operation return false so the UI
-// can point the operator to the existing per-image Save action.
-export async function copyCanvasesToClipboard(canvases: HTMLCanvasElement[]): Promise<boolean> {
-  if (typeof ClipboardItem === 'undefined' || !navigator.clipboard?.write) return false
+// Chromium currently rejects arrays containing more than one ClipboardItem. Report that
+// case separately so the UI can offer one user-clicked copy action per image; sequential
+// writes here would only overwrite the previous image before the operator can paste it.
+export async function copyCanvasesToClipboard(canvases: HTMLCanvasElement[]): Promise<ClipboardCopyStatus> {
+  if (typeof ClipboardItem === 'undefined' || typeof navigator === 'undefined' || !navigator.clipboard?.write) return 'failed'
+  if (!canvases.length) return 'failed'
+
+  let blobs: (Blob | null)[]
   try {
-    if (!canvases.length) return false
-    const blobs = await Promise.all(canvases.map((canvas) => canvasToBlob(canvas, 'image/png')))
-    if (blobs.some((blob) => !blob)) return false
+    blobs = await Promise.all(canvases.map((canvas) => canvasToBlob(canvas, 'image/png')))
+  } catch {
+    return 'failed'
+  }
+  if (blobs.some((blob) => !blob)) return 'failed'
+
+  try {
     const items = blobs.map((blob) => new ClipboardItem({ 'image/png': blob as Blob }))
     await navigator.clipboard.write(items)
-    return true
+    return 'copied'
   } catch {
-    return false
+    return canvases.length > 1 ? 'individual-required' : 'failed'
   }
+}
+
+// A single-item write is the Chrome-safe path. Keep it behind a fresh click so the
+// browser grants clipboard access, and so the operator can paste before copying next.
+export async function copyCanvasToClipboard(canvas: HTMLCanvasElement): Promise<boolean> {
+  return (await copyCanvasesToClipboard([canvas])) === 'copied'
 }
 
 // Render the 대학부 + 청년부 sheets for `today`. `newMemberNames` flags 새가족
@@ -258,16 +273,17 @@ async function buildTodaySheetCanvases(
   )
 }
 
-// Copy both pages as separate clipboard images. Returns whether the copy succeeded —
-// false (no throw) when the browser/platform can't write multiple image items.
+// Copy both pages as separate clipboard images. Return the rendered canvases too, so a
+// browser that rejects a multi-item write can present individual copy controls without
+// rendering the sheets a second time.
 export async function copyTodaySheets(
   log: LogEntry[],
   today: string,
   newMemberNames: Set<string>,
-): Promise<{ copied: boolean }> {
+): Promise<{ status: ClipboardCopyStatus; canvases: HTMLCanvasElement[] }> {
   const canvases = await buildTodaySheetCanvases(log, today, newMemberNames)
-  const copied = await copyCanvasesToClipboard(canvases)
-  return { copied }
+  const status = await copyCanvasesToClipboard(canvases)
+  return { status, canvases }
 }
 
 // Download each 부서's sheet as its own JPG.
