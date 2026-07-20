@@ -366,12 +366,12 @@ async function buildNewFamilyCards(members: Member[]): Promise<HTMLCanvasElement
   return members.map(renderNewFamilyCard)
 }
 
-// Copy every card as its own clipboard image. Returns whether the copy succeeded —
-// false (no throw) when the browser/platform can't write multiple image items.
-export async function copyNewFamilyCards(members: Member[]): Promise<{ copied: boolean }> {
+// Copy every card as its own clipboard image. Return the rendered cards too, so Chrome
+// can fall back to one user-clicked clipboard write per card without rendering twice.
+export async function copyNewFamilyCards(members: Member[]) {
   const cards = await buildNewFamilyCards(members)
-  const copied = await copyCanvasesToClipboard(cards)
-  return { copied }
+  const status = await copyCanvasesToClipboard(cards)
+  return { status, cards }
 }
 
 // Download each person's card as its own JPG.

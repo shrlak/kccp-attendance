@@ -1,5 +1,5 @@
 import { afterEach, describe, it, expect, vi } from 'vitest'
-import { copyCanvasesToClipboard, fitFontPx, slotLabel } from './todaySheetImage'
+import { copyCanvasToClipboard, copyCanvasesToClipboard, fitFontPx, slotLabel } from './todaySheetImage'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -13,20 +13,21 @@ function fakeCanvas(payload: string, succeeds = true): HTMLCanvasElement {
   } as HTMLCanvasElement
 }
 
+class TestClipboardItem {
+  readonly data: Record<string, Blob>
+
+  constructor(data: Record<string, Blob>) {
+    this.data = data
+  }
+}
+
 describe('copyCanvasesToClipboard', () => {
   it('writes every canvas as a separate ClipboardItem in one operation', async () => {
-    class TestClipboardItem {
-      readonly data: Record<string, Blob>
-
-      constructor(data: Record<string, Blob>) {
-        this.data = data
-      }
-    }
     const write = vi.fn().mockResolvedValue(undefined)
     vi.stubGlobal('ClipboardItem', TestClipboardItem)
     vi.stubGlobal('navigator', { clipboard: { write } })
 
-    await expect(copyCanvasesToClipboard([fakeCanvas('대학부'), fakeCanvas('청년부')])).resolves.toBe(true)
+    await expect(copyCanvasesToClipboard([fakeCanvas('대학부'), fakeCanvas('청년부')])).resolves.toBe('copied')
 
     expect(write).toHaveBeenCalledTimes(1)
     const items = write.mock.calls[0][0] as TestClipboardItem[]
@@ -41,8 +42,27 @@ describe('copyCanvasesToClipboard', () => {
     vi.stubGlobal('ClipboardItem', class {})
     vi.stubGlobal('navigator', { clipboard: { write } })
 
-    await expect(copyCanvasesToClipboard([fakeCanvas('first'), fakeCanvas('second', false)])).resolves.toBe(false)
+    await expect(copyCanvasesToClipboard([fakeCanvas('first'), fakeCanvas('second', false)])).resolves.toBe('failed')
     expect(write).not.toHaveBeenCalled()
+  })
+
+  it('requests individual controls when Chrome rejects multiple ClipboardItems', async () => {
+    const write = vi.fn().mockRejectedValue(new DOMException('Support for multiple ClipboardItems is not implemented.', 'NotAllowedError'))
+    vi.stubGlobal('ClipboardItem', TestClipboardItem)
+    vi.stubGlobal('navigator', { clipboard: { write } })
+
+    await expect(copyCanvasesToClipboard([fakeCanvas('first'), fakeCanvas('second')])).resolves.toBe('individual-required')
+    expect(write).toHaveBeenCalledTimes(1)
+  })
+
+  it('copies one image in a Chrome-compatible single-item write', async () => {
+    const write = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('ClipboardItem', TestClipboardItem)
+    vi.stubGlobal('navigator', { clipboard: { write } })
+
+    await expect(copyCanvasToClipboard(fakeCanvas('only'))).resolves.toBe(true)
+    expect(write).toHaveBeenCalledTimes(1)
+    expect(write.mock.calls[0][0]).toHaveLength(1)
   })
 })
 
