@@ -1,5 +1,50 @@
-import { describe, it, expect } from 'vitest'
-import { fitFontPx, slotLabel } from './todaySheetImage'
+import { afterEach, describe, it, expect, vi } from 'vitest'
+import { copyCanvasesToClipboard, fitFontPx, slotLabel } from './todaySheetImage'
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
+
+function fakeCanvas(payload: string, succeeds = true): HTMLCanvasElement {
+  return {
+    toBlob(callback: BlobCallback, type?: string) {
+      callback(succeeds ? new Blob([payload], { type }) : null)
+    },
+  } as HTMLCanvasElement
+}
+
+describe('copyCanvasesToClipboard', () => {
+  it('writes every canvas as a separate ClipboardItem in one operation', async () => {
+    class TestClipboardItem {
+      readonly data: Record<string, Blob>
+
+      constructor(data: Record<string, Blob>) {
+        this.data = data
+      }
+    }
+    const write = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('ClipboardItem', TestClipboardItem)
+    vi.stubGlobal('navigator', { clipboard: { write } })
+
+    await expect(copyCanvasesToClipboard([fakeCanvas('대학부'), fakeCanvas('청년부')])).resolves.toBe(true)
+
+    expect(write).toHaveBeenCalledTimes(1)
+    const items = write.mock.calls[0][0] as TestClipboardItem[]
+    expect(items).toHaveLength(2)
+    expect(items[0]).not.toBe(items[1])
+    expect(await items[0].data['image/png'].text()).toBe('대학부')
+    expect(await items[1].data['image/png'].text()).toBe('청년부')
+  })
+
+  it('does not write a partial clipboard when any canvas conversion fails', async () => {
+    const write = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('ClipboardItem', class {})
+    vi.stubGlobal('navigator', { clipboard: { write } })
+
+    await expect(copyCanvasesToClipboard([fakeCanvas('first'), fakeCanvas('second', false)])).resolves.toBe(false)
+    expect(write).not.toHaveBeenCalled()
+  })
+})
 
 // A measuring stub: width = characters × font px, with the px read back from
 // whatever font string fitFontPx last set — enough to exercise the fit math.

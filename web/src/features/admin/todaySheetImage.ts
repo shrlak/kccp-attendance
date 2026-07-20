@@ -13,8 +13,9 @@ import type { LogEntry } from '../../lib/api'
 
 // ── Today's check-in sheet → JPG download + clipboard (Korean) ───────────────
 // The DOM side of the sheet export: render a 부서's numbered roll sheet onto a
-// canvas, download it as a JPG, and copy both pages to the clipboard. The sheet
-// is always drawn in Korean. The pure model lives in todaySheet.ts.
+// canvas, download it as a JPG, and copy both pages to the clipboard as separate
+// image items. The sheet is always drawn in Korean. The pure model lives in
+// todaySheet.ts.
 
 // Per-부서 accent, matching the analytics/kiosk palette (대학부 gold, 청년부 blue);
 // anything else falls back to the brand terracotta.
@@ -224,36 +225,19 @@ export function downloadBlob(blob: Blob, filename: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
-// Stack canvases vertically (centered) into one canvas, separated by `gap` px, on white.
-// Used to put both 부서 pages onto the clipboard as a single pasteable image, and by the
-// 새가족 등록 카드 export to put all of today's cards on the clipboard as one image.
-export function combineVertical(canvases: HTMLCanvasElement[], gap: number): HTMLCanvasElement {
-  const width = Math.max(...canvases.map((c) => c.width))
-  const height = canvases.reduce((h, c) => h + c.height, 0) + gap * Math.max(0, canvases.length - 1)
-  const combined = document.createElement('canvas')
-  combined.width = width
-  combined.height = height
-  const ctx = combined.getContext('2d')
-  if (!ctx) throw new Error('canvas 2d context unavailable')
-  ctx.fillStyle = '#ffffff'
-  ctx.fillRect(0, 0, width, height)
-  let y = 0
-  for (const c of canvases) {
-    ctx.drawImage(c, Math.round((width - c.width) / 2), y)
-    y += c.height + gap
-  }
-  return combined
-}
-
-// Copy a single image to the clipboard. The async Clipboard API only reliably accepts
-// image/png on write, so the clipboard copy is always PNG (downloads stay JPG). Returns
-// false (no throw) when the browser can't do it — e.g. no API, or an insecure context.
-export async function copyCanvasToClipboard(canvas: HTMLCanvasElement): Promise<boolean> {
+// Copy each canvas as its own native clipboard item in one write. The async Clipboard
+// API only reliably accepts image/png, so clipboard copies are PNG (downloads stay JPG).
+// Multi-item system clipboards (including macOS) preserve every item as a separate
+// pasteable image; browsers/platforms that reject the operation return false so the UI
+// can point the operator to the existing per-image Save action.
+export async function copyCanvasesToClipboard(canvases: HTMLCanvasElement[]): Promise<boolean> {
   if (typeof ClipboardItem === 'undefined' || !navigator.clipboard?.write) return false
   try {
-    const blob = await canvasToBlob(canvas, 'image/png')
-    if (!blob) return false
-    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+    if (!canvases.length) return false
+    const blobs = await Promise.all(canvases.map((canvas) => canvasToBlob(canvas, 'image/png')))
+    if (blobs.some((blob) => !blob)) return false
+    const items = blobs.map((blob) => new ClipboardItem({ 'image/png': blob as Blob }))
+    await navigator.clipboard.write(items)
     return true
   } catch {
     return false
@@ -274,15 +258,15 @@ async function buildTodaySheetCanvases(
   )
 }
 
-// Copy both pages (stacked into one image) to the clipboard. Returns whether the copy
-// succeeded — false (no throw) when the browser can't do it.
+// Copy both pages as separate clipboard images. Returns whether the copy succeeded —
+// false (no throw) when the browser/platform can't write multiple image items.
 export async function copyTodaySheets(
   log: LogEntry[],
   today: string,
   newMemberNames: Set<string>,
 ): Promise<{ copied: boolean }> {
   const canvases = await buildTodaySheetCanvases(log, today, newMemberNames)
-  const copied = await copyCanvasToClipboard(combineVertical(canvases, 80))
+  const copied = await copyCanvasesToClipboard(canvases)
   return { copied }
 }
 

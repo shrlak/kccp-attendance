@@ -3,8 +3,7 @@ import {
   ensureSheetFonts,
   canvasToBlob,
   downloadBlob,
-  combineVertical,
-  copyCanvasToClipboard,
+  copyCanvasesToClipboard,
 } from './todaySheetImage'
 import { cardModel, type CardCell, type CardCheckOption } from './newFamilyCard'
 
@@ -14,9 +13,9 @@ import { cardModel, type CardCell, type CardCheckOption } from './newFamilyCard'
 // table of [grey label | value | grey label | value] rows, with the member's data
 // filled in — gender circled in the 이름 cell, the matching 소속/세례/신앙생활/심방
 // checkbox ticked, dates as MM / DD / YYYY (underscore blanks when missing). Each
-// person ships as their own JPG; the clipboard gets all of a day's registrations
-// stacked into one image. The card's content comes from the pure `cardModel` in
-// ./newFamilyCard (shared with the kiosk entry form); this module only draws it.
+// person ships as their own JPG and its own clipboard image. The card's content comes
+// from the pure `cardModel` in ./newFamilyCard (shared with the kiosk entry form); this
+// module only draws it.
 
 // Re-exported so the card's model + the 소속 storage convention stay importable from
 // the module that consumes them for export (tests use these too).
@@ -367,12 +366,11 @@ async function buildNewFamilyCards(members: Member[]): Promise<HTMLCanvasElement
   return members.map(renderNewFamilyCard)
 }
 
-// Copy every card, stacked into a single image (the clipboard can only hold one), to
-// the clipboard. Returns whether the copy succeeded — false (no throw) when the
-// browser can't do it.
+// Copy every card as its own clipboard image. Returns whether the copy succeeded —
+// false (no throw) when the browser/platform can't write multiple image items.
 export async function copyNewFamilyCards(members: Member[]): Promise<{ copied: boolean }> {
   const cards = await buildNewFamilyCards(members)
-  const copied = await copyCanvasToClipboard(combineVertical(cards, 24 * SCALE))
+  const copied = await copyCanvasesToClipboard(cards)
   return { copied }
 }
 
