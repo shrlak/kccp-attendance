@@ -26,9 +26,10 @@ export function AdminDongsan() {
   return (
     <div className="w-full">
       {/* Side by side on wide screens so neither list has to scroll the whole page to
-          reach the other — 동산이름 is short (a few rows per 부서); 동산지기/부동산지기 is
-          the tall one, so it also gets its own 2-column flow below (see DongsanLeadersEditor). */}
-      <div className="grid grid-cols-1 gap-8 divide-y divide-border lg:grid-cols-2 lg:divide-y-0 lg:divide-x">
+          reach the other. 동산이름 only holds a name input per row, so it gets the narrow
+          column; 동산지기/부동산지기 takes the rest so its cards can sit in one row
+          (see DongsanLeadersEditor). */}
+      <div className="grid grid-cols-1 gap-8 divide-y divide-border lg:grid-cols-[minmax(0,1fr)_minmax(0,3fr)] lg:divide-y-0 lg:divide-x">
         <div>
           <DongsanNamesEditor
             loaded={loaded}

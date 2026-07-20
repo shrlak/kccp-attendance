@@ -137,8 +137,15 @@ export function withLeader(entry: DongsanLeaderEntry, name: string): DongsanLead
   return { ...entry, leader: name }
 }
 
-// Immutable edit — toggle a sub-leader on/off.
-export function toggleSubLeader(entry: DongsanLeaderEntry, name: string): DongsanLeaderEntry {
-  const has = entry.subLeaders.includes(name)
-  return { ...entry, subLeaders: has ? entry.subLeaders.filter((n) => n !== name) : [...entry.subLeaders, name] }
+// Immutable edit — set the 부동산지기 in dropdown slot `idx` ('' clears the slot). A name
+// picked into one slot vacates any other slot holding it, and blanks are dropped, so the
+// stored list stays a de-duped array of at most one entry per slot.
+export function setSubLeaderAt(entry: DongsanLeaderEntry, idx: number, name: string): DongsanLeaderEntry {
+  const slots = entry.subLeaders.slice()
+  while (slots.length <= idx) slots.push('')
+  if (name) {
+    for (let i = 0; i < slots.length; i++) if (slots[i] === name) slots[i] = ''
+  }
+  slots[idx] = name
+  return { ...entry, subLeaders: slots.filter((n) => n !== '') }
 }
