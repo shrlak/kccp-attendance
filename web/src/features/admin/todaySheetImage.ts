@@ -13,9 +13,8 @@ import type { LogEntry } from '../../lib/api'
 
 // ── Today's check-in sheet → JPG download + clipboard (Korean) ───────────────
 // The DOM side of the sheet export: render a 부서's numbered roll sheet onto a
-// canvas, download it as a JPG, and copy both pages to the clipboard as separate
-// image items. The sheet is always drawn in Korean. The pure model lives in
-// todaySheet.ts.
+// canvas, download it as a JPG, and copy both pages to the clipboard as one merged
+// image. The sheet is always drawn in Korean. The pure model lives in todaySheet.ts.
 
 // Per-부서 accent, matching the analytics/kiosk palette (대학부 gold, 청년부 blue);
 // anything else falls back to the brand terracotta.
@@ -225,38 +224,38 @@ export function downloadBlob(blob: Blob, filename: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
-export type ClipboardCopyStatus = 'copied' | 'individual-required' | 'failed'
-
-// Copy each canvas as its own native clipboard item in one write. The async Clipboard
-// API only reliably accepts image/png, so clipboard copies are PNG (downloads stay JPG).
-// Chromium currently rejects arrays containing more than one ClipboardItem. Report that
-// case separately so the UI can offer one user-clicked copy action per image; sequential
-// writes here would only overwrite the previous image before the operator can paste it.
-export async function copyCanvasesToClipboard(canvases: HTMLCanvasElement[]): Promise<ClipboardCopyStatus> {
-  if (typeof ClipboardItem === 'undefined' || typeof navigator === 'undefined' || !navigator.clipboard?.write) return 'failed'
-  if (!canvases.length) return 'failed'
-
-  let blobs: (Blob | null)[]
-  try {
-    blobs = await Promise.all(canvases.map((canvas) => canvasToBlob(canvas, 'image/png')))
-  } catch {
-    return 'failed'
+// Stack canvases vertically (centered) into one canvas, separated by `gap` px, on white.
+// Both 출석부 pages and all selected 새가족 cards become one Chrome-compatible image.
+export function combineVertical(canvases: HTMLCanvasElement[], gap: number): HTMLCanvasElement {
+  const width = Math.max(...canvases.map((canvas) => canvas.width))
+  const height = canvases.reduce((total, canvas) => total + canvas.height, 0) + gap * Math.max(0, canvases.length - 1)
+  const combined = document.createElement('canvas')
+  combined.width = width
+  combined.height = height
+  const ctx = combined.getContext('2d')
+  if (!ctx) throw new Error('canvas 2d context unavailable')
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, width, height)
+  let y = 0
+  for (const canvas of canvases) {
+    ctx.drawImage(canvas, Math.round((width - canvas.width) / 2), y)
+    y += canvas.height + gap
   }
-  if (blobs.some((blob) => !blob)) return 'failed'
-
-  try {
-    const items = blobs.map((blob) => new ClipboardItem({ 'image/png': blob as Blob }))
-    await navigator.clipboard.write(items)
-    return 'copied'
-  } catch {
-    return canvases.length > 1 ? 'individual-required' : 'failed'
-  }
+  return combined
 }
 
-// A single-item write is the Chrome-safe path. Keep it behind a fresh click so the
-// browser grants clipboard access, and so the operator can paste before copying next.
+// Copy one PNG ClipboardItem. Merging first keeps this compatible with Chrome, which
+// rejects clipboard writes containing multiple image items.
 export async function copyCanvasToClipboard(canvas: HTMLCanvasElement): Promise<boolean> {
-  return (await copyCanvasesToClipboard([canvas])) === 'copied'
+  if (typeof ClipboardItem === 'undefined' || typeof navigator === 'undefined' || !navigator.clipboard?.write) return false
+  try {
+    const blob = await canvasToBlob(canvas, 'image/png')
+    if (!blob) return false
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+    return true
+  } catch {
+    return false
+  }
 }
 
 // Render the 대학부 + 청년부 sheets for `today`. `newMemberNames` flags 새가족
@@ -273,17 +272,15 @@ async function buildTodaySheetCanvases(
   )
 }
 
-// Copy both pages as separate clipboard images. Return the rendered canvases too, so a
-// browser that rejects a multi-item write can present individual copy controls without
-// rendering the sheets a second time.
+// Copy both pages, stacked into one image, to the clipboard.
 export async function copyTodaySheets(
   log: LogEntry[],
   today: string,
   newMemberNames: Set<string>,
-): Promise<{ status: ClipboardCopyStatus; canvases: HTMLCanvasElement[] }> {
+): Promise<{ copied: boolean }> {
   const canvases = await buildTodaySheetCanvases(log, today, newMemberNames)
-  const status = await copyCanvasesToClipboard(canvases)
-  return { status, canvases }
+  const copied = await copyCanvasToClipboard(combineVertical(canvases, 80))
+  return { copied }
 }
 
 // Download each 부서's sheet as its own JPG.

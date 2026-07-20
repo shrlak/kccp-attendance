@@ -16,7 +16,6 @@ import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
 import { EditModal, AttendanceModal } from './MemberDialogs'
 import { CardScanDialog } from './CardScanDialog'
-import { IndividualImageCopyDialog, type IndividualCopyImage } from './IndividualImageCopyDialog'
 
 // 새가족 (new-family) tab: registration tracking — current-semester new members grouped
 // by 등록일, a monthly-registrations roll-up, card-photo registration, and export.
@@ -195,7 +194,6 @@ function ExportModal({ members, today, onClose }: { members: Member[]; today: st
     () => new Set(members.filter((m) => m.registration_date === today).map((m) => m.id)),
   )
   const [busy, setBusy] = useState<'cardsCopy' | 'cardsSave' | 'excel' | null>(null)
-  const [individualCopies, setIndividualCopies] = useState<IndividualCopyImage[] | null>(null)
 
   const q = search.trim().toLowerCase()
   const visible = q ? members.filter((m) => m.name.toLowerCase().includes(q)) : members
@@ -207,25 +205,12 @@ function ExportModal({ members, today, onClose }: { members: Member[]; today: st
     if (!list.length) return
     setBusy('cardsCopy')
     try {
-      const { status, cards } = await copyNewFamilyCards(list)
-      if (status === 'copied') {
-        toast({ title: t('admin.newfamily.export.cardsCopyDone'), tone: 'ok' })
-        onClose()
-      } else if (status === 'individual-required') {
-        setIndividualCopies(list.map((member, index) => ({
-          id: member.id,
-          label: member.name,
-          canvas: cards[index],
-        })))
-        setBusy(null)
-      } else {
-        toast({ title: t('admin.newfamily.export.cardsCopyFailed'), tone: 'err' })
-        setBusy(null)
-      }
+      const { copied } = await copyNewFamilyCards(list)
+      toast({ title: t(copied ? 'admin.mergedCopy.cardsDone' : 'admin.mergedCopy.failed'), tone: copied ? 'ok' : 'err' })
     } catch {
       toast({ title: t('admin.newfamily.export.cardsSaveFailed'), tone: 'err' })
-      setBusy(null)
     }
+    onClose()
   }
 
   async function confirmSaveCards() {
@@ -252,10 +237,6 @@ function ExportModal({ members, today, onClose }: { members: Member[]; today: st
       toast({ title: t('admin.newfamily.export.excelFailed'), tone: 'err' })
     }
     onClose()
-  }
-
-  if (individualCopies) {
-    return <IndividualImageCopyDialog items={individualCopies} onClose={onClose} />
   }
 
   return (

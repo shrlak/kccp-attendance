@@ -1,8 +1,9 @@
 import { afterEach, describe, it, expect, vi } from 'vitest'
-import { copyCanvasToClipboard, copyCanvasesToClipboard, fitFontPx, slotLabel } from './todaySheetImage'
+import { combineVertical, copyCanvasToClipboard, fitFontPx, slotLabel } from './todaySheetImage'
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  vi.restoreAllMocks()
 })
 
 function fakeCanvas(payload: string, succeeds = true): HTMLCanvasElement {
@@ -21,48 +22,47 @@ class TestClipboardItem {
   }
 }
 
-describe('copyCanvasesToClipboard', () => {
-  it('writes every canvas as a separate ClipboardItem in one operation', async () => {
+describe('merged clipboard image', () => {
+  it('stacks source canvases vertically into one white canvas', () => {
+    const first = { width: 100, height: 40 } as HTMLCanvasElement
+    const second = { width: 80, height: 60 } as HTMLCanvasElement
+    const fillRect = vi.fn()
+    const drawImage = vi.fn()
+    const combined = {
+      width: 0,
+      height: 0,
+      getContext: () => ({ fillStyle: '', fillRect, drawImage }),
+    } as unknown as HTMLCanvasElement
+    vi.spyOn(document, 'createElement').mockReturnValue(combined)
+
+    expect(combineVertical([first, second], 12)).toBe(combined)
+    expect(combined.width).toBe(100)
+    expect(combined.height).toBe(112)
+    expect(fillRect).toHaveBeenCalledWith(0, 0, 100, 112)
+    expect(drawImage).toHaveBeenNthCalledWith(1, first, 0, 0)
+    expect(drawImage).toHaveBeenNthCalledWith(2, second, 10, 52)
+  })
+
+  it('writes the merged canvas as exactly one Chrome-compatible ClipboardItem', async () => {
     const write = vi.fn().mockResolvedValue(undefined)
     vi.stubGlobal('ClipboardItem', TestClipboardItem)
     vi.stubGlobal('navigator', { clipboard: { write } })
 
-    await expect(copyCanvasesToClipboard([fakeCanvas('대학부'), fakeCanvas('청년부')])).resolves.toBe('copied')
+    await expect(copyCanvasToClipboard(fakeCanvas('merged'))).resolves.toBe(true)
 
     expect(write).toHaveBeenCalledTimes(1)
     const items = write.mock.calls[0][0] as TestClipboardItem[]
-    expect(items).toHaveLength(2)
-    expect(items[0]).not.toBe(items[1])
-    expect(await items[0].data['image/png'].text()).toBe('대학부')
-    expect(await items[1].data['image/png'].text()).toBe('청년부')
+    expect(items).toHaveLength(1)
+    expect(await items[0].data['image/png'].text()).toBe('merged')
   })
 
-  it('does not write a partial clipboard when any canvas conversion fails', async () => {
+  it('does not write when the merged canvas conversion fails', async () => {
     const write = vi.fn().mockResolvedValue(undefined)
     vi.stubGlobal('ClipboardItem', class {})
     vi.stubGlobal('navigator', { clipboard: { write } })
 
-    await expect(copyCanvasesToClipboard([fakeCanvas('first'), fakeCanvas('second', false)])).resolves.toBe('failed')
+    await expect(copyCanvasToClipboard(fakeCanvas('merged', false))).resolves.toBe(false)
     expect(write).not.toHaveBeenCalled()
-  })
-
-  it('requests individual controls when Chrome rejects multiple ClipboardItems', async () => {
-    const write = vi.fn().mockRejectedValue(new DOMException('Support for multiple ClipboardItems is not implemented.', 'NotAllowedError'))
-    vi.stubGlobal('ClipboardItem', TestClipboardItem)
-    vi.stubGlobal('navigator', { clipboard: { write } })
-
-    await expect(copyCanvasesToClipboard([fakeCanvas('first'), fakeCanvas('second')])).resolves.toBe('individual-required')
-    expect(write).toHaveBeenCalledTimes(1)
-  })
-
-  it('copies one image in a Chrome-compatible single-item write', async () => {
-    const write = vi.fn().mockResolvedValue(undefined)
-    vi.stubGlobal('ClipboardItem', TestClipboardItem)
-    vi.stubGlobal('navigator', { clipboard: { write } })
-
-    await expect(copyCanvasToClipboard(fakeCanvas('only'))).resolves.toBe(true)
-    expect(write).toHaveBeenCalledTimes(1)
-    expect(write.mock.calls[0][0]).toHaveLength(1)
   })
 })
 

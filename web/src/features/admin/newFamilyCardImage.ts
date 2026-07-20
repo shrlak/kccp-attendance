@@ -3,7 +3,8 @@ import {
   ensureSheetFonts,
   canvasToBlob,
   downloadBlob,
-  copyCanvasesToClipboard,
+  combineVertical,
+  copyCanvasToClipboard,
 } from './todaySheetImage'
 import { cardModel, type CardCell, type CardCheckOption } from './newFamilyCard'
 
@@ -13,9 +14,9 @@ import { cardModel, type CardCell, type CardCheckOption } from './newFamilyCard'
 // table of [grey label | value | grey label | value] rows, with the member's data
 // filled in — gender circled in the 이름 cell, the matching 소속/세례/신앙생활/심방
 // checkbox ticked, dates as MM / DD / YYYY (underscore blanks when missing). Each
-// person ships as their own JPG and its own clipboard image. The card's content comes
-// from the pure `cardModel` in ./newFamilyCard (shared with the kiosk entry form); this
-// module only draws it.
+// person ships as their own JPG; the clipboard gets all selected cards stacked into one
+// merged image. The card's content comes from the pure `cardModel` in ./newFamilyCard
+// (shared with the kiosk entry form); this module only draws it.
 
 // Re-exported so the card's model + the 소속 storage convention stay importable from
 // the module that consumes them for export (tests use these too).
@@ -366,12 +367,11 @@ async function buildNewFamilyCards(members: Member[]): Promise<HTMLCanvasElement
   return members.map(renderNewFamilyCard)
 }
 
-// Copy every card as its own clipboard image. Return the rendered cards too, so Chrome
-// can fall back to one user-clicked clipboard write per card without rendering twice.
-export async function copyNewFamilyCards(members: Member[]) {
+// Copy every card, stacked into a single image, to the clipboard.
+export async function copyNewFamilyCards(members: Member[]): Promise<{ copied: boolean }> {
   const cards = await buildNewFamilyCards(members)
-  const status = await copyCanvasesToClipboard(cards)
-  return { status, cards }
+  const copied = await copyCanvasToClipboard(combineVertical(cards, 24 * SCALE))
+  return { copied }
 }
 
 // Download each person's card as its own JPG.
