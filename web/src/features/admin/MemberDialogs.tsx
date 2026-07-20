@@ -125,9 +125,8 @@ export function EditModal({
   async function copyCard() {
     setExporting('copy')
     try {
-      const { status } = await copyNewFamilyCards([member])
-      const copied = status === 'copied'
-      toast({ title: t(copied ? 'admin.newfamily.export.cardsCopyDone' : 'admin.newfamily.export.cardsCopyFailed'), tone: copied ? 'ok' : 'err' })
+      const { copied } = await copyNewFamilyCards([member])
+      toast({ title: t(copied ? 'admin.mergedCopy.cardsDone' : 'admin.mergedCopy.failed'), tone: copied ? 'ok' : 'err' })
     } catch {
       toast({ title: t('admin.newfamily.export.cardsSaveFailed'), tone: 'err' })
     } finally {

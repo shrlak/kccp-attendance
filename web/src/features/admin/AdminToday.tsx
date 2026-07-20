@@ -5,7 +5,7 @@ import { useRoster } from './useRoster'
 import { easternNow } from '../../lib/checkinWindow'
 import { todaysCheckins, weeklyComparison } from './today'
 import { isActiveNewFamily } from './newFamily'
-import { checkinTag, TODAY_SHEET_GROUPS } from './todaySheet'
+import { checkinTag } from './todaySheet'
 import { filterMembers, filterLog, NO_FILTER, type Filter } from './filters'
 import { leaderDashboard } from './stats'
 import { GroupFilter } from './GroupFilter'
@@ -17,7 +17,6 @@ import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
 import { RefreshCw } from '../../components/ui/Icon'
 import { EditModal, AttendanceModal } from './MemberDialogs'
-import { IndividualImageCopyDialog, type IndividualCopyImage } from './IndividualImageCopyDialog'
 
 // Today's live check-in list (scoped) + stats bar, 부서/동산 filter, weekly comparison,
 // and a 동산 leader dashboard.
@@ -30,7 +29,6 @@ export function AdminToday() {
   const [filter, setFilter] = useState<Filter>(NO_FILTER)
   const [editingMember, setEditingMember] = useState<Member | null>(null)
   const [attendanceFor, setAttendanceFor] = useState<Member | null>(null)
-  const [individualCopies, setIndividualCopies] = useState<IndividualCopyImage[] | null>(null)
 
   if (isLoading) return <p className="text-sm text-muted">{t('common.loading')}</p>
   if (isError) return <p className="text-sm text-danger">{t('common.error')}</p>
@@ -49,18 +47,8 @@ export function AdminToday() {
     if (!data) return
     setExporting('copy')
     try {
-      const { status, canvases } = await copyTodaySheets(data.log, today, newMemberNames)
-      if (status === 'copied') {
-        toast({ title: t('admin.today.export.copyDone'), tone: 'ok' })
-      } else if (status === 'individual-required') {
-        setIndividualCopies(canvases.map((canvas, index) => ({
-          id: TODAY_SHEET_GROUPS[index],
-          label: TODAY_SHEET_GROUPS[index],
-          canvas,
-        })))
-      } else {
-        toast({ title: t('admin.today.export.copyFailed'), tone: 'err' })
-      }
+      const { copied } = await copyTodaySheets(data.log, today, newMemberNames)
+      toast({ title: t(copied ? 'admin.mergedCopy.sheetsDone' : 'admin.mergedCopy.failed'), tone: copied ? 'ok' : 'err' })
     } catch {
       toast({ title: t('admin.today.export.saveFailed'), tone: 'err' })
     } finally {
@@ -217,9 +205,6 @@ export function AdminToday() {
           readOnly={data.role === 'pastor'}
           onClose={() => setAttendanceFor(null)}
         />
-      )}
-      {individualCopies && (
-        <IndividualImageCopyDialog items={individualCopies} onClose={() => setIndividualCopies(null)} />
       )}
     </>
   )
