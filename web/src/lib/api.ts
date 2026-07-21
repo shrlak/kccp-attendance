@@ -59,13 +59,7 @@ export async function api<T = unknown>(
 // Phase-0 response shapes (from the attendance-api edge function)
 export interface AppConfig {
   announcement: string
-  checkinDays: number[]
-  checkinStartMin: number
-  checkinEndMin: number
-  requireApproval: boolean
   summerMode: boolean
-  demoMode: boolean
-  individualCheckinEnabled: boolean
   // 대학부/청년부 accent colors (hex, e.g. "#E0A800") — drives the 오늘 tab's name icons,
   // the kiosk's per-부서 tile backgrounds, and the 멤버 tab's per-부서 card backgrounds.
   // Keyed by group name; falls back to DEFAULT_GROUP_COLORS (./features/admin/groupColors)
@@ -77,37 +71,6 @@ export interface AppConfig {
 }
 
 export const getConfig = () => api<AppConfig>('GET', '/api/config')
-
-// ── Public check-in (anonymous, device-id based) ──────────────────────────
-// These endpoints take the device id in the body (the edge function reads
-// body.deviceId for /api/checkin & /api/self-register), in addition to the
-// X-Device-Id header the api() wrapper always sends.
-
-export interface CheckinResponse {
-  status: 'ok' | 'already' | 'time-restricted' | 'location-restricted' | 'location-required'
-  time?: string
-  name?: string
-  group?: string
-  subgroup?: string
-  isRegistered?: boolean
-  totalAttendance?: number
-  firstVisit?: boolean
-  message?: string
-  sub?: string
-  distance?: number
-}
-
-export const postCheckin = (lat: number | null, lng: number | null) =>
-  api<CheckinResponse>('POST', '/api/checkin', { deviceId: getDeviceId(), lat, lng })
-
-export interface SelfRegisterResponse {
-  status: 'ok' | 'pending' | 'already-registered'
-  name?: string
-  combined?: boolean
-}
-
-export const selfRegister = (name: string, group: string, subgroup = '') =>
-  api<SelfRegisterResponse>('POST', '/api/self-register', { deviceId: getDeviceId(), name, group, subgroup })
 
 // ── Admin (hardened: Google JWT, or a shared team password from any device) ───
 // Three break-glass passwords route a password-only login on an unroled device to a role:
@@ -271,23 +234,15 @@ export const approveClear = () => api<{ status: string }>('POST', '/api/admin/at
 // Dismiss/reject pending clear requests (super-admin only).
 export const rejectClear = () => api<{ status: string }>('POST', '/api/admin/attendance/clear-reject')
 
-// Update the adjustable check-in window (super-admin). The master password rides the
-// X-Admin-Password header set by the auth store.
-export const updateCheckinWindow = (checkinDays: number[], checkinStartMin: number, checkinEndMin: number) =>
-  api<{ status: string }>('POST', '/api/admin/settings', { checkinDays, checkinStartMin, checkinEndMin })
-
 export interface SettingsPatch {
   announcement?: string
   summerMode?: boolean
-  demoMode?: boolean
-  individualCheckinEnabled?: boolean
-  requireApproval?: boolean
   groupColors?: Record<string, string>
   semesterDates?: SemesterDates
 }
 
-// Update any subset of the app-wide settings (super-admin). Same endpoint as the
-// check-in window; only the provided fields change.
+// Update any subset of the app-wide settings (super-admin). Only the provided
+// fields change.
 export const updateSettings = (patch: SettingsPatch) =>
   api<{ status: string }>('POST', '/api/admin/settings', patch)
 
@@ -411,25 +366,6 @@ export interface LoginLogEntry {
 // hour are collapsed server-side.
 export const getLoginLog = (limit = 100) =>
   api<{ log: LoginLogEntry[] }>('GET', `/api/admin/login-log?limit=${limit}`)
-
-export interface PendingReg {
-  deviceId: string
-  name: string
-  group: string
-  subgroup: string
-  requestedAt: number
-}
-
-// Pending self-registrations awaiting approval (any verified admin).
-export const getPending = () => api<{ pending: PendingReg[] }>('GET', '/api/admin/pending')
-
-// Approve a pending registration → creates/links the member + device. Pastor read-only.
-export const approvePending = (deviceId: string) =>
-  api<{ status: string }>('POST', '/api/admin/pending/approve', { deviceId })
-
-// Reject (delete) a pending registration. Pastor read-only.
-export const rejectPending = (deviceId: string) =>
-  api<{ status: string }>('POST', '/api/admin/pending/reject', { deviceId })
 
 export interface MemberEdit {
   name?: string

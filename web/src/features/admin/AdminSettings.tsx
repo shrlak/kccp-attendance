@@ -1,13 +1,11 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { getConfig, getCardScanUsage, updateCheckinWindow, updateSettings, type SettingsPatch } from '../../lib/api'
+import { getConfig, getCardScanUsage, updateSettings, type SettingsPatch } from '../../lib/api'
 import { useToast } from '../../components/ui/Toast'
-import { useLang } from '../../stores/useLang'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { Switch } from '../../components/ui/Switch'
-import { minutesToHHMM, hhmmToMinutes } from './time'
 import { DEFAULT_GROUP_COLORS, isValidHex } from './groupColors'
 import { easternNow } from '../../lib/checkinWindow'
 import {
@@ -22,20 +20,10 @@ import {
 
 const GROUPS = ['대학부', '청년부'] as const
 
-const DAY_LABELS: Record<'ko' | 'en', string[]> = {
-  ko: ['일', '월', '화', '수', '목', '금', '토'],
-  en: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
-}
-
-const timeInput =
-  'w-full min-h-11 rounded-md border border-border bg-surface px-3 text-sm text-text outline-none ' +
-  'focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/30'
-
-// Super-admin settings: the adjustable check-in window, announcement, and app-wide mode
-// toggles. (동산 names + 동산지기/부동산지기 live in their own 동산 tab now.)
+// Super-admin settings: semester dates, the announcement, and app-wide mode toggles.
+// (동산 names + 동산지기/부동산지기 live in their own 동산 tab now.)
 export function AdminSettings() {
   const { t } = useTranslation()
-  const lang = useLang((s) => s.lang)
   const toast = useToast()
   const qc = useQueryClient()
   const { data: cfg } = useQuery({ queryKey: ['config'], queryFn: getConfig })
@@ -48,8 +36,6 @@ export function AdminSettings() {
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
   })
-  const [edits, setEdits] = useState<{ days?: number[]; start?: string; end?: string }>({})
-  const [saving, setSaving] = useState(false)
   const [ann, setAnn] = useState<string | undefined>(undefined)
   const [annSaving, setAnnSaving] = useState(false)
   const [busyToggle, setBusyToggle] = useState<keyof SettingsPatch | null>(null)
@@ -58,9 +44,6 @@ export function AdminSettings() {
   const [semesterEdits, setSemesterEdits] = useState<SemesterDates | undefined>(undefined)
   const [semesterSaving, setSemesterSaving] = useState(false)
 
-  const days = edits.days ?? cfg?.checkinDays ?? [0]
-  const start = edits.start ?? (cfg ? minutesToHHMM(cfg.checkinStartMin) : '13:00')
-  const end = edits.end ?? (cfg ? minutesToHHMM(cfg.checkinEndMin) : '15:00')
   const announcement = ann ?? cfg?.announcement ?? ''
   const colors = colorEdits ?? cfg?.groupColors ?? DEFAULT_GROUP_COLORS
   const colorsDirty = colorEdits !== undefined
@@ -74,25 +57,6 @@ export function AdminSettings() {
       ? Math.min(100, Math.round((scanUsage.remaining / scanUsage.limit) * 100))
       : 0
     : 0
-
-  function toggleDay(d: number) {
-    const next = days.includes(d) ? days.filter((x) => x !== d) : [...days, d].sort((a, b) => a - b)
-    setEdits((e) => ({ ...e, days: next }))
-  }
-
-  async function save() {
-    setSaving(true)
-    try {
-      await updateCheckinWindow(days, hhmmToMinutes(start), hhmmToMinutes(end))
-      await qc.invalidateQueries({ queryKey: ['config'] })
-      setEdits({})
-      toast({ title: t('admin.settings.saved'), tone: 'ok' })
-    } catch {
-      toast({ title: t('common.error'), tone: 'err' })
-    } finally {
-      setSaving(false)
-    }
-  }
 
   async function saveAnnouncement() {
     setAnnSaving(true)
@@ -217,63 +181,6 @@ export function AdminSettings() {
 
       <hr className="my-8 border-border" />
 
-      <h2 className="font-display text-lg font-semibold text-text">{t('admin.settings.checkinWindow')}</h2>
-      <p className="mb-5 mt-1 text-sm text-muted">{t('admin.settings.checkinWindowDesc')}</p>
-
-      <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-subtle">
-        {t('admin.settings.days')}
-      </span>
-      <div className="mb-5 flex gap-1.5">
-        {DAY_LABELS[lang].map((label, d) => (
-          <button
-            key={d}
-            type="button"
-            onClick={() => toggleDay(d)}
-            aria-pressed={days.includes(d)}
-            aria-label={label}
-            className={
-              'h-10 w-10 rounded-full text-sm font-semibold transition-colors ' +
-              (days.includes(d)
-                ? 'bg-primary text-primary-fg'
-                : 'border border-border bg-surface text-muted hover:bg-surface-alt')
-            }
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      <div className="mb-6 flex items-end gap-3">
-        <label className="flex-1">
-          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-subtle">
-            {t('admin.settings.start')}
-          </span>
-          <input
-            type="time"
-            value={start}
-            onChange={(e) => setEdits((cur) => ({ ...cur, start: e.target.value }))}
-            className={timeInput}
-          />
-        </label>
-        <label className="flex-1">
-          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-subtle">
-            {t('admin.settings.end')}
-          </span>
-          <input
-            type="time"
-            value={end}
-            onChange={(e) => setEdits((cur) => ({ ...cur, end: e.target.value }))}
-            className={timeInput}
-          />
-        </label>
-      </div>
-
-      <Button onClick={save} disabled={saving || days.length === 0}>
-        {saving ? t('common.loading') : t('admin.settings.save')}
-      </Button>
-
-      <hr className="my-8 border-border" />
-
       <h2 className="font-display text-lg font-semibold text-text">{t('admin.settings.announcement')}</h2>
       <p className="mb-3 mt-1 text-sm text-muted">{t('admin.settings.announcementDesc')}</p>
       <textarea
@@ -297,20 +204,6 @@ export function AdminSettings() {
           checked={!!cfg?.summerMode}
           disabled={!cfg || busyToggle === 'summerMode'}
           onChange={(v) => flip('summerMode', v)}
-        />
-        <ToggleRow
-          label={t('admin.settings.individualCheckin')}
-          desc={t('admin.settings.individualCheckinDesc')}
-          checked={!!cfg?.individualCheckinEnabled}
-          disabled={!cfg || busyToggle === 'individualCheckinEnabled'}
-          onChange={(v) => flip('individualCheckinEnabled', v)}
-        />
-        <ToggleRow
-          label={t('admin.settings.demoMode')}
-          desc={t('admin.settings.demoModeDesc')}
-          checked={!!cfg?.demoMode}
-          disabled={!cfg || busyToggle === 'demoMode'}
-          onChange={(v) => flip('demoMode', v)}
         />
       </div>
 

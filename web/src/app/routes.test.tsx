@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react'
-import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest'
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClient } from '../lib/queryClient'
@@ -22,29 +22,13 @@ function renderAt(path: string) {
 }
 
 describe('routes', () => {
-  it('renders the KCCP landing at / (kiosk-first: branded page, no check-in button)', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
-      announcement: '공지 테스트', checkinDays: [0], checkinStartMin: 780, checkinEndMin: 900,
-      requireApproval: false, summerMode: false, demoMode: false, individualCheckinEnabled: false,
-    }), { status: 200 })))
+  it('renders the KCCP landing at / (kiosk-first: branded page, no check-in)', () => {
     renderAt('/')
-    expect(await screen.findByRole('link', { name: '교회 키오스크 시작' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '교회 키오스크 시작' })).toBeInTheDocument()
     // The hero heading is a live clock (Pittsburgh time), not a slogan.
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/\d{1,2}:\d{2}/)
+    // Individual self check-in was removed — no check-in button on the landing.
     expect(screen.queryByRole('button', { name: '체크인' })).not.toBeInTheDocument()
-    expect(screen.queryByText('지금은 출석 시간이 아닙니다')).not.toBeInTheDocument()
-    // Announcement only shows when individual check-in is on.
-    expect(screen.queryByText('공지 테스트')).not.toBeInTheDocument()
-  })
-
-  it('surfaces the check-in button at / when individual check-in is enabled', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
-      announcement: '공지 테스트', checkinDays: [0], checkinStartMin: 780, checkinEndMin: 900,
-      requireApproval: false, summerMode: false, demoMode: false, individualCheckinEnabled: true,
-    }), { status: 200 })))
-    renderAt('/')
-    expect(await screen.findByRole('button', { name: '체크인' })).toBeInTheDocument()
-    expect(screen.getByText('공지 테스트')).toBeInTheDocument()
   })
 
   it('renders the admin login gate at /admin', () => {

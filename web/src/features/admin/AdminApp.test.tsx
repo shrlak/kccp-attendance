@@ -10,11 +10,10 @@ import { AdminApp } from './AdminApp'
 beforeAll(async () => { await i18n.init() })
 
 // Kitchen-sink payload that satisfies every query the admin tabs fire on mount
-// (config, roster, pending) — the rail behavior under test never reads it.
+// (config, roster) — the rail behavior under test never reads it.
 const apiStub = {
-  announcement: '', checkinDays: [0], checkinStartMin: 780, checkinEndMin: 900,
-  requireApproval: false, summerMode: false, demoMode: false, individualCheckinEnabled: false,
-  role: 'super_admin', members: [], log: [], pending: [],
+  announcement: '', summerMode: false,
+  role: 'super_admin', members: [], log: [],
 }
 
 beforeEach(() => {

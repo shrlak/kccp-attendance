@@ -468,20 +468,14 @@ Deno.serve(async (req: Request) => {
       return ok({role:role.role,canBulkSubgroup,canClearAttendance,members:members||[],log:(logs||[]).map(rowToLog)});
     }
 
-    // Settings (super-admin only): the adjustable check-in window — day(s) + start/end.
+    // Settings (super-admin only): announcement, summer mode, group colors, semester dates.
     if(req.method==="POST"&&p==="/api/admin/settings") {
       const role=await resolveAdmin(sb,req);
       if(role?.role!=="super_admin") return fail(403,"Super admin required");
-      const {checkinDays,checkinStartMin,checkinEndMin,announcement,summerMode,demoMode,individualCheckinEnabled,requireApproval,groupColors,semesterDates}=body;
+      const {announcement,summerMode,groupColors,semesterDates}=body;
       const upd: any={updated_at:new Date().toISOString()};
-      if(checkinDays!==undefined) upd.checkin_days=checkinDays;
-      if(checkinStartMin!==undefined) upd.checkin_start_min=Number(checkinStartMin);
-      if(checkinEndMin!==undefined) upd.checkin_end_min=Number(checkinEndMin);
       if(announcement!==undefined) upd.announcement=announcement;
       if(summerMode!==undefined) upd.summer_mode=!!summerMode;
-      if(demoMode!==undefined) upd.demo_mode=!!demoMode;
-      if(individualCheckinEnabled!==undefined) upd.individual_checkin_enabled=!!individualCheckinEnabled;
-      if(requireApproval!==undefined) upd.require_approval=!!requireApproval;
       if(groupColors!==undefined&&groupColors&&typeof groupColors==="object"){
         const HEX=/^#[0-9a-fA-F]{6}$/; const clean: Record<string,string>={};
         for(const [g,c] of Object.entries(groupColors)) if(typeof c==="string"&&HEX.test(c)) clean[g]=c;
@@ -797,47 +791,6 @@ Deno.serve(async (req: Request) => {
       } finally {
         await pgSql.end({timeout:5});
       }
-    }
-
-    // Pending self-registrations (when require_approval is on). Any verified admin may
-    // view; pastor is read-only for the approve/reject mutations below.
-    if(req.method==="GET"&&p==="/api/admin/pending") {
-      const role=await resolveAdmin(sb,req);
-      if(!role) return fail(401,"Not authorized");
-      const {data:pd}=await sb.from("pending_registrations").select("*").order("requested_at",{ascending:false});
-      return ok({pending:(pd||[]).map((p:any)=>({deviceId:p.device_id,name:p.name,group:p.group_name||"",subgroup:p.subgroup||"",requestedAt:new Date(p.requested_at).getTime()}))});
-    }
-
-    // Approve a pending registration: find-or-create the member, link the device to it,
-    // then clear the pending row. Audited.
-    if(req.method==="POST"&&p==="/api/admin/pending/approve") {
-      const role=await resolveAdmin(sb,req);
-      if(!role) return fail(401,"Not authorized");
-      if(role.role==="pastor") return fail(403,"Read-only");
-      const {deviceId}=body; if(!deviceId) return fail(400,"deviceId required");
-      const {data:pr}=await sb.from("pending_registrations").select("*").eq("device_id",deviceId).single();
-      if(!pr) return fail(404,"Not found in pending list");
-      const {data:mm}=await sb.from("members").select("id").eq("name",pr.name).limit(1);
-      let memberId=mm&&mm.length?mm[0].id:null;
-      if(!memberId){
-        const {data:nm}=await sb.from("members").insert({name:pr.name,group_name:pr.group_name||"",subgroup:pr.subgroup||""}).select("id").single();
-        memberId=(nm as {id?:string}|null)?.id||null;
-      }
-      await sb.from("devices").upsert({id:pr.device_id,name:pr.name,group_name:pr.group_name||"",subgroup:pr.subgroup||"",member_id:memberId});
-      await sb.from("pending_registrations").delete().eq("device_id",deviceId);
-      await addAudit(sb,"pending-approve",xDev,pr.name+" ("+pr.device_id+")");
-      return ok({status:"ok"});
-    }
-
-    if(req.method==="POST"&&p==="/api/admin/pending/reject") {
-      const role=await resolveAdmin(sb,req);
-      if(!role) return fail(401,"Not authorized");
-      if(role.role==="pastor") return fail(403,"Read-only");
-      const {deviceId}=body; if(!deviceId) return fail(400,"deviceId required");
-      const {data:pr}=await sb.from("pending_registrations").select("name").eq("device_id",deviceId).single();
-      await sb.from("pending_registrations").delete().eq("device_id",deviceId);
-      await addAudit(sb,"pending-reject",xDev,((pr as {name?:string}|null)?.name||deviceId)+" ("+deviceId+")");
-      return ok({status:"ok"});
     }
 
     // Assign/replace a member's admin role (super-admin only). Upsert into member_roles.
@@ -1299,62 +1252,6 @@ Deno.serve(async (req: Request) => {
       return ok({isAdmin:noAdminsYet||!!entry,noAdminsYet,role:entry?(typeof entry==="string"?"super":entry.role||"super"):null,leaderGroup:entry&&typeof entry!=="string"?entry.group||"":"",leaderSubgroup:entry&&typeof entry!=="string"?entry.subgroup||"":"",ministry:entry&&typeof entry!=="string"?entry.ministry||"":""});
     }
 
-    if(req.method==="POST"&&p==="/api/checkin") {
-      const {deviceId,lat,lng}=body;
-      const [cfg,{data:device}]=await Promise.all([getCfg(sb),sb.from("devices").select("*").eq("id",deviceId).single()]);
-      const allowedDays: number[]=cfg.checkin_days||[0]; const startMin: number=cfg.checkin_start_min??780; const endMin: number=cfg.checkin_end_min??900;
-      if(!cfg.demo_mode){
-        const now=new Date(); const eastern=new Date(now.toLocaleString("en-US",{timeZone:"America/New_York"}));
-        const day=eastern.getDay(),timeInMin=eastern.getHours()*60+eastern.getMinutes();
-        const DAY=["일요일","월요일","화요일","수요일","목요일","금요일","토요일"];
-        if(!allowedDays.includes(day)) return ok({status:"time-restricted",message:"출석 가능한 요일이 아닙니다",sub:"출석 가능 요일: "+allowedDays.map((d:number)=>DAY[d]).join(", ")});
-        if(timeInMin<startMin||timeInMin>=endMin) return ok({status:"time-restricted",message:"출석 시간이 아닙니다",sub:"출석 가능 시간: "+fmtMin(startMin)+" ~ "+fmtMin(endMin)});
-        const loc=checkLocation(lat,lng);
-        if(loc==="required") return ok({status:"location-required",message:"위치 정보가 필요합니다. 위치 접근을 허용해주세요."});
-        if(loc!==null) return ok({status:"location-restricted",message:"교회 근처에서만 출석할 수 있습니다.",distance:loc});
-      }
-      const today=localDate(),time=localTime(),ts=Date.now();
-      const name=device?.name,group=device?.group_name||"",subgroup=device?.subgroup||"",memberRole=device?.member_role||"";
-      if(name){const ex=await checkedToday(sb,name,today);if(ex){const total=await countAtt(sb,name);return ok({status:"already",time:ex.time_str,name,group,subgroup,totalAttendance:total});}}
-      else{const {data:ex}=await sb.from("attendance_log").select("*").eq("device_id",deviceId).eq("date",today).limit(1);if(ex&&ex.length)return ok({status:"already",time:ex[0].time_str,name:ex[0].name,group:"",subgroup:"",totalAttendance:0});}
-      const totalCount=name?await countAtt(sb,name):0; const isFirst=totalCount===0; const dname=name||("Unknown ("+deviceId.slice(0,12)+"...)");
-      await sb.from("attendance_log").insert({device_id:deviceId,name:dname,group_name:group,subgroup,date:today,time_str:time,ts,location_verified:true,first_visit:isFirst,member_role:memberRole||null});
-      return ok({status:"ok",time,name:dname,group,subgroup,isRegistered:!!name,totalAttendance:totalCount+1,firstVisit:isFirst});
-    }
-
-    if(req.method==="POST"&&p==="/api/self-register") {
-      const {deviceId,name,group,subgroup}=body; if(!deviceId||!name) return fail(400,"deviceId and name required");
-      const cleanName=name.trim();
-      const {data:ex}=await sb.from("devices").select("id,name").eq("id",deviceId).single();
-      if(ex) return ok({status:"already-registered",name:ex.name});
-      // If a person with this name already exists, this device is being added for
-      // access purposes — combine it with the existing record (inherit their
-      // group/동산) instead of creating a divergent duplicate, and never flag it
-      // as 새가족.
-      const {data:matches}=await sb.from("devices").select("group_name,subgroup").eq("name",cleanName).limit(1);
-      const match=matches&&matches.length?matches[0]:null;
-      const finalGroup=match?(match.group_name||""):(group||"");
-      const finalSub=match?(match.subgroup||""):(subgroup||"");
-      const cfg=await getCfg(sb);
-      if(cfg.require_approval){
-        const {data:al}=await sb.from("pending_registrations").select("id").eq("device_id",deviceId).single();
-        if(!al) await sb.from("pending_registrations").insert({device_id:deviceId,name:cleanName,group_name:finalGroup,subgroup:finalSub});
-        return ok({status:"pending",name:cleanName});
-      }
-      // Link this device to the person's existing member (a linked device's member, else
-      // the members row by name) so a returning admin's personal device inherits their
-      // member — and any member_roles grant on it. supersede below also covers the ROSTER
-      // stub case; this additionally handles a 2nd personal device (no stub left).
-      let memberId: string|null=null;
-      const {data:linked}=await sb.from("devices").select("member_id").eq("name",cleanName).not("member_id","is",null).limit(1);
-      if(linked&&linked.length) memberId=(linked[0] as {member_id?:string}).member_id||null;
-      else { const {data:mm}=await sb.from("members").select("id").eq("name",cleanName).limit(1); if(mm&&mm.length) memberId=(mm[0] as {id?:string}).id||null; }
-      await sb.from("devices").upsert({id:deviceId,name:cleanName,group_name:finalGroup,subgroup:finalSub,is_new_member:false,member_id:memberId});
-      await sb.from("attendance_log").update({name:cleanName,group_name:finalGroup,subgroup:finalSub}).eq("device_id",deviceId);
-      await supersedeRosterPlaceholders(sb,cleanName,deviceId);
-      return ok({status:"ok",name:cleanName,combined:!!match});
-    }
-
     // Kiosk new member registration (새가족 등록)
     if(req.method==="POST"&&p==="/api/kiosk-new-member") {
       const {name,group,subgroup,gender,phone,birthDate,baptismStatus,schoolOrWork,faithDuration,pastoralVisitRequested,kakaoId}=body;
@@ -1561,13 +1458,7 @@ Deno.serve(async (req: Request) => {
       const cfg=await getCfg(sb);
       return ok({
         announcement:cfg.announcement||"",
-        checkinDays:cfg.checkin_days||[0],
-        checkinStartMin:cfg.checkin_start_min??780,
-        checkinEndMin:cfg.checkin_end_min??900,
-        requireApproval:cfg.require_approval||false,
         summerMode:cfg.summer_mode||false,
-        demoMode:cfg.demo_mode||false,
-        individualCheckinEnabled:cfg.individual_checkin_enabled||false,
         groupColors:cfg.group_colors||{"대학부":"#E0A800","청년부":"#3B82F6"},
         semesterDates:validSemesterDates(cfg.semester_dates)?cfg.semester_dates:null,
       });

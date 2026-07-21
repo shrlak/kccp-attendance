@@ -1,10 +1,9 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
 import { useAdminAuth } from '../../stores/useAdminAuth'
 import { useLang } from '../../stores/useLang'
-import { getPending, runDbBackupNow } from '../../lib/api'
+import { runDbBackupNow } from '../../lib/api'
 import { Button } from '../../components/ui/Button'
 import { BottomNav } from '../../components/ui/BottomNav'
 import { Dialog } from '../../components/ui/Dialog'
@@ -97,9 +96,6 @@ export function AdminApp() {
       setBackupBusy(false)
     }
   }
-  const { data: pending } = useQuery({ queryKey: ['pending'], queryFn: getPending, enabled: isSuper })
-  const pendingCount = pending?.pending.length ?? 0
-
   // A scoped (roled-device) leader shows their 부서·동산; a break-glass leader/welcoming
   // password login has no group/동산 and sees the whole roster, so it shows "All".
   const scopeLabel =
@@ -116,7 +112,7 @@ export function AdminApp() {
     timeZone: 'America/New_York',
   }).format(new Date())
 
-  // One row per tab; `show` gates by role, `badge` surfaces the pending-approval count.
+  // One row per tab; `show` gates by role, `badge` shows an optional count bubble.
   const tabs: { id: Tab; icon: LucideIcon; show: boolean; badge?: number }[] = [
     { id: 'today', icon: CalendarCheck, show: true },
     { id: 'sheet', icon: ClipboardList, show: true },
@@ -125,14 +121,14 @@ export function AdminApp() {
     { id: 'newfamily', icon: UserPlus, show: true },
     { id: 'newfamilyEdu', icon: GraduationCap, show: true },
     { id: 'visitors', icon: DoorOpen, show: true },
-    { id: 'admins', icon: Shield, show: isSuper, badge: pendingCount },
+    { id: 'admins', icon: Shield, show: isSuper },
     { id: 'dongsan', icon: Sprout, show: isSuper },
     { id: 'settings', icon: Settings, show: isSuper },
   ]
 
   const visibleTabs = tabs.filter((item) => item.show)
   // Mobile bottom bar: the 4 everyday tabs stay one tap away; everything else lives in
-  // the 더보기 sheet (badges roll up onto 더보기 so pending approvals stay visible).
+  // the 더보기 sheet (any tab badges roll up onto 더보기 so they stay visible).
   const primaryTabs = visibleTabs.slice(0, 4)
   const moreTabs = visibleTabs.slice(4)
   const moreBadge = moreTabs.reduce((n, item) => n + (item.badge ?? 0), 0)
