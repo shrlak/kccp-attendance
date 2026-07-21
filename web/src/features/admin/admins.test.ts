@@ -3,6 +3,7 @@ import {
   sortAdminRoles,
   auditDetail,
   formatLoginLocation,
+  loginLocationDisplay,
   roleNeedsScope,
   backupFilename,
   formatBytes,
@@ -116,5 +117,27 @@ describe('formatLoginLocation', () => {
     expect(formatLoginLocation(null)).toBe('')
     expect(formatLoginLocation(undefined)).toBe('')
     expect(formatLoginLocation({ city: '', region: '', country: '', lat: null, lon: null, org: '' })).toBe('')
+  })
+})
+
+describe('loginLocationDisplay', () => {
+  const ipLoc = { city: 'Pittsburgh', region: 'Pennsylvania', country: 'United States', lat: 40.44, lon: -79.99, org: 'Comcast' }
+  it('prefers precise GPS with its reverse-geocoded address', () => {
+    const d = loginLocationDisplay({ location: ipLoc, gps: { lat: 40.4502, lon: -79.9348, accuracy: 12, address: '123 Main St, Pittsburgh, PA' } })
+    expect(d).toEqual({ text: '123 Main St, Pittsburgh, PA', lat: 40.4502, lon: -79.9348, accuracy: 12, precise: true })
+  })
+  it('falls back to raw GPS coordinates when the address has not resolved yet', () => {
+    const d = loginLocationDisplay({ location: null, gps: { lat: 40.45021, lon: -79.93481, accuracy: 8, address: '' } })
+    expect(d.precise).toBe(true)
+    expect(d.text).toBe('40.45021, -79.93481')
+  })
+  it('falls back to the city-level IP estimate when no GPS was granted', () => {
+    const d = loginLocationDisplay({ location: ipLoc, gps: null })
+    expect(d).toEqual({ text: 'Pittsburgh, Pennsylvania, United States', lat: 40.44, lon: -79.99, accuracy: null, precise: false })
+  })
+  it('is empty when neither GPS nor IP resolved', () => {
+    const d = loginLocationDisplay({ location: null, gps: null })
+    expect(d.text).toBe('')
+    expect(d.lat).toBeNull()
   })
 })

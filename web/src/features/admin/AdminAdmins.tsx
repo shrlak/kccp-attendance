@@ -28,7 +28,7 @@ import {
 import {
   sortAdminRoles,
   auditDetail,
-  formatLoginLocation,
+  loginLocationDisplay,
   roleNeedsScope,
   backupFilename,
   formatBytes,
@@ -439,21 +439,35 @@ export function AdminAdmins() {
                     {e.ip || '—'}
                     <span className="text-subtle"> · {t(`admin.admins.method.${e.method}`)}</span>
                   </div>
-                  {formatLoginLocation(e.location) && (
-                    <div className="mt-0.5 text-muted">
-                      {formatLoginLocation(e.location)}
-                      {e.location?.lat != null && e.location?.lon != null && (
-                        <a
-                          href={`https://www.google.com/maps?q=${e.location.lat},${e.location.lon}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="ml-1.5 font-semibold text-primary underline"
+                  {(() => {
+                    const loc = loginLocationDisplay(e)
+                    if (!loc.text && loc.lat == null) return null
+                    return (
+                      <div className="mt-0.5 text-muted">
+                        <span
+                          className={`mr-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                            loc.precise ? 'bg-primary/15 text-primary' : 'bg-border/60 text-subtle'
+                          }`}
                         >
-                          {t('admin.admins.map')}
-                        </a>
-                      )}
-                    </div>
-                  )}
+                          {loc.precise ? t('admin.admins.gpsPrecise') : t('admin.admins.gpsApprox')}
+                        </span>
+                        {loc.text}
+                        {loc.precise && loc.accuracy != null && (
+                          <span className="text-subtle"> · ±{Math.round(loc.accuracy)}m</span>
+                        )}
+                        {loc.lat != null && loc.lon != null && (
+                          <a
+                            href={`https://www.google.com/maps?q=${loc.lat},${loc.lon}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="ml-1.5 font-semibold text-primary underline"
+                          >
+                            {t('admin.admins.map')}
+                          </a>
+                        )}
+                      </div>
+                    )
+                  })()}
                 </li>
               ))}
             </ul>

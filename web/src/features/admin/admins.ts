@@ -1,4 +1,4 @@
-import type { AdminRoleRow, AdminRole, DbBackupEntry, LoginLocation } from '../../lib/api'
+import type { AdminRoleRow, AdminRole, DbBackupEntry, LoginLocation, LoginLogEntry } from '../../lib/api'
 
 // 'staff' is a synthetic break-glass role, never stored as an admin row, so its rank only
 // satisfies the exhaustive Record type; it won't actually appear in the admins list.
@@ -19,6 +19,30 @@ export function roleNeedsScope(role: AdminRole): boolean {
 export function formatLoginLocation(loc: LoginLocation | null | undefined): string {
   if (!loc) return ''
   return [loc.city, loc.region, loc.country].filter(Boolean).join(', ')
+}
+
+// Best available location for a login entry: the precise device GPS (street-level address,
+// or raw coordinates until reverse-geocoded) when the admin allowed location at sign-in,
+// otherwise the approximate city-level IP estimate. `precise` distinguishes the two so the
+// UI can label + map them accordingly; `lat`/`lon` drive the map link.
+export interface LoginLocationDisplay {
+  text: string
+  lat: number | null
+  lon: number | null
+  accuracy: number | null
+  precise: boolean
+}
+export function loginLocationDisplay(e: Pick<LoginLogEntry, 'location' | 'gps'>): LoginLocationDisplay {
+  if (e.gps) {
+    return {
+      text: e.gps.address || `${e.gps.lat.toFixed(5)}, ${e.gps.lon.toFixed(5)}`,
+      lat: e.gps.lat,
+      lon: e.gps.lon,
+      accuracy: e.gps.accuracy,
+      precise: true,
+    }
+  }
+  return { text: formatLoginLocation(e.location), lat: e.location?.lat ?? null, lon: e.location?.lon ?? null, accuracy: null, precise: false }
 }
 
 // Flatten an audit entry's details (string, {info}, or arbitrary object) to one line.

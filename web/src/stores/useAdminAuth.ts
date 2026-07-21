@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { adminVerify, adminVerifyGoogle, setAdminPassword, setAdminToken, type AdminIdentity } from '../lib/api'
+import { adminVerify, adminVerifyGoogle, getLoginPosition, setAdminPassword, setAdminToken, type AdminIdentity } from '../lib/api'
 import { supabase } from '../lib/supabase'
 
 const PW_KEY = 'kccp-admin-pw'
@@ -59,7 +59,9 @@ export const useAdminAuth = create<AdminAuthState>((set) => ({
     set({ status: 'verifying' })
     try {
       setAdminPassword(password)
-      const identity = await adminVerify(password)
+      // Best-effort precise location: prompts once, resolves null if declined/unsupported.
+      const coords = await getLoginPosition()
+      const identity = await adminVerify(password, coords)
       writePw(password)
       writeActivity()
       set({ status: 'authed', identity, method: 'password' })
@@ -157,7 +159,9 @@ async function verifyGoogleSession(accessToken: string): Promise<boolean> {
   useAdminAuth.setState({ status: 'verifying' })
   try {
     setAdminToken(accessToken)
-    const identity = await adminVerifyGoogle()
+    // Best-effort precise location: prompts once, resolves null if declined/unsupported.
+    const coords = await getLoginPosition()
+    const identity = await adminVerifyGoogle(coords)
     useAdminAuth.setState({ status: 'authed', identity, method: 'google' })
     if (isOAuthCallback) navigateAfterOAuth()
     return true

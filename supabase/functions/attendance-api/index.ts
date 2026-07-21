@@ -272,13 +272,49 @@ async function addLoginLog(sb: SB, req: Request, role: {role:string;memberId:str
       const {data:m}=await sb.from("members").select("name").eq("id",role.memberId).single();
       memberName=(m as {name?:string}|null)?.name||"";
     }
+    // Precise device-GPS coordinates, sent by the web app only when the admin allowed the
+    // browser location prompt at login (X-Geo-*). Absent/denied → NULL, and the login-log
+    // viewer falls back to the city-level IP estimate. Parsed defensively.
+    const num=(h:string)=>{const v=parseFloat(req.headers.get(h)||"");return Number.isFinite(v)?v:null;};
+    const gpsLat=num("x-geo-lat"),gpsLon=num("x-geo-lon"),gpsAcc=num("x-geo-acc");
     const now=Date.now();
     const {data:last}=await sb.from("login_log").select("ts")
       .eq("role",role.role).eq("member_name",memberName).eq("device_id",deviceId).eq("ip",ip).eq("method",method)
       .order("ts",{ascending:false}).limit(1);
     if(last&&last.length&&now-((last[0] as {ts:number}).ts)<60*60*1000) return;
-    await sb.from("login_log").insert({ts:now,role:role.role,member_id:role.memberId||null,member_name:memberName,device_id:deviceId,ip,method,user_agent:req.headers.get("user-agent")||""});
+    await sb.from("login_log").insert({ts:now,role:role.role,member_id:role.memberId||null,member_name:memberName,device_id:deviceId,ip,method,user_agent:req.headers.get("user-agent")||"",gps_lat:gpsLat,gps_lon:gpsLon,gps_accuracy:gpsAcc});
   } catch(_){}
+}
+
+// Reverse-geocode GPS coordinates → a street-level address, via the gps_geo cache (see the
+// 20260726 migration), filling misses from OpenStreetMap's Nominatim (HTTPS, keyless).
+// Keyed by coords rounded to 5 decimals (~1 m). Resolved sequentially and capped per read
+// to respect Nominatim's ≤1 req/sec policy; uncached leftovers resolve on a later load.
+// Best-effort: the exact coordinates + map link already convey the precise location, so a
+// geocoder failure only omits the prose address, it never blocks the log.
+function coordKey(lat:number,lon:number):string { return lat.toFixed(5)+","+lon.toFixed(5); }
+async function gpsAddresses(sb: SB, coords: {lat:number;lon:number}[]): Promise<Record<string,string>> {
+  const out: Record<string,string>={};
+  const keys=[...new Set(coords.map((c)=>coordKey(c.lat,c.lon)))];
+  if(!keys.length) return out;
+  const {data:cached}=await sb.from("gps_geo").select("*").in("coord_key",keys);
+  (cached||[]).forEach((g:any)=>{out[g.coord_key]=g.address||"";});
+  const missing=coords.filter((c)=>!(coordKey(c.lat,c.lon) in out)).slice(0,6);
+  for(const c of missing){
+    const key=coordKey(c.lat,c.lon);
+    if(key in out) continue;
+    try {
+      const u="https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&addressdetails=1&lat="+encodeURIComponent(c.lat)+"&lon="+encodeURIComponent(c.lon);
+      const res=await fetch(u,{headers:{"User-Agent":"kccp-attendance/1.0 (church attendance app)"},signal:AbortSignal.timeout(4000)});
+      if(!res.ok){await new Promise((r)=>setTimeout(r,1100));continue;}
+      const j=await res.json();
+      const address=typeof j?.display_name==="string"?j.display_name:"";
+      out[key]=address;
+      await sb.from("gps_geo").upsert({coord_key:key,address});
+    } catch(_){}
+    await new Promise((r)=>setTimeout(r,1100)); // Nominatim: ≤1 req/sec
+  }
+  return out;
 }
 
 // IP → approximate place for the login log, via the ip_geo cache (see the 20260725
@@ -582,17 +618,27 @@ Deno.serve(async (req: Request) => {
       return ok({log:(log||[]).map((e:any)=>({ts:e.ts,action:e.action,adminName:e.admin_name,details:e.details}))});
     }
 
-    // Login log — successful admin sign-ins (which account, when, from which IP/device)
-    // plus each IP's approximate place, newest first. Personal-audit data, so it is NOT
-    // super-admin-wide: only 김호연, signed in attributably (see canViewLoginLog in
-    // auth.ts), may read it.
+    // Login log — successful admin sign-ins (which account, when, from which IP/device),
+    // newest first, with the most precise location available: the device's own GPS (a
+    // street-level address) when the admin allowed it at login, else the city-level IP
+    // estimate. Personal-audit data, so it is NOT super-admin-wide: only 김호연, signed in
+    // attributably (see canViewLoginLog in auth.ts), may read it.
     if(req.method==="GET"&&p==="/api/admin/login-log") {
       const role=await resolveAdmin(sb,req);
       if(!canViewLoginLog(role)) return fail(403,"Not available");
       const limit=Math.min(parseInt(url.searchParams.get("limit")||"100")||100,500);
       const {data:log}=await sb.from("login_log").select("*").order("ts",{ascending:false}).limit(limit);
-      const geo=await geoForIps(sb,(log||[]).map((e:any)=>e.ip||""));
-      return ok({log:(log||[]).map((e:any)=>({ts:e.ts,role:e.role,memberName:e.member_name||"",deviceId:e.device_id||"",ip:e.ip||"",method:e.method||"password",location:geo[e.ip]||null}))});
+      const rows=log||[];
+      const geo=await geoForIps(sb,rows.map((e:any)=>e.ip||""));
+      const gpsRows=rows.filter((e:any)=>typeof e.gps_lat==="number"&&typeof e.gps_lon==="number");
+      const addrs=await gpsAddresses(sb,gpsRows.map((e:any)=>({lat:e.gps_lat,lon:e.gps_lon})));
+      return ok({log:rows.map((e:any)=>({
+        ts:e.ts,role:e.role,memberName:e.member_name||"",deviceId:e.device_id||"",ip:e.ip||"",method:e.method||"password",
+        location:geo[e.ip]||null,
+        gps:(typeof e.gps_lat==="number"&&typeof e.gps_lon==="number")
+          ?{lat:e.gps_lat,lon:e.gps_lon,accuracy:typeof e.gps_accuracy==="number"?e.gps_accuracy:null,address:addrs[coordKey(e.gps_lat,e.gps_lon)]||""}
+          :null,
+      }))});
     }
 
     // Full v2 JSON snapshot — devices, log, config, events, audit, pending. Super-admin

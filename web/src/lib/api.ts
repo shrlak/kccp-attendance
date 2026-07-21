@@ -128,15 +128,44 @@ export interface AdminIdentity {
   canViewLoginLog?: boolean
 }
 
+// Precise sign-in coordinates from the browser's Geolocation API, attached to the login
+// record so the login-history viewer sees a street-level location. null unless the admin
+// allowed the permission prompt.
+export interface LoginCoords { lat: number; lon: number; accuracy: number | null }
+
+// Ask the browser for the device's current position, best-effort: resolves the coordinates
+// if the admin allows the prompt, or null on denial / no support / timeout — the caller
+// then signs in without GPS and the server falls back to the city-level IP estimate. The
+// browser only prompts the first time per origin; later calls resolve silently (or fail
+// fast if already denied), so this is safe to run on every verify, including reloads.
+export function getLoginPosition(): Promise<LoginCoords | null> {
+  return new Promise((resolve) => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return resolve(null)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude, accuracy: pos.coords.accuracy ?? null }),
+      () => resolve(null),
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 300_000 },
+    )
+  })
+}
+
+function geoHeaders(coords?: LoginCoords | null): Record<string, string> {
+  if (!coords) return {}
+  const h: Record<string, string> = { 'X-Geo-Lat': String(coords.lat), 'X-Geo-Lon': String(coords.lon) }
+  if (coords.accuracy != null) h['X-Geo-Acc'] = String(coords.accuracy)
+  return h
+}
+
 // Verify a shared team password (break-glass): works from any device. A device linked to a
 // roled member keeps that scope; any other device is granted the role the password maps to
-// — 'super_admin', 'leader', or 'welcoming', full roster (see auth.ts verifyAdmin).
-export const adminVerify = (password: string) =>
-  api<AdminIdentity>('POST', '/api/admin/verify', undefined, { 'X-Admin-Password': password })
+// — 'super_admin', 'leader', or 'welcoming', full roster (see auth.ts verifyAdmin). When
+// coords are supplied (admin allowed the location prompt) they ride along for the log.
+export const adminVerify = (password: string, coords?: LoginCoords | null) =>
+  api<AdminIdentity>('POST', '/api/admin/verify', undefined, { 'X-Admin-Password': password, ...geoHeaders(coords) })
 
 // Verify via Google JWT (token already set via setAdminToken before calling this).
-export const adminVerifyGoogle = () =>
-  api<AdminIdentity>('POST', '/api/admin/verify')
+export const adminVerifyGoogle = (coords?: LoginCoords | null) =>
+  api<AdminIdentity>('POST', '/api/admin/verify', undefined, geoHeaders(coords))
 
 export interface Member {
   id: string
@@ -333,6 +362,16 @@ export interface LoginLocation {
   org: string
 }
 
+// Precise device-GPS location for a login, present only when the admin allowed the browser
+// location prompt at sign-in. `address` is the reverse-geocoded street-level address (''
+// until resolved or if the geocoder had nothing); accuracy is the browser's radius in m.
+export interface LoginGps {
+  lat: number
+  lon: number
+  accuracy: number | null
+  address: string
+}
+
 export interface LoginLogEntry {
   ts: number
   role: AdminRole
@@ -342,7 +381,10 @@ export interface LoginLogEntry {
   deviceId: string
   ip: string
   method: 'password' | 'google'
+  // City-level IP estimate — the fallback when GPS wasn't granted.
   location: LoginLocation | null
+  // Precise device GPS, when the admin allowed it. Preferred over `location`.
+  gps: LoginGps | null
 }
 
 // Successful admin sign-ins — which account, when, from which IP/device, and the IP's
