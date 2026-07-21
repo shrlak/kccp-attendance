@@ -107,4 +107,30 @@ describe('useAdminAuth', () => {
     expect(adminVerify).toHaveBeenCalledWith('kccpadmin', null)
     expect(useAdminAuth.getState().method).toBe('password')
   })
+
+  it('requests GPS on an explicit password sign-in', async () => {
+    const { adminVerify, getLoginPosition } = await import('../lib/api')
+    ;(adminVerify as ReturnType<typeof vi.fn>).mockResolvedValue({ role: 'super_admin', group: '', subgroup: '', ministry: '' })
+    ;(getLoginPosition as ReturnType<typeof vi.fn>).mockResolvedValue({ lat: 40.44, lon: -79.99, accuracy: 10 })
+    const { useAdminAuth } = await import('./useAdminAuth')
+    await useAdminAuth.getState().verify('kccpadmin')
+    expect(getLoginPosition).toHaveBeenCalledTimes(1)
+    expect(adminVerify).toHaveBeenCalledWith('kccpadmin', { lat: 40.44, lon: -79.99, accuracy: 10 })
+  })
+
+  it('does NOT request GPS on a silent password rehydrate (no location prompt on reload)', async () => {
+    sessionStorage.setItem(PW_KEY, 'kccpadmin')
+    sessionStorage.setItem(ACTIVITY_KEY, String(Date.now() - 1000))
+    const { adminVerify, getLoginPosition } = await import('../lib/api')
+    ;(adminVerify as ReturnType<typeof vi.fn>).mockResolvedValue({ role: 'super_admin', group: '', subgroup: '', ministry: '' })
+    const { supabase } = await import('../lib/supabase')
+    const { useAdminAuth } = await import('./useAdminAuth')
+
+    const callback = vi.mocked(supabase.auth.onAuthStateChange).mock.calls[0][0]
+    await callback('INITIAL_SESSION', null)
+    await vi.waitFor(() => expect(useAdminAuth.getState().status).toBe('authed'))
+
+    expect(getLoginPosition).not.toHaveBeenCalled()
+    expect(adminVerify).toHaveBeenCalledWith('kccpadmin', null)
+  })
 })

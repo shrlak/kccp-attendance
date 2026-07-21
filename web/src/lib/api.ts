@@ -134,18 +134,36 @@ export interface AdminIdentity {
 export interface LoginCoords { lat: number; lon: number; accuracy: number | null }
 
 // Ask the browser for the device's current position, best-effort: resolves the coordinates
-// if the admin allows the prompt, or null on denial / no support / timeout — the caller
-// then signs in without GPS and the server falls back to the city-level IP estimate. The
-// browser only prompts the first time per origin; later calls resolve silently (or fail
-// fast if already denied), so this is safe to run on every verify, including reloads.
+// if the admin allows the prompt, or null on denial / no support / timeout — the caller then
+// signs in without GPS and the server falls back to the city-level IP estimate.
+//
+// CRITICAL: this must never block sign-in. getCurrentPosition can hang indefinitely — its
+// `timeout` option only bounds position *acquisition*, not the wait for the permission
+// prompt, so a user who dismisses (rather than answers) the prompt, or a browser that
+// silently withholds the callbacks, leaves it pending forever. Since verify() awaits this,
+// an unbounded hang would freeze the login on "verifying". So we wrap it in our own
+// wall-clock guard that always resolves (null) after GUARD_MS regardless of the API.
+const GEO_GUARD_MS = 9000
 export function getLoginPosition(): Promise<LoginCoords | null> {
   return new Promise((resolve) => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) return resolve(null)
-    navigator.geolocation.getCurrentPosition(
-      (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude, accuracy: pos.coords.accuracy ?? null }),
-      () => resolve(null),
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 300_000 },
-    )
+    let settled = false
+    const done = (v: LoginCoords | null) => {
+      if (settled) return
+      settled = true
+      clearTimeout(guard)
+      resolve(v)
+    }
+    const guard = setTimeout(() => done(null), GEO_GUARD_MS)
+    try {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => done({ lat: pos.coords.latitude, lon: pos.coords.longitude, accuracy: pos.coords.accuracy ?? null }),
+        () => done(null),
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 300_000 },
+      )
+    } catch {
+      done(null)
+    }
   })
 }
 
