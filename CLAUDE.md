@@ -26,6 +26,11 @@ Korean church (한국중앙교회 피츠버그 대학·청년부) attendance sys
   (service-role) is the only data path.
 - 동산지기/부동산지기 are a **display-badge** system (`config.dongsan_leaders`), distinct from the
   `leader` admin role.
+- **Login history is 김호연-only**: `/api/admin/login-log` (login_log + `ip_geo` IP→place
+  cache, filled from ipwho.is) is gated by `canViewLoginLog` in `auth.ts` — requires
+  super_admin **and** memberId == `LOGIN_LOG_VIEWER_MEMBER_ID` (김호연's UUID, env-overridable),
+  so a bare shared password never qualifies. `/api/admin/verify` returns the flag; the web
+  Admins tab hides the section for everyone else.
 
 ## Deploy / ops — IMPORTANT gotchas
 - **Edge function deploys via CI**, not MCP: `mcp__Supabase__deploy_edge_function` and

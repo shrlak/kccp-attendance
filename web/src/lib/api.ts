@@ -122,6 +122,10 @@ export interface AdminIdentity {
   group: string
   subgroup: string
   ministry: string
+  // True only for the designated login-log viewer (김호연), signed in attributably —
+  // linked device or Google email, never a bare shared password. Server-decided
+  // (auth.ts canViewLoginLog); gates the login-history section in the Admins tab.
+  canViewLoginLog?: boolean
 }
 
 // Verify a shared team password (break-glass): works from any device. A device linked to a
@@ -318,6 +322,17 @@ export interface AuditEntry {
 export const getAuditLog = (limit = 100) =>
   api<{ log: AuditEntry[] }>('GET', `/api/admin/audit?limit=${limit}`)
 
+// Approximate place a login IP resolves to (city-level — an IP can never give a
+// GPS-exact position). null while unresolved; empty fields for private/reserved IPs.
+export interface LoginLocation {
+  city: string
+  region: string
+  country: string
+  lat: number | null
+  lon: number | null
+  org: string
+}
+
 export interface LoginLogEntry {
   ts: number
   role: AdminRole
@@ -327,10 +342,13 @@ export interface LoginLogEntry {
   deviceId: string
   ip: string
   method: 'password' | 'google'
+  location: LoginLocation | null
 }
 
-// Successful admin sign-ins — which account, when, from which IP/device — newest first
-// (super-admin only). Repeat re-verifies within an hour are collapsed server-side.
+// Successful admin sign-ins — which account, when, from which IP/device, and the IP's
+// approximate place — newest first. Restricted to the designated viewer (김호연): other
+// super-admins get a 403 (see identity.canViewLoginLog). Repeat re-verifies within an
+// hour are collapsed server-side.
 export const getLoginLog = (limit = 100) =>
   api<{ log: LoginLogEntry[] }>('GET', `/api/admin/login-log?limit=${limit}`)
 

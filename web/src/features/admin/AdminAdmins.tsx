@@ -28,6 +28,7 @@ import {
 import {
   sortAdminRoles,
   auditDetail,
+  formatLoginLocation,
   roleNeedsScope,
   backupFilename,
   formatBytes,
@@ -37,6 +38,7 @@ import {
   formatStoragePercent,
 } from './admins'
 import { useRoster } from './useRoster'
+import { useAdminAuth } from '../../stores/useAdminAuth'
 import { groupsOf, subgroupsOf } from './filters'
 import { checkinCandidates } from './today'
 import { Switch } from '../../components/ui/Switch'
@@ -82,11 +84,14 @@ export function AdminAdmins() {
     queryFn: () => getAuditLog(100),
     enabled: showAudit,
   })
+  // The login-history (with per-IP location) section is 김호연-only — the server decides
+  // via the verify response (see AdminIdentity.canViewLoginLog) and 403s everyone else.
+  const canViewLogins = useAdminAuth((s) => !!s.identity?.canViewLoginLog)
   const [showLogins, setShowLogins] = useState(false)
   const { data: loginData, isLoading: loginLoading } = useQuery({
     queryKey: ['loginLog'],
     queryFn: () => getLoginLog(100),
-    enabled: showLogins,
+    enabled: showLogins && canViewLogins,
   })
   const [busy, setBusy] = useState(false)
 
@@ -396,44 +401,64 @@ export function AdminAdmins() {
         </ul>
       )}
 
-      <hr className="my-6 border-border" />
+      {canViewLogins && (
+        <>
+          <hr className="my-6 border-border" />
 
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="font-display text-lg font-semibold text-text">{t('admin.admins.loginLog')}</h2>
-        {showLogins && (
-          <Button variant="ghost" size="sm" onClick={() => setShowLogins(false)}>
-            {t('admin.admins.collapse')}
-          </Button>
-        )}
-      </div>
-      {!showLogins ? (
-        <Button variant="secondary" onClick={() => setShowLogins(true)}>
-          {t('admin.admins.loadLogins')}
-        </Button>
-      ) : loginLoading ? (
-        <p className="text-sm text-muted">{t('common.loading')}</p>
-      ) : (loginData?.log.length ?? 0) === 0 ? (
-        <p className="text-sm text-muted">{t('admin.admins.noLogins')}</p>
-      ) : (
-        <ul className="fx-rise flex flex-col gap-1.5">
-          {loginData!.log.map((e, i) => (
-            <li key={`${e.ts}-${i}`} className="rounded-md border border-border bg-surface px-3 py-2 text-xs">
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-semibold text-text">
-                  {e.memberName || t('admin.admins.sharedLogin')}
-                  <span className="ml-1.5 rounded-full bg-primary/15 px-2 py-0.5 font-semibold text-primary">
-                    {t(`admin.roles.${e.role}`)}
-                  </span>
-                </span>
-                <span className="text-subtle">{new Date(e.ts).toLocaleString()}</span>
-              </div>
-              <div className="mt-0.5 font-mono text-muted">
-                {e.ip || '—'}
-                <span className="text-subtle"> · {t(`admin.admins.method.${e.method}`)}</span>
-              </div>
-            </li>
-          ))}
-        </ul>
+          <div className="mb-1 flex items-center justify-between gap-3">
+            <h2 className="font-display text-lg font-semibold text-text">{t('admin.admins.loginLog')}</h2>
+            {showLogins && (
+              <Button variant="ghost" size="sm" onClick={() => setShowLogins(false)}>
+                {t('admin.admins.collapse')}
+              </Button>
+            )}
+          </div>
+          <p className="mb-3 text-xs text-muted">{t('admin.admins.loginLocationNote')}</p>
+          {!showLogins ? (
+            <Button variant="secondary" onClick={() => setShowLogins(true)}>
+              {t('admin.admins.loadLogins')}
+            </Button>
+          ) : loginLoading ? (
+            <p className="text-sm text-muted">{t('common.loading')}</p>
+          ) : (loginData?.log.length ?? 0) === 0 ? (
+            <p className="text-sm text-muted">{t('admin.admins.noLogins')}</p>
+          ) : (
+            <ul className="fx-rise flex flex-col gap-1.5">
+              {loginData!.log.map((e, i) => (
+                <li key={`${e.ts}-${i}`} className="rounded-md border border-border bg-surface px-3 py-2 text-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-text">
+                      {e.memberName || t('admin.admins.sharedLogin')}
+                      <span className="ml-1.5 rounded-full bg-primary/15 px-2 py-0.5 font-semibold text-primary">
+                        {t(`admin.roles.${e.role}`)}
+                      </span>
+                    </span>
+                    <span className="text-subtle">{new Date(e.ts).toLocaleString()}</span>
+                  </div>
+                  <div className="mt-0.5 font-mono text-muted">
+                    {e.ip || '—'}
+                    <span className="text-subtle"> · {t(`admin.admins.method.${e.method}`)}</span>
+                  </div>
+                  {formatLoginLocation(e.location) && (
+                    <div className="mt-0.5 text-muted">
+                      {formatLoginLocation(e.location)}
+                      {e.location?.lat != null && e.location?.lon != null && (
+                        <a
+                          href={`https://www.google.com/maps?q=${e.location.lat},${e.location.lon}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="ml-1.5 font-semibold text-primary underline"
+                        >
+                          {t('admin.admins.map')}
+                        </a>
+                      )}
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
       )}
 
       <hr className="my-6 border-border" />

@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { resolveAdmin, scopeFilter } from "./auth.ts";
+import { canViewLoginLog, resolveAdmin, scopeFilter } from "./auth.ts";
 import { GEMINI_URL, buildGeminiBody, parseGeminiCard } from "./gemini.ts";
 // Decrypt-side of the weekly R2 backup pipeline (see scripts/backup/). age-encryption is
 // FiloSottile's own pure-JS port of `age` (no native/subprocess dependency, which Deno
@@ -281,6 +281,35 @@ async function addLoginLog(sb: SB, req: Request, role: {role:string;memberId:str
   } catch(_){}
 }
 
+// IP → approximate place for the login log, via the ip_geo cache (see the 20260725
+// migration), filling misses from ipwho.is (HTTPS, keyless). City-level at best — an IP
+// can never yield a GPS-exact position. Lookups are capped per request so a cold cache
+// can't stall the response; uncached leftovers resolve on later loads. A success:false
+// answer (private/reserved IP) is cached as an empty row so it isn't retried forever,
+// while a network failure stays uncached to retry next time.
+interface IpGeo { city:string; region:string; country:string; lat:number|null; lon:number|null; org:string }
+async function geoForIps(sb: SB, ips: string[]): Promise<Record<string,IpGeo>> {
+  const out: Record<string,IpGeo>={};
+  const distinct=[...new Set(ips.filter(Boolean))];
+  if(!distinct.length) return out;
+  const {data:cached}=await sb.from("ip_geo").select("*").in("ip",distinct);
+  (cached||[]).forEach((g:any)=>{out[g.ip]={city:g.city||"",region:g.region||"",country:g.country||"",lat:g.lat??null,lon:g.lon??null,org:g.org||""};});
+  const missing=distinct.filter((ip)=>!(ip in out)).slice(0,25);
+  await Promise.all(missing.map(async (ip)=>{
+    try {
+      const res=await fetch("https://ipwho.is/"+encodeURIComponent(ip),{signal:AbortSignal.timeout(4000)});
+      if(!res.ok) return;
+      const j=await res.json();
+      const geo: IpGeo=j?.success
+        ?{city:j.city||"",region:j.region||"",country:j.country||"",lat:typeof j.latitude==="number"?j.latitude:null,lon:typeof j.longitude==="number"?j.longitude:null,org:j.connection?.org||j.connection?.isp||""}
+        :{city:"",region:"",country:"",lat:null,lon:null,org:""};
+      out[ip]=geo;
+      await sb.from("ip_geo").upsert({ip,...geo});
+    } catch(_){}
+  }));
+  return out;
+}
+
 async function buildCsvLog(sb: SB, gf: string, sf: string) {
   const [{data:logs},{data:devs}]=await Promise.all([
     (()=>{let q:any=sb.from("attendance_log").select("*").order("ts",{ascending:false});if(gf)q=q.eq("group_name",gf);if(sf)q=q.eq("subgroup",sf);return q;})(),
@@ -370,7 +399,7 @@ Deno.serve(async (req: Request) => {
       const role=await resolveAdmin(sb,req);
       if(!role) return fail(401,"Not authorized");
       await addLoginLog(sb,req,role);
-      return ok({role:role.role,group:role.group,subgroup:role.subgroup,ministry:role.ministry});
+      return ok({role:role.role,group:role.group,subgroup:role.subgroup,ministry:role.ministry,canViewLoginLog:canViewLoginLog(role)});
     }
 
     // Scoped roster (replaces the world-readable /api/data for staff): super/pastor → all
@@ -553,14 +582,17 @@ Deno.serve(async (req: Request) => {
       return ok({log:(log||[]).map((e:any)=>({ts:e.ts,action:e.action,adminName:e.admin_name,details:e.details}))});
     }
 
-    // Login log — successful admin sign-ins (which account, when, from which IP/device),
-    // newest first. Super-admin only.
+    // Login log — successful admin sign-ins (which account, when, from which IP/device)
+    // plus each IP's approximate place, newest first. Personal-audit data, so it is NOT
+    // super-admin-wide: only 김호연, signed in attributably (see canViewLoginLog in
+    // auth.ts), may read it.
     if(req.method==="GET"&&p==="/api/admin/login-log") {
       const role=await resolveAdmin(sb,req);
-      if(role?.role!=="super_admin") return fail(403,"Super admin required");
+      if(!canViewLoginLog(role)) return fail(403,"Not available");
       const limit=Math.min(parseInt(url.searchParams.get("limit")||"100")||100,500);
       const {data:log}=await sb.from("login_log").select("*").order("ts",{ascending:false}).limit(limit);
-      return ok({log:(log||[]).map((e:any)=>({ts:e.ts,role:e.role,memberName:e.member_name||"",deviceId:e.device_id||"",ip:e.ip||"",method:e.method||"password"}))});
+      const geo=await geoForIps(sb,(log||[]).map((e:any)=>e.ip||""));
+      return ok({log:(log||[]).map((e:any)=>({ts:e.ts,role:e.role,memberName:e.member_name||"",deviceId:e.device_id||"",ip:e.ip||"",method:e.method||"password",location:geo[e.ip]||null}))});
     }
 
     // Full v2 JSON snapshot — devices, log, config, events, audit, pending. Super-admin
