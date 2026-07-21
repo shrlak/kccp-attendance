@@ -7,6 +7,8 @@ import {
   scopeFilter,
   verifyAdmin,
   passwordRole,
+  canViewLoginLog,
+  LOGIN_LOG_VIEWER_MEMBER_ID,
   SUPER_PASSWORD,
   LEADER_PASSWORD,
   WELCOMING_PASSWORD,
@@ -140,4 +142,19 @@ Deno.test("welcoming spans both 부서 in summer mode (여름동산 합동)", ()
   const young: Role = { memberId: "m", role: "welcoming", group: "청년부", subgroup: "", ministry: "KM" };
   assertEquals(scopeFilter(univ, true), { all: false, groups: ["대학부", "청년부"], subgroup: "" });
   assertEquals(scopeFilter(young, true), { all: false, groups: ["대학부", "청년부"], subgroup: "" });
+});
+
+Deno.test("canViewLoginLog: only the designated member, and only as super_admin", () => {
+  const viewer: Role = {
+    memberId: LOGIN_LOG_VIEWER_MEMBER_ID, role: "super_admin", group: "대학부", subgroup: "호연동산", ministry: "",
+  };
+  assertEquals(canViewLoginLog(viewer), true);
+  // any other super admin is denied — this is not a role-wide feature
+  assertEquals(canViewLoginLog({ ...viewer, memberId: "someone-else" }), false);
+  // the designated member without super_admin (e.g. a demoted role) is denied
+  assertEquals(canViewLoginLog({ ...viewer, role: "leader" }), false);
+  // the shared super password on an unlinked device (memberId "") is denied: the login
+  // isn't attributable to him, and anyone could have typed it
+  assertEquals(canViewLoginLog({ ...viewer, memberId: "" }), false);
+  assertEquals(canViewLoginLog(null), false);
 });

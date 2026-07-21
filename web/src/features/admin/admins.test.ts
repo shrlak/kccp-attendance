@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   sortAdminRoles,
   auditDetail,
+  formatLoginLocation,
   roleNeedsScope,
   backupFilename,
   formatBytes,
@@ -100,5 +101,20 @@ describe('backup storage usage', () => {
     expect(formatStoragePercent(700_000, 10e9)).toBe('<0.1%')
     expect(formatStoragePercent(1.5e9, 10e9)).toBe('15.0%')
     expect(formatStoragePercent(10e9, 10e9)).toBe('100.0%')
+  })
+})
+
+describe('formatLoginLocation', () => {
+  const loc = { city: 'Pittsburgh', region: 'Pennsylvania', country: 'United States', lat: 40.44, lon: -79.99, org: 'Comcast' }
+  it('joins city, region, country', () => {
+    expect(formatLoginLocation(loc)).toBe('Pittsburgh, Pennsylvania, United States')
+  })
+  it('drops empty parts', () => {
+    expect(formatLoginLocation({ ...loc, city: '', region: '' })).toBe('United States')
+  })
+  it('is empty for unresolved or private-IP entries', () => {
+    expect(formatLoginLocation(null)).toBe('')
+    expect(formatLoginLocation(undefined)).toBe('')
+    expect(formatLoginLocation({ city: '', region: '', country: '', lat: null, lon: null, org: '' })).toBe('')
   })
 })

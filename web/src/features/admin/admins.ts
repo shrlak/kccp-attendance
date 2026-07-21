@@ -1,4 +1,4 @@
-import type { AdminRoleRow, AdminRole, DbBackupEntry } from '../../lib/api'
+import type { AdminRoleRow, AdminRole, DbBackupEntry, LoginLocation } from '../../lib/api'
 
 // 'staff' is a synthetic break-glass role, never stored as an admin row, so its rank only
 // satisfies the exhaustive Record type; it won't actually appear in the admins list.
@@ -12,6 +12,13 @@ export function sortAdminRoles(rows: AdminRoleRow[]): AdminRoleRow[] {
 // A leader grant must carry a 부서 (group); other roles are global. Drives the add form.
 export function roleNeedsScope(role: AdminRole): boolean {
   return role === 'leader'
+}
+
+// One display line for a login's IP-derived place — "City, Region, Country" with empty
+// parts dropped; '' when nothing resolved (private IP, or the lookup hasn't run yet).
+export function formatLoginLocation(loc: LoginLocation | null | undefined): string {
+  if (!loc) return ''
+  return [loc.city, loc.region, loc.country].filter(Boolean).join(', ')
 }
 
 // Flatten an audit entry's details (string, {info}, or arbitrary object) to one line.

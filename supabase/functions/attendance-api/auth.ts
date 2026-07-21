@@ -88,6 +88,22 @@ export function scopeFilter(role: Role, summerMode: boolean): Scope {
   return { all: false, groups: [role.group].filter(Boolean), subgroup: role.subgroup };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+//  LOGIN-LOG VIEWER — the sign-in history (who logged in, when, from which IP and
+//  approximate place) is personal-audit data, so it is NOT a general super-admin feature:
+//  only 김호연 may read it. He is pinned by his members-table UUID (env-overridable), and
+//  the sign-in must be attributable to that member row — via his linked personal device or
+//  his Google email. A shared team password typed on an unlinked device (memberId "")
+//  never qualifies, even though it grants super_admin, because anyone could type it.
+export const LOGIN_LOG_VIEWER_MEMBER_ID =
+  Deno.env.get("LOGIN_LOG_VIEWER_MEMBER_ID") ?? "e45e9708-9d44-418d-9ff5-734adf81fa68"; // 김호연
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function canViewLoginLog(role: Role | null): boolean {
+  return !!role && role.role === "super_admin" && !!role.memberId &&
+    role.memberId === LOGIN_LOG_VIEWER_MEMBER_ID;
+}
+
 type SB = ReturnType<typeof createClient>;
 
 // Verify an admin via a shared team password. Either break-glass password grants access
