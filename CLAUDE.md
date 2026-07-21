@@ -30,7 +30,11 @@ Korean church (한국중앙교회 피츠버그 대학·청년부) attendance sys
   cache, filled from ipwho.is) is gated by `canViewLoginLog` in `auth.ts` — requires
   super_admin **and** memberId == `LOGIN_LOG_VIEWER_MEMBER_ID` (김호연's UUID, env-overridable),
   so a bare shared password never qualifies. `/api/admin/verify` returns the flag; the web
-  Admins tab hides the section for everyone else.
+  Admins tab hides the section for everyone else. **Precise location**: the web verify call
+  sends the browser's GPS via `X-Geo-Lat/Lon/Acc` (best-effort `getLoginPosition()`; prompts
+  once, null if denied) → stored on login_log (`20260726` migration) → reverse-geocoded to a
+  street address at read time via Nominatim, cached in `gps_geo`. Falls back to the ip_geo
+  city estimate when GPS wasn't granted; the viewer shows a 정확/대략 (precise/approx) badge.
 
 ## Deploy / ops — IMPORTANT gotchas
 - **Edge function deploys via CI**, not MCP: `mcp__Supabase__deploy_edge_function` and

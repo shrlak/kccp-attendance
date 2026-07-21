@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('../lib/api', () => ({
   adminVerify: vi.fn(),
   adminVerifyGoogle: vi.fn(),
+  getLoginPosition: vi.fn().mockResolvedValue(null),
   setAdminPassword: vi.fn(),
   setAdminToken: vi.fn(),
 }))
@@ -103,7 +104,7 @@ describe('useAdminAuth', () => {
     await callback('INITIAL_SESSION', null)
     await vi.waitFor(() => expect(useAdminAuth.getState().status).toBe('authed'))
 
-    expect(adminVerify).toHaveBeenCalledWith('kccpadmin')
+    expect(adminVerify).toHaveBeenCalledWith('kccpadmin', null)
     expect(useAdminAuth.getState().method).toBe('password')
   })
 })

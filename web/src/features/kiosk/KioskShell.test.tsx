@@ -8,6 +8,7 @@ import { i18n } from '../../lib/i18n'
 vi.mock('../../lib/api', () => ({
   adminVerify: vi.fn(),
   adminVerifyGoogle: vi.fn(),
+  getLoginPosition: vi.fn().mockResolvedValue(null),
   setAdminPassword: vi.fn(),
   setAdminToken: vi.fn(),
   getRoster: vi.fn().mockResolvedValue({ role: 'welcoming', members: [], log: [] }),
