@@ -44,7 +44,9 @@ interface AdminAuthState {
   status: AdminStatus
   identity: AdminIdentity | null
   method: AdminAuthMethod
-  verify: (password: string) => Promise<boolean>
+  // captureLocation requests the browser's GPS for the login record — only on an explicit
+  // user sign-in. Passive rehydration (silent reload) passes false so reloads never prompt.
+  verify: (password: string, captureLocation?: boolean) => Promise<boolean>
   signInWithGoogle: (returnTo?: '/kiosk') => Promise<void>
   signOut: () => void
 }
@@ -55,12 +57,13 @@ export const useAdminAuth = create<AdminAuthState>((set) => ({
   method: null,
 
   // Break-glass: device + master password (unchanged).
-  verify: async (password) => {
+  verify: async (password, captureLocation = true) => {
     set({ status: 'verifying' })
     try {
       setAdminPassword(password)
-      // Best-effort precise location: prompts once, resolves null if declined/unsupported.
-      const coords = await getLoginPosition()
+      // Best-effort precise location, only for an explicit sign-in (not a silent reload).
+      // Guarded against hanging (see getLoginPosition); resolves null if declined/unsupported.
+      const coords = captureLocation ? await getLoginPosition() : null
       const identity = await adminVerify(password, coords)
       writePw(password)
       writeActivity()
@@ -155,12 +158,13 @@ function navigateAfterOAuth(): void {
 // /kiosk when the sign-in started at the kiosk gate) so the user lands where they meant
 // to go instead of the public landing page. Returns false if the session isn't an
 // authorized admin (caller decides how to surface that).
-async function verifyGoogleSession(accessToken: string): Promise<boolean> {
+async function verifyGoogleSession(accessToken: string, captureLocation: boolean): Promise<boolean> {
   useAdminAuth.setState({ status: 'verifying' })
   try {
     setAdminToken(accessToken)
-    // Best-effort precise location: prompts once, resolves null if declined/unsupported.
-    const coords = await getLoginPosition()
+    // Best-effort precise location, only on a fresh sign-in (not a passive session restore
+    // on every reload). Guarded against hanging; resolves null if declined/unsupported.
+    const coords = captureLocation ? await getLoginPosition() : null
     const identity = await adminVerifyGoogle(coords)
     useAdminAuth.setState({ status: 'authed', identity, method: 'google' })
     if (isOAuthCallback) navigateAfterOAuth()
@@ -182,7 +186,8 @@ function rehydratePassword(): void {
     clearActivity()
     return
   }
-  void useAdminAuth.getState().verify(stored)
+  // Silent reload re-auth — not an explicit sign-in, so don't prompt for location.
+  void useAdminAuth.getState().verify(stored, false)
 }
 
 // Handle Supabase auth state. An OAuth callback may arrive as INITIAL_SESSION or SIGNED_IN
@@ -191,8 +196,10 @@ supabase.auth.onAuthStateChange(async (event, session) => {
   if (event === 'INITIAL_SESSION') {
     if (session?.access_token) {
       // Active Google session — verify it; if it's not an admin, fall back to a saved
-      // break-glass password rather than showing an error on a passive page load.
-      const ok = await verifyGoogleSession(session.access_token)
+      // break-glass password rather than showing an error on a passive page load. Capture
+      // location only when this load is the fresh OAuth callback (a real sign-in), not a
+      // passive session restore on an ordinary reload.
+      const ok = await verifyGoogleSession(session.access_token, isOAuthCallback)
       if (!ok) {
         useAdminAuth.setState({ status: 'idle', identity: null, method: null })
         rehydratePassword()
@@ -204,7 +211,8 @@ supabase.auth.onAuthStateChange(async (event, session) => {
   } else if (event === 'SIGNED_IN' && session?.access_token) {
     if (useAdminAuth.getState().status === 'authed') return
     // Active sign-in — surface an error if this Google account isn't an authorized admin.
-    const ok = await verifyGoogleSession(session.access_token)
+    // This is an explicit login, so capture location.
+    const ok = await verifyGoogleSession(session.access_token, true)
     if (!ok) useAdminAuth.setState({ status: 'error', identity: null })
   } else if (event === 'SIGNED_OUT') {
     setAdminToken(null)
