@@ -8,8 +8,12 @@
 @theme inline {
   --color-canvas: var(--canvas);
   --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
   --color-surface-alt: var(--surface-alt);
+  --color-fill: var(--fill);
+  --color-fill-hover: var(--fill-hover);
   --color-border: var(--border);
+  --color-separator: var(--separator);
   --color-text: var(--text);
   --color-muted: var(--muted);
   --color-subtle: var(--subtle);
@@ -21,18 +25,24 @@
   --color-warning: var(--warning);
   --color-danger: var(--danger);
   --color-info: var(--info);
+  --color-material: var(--material);
   --color-nav: var(--nav);
   --color-nav-muted: var(--nav-muted);
   --color-nav-border: var(--nav-border);
 
-  --font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Apple SD Gothic Neo', 'Pretendard Variable', 'Pretendard', system-ui, sans-serif;
-  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Apple SD Gothic Neo', 'Pretendard Variable', 'Pretendard', system-ui, sans-serif;
-  --font-mono: 'SFMono-Regular', ui-monospace, 'Roboto Mono', monospace;
+  /* Unified on Pretendard (an SF/Inter-adjacent typeface with a full Korean set)
+     so the college·young-adult interface reads identically across Apple devices,
+     office PCs, and members' Android phones — with the native SF Pro / Apple SD
+     Gothic Neo stack as the local fallback before the web font resolves. */
+  --font-display: 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Apple SD Gothic Neo', system-ui, sans-serif;
+  --font-sans: 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Apple SD Gothic Neo', system-ui, sans-serif;
+  --font-mono: 'SF Mono', 'SFMono-Regular', ui-monospace, 'Roboto Mono', monospace;
 
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
   --radius-xl: 20px;
+  --radius-2xl: 26px;
 }
 
 @layer base {
@@ -46,10 +56,15 @@
   body {
     @apply bg-canvas text-text font-sans antialiased;
     min-height: 100dvh;
-    font-feature-settings: 'ss05' 1, 'ss07' 1;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: 'ss05' 1, 'ss07' 1, 'cv11' 1;
+    letter-spacing: -0.011em;
   }
   button, input, select, textarea { font: inherit; }
   ::selection { background: color-mix(in srgb, var(--primary) 24%, transparent); }
+  /* Large numerals/headings get slightly tighter optical tracking, Apple-style. */
+  h1, h2, h3 { letter-spacing: -0.021em; }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
       animation-duration: 0.01ms !important;
@@ -62,30 +77,80 @@
    entry, and overlay presentation. All of it is neutralized by the global
    prefers-reduced-motion rule above. */
 @keyframes kccp-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
-@keyframes kccp-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes kccp-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 @keyframes kccp-fade { from { opacity: 0; } to { opacity: 1; } }
-@keyframes kccp-pop { from { opacity: 0; transform: translateY(6px) scale(.97); } to { opacity: 1; transform: none; } }
-@keyframes kccp-slide-up { from { opacity: 0; transform: translateY(14px) scale(.98); } to { opacity: 1; transform: none; } }
+@keyframes kccp-pop { from { opacity: 0; transform: translateY(8px) scale(.96); } to { opacity: 1; transform: none; } }
+@keyframes kccp-slide-up { from { opacity: 0; transform: translateY(16px) scale(.98); } to { opacity: 1; transform: none; } }
 @keyframes kccp-draw { to { stroke-dashoffset: 0; } }
 @keyframes kccp-countdown { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+@keyframes kccp-shimmer { from { background-position: -160% 0; } to { background-position: 160% 0; } }
 
 .fx-pulse { animation: kccp-pulse 1.6s ease-in-out infinite; }
-.fx-rise { animation: kccp-rise .42s var(--ease-out-soft) both; }
+.fx-rise { animation: kccp-rise .5s var(--ease-out-soft) both; }
 .fx-fade { animation: kccp-fade .22s ease-out both; }
-.fx-pop { animation: kccp-pop .32s var(--ease-spring) both; }       /* dialogs */
-.fx-slide-up { animation: kccp-slide-up .34s var(--ease-spring) both; } /* toasts / sheets */
+.fx-pop { animation: kccp-pop .34s var(--ease-spring) both; }       /* dialogs */
+.fx-slide-up { animation: kccp-slide-up .36s var(--ease-spring) both; } /* toasts / sheets */
 .fx-draw { stroke-dasharray: 56; stroke-dashoffset: 56; animation: kccp-draw .45s .15s ease-out forwards; }
 .fx-countdown { transform-origin: left; animation: kccp-countdown linear forwards; }
 
+/* Staggered list entrance — set `--i` on each child (or via nth-child) to cascade. */
+.fx-stagger > * { animation: kccp-rise .5s var(--ease-out-soft) both; }
+.fx-stagger > *:nth-child(1) { animation-delay: .02s; }
+.fx-stagger > *:nth-child(2) { animation-delay: .06s; }
+.fx-stagger > *:nth-child(3) { animation-delay: .10s; }
+.fx-stagger > *:nth-child(4) { animation-delay: .14s; }
+.fx-stagger > *:nth-child(5) { animation-delay: .18s; }
+.fx-stagger > *:nth-child(6) { animation-delay: .22s; }
+
+/* Skeleton loading shimmer for pending data. */
+.fx-skeleton {
+  background: linear-gradient(100deg, var(--surface-alt) 30%, color-mix(in srgb, var(--surface-alt) 60%, var(--surface)) 50%, var(--surface-alt) 70%);
+  background-size: 220% 100%;
+  animation: kccp-shimmer 1.4s ease-in-out infinite;
+}
+
 @layer components {
+  /* Elevated card/panel — the primary content container across the app. */
   .surface-panel {
     @apply border border-border bg-surface;
     border-radius: var(--radius-xl);
     box-shadow: var(--shadow);
   }
 
+  /* Translucent, frosted top/bottom bars that let content scroll under them. */
+  .material-bar {
+    background: var(--material);
+    -webkit-backdrop-filter: saturate(180%) blur(24px);
+    backdrop-filter: saturate(180%) blur(24px);
+    border-color: var(--material-border);
+  }
+
+  /* iOS-style inset grouped list: a rounded card whose rows are split by inset
+     hairlines. Wrap rows in `.inset-list`; each row is `.inset-row`. */
+  .inset-list {
+    @apply overflow-hidden border border-border bg-surface;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+  }
+  .inset-list > * + * {
+    border-top: 1px solid var(--separator);
+  }
+  .inset-row {
+    @apply flex items-center gap-3 px-4 min-h-12;
+  }
+
+  /* Segmented control track (a pill-grouped set of options). */
+  .segmented {
+    @apply inline-flex items-center gap-1 rounded-full p-1;
+    background: var(--fill);
+  }
+
   .section-kicker {
-    @apply text-[11px] font-semibold tracking-wide text-subtle;
+    @apply text-[11px] font-semibold uppercase tracking-[0.08em] text-subtle;
+  }
+
+  .field-label {
+    @apply mb-1.5 block text-xs font-semibold text-muted;
   }
 
   .rule-label {
@@ -94,6 +159,7 @@
 
   .rule-label::after {
     content: '';
-    @apply h-px flex-1 bg-border;
+    @apply h-px flex-1;
+    background: var(--separator);
   }
 }
