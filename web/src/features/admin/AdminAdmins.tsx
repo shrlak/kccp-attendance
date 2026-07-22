@@ -7,7 +7,6 @@ import {
   getLoginLog,
   setAdminRole,
   removeAdminRole,
-  postRestore,
   getClearPending,
   approveClear,
   rejectClear,
@@ -95,13 +94,6 @@ export function AdminAdmins() {
     }
   }
 
-  const fileRef = useRef<HTMLInputElement>(null)
-  // The picked restore file is staged here; the destructive restore only runs after a
-  // second explicit "confirm" click (parity with the legacy hold-to-confirm gate).
-  const [restoreFile, setRestoreFile] = useState<File | null>(null)
-  const [restoreArmed, setRestoreArmed] = useState(false)
-  const [restoreBusy, setRestoreBusy] = useState(false)
-
   // ── Off-site encrypted DB backup (scripts/backup/) ──────────────────────
   const dbRestoreFileRef = useRef<HTMLInputElement>(null)
   const [showDbBackups, setShowDbBackups] = useState(false)
@@ -140,33 +132,6 @@ export function AdminAdmins() {
   function pickDbRestoreFile(file: File | null) {
     if (file) setDbRestoreTarget({ source: 'upload', file })
     if (dbRestoreFileRef.current) dbRestoreFileRef.current.value = ''
-  }
-
-  function pickRestoreFile(file: File | null) {
-    setRestoreFile(file)
-    setRestoreArmed(false)
-  }
-
-  async function runRestore() {
-    if (!restoreFile) return
-    setRestoreBusy(true)
-    try {
-      const parsed = JSON.parse(await restoreFile.text())
-      await postRestore(parsed)
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ['roster'] }),
-        qc.invalidateQueries({ queryKey: ['config'] }),
-        qc.invalidateQueries({ queryKey: ['adminRoles'] }),
-      ])
-      toast({ title: t('admin.admins.restored'), tone: 'ok' })
-      setRestoreFile(null)
-      setRestoreArmed(false)
-      if (fileRef.current) fileRef.current.value = ''
-    } catch {
-      toast({ title: t('common.error'), tone: 'err' })
-    } finally {
-      setRestoreBusy(false)
-    }
   }
 
   async function clearDecide(approve: boolean) {
@@ -364,38 +329,6 @@ export function AdminAdmins() {
           )}
         </>
       )}
-
-      <hr className="my-6 border-border" />
-
-      <h2 className="mb-1 font-display text-lg font-semibold text-text">{t('admin.admins.backup')}</h2>
-      <p className="mb-3 text-xs text-muted">{t('admin.admins.backupDesc')}</p>
-
-      <div className="flex flex-col gap-2 rounded-lg border border-danger/40 bg-danger/5 p-3">
-        <label className="text-sm font-semibold text-text">{t('admin.admins.restore')}</label>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="application/json,.json"
-          onChange={(e) => pickRestoreFile(e.target.files?.[0] ?? null)}
-          className="text-xs text-muted file:mr-3 file:cursor-pointer file:rounded-full file:border file:border-border file:bg-surface file:px-4 file:py-2 file:text-xs file:font-semibold file:text-text hover:file:bg-surface-alt"
-        />
-        {restoreFile && (
-          <div className="flex flex-wrap items-center gap-2">
-            {!restoreArmed ? (
-              <Button size="sm" variant="danger" onClick={() => setRestoreArmed(true)} disabled={restoreBusy}>
-                {t('admin.admins.restore')}
-              </Button>
-            ) : (
-              <Button size="sm" variant="danger" onClick={runRestore} disabled={restoreBusy}>
-                {t('admin.admins.restoreConfirm')}
-              </Button>
-            )}
-            <Button size="sm" variant="ghost" onClick={() => pickRestoreFile(null)} disabled={restoreBusy}>
-              {t('common.cancel')}
-            </Button>
-          </div>
-        )}
-      </div>
 
       <hr className="my-6 border-border" />
 

@@ -430,15 +430,9 @@ export const removeAttendance = (logId: number) =>
 export const addBulkAttendance = (memberIds: string[], date: string) =>
   api<{ status: string; added: number }>('POST', '/api/admin/log/add-bulk', { memberIds, date })
 
-// ── Restore (super-admin) ─────────────────────────────────────────────────
-// Destructive restore from a previously downloaded v2 JSON snapshot. Replaces all data
-// server-side and writes a `restore` audit entry.
-export const postRestore = (data: unknown) =>
-  api<{ status: string }>('POST', '/api/admin/restore', data)
-
 // ── Off-site encrypted DB backup (super-admin) ────────────────────────────
-// Distinct from postRestore above (a JSON app-data snapshot restore): this is the full
-// weekly Postgres dump pipeline to Cloudflare R2 (scripts/backup/, .github/workflows/backup.yml).
+// The full weekly Postgres dump pipeline to Cloudflare R2 (scripts/backup/,
+// .github/workflows/backup.yml) — the only backup/restore path in the app.
 export interface DbBackupEntry {
   date: string
   current: boolean
