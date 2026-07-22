@@ -1,4 +1,8 @@
-export const SEMESTER_SEASONS = ['spring', 'summer', 'fall'] as const
+// Ordered to match the US academic year — fall term first, then spring, then summer.
+// This drives the display order in the settings editor. Note it is *display* order only:
+// the date-range validation and the date→season bucketing (newFamily.ts) work off the
+// calendar dates, which still run spring → summer → fall within a calendar year.
+export const SEMESTER_SEASONS = ['fall', 'spring', 'summer'] as const
 
 export type SemesterSeason = (typeof SEMESTER_SEASONS)[number]
 
@@ -12,11 +16,13 @@ export interface SemesterDateRange {
 
 export type SemesterDates = Record<SemesterSeason, SemesterDateRange>
 
-// Legacy boundaries used until a super-admin saves a custom schedule.
+// Default boundaries used until a super-admin saves a custom schedule. Keyed in the
+// US academic-year order (fall → spring → summer); the month/day values still tile a
+// calendar year spring → summer → fall.
 export const DEFAULT_SEMESTER_DATES: SemesterDates = {
+  fall: { start: '08-15', end: '12-31' },
   spring: { start: '01-01', end: '05-09' },
   summer: { start: '05-10', end: '08-14' },
-  fall: { start: '08-15', end: '12-31' },
 }
 
 const MONTH_DAY_RE = /^\d{2}-\d{2}$/
@@ -31,18 +37,21 @@ function monthDayNumber(value: string): number | null {
 }
 
 // All six values must be real recurring dates, each range must run forward, and terms
-// may have breaks between them but may never overlap or appear out of order.
+// may have breaks between them but may never overlap or appear out of order. The order
+// check is by *calendar date* (spring → summer → fall within a year), independent of the
+// SEMESTER_SEASONS display order, so seasons are looked up by name rather than position.
 export function isValidSemesterDates(value: unknown): value is SemesterDates {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const ranges = value as Partial<Record<SemesterSeason, Partial<SemesterDateRange>>>
-  const nums = SEMESTER_SEASONS.map((season) => {
+  const parsed = {} as Record<SemesterSeason, { start: number; end: number }>
+  for (const season of SEMESTER_SEASONS) {
     const range = ranges[season]
     const start = typeof range?.start === 'string' ? monthDayNumber(range.start) : null
     const end = typeof range?.end === 'string' ? monthDayNumber(range.end) : null
-    return start !== null && end !== null ? { start, end } : null
-  })
-  if (nums.some((range) => range === null)) return false
-  const [spring, summer, fall] = nums as { start: number; end: number }[]
+    if (start === null || end === null) return false
+    parsed[season] = { start, end }
+  }
+  const { spring, summer, fall } = parsed
   return (
     spring.start <= spring.end &&
     spring.end < summer.start &&
