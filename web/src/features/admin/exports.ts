@@ -482,7 +482,6 @@ export function filterLabel(group: string, subgroup: string, lang: Lang): string
 export interface KakaoOpts {
   group: string
   subgroup: string
-  announcement?: string
   lang: Lang
 }
 
@@ -530,12 +529,6 @@ export function kakaoSummary(members: Member[], log: LogEntry[], today: string, 
     lines.push('')
     lines.push(L.visitor)
     visitors.forEach((n, i) => lines.push(`${i + 1}. ${n} (${L.visitorTag})`))
-  }
-
-  const ann = (opts.announcement ?? '').trim()
-  if (ann) {
-    lines.push('')
-    lines.push(`📢 ${ann}`)
   }
 
   return lines.join('\n')

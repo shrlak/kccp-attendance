@@ -20,7 +20,7 @@ import {
 
 const GROUPS = ['대학부', '청년부'] as const
 
-// Super-admin settings: semester dates, the announcement, and app-wide mode toggles.
+// Super-admin settings: semester dates and app-wide mode toggles.
 // (동산 names + 동산지기/부동산지기 live in their own 동산 tab now.)
 export function AdminSettings() {
   const { t } = useTranslation()
@@ -36,15 +36,12 @@ export function AdminSettings() {
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
   })
-  const [ann, setAnn] = useState<string | undefined>(undefined)
-  const [annSaving, setAnnSaving] = useState(false)
   const [busyToggle, setBusyToggle] = useState<keyof SettingsPatch | null>(null)
   const [colorEdits, setColorEdits] = useState<Record<string, string> | undefined>(undefined)
   const [colorsSaving, setColorsSaving] = useState(false)
   const [semesterEdits, setSemesterEdits] = useState<SemesterDates | undefined>(undefined)
   const [semesterSaving, setSemesterSaving] = useState(false)
 
-  const announcement = ann ?? cfg?.announcement ?? ''
   const colors = colorEdits ?? cfg?.groupColors ?? DEFAULT_GROUP_COLORS
   const colorsDirty = colorEdits !== undefined
   const colorsValid = GROUPS.every((g) => isValidHex(colors[g] ?? ''))
@@ -57,20 +54,6 @@ export function AdminSettings() {
       ? Math.min(100, Math.round((scanUsage.remaining / scanUsage.limit) * 100))
       : 0
     : 0
-
-  async function saveAnnouncement() {
-    setAnnSaving(true)
-    try {
-      await updateSettings({ announcement })
-      await qc.invalidateQueries({ queryKey: ['config'] })
-      setAnn(undefined)
-      toast({ title: t('admin.settings.saved'), tone: 'ok' })
-    } catch {
-      toast({ title: t('common.error'), tone: 'err' })
-    } finally {
-      setAnnSaving(false)
-    }
-  }
 
   function setColor(group: string, hex: string) {
     setColorEdits({ ...colors, [group]: hex })
@@ -177,21 +160,6 @@ export function AdminSettings() {
         disabled={semesterSaving || semesterEdits === undefined || !semesterDatesValid}
       >
         {semesterSaving ? t('common.loading') : t('admin.settings.save')}
-      </Button>
-
-      <hr className="my-8 border-border" />
-
-      <h2 className="font-display text-lg font-semibold text-text">{t('admin.settings.announcement')}</h2>
-      <p className="mb-3 mt-1 text-sm text-muted">{t('admin.settings.announcementDesc')}</p>
-      <textarea
-        value={announcement}
-        onChange={(e) => setAnn(e.target.value)}
-        rows={2}
-        placeholder={t('admin.settings.announcementPlaceholder')}
-        className="mb-3 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/30"
-      />
-      <Button onClick={saveAnnouncement} disabled={annSaving || announcement === (cfg?.announcement ?? '')}>
-        {annSaving ? t('common.loading') : t('admin.settings.save')}
       </Button>
 
       <hr className="my-8 border-border" />

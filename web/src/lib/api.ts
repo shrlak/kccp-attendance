@@ -58,7 +58,6 @@ export async function api<T = unknown>(
 
 // Phase-0 response shapes (from the attendance-api edge function)
 export interface AppConfig {
-  announcement: string
   summerMode: boolean
   // 대학부/청년부 accent colors (hex, e.g. "#E0A800") — drives the 오늘 tab's name icons,
   // the kiosk's per-부서 tile backgrounds, and the 멤버 tab's per-부서 card backgrounds.
@@ -235,7 +234,6 @@ export const approveClear = () => api<{ status: string }>('POST', '/api/admin/at
 export const rejectClear = () => api<{ status: string }>('POST', '/api/admin/attendance/clear-reject')
 
 export interface SettingsPatch {
-  announcement?: string
   summerMode?: boolean
   groupColors?: Record<string, string>
   semesterDates?: SemesterDates
@@ -432,18 +430,14 @@ export const removeAttendance = (logId: number) =>
 export const addBulkAttendance = (memberIds: string[], date: string) =>
   api<{ status: string; added: number }>('POST', '/api/admin/log/add-bulk', { memberIds, date })
 
-// ── Backup / Restore (super-admin) ────────────────────────────────────────
-// Full v2 JSON snapshot of all data (devices, log, config, events, audit, pending).
-// Returned as a plain object so the caller can serialize and download it.
-export const getBackup = () => api<Record<string, unknown>>('GET', '/api/admin/backup')
-
-// Destructive restore from a previously downloaded v2 snapshot. Replaces all data
+// ── Restore (super-admin) ─────────────────────────────────────────────────
+// Destructive restore from a previously downloaded v2 JSON snapshot. Replaces all data
 // server-side and writes a `restore` audit entry.
 export const postRestore = (data: unknown) =>
   api<{ status: string }>('POST', '/api/admin/restore', data)
 
 // ── Off-site encrypted DB backup (super-admin) ────────────────────────────
-// Distinct from getBackup/postRestore above (a JSON app-data snapshot): this is the full
+// Distinct from postRestore above (a JSON app-data snapshot restore): this is the full
 // weekly Postgres dump pipeline to Cloudflare R2 (scripts/backup/, .github/workflows/backup.yml).
 export interface DbBackupEntry {
   date: string
