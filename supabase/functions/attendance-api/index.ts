@@ -12,10 +12,14 @@ import postgres from "npm:postgres@3.4.9";
 import { S3Client, ListObjectsV2Command, GetObjectCommand } from "npm:@aws-sdk/client-s3@3.1090.0";
 import { getSignedUrl } from "npm:@aws-sdk/s3-request-presigner@3.1090.0";
 
+// Allow-Headers MUST list every custom request header the web app sends (web/src/lib/api.ts),
+// or the browser's cross-origin preflight blocks the call before it reaches this function.
+// The X-Geo-* trio rides along on login when the admin allows the location prompt — omitting
+// them silently broke password sign-in for anyone who had granted location.
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type,X-Device-Id,X-Admin-Password,Authorization,apikey",
+  "Access-Control-Allow-Headers": "Content-Type,X-Device-Id,X-Admin-Password,X-Geo-Lat,X-Geo-Lon,X-Geo-Acc,Authorization,apikey",
 };
 function localDate() { return new Date().toLocaleDateString("en-CA",{timeZone:"America/New_York"}); }
 function localTime() { return new Date().toLocaleTimeString("en-US",{timeZone:"America/New_York",hour:"2-digit",minute:"2-digit",second:"2-digit"}); }
