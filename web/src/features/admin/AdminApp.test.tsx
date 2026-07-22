@@ -12,7 +12,7 @@ beforeAll(async () => { await i18n.init() })
 // Kitchen-sink payload that satisfies every query the admin tabs fire on mount
 // (config, roster) — the rail behavior under test never reads it.
 const apiStub = {
-  announcement: '', summerMode: false,
+  summerMode: false,
   role: 'super_admin', members: [], log: [],
 }
 

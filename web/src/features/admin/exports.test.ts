@@ -372,10 +372,6 @@ describe('kakaoSummary', () => {
     expect(out).toContain('👥 방문 / 기타:')
     expect(out).toContain('1. 방문자 (방문자)')
   })
-  it('appends the announcement when provided', () => {
-    const out = kakaoSummary(members, log, '2026-06-07', { group: '', subgroup: '', announcement: '다음 주 수련회', lang: 'ko' })
-    expect(out).toContain('📢 다음 주 수련회')
-  })
   it('uses the filter label in the header', () => {
     const out = kakaoSummary(members, log, '2026-06-07', { group: '청년부', subgroup: '건영동산', lang: 'en' })
     expect(out).toContain('(청년부 · 건영동산)')

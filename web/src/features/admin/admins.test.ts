@@ -5,7 +5,6 @@ import {
   formatLoginLocation,
   loginLocationDisplay,
   roleNeedsScope,
-  backupFilename,
   formatBytes,
   backupTotalSize,
   formatBackupTimestamp,
@@ -46,13 +45,6 @@ describe('auditDetail', () => {
     expect(auditDetail({ a: 1 })).toBe('{"a":1}')
     expect(auditDetail(null)).toBe('')
     expect(auditDetail(undefined)).toBe('')
-  })
-})
-
-describe('backupFilename', () => {
-  it('formats a zero-padded date into the backup filename', () => {
-    expect(backupFilename(new Date(2026, 5, 9))).toBe('kccp-backup-2026-06-09.json')
-    expect(backupFilename(new Date(2026, 11, 25))).toBe('kccp-backup-2026-12-25.json')
   })
 })
 

@@ -25,7 +25,7 @@ export function ExportMenu({ members, log, filter }: { members: Member[]; log: L
   const toast = useToast()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
-  // The announcement (for the Kakao summary) — read-only, cached by react-query.
+  // Semester dates (for the Excel + report headers) — read-only, cached by react-query.
   const { data: cfg } = useQuery({ queryKey: ['config'], queryFn: getConfig })
 
   const lang: Lang = i18n.language === 'en' ? 'en' : 'ko'
@@ -63,7 +63,6 @@ export function ExportMenu({ members, log, filter }: { members: Member[]; log: L
     const text = kakaoSummary(members, log, today, {
       group: filter.group,
       subgroup: filter.subgroup,
-      announcement: cfg?.announcement,
       lang,
     })
     const ok = await copyToClipboard(text)

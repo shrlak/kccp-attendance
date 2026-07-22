@@ -7,7 +7,6 @@ import {
   getLoginLog,
   setAdminRole,
   removeAdminRole,
-  getBackup,
   postRestore,
   getClearPending,
   approveClear,
@@ -25,7 +24,6 @@ import {
   auditDetail,
   loginLocationDisplay,
   roleNeedsScope,
-  backupFilename,
   formatBytes,
   backupTotalSize,
   formatBackupTimestamp,
@@ -98,7 +96,6 @@ export function AdminAdmins() {
   }
 
   const fileRef = useRef<HTMLInputElement>(null)
-  const [backupBusy, setBackupBusy] = useState(false)
   // The picked restore file is staged here; the destructive restore only runs after a
   // second explicit "confirm" click (parity with the legacy hold-to-confirm gate).
   const [restoreFile, setRestoreFile] = useState<File | null>(null)
@@ -143,26 +140,6 @@ export function AdminAdmins() {
   function pickDbRestoreFile(file: File | null) {
     if (file) setDbRestoreTarget({ source: 'upload', file })
     if (dbRestoreFileRef.current) dbRestoreFileRef.current.value = ''
-  }
-
-  async function downloadBackup() {
-    setBackupBusy(true)
-    try {
-      const data = await getBackup()
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-      const href = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = href
-      a.download = backupFilename()
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      URL.revokeObjectURL(href)
-    } catch {
-      toast({ title: t('common.error'), tone: 'err' })
-    } finally {
-      setBackupBusy(false)
-    }
   }
 
   function pickRestoreFile(file: File | null) {
@@ -393,11 +370,7 @@ export function AdminAdmins() {
       <h2 className="mb-1 font-display text-lg font-semibold text-text">{t('admin.admins.backup')}</h2>
       <p className="mb-3 text-xs text-muted">{t('admin.admins.backupDesc')}</p>
 
-      <Button variant="secondary" onClick={downloadBackup} disabled={backupBusy}>
-        {t('admin.admins.download')}
-      </Button>
-
-      <div className="mt-4 flex flex-col gap-2 rounded-lg border border-danger/40 bg-danger/5 p-3">
+      <div className="flex flex-col gap-2 rounded-lg border border-danger/40 bg-danger/5 p-3">
         <label className="text-sm font-semibold text-text">{t('admin.admins.restore')}</label>
         <input
           ref={fileRef}
