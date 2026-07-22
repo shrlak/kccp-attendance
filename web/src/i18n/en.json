@@ -113,7 +113,7 @@
       "save": "Save",
       "saved": "Saved",
       "semesterDates": "Semester dates",
-      "semesterDatesDesc": "Set the fall, spring, and summer start and end dates on the {{year}} calendar. The saved month and day repeat every year.",
+      "semesterDatesDesc": "The {{year}}–{{nextYear}} academic year. Following the US calendar, fall is in {{year}} and spring and summer are in {{nextYear}}. The saved month and day repeat every year.",
       "semester": { "spring": "Spring", "summer": "Summer", "fall": "Fall" },
       "semesterStart": "Start date",
       "semesterEnd": "End date",

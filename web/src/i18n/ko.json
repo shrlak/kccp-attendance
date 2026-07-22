@@ -113,7 +113,7 @@
       "save": "저장",
       "saved": "저장되었습니다",
       "semesterDates": "학기 일정",
-      "semesterDatesDesc": "{{year}}년 달력에서 가을·봄·여름학기의 시작일과 종료일을 설정합니다. 저장한 월·일은 매년 적용됩니다.",
+      "semesterDatesDesc": "{{year}}–{{nextYear}} 학년도 일정입니다. 미국 학기 기준으로 가을학기는 {{year}}년, 봄·여름학기는 {{nextYear}}년에 진행됩니다. 저장한 월·일은 매년 적용됩니다.",
       "semester": { "spring": "봄학기", "summer": "여름학기", "fall": "가을학기" },
       "semesterStart": "시작일",
       "semesterEnd": "종료일",

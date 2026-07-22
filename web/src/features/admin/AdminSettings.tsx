@@ -113,15 +113,21 @@ export function AdminSettings() {
     <div className="w-full">
       <h2 className="font-display text-lg font-semibold text-text">{t('admin.settings.semesterDates')}</h2>
       <p className="mb-4 mt-1 text-sm text-muted">
-        {t('admin.settings.semesterDatesDesc', { year: currentYear })}
+        {t('admin.settings.semesterDatesDesc', { year: currentYear, nextYear: currentYear + 1 })}
       </p>
       <div className="mb-3 grid gap-3 lg:grid-cols-3">
-        {SEMESTER_SEASONS.map((season) => (
+        {SEMESTER_SEASONS.map((season) => {
+          // US academic year: fall belongs to the earlier calendar year, spring and summer
+          // to the next one (e.g. 2026-27 → Fall 2026, Spring 2027, Summer 2027). The picker
+          // year is display-only — only the month/day is saved.
+          const seasonYear = season === 'fall' ? currentYear : currentYear + 1
+          return (
           <fieldset key={season} className="rounded-xl border border-border bg-surface-alt/40 p-4">
             {/* legend renders as an in-card header (float trick) instead of the
                 browser's border-interrupting legend style; fieldset keeps semantics. */}
             <legend className="float-left mb-2.5 w-full p-0 text-sm font-semibold text-text">
               {t(`admin.settings.semester.${season}`)}
+              <span className="ml-1.5 font-normal text-subtle">{seasonYear}</span>
             </legend>
             <div className="clear-both grid grid-cols-2 gap-2">
               <label>
@@ -130,9 +136,9 @@ export function AdminSettings() {
                 </span>
                 <Input
                   type="date"
-                  min={`${currentYear}-01-01`}
-                  max={`${currentYear}-12-31`}
-                  value={dateForYear(currentYear, semesterDates[season].start)}
+                  min={`${seasonYear}-01-01`}
+                  max={`${seasonYear}-12-31`}
+                  value={dateForYear(seasonYear, semesterDates[season].start)}
                   onChange={(e) => setSemesterDate(season, 'start', e.target.value)}
                 />
               </label>
@@ -142,15 +148,16 @@ export function AdminSettings() {
                 </span>
                 <Input
                   type="date"
-                  min={`${currentYear}-01-01`}
-                  max={`${currentYear}-12-31`}
-                  value={dateForYear(currentYear, semesterDates[season].end)}
+                  min={`${seasonYear}-01-01`}
+                  max={`${seasonYear}-12-31`}
+                  value={dateForYear(seasonYear, semesterDates[season].end)}
                   onChange={(e) => setSemesterDate(season, 'end', e.target.value)}
                 />
               </label>
             </div>
           </fieldset>
-        ))}
+          )
+        })}
       </div>
       {!semesterDatesValid && (
         <p className="mb-3 text-xs font-semibold text-danger">{t('admin.settings.semesterDatesInvalid')}</p>
