@@ -180,21 +180,17 @@ export function KioskView({ onExit }: { onExit: () => void }) {
                 const color = resolveGroupColor(cfg?.groupColors, dept.key)
                 return (
                   <div key={dept.key} className="rounded-[26px] border border-border/60 p-4" style={{ background: hexTint(color, 0.07) }}>
-                    <div className="grid grid-cols-2 gap-x-3 gap-y-5 min-[480px]:grid-cols-4">
+                    {/* Full-width department header, so every column below starts on the same
+                        line — the round-robin split reads alphabetically across each row. */}
+                    <div
+                      className="mb-3 flex items-baseline gap-2 border-b-2 pb-2 text-xs font-bold uppercase tracking-wide"
+                      style={{ color, borderColor: color }}
+                    >
+                      {dept.key} <span className="text-subtle">{dept.total}</span>
+                    </div>
+                    <div className="grid grid-cols-2 items-start gap-x-3 gap-y-2 min-[480px]:grid-cols-4">
                       {dept.columns.map((part, i) => (
                         <div key={`${dept.key}-${i}`} className="flex flex-col gap-2">
-                          <div
-                            className="border-b-2 pb-2 text-xs font-bold uppercase tracking-wide"
-                            style={{ color, borderColor: color }}
-                          >
-                            {i === 0 ? (
-                              <>
-                                {dept.key} <span className="text-subtle">{dept.total}</span>
-                              </>
-                            ) : (
-                              ' '
-                            )}
-                          </div>
                           {part.length ? (
                             part.map((m) => <Tile key={m.id} m={m} />)
                           ) : (
