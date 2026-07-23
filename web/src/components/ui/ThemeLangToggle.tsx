@@ -5,8 +5,8 @@ import { Sun, Moon } from './Icon'
 // Shared button styling so the toggles (and any sibling control, e.g. the landing
 // page's 관리자 link) look identical everywhere they appear.
 export const iconBtnClass =
-  'min-h-11 min-w-11 inline-flex items-center justify-center rounded-lg text-muted hover:text-text hover:bg-surface-alt text-xs font-semibold font-mono ' +
-  'transition-[background-color,color,transform] duration-200 [transition-timing-function:var(--ease-out-soft)] active:scale-[0.92]'
+  'min-h-10 min-w-10 inline-flex items-center justify-center rounded-full text-muted hover:text-text hover:bg-fill text-xs font-semibold ' +
+  'transition-[background-color,color,transform] duration-200 [transition-timing-function:var(--ease-out-soft)] active:scale-[0.9]'
 
 // Theme (light/dark) + language (ko/en) toggle buttons. Rendered as a fragment so the
 // caller controls the surrounding layout; used on the landing page, the kiosk, and the

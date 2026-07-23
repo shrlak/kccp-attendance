@@ -1,14 +1,21 @@
 :root {
-  /* Soft-gray workspace with white raised surfaces (Apple system-settings look):
-     cards, panels, dialogs, and tiles read as elevated layers instead of hairline
-     boxes on an all-white page. Dark mode already had this separation. */
+  /* ── Apple system surfaces ────────────────────────────────────────────────
+     A soft-gray workspace with white raised surfaces (macOS System Settings /
+     iOS grouped look): cards, panels, dialogs, and tiles read as elevated
+     layers with real, layered shadows rather than hairline boxes on flat white.
+     `surface-2` is a faint second elevation for nested tiles; `fill` is Apple's
+     translucent gray used for segmented tracks, chips, and secondary buttons. */
   --canvas: #f5f5f7;
   --surface: #ffffff;
-  --surface-alt: #f0f0f2; /* a step below surface, still distinct from the canvas gray */
-  --border: #d2d2d7;
+  --surface-2: #fbfbfd;      /* faintly raised nested tile */
+  --surface-alt: #eef0f2;    /* recessed fill area, a step below the canvas */
+  --fill: rgba(118, 118, 128, 0.12);        /* translucent system fill */
+  --fill-hover: rgba(118, 118, 128, 0.20);
+  --border: #d7d7dc;
+  --separator: rgba(60, 60, 67, 0.16);      /* hairline row/list separator */
   --text: #1d1d1f;
   --muted: #6e6e73;
-  --subtle: #737378; /* ≥4.5:1 on white — this gray styles 11–12 px captions */
+  --subtle: #737378;         /* ≥4.5:1 on white — styles 11–12 px captions */
   --primary: #0071e3;
   --primary-hover: #0077ed;
   --primary-fg: #ffffff;
@@ -20,17 +27,30 @@
   --nav: #ffffff;
   --nav-muted: #6e6e73;
   --nav-border: #e5e5e7;
-  --shadow: 0 2px 8px rgba(0, 0, 0, 0.04), 0 18px 48px rgba(0, 0, 0, 0.06);
+
+  /* Frosted material for translucent bars/overlays (pair with backdrop-blur). */
+  --material: rgba(250, 250, 252, 0.72);
+  --material-border: rgba(0, 0, 0, 0.08);
+
+  /* Layered, soft Apple shadows — a tight contact shadow plus a wide ambient one. */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.03);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 10px 30px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 2px 8px rgba(0, 0, 0, 0.06), 0 24px 56px rgba(0, 0, 0, 0.10);
+  --shadow-pop: 0 1px 3px rgba(0, 0, 0, 0.06), 0 24px 64px rgba(0, 0, 0, 0.22);
 }
 
 .dark {
   --canvas: #000000;
-  --surface: #1d1d1f;
+  --surface: #1c1c1e;
+  --surface-2: #242426;
   --surface-alt: #2c2c2e;
-  --border: #3a3a3c;
+  --fill: rgba(120, 120, 128, 0.24);
+  --fill-hover: rgba(120, 120, 128, 0.36);
+  --border: #38383a;
+  --separator: rgba(84, 84, 88, 0.40);
   --text: #f5f5f7;
   --muted: #a1a1a6;
-  --subtle: #98989d; /* ≥4.5:1 on the dark surfaces captions sit on */
+  --subtle: #98989d;         /* ≥4.5:1 on the dark surfaces captions sit on */
   --primary: #2997ff;
   --primary-hover: #47a6ff;
   --primary-fg: #ffffff;
@@ -39,8 +59,15 @@
   --warning: #ff9f0a;
   --danger: #ff453a;
   --info: #2997ff;
-  --nav: #1d1d1f;
+  --nav: #1c1c1e;
   --nav-muted: #a1a1a6;
-  --nav-border: #3a3a3c;
-  --shadow: 0 2px 12px rgba(0, 0, 0, 0.24), 0 24px 60px rgba(0, 0, 0, 0.32);
+  --nav-border: #38383a;
+
+  --material: rgba(30, 30, 32, 0.72);
+  --material-border: rgba(255, 255, 255, 0.10);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.30);
+  --shadow: 0 2px 12px rgba(0, 0, 0, 0.28), 0 24px 60px rgba(0, 0, 0, 0.36);
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.36), 0 32px 72px rgba(0, 0, 0, 0.48);
+  --shadow-pop: 0 2px 8px rgba(0, 0, 0, 0.40), 0 32px 72px rgba(0, 0, 0, 0.60);
 }

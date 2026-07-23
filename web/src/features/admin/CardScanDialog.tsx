@@ -3,6 +3,9 @@ import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Dialog } from '../../components/ui/Dialog'
 import { Button } from '../../components/ui/Button'
+import { Switch } from '../../components/ui/Switch'
+import { Tag } from '../../components/ui/Tag'
+import { ScanLine, Camera, ImagePlus, CheckCircle2 } from '../../components/ui/Icon'
 import { useToast } from '../../components/ui/Toast'
 import { extractCard, kioskNewMember, getCardScanUsage, type NewMemberFields } from '../../lib/api'
 import { easternNow } from '../../lib/checkinWindow'
@@ -168,15 +171,23 @@ export function CardScanDialog({ open, onClose }: { open: boolean; onClose: () =
   return (
     <Dialog open={open} onOpenChange={(o) => !o && close()} title={t('admin.newfamily.scan.title')} wide>
       {usage && (
-        <p className="mb-3 font-mono text-[11px] text-subtle">
-          {t('admin.settings.cardScanUsageDetail', {
-            available: usage.remaining,
-          })}
-        </p>
+        <div className="mb-4">
+          <Tag tone="muted" className="tabular-nums">
+            <ScanLine size={13} strokeWidth={2} aria-hidden />
+            <span>
+              {t('admin.settings.cardScanUsageDetail', {
+                available: usage.remaining,
+              })}
+            </span>
+          </Tag>
+        </div>
       )}
       {phase === 'pick' && (
-        <div className="flex flex-col gap-3">
-          <p className="text-sm text-muted">{t('admin.newfamily.scan.hint')}</p>
+        <div className="fx-fade flex flex-col items-center gap-4 rounded-2xl border border-dashed border-border bg-surface-2 px-5 py-9 text-center">
+          <span className="grid h-14 w-14 place-items-center rounded-full bg-primary/10 text-primary">
+            <Camera size={26} strokeWidth={1.75} aria-hidden />
+          </span>
+          <p className="max-w-sm text-sm text-muted">{t('admin.newfamily.scan.hint')}</p>
           {/* accept="image/*" without `capture` so mobile offers both camera and photo
               library; desktop gets the regular file picker. `multiple` lets a whole
               stack of cards be selected in one go. */}
@@ -187,31 +198,49 @@ export function CardScanDialog({ open, onClose }: { open: boolean; onClose: () =
             multiple
             aria-label={t('admin.newfamily.scan.pick')}
             onChange={(e) => pickFiles(e.target.files)}
-            className="text-xs text-muted file:mr-3 file:cursor-pointer file:rounded-full file:border file:border-border file:bg-surface file:px-4 file:py-2 file:text-xs file:font-semibold file:text-text hover:file:bg-surface-alt"
+            className="text-xs text-muted file:mr-3 file:inline-flex file:min-h-11 file:cursor-pointer file:items-center file:rounded-full file:border-0 file:bg-primary file:px-5 file:text-sm file:font-semibold file:text-primary-fg file:shadow-[var(--shadow-sm)] hover:file:bg-primary-hover"
           />
         </div>
       )}
 
       {phase === 'extracting' && (
-        <p className="py-10 text-center text-sm text-muted">
-          {progress && <span className="mb-1 block font-semibold text-primary">{progress}</span>}
-          {t('admin.newfamily.scan.extracting')}
-        </p>
+        <div className="fx-fade flex flex-col items-center gap-4 py-12 text-center">
+          {progress && <Tag tone="primary" className="tabular-nums">{progress}</Tag>}
+          <span className="fx-pulse grid h-14 w-14 place-items-center rounded-full bg-primary/10 text-primary">
+            <ScanLine size={26} strokeWidth={1.75} aria-hidden />
+          </span>
+          <p className="text-sm text-muted">{t('admin.newfamily.scan.extracting')}</p>
+        </div>
       )}
 
       {phase === 'review' && (
         <>
-          <p className="mb-3 text-sm text-muted">
-            {progress && <span className="mr-2 font-semibold text-primary">{progress}</span>}
-            {t('admin.newfamily.scan.reviewHint')}
-          </p>
+          <div className="mb-3 flex items-start gap-2.5">
+            <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-success/12 text-success">
+              <ImagePlus size={16} strokeWidth={2} aria-hidden />
+            </span>
+            <p className="text-sm text-muted">
+              {progress && <Tag tone="primary" className="mr-2 align-middle tabular-nums">{progress}</Tag>}
+              {t('admin.newfamily.scan.reviewHint')}
+            </p>
+          </div>
           <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto pr-1">
             <NewFamilyCardForm value={card} onChange={patchCard} />
           </div>
-          <label className="mt-3 flex items-center gap-2 text-sm text-text">
-            <input type="checkbox" checked={checkinToday} onChange={(e) => setCheckinToday(e.target.checked)} disabled={busy} />
-            {t('admin.newfamily.scan.checkinToday')}
-          </label>
+          <div className="mt-4 inset-list">
+            <label className="inset-row min-h-12 cursor-pointer justify-between gap-3">
+              <span className="flex items-center gap-2 text-sm font-medium text-text">
+                <CheckCircle2 size={17} strokeWidth={2} className="text-success" aria-hidden />
+                {t('admin.newfamily.scan.checkinToday')}
+              </span>
+              <Switch
+                checked={checkinToday}
+                onChange={setCheckinToday}
+                disabled={busy}
+                label={t('admin.newfamily.scan.checkinToday')}
+              />
+            </label>
+          </div>
           <div className="mt-4 flex gap-2">
             <Button variant="ghost" onClick={() => advance(queue, index)} disabled={busy}>
               {queue.length > 1 ? t('admin.newfamily.scan.skip') : t('admin.newfamily.scan.retake')}

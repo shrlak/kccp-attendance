@@ -26,7 +26,9 @@ export function KccpLogo({
         <div className="mt-2 font-display text-lg font-bold leading-tight tracking-tight text-text">
           피츠버그 한인중앙교회
         </div>
-        <div className="mt-1 text-sm font-semibold text-primary">대학 · 청년부</div>
+        <div className="mt-3 inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-sm font-semibold text-primary">
+          대학 · 청년부
+        </div>
       </div>
     )
   }

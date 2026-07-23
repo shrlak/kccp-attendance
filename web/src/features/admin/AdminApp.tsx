@@ -22,6 +22,7 @@ import {
   Sprout,
   Settings,
   MoreHorizontal,
+  LogOut,
 } from '../../components/ui/Icon'
 import { KccpMark } from '../checkin/KccpMark'
 import { AdminToday } from './AdminToday'
@@ -144,7 +145,7 @@ export function AdminApp() {
     <div className="min-h-dvh bg-canvas">
       <aside
         className={
-          'fixed inset-y-0 left-0 z-30 hidden flex-col overflow-hidden border-r border-border bg-canvas/[0.92] backdrop-blur-xl transition-[width] duration-200 ease-out lg:flex ' +
+          'material-bar fixed inset-y-0 left-0 z-30 hidden flex-col overflow-hidden border-r transition-[width] duration-200 ease-out lg:flex ' +
           (navOpen ? 'w-60' : 'w-16')
         }
         onMouseEnter={() => setNavOpen(true)}
@@ -164,7 +165,7 @@ export function AdminApp() {
           </div>
         </div>
 
-        <nav aria-label={t('admin.pageTitle')} className="flex flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden py-2">
+        <nav aria-label={t('admin.pageTitle')} className="flex flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden py-2">
           {tabs
             .filter((item) => item.show)
             .map((item) => (
@@ -182,16 +183,16 @@ export function AdminApp() {
       </aside>
 
       <main className="min-h-dvh lg:pl-16">
-        <header className="sticky top-0 z-20 border-b border-border bg-canvas/[0.82] px-5 py-3 pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur-xl">
+        <header className="material-bar sticky top-0 z-20 border-b px-5 py-3 pt-[calc(0.75rem+env(safe-area-inset-top))]">
           <div className="mx-auto flex max-w-[1480px] items-center justify-between gap-4">
             <span className="grid shrink-0 place-items-center lg:hidden" aria-hidden>
               <KccpMark size={26} />
             </span>
             <div className="min-w-0 flex-1">
-              <h1 className="truncate font-display text-xl font-bold tracking-tight text-text">{t(`admin.nav.${tab}`)}</h1>
+              <h1 className="truncate font-display text-2xl font-bold tracking-tight text-text">{t(`admin.nav.${tab}`)}</h1>
               <p className="mt-0.5 truncate text-xs text-muted">{dateLabel} · {roleScope}</p>
             </div>
-            <div className="flex shrink-0 items-center gap-1">
+            <div className="flex shrink-0 items-center gap-1.5">
               <ThemeLangToggle />
               {canRunBackup && (
                 <Button variant="secondary" size="sm" onClick={runBackup} disabled={backupBusy}>
@@ -204,6 +205,7 @@ export function AdminApp() {
                 </Button>
               )}
               <Button variant="ghost" size="sm" onClick={handleSignOut}>
+                <LogOut className="size-4" strokeWidth={2} aria-hidden />
                 {t('admin.signOut')}
               </Button>
             </div>
@@ -237,7 +239,7 @@ export function AdminApp() {
       />
 
       <Dialog open={moreOpen} onOpenChange={setMoreOpen} title={t('admin.nav.more')}>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 gap-2.5">
           {moreTabs.map((item) => {
             const Icon = item.icon
             const active = tab === item.id
@@ -248,16 +250,23 @@ export function AdminApp() {
                 onClick={() => selectTab(item.id)}
                 aria-current={active ? 'page' : undefined}
                 className={
-                  'flex min-h-20 flex-col items-center justify-center gap-1.5 rounded-xl border p-3 text-xs font-semibold transition-colors ' +
+                  'flex min-h-24 flex-col items-center justify-center gap-2 rounded-2xl border p-3 text-xs font-semibold transition-[background-color,border-color,color,transform] duration-200 [transition-timing-function:var(--ease-out-soft)] active:scale-95 ' +
                   (active
-                    ? 'border-primary/40 bg-primary/10 text-primary'
-                    : 'border-border bg-surface text-muted hover:bg-surface-alt hover:text-text')
+                    ? 'border-primary bg-primary text-primary-fg shadow-[var(--shadow-sm)]'
+                    : 'border-separator bg-surface-2 text-muted hover:bg-fill hover:text-text')
                 }
               >
                 <span className="relative">
-                  <Icon className="size-5" strokeWidth={active ? 2.2 : 1.8} aria-hidden />
+                  <span
+                    className={
+                      'grid size-11 place-items-center rounded-full transition-colors ' +
+                      (active ? 'bg-white/20' : 'bg-fill')
+                    }
+                  >
+                    <Icon className="size-5" strokeWidth={active ? 2.2 : 1.8} aria-hidden />
+                  </span>
                   {(item.badge ?? 0) > 0 && (
-                    <span className="absolute -right-2.5 -top-2 grid h-4 min-w-4 place-items-center rounded-full bg-danger px-1 text-[9px] font-bold text-white">
+                    <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-danger px-1 text-[9px] font-bold text-white">
                       {item.badge}
                     </span>
                   )}

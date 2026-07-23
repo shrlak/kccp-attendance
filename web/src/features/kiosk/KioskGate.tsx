@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useAdminAuth } from '../../stores/useAdminAuth'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
+import { Monitor } from '../../components/ui/Icon'
 import { AccessShell } from '../../components/layout/AccessShell'
 
 // Login gate for /kiosk reached from the public landing page. Same credentials as the
@@ -46,6 +47,7 @@ export function KioskGate() {
           <p className="mt-2 text-xs text-danger">{t('kiosk.gate.wrong')}</p>
         )}
         <Button onClick={() => void submit()} disabled={busy || !pw} className="mt-3 w-full">
+          <Monitor className="size-4" strokeWidth={2} aria-hidden />
           {busy && method === 'password' ? t('common.loading') : t('kiosk.gate.submit')}
         </Button>
 

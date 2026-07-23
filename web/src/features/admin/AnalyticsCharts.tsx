@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import type { Chart as ChartType, ChartConfiguration, Plugin } from 'chart.js'
@@ -7,6 +7,7 @@ import { shortDate } from './sheet'
 import { trendSeries, groupSeries } from './analytics'
 import { getConfig, type Member, type LogEntry } from '../../lib/api'
 import { resolveGroupColor } from './groupColors'
+import { Activity, BarChart3 } from '../../components/ui/Icon'
 
 // Inline plugin that prints each datapoint's value just above its dot on the trend
 // line. `tick` is the theme-aware label color already resolved for the axes.
@@ -139,15 +140,23 @@ export function AnalyticsCharts({ members, log }: { members: Member[]; log: LogE
     [cfg?.groupColors, groups],
   )
 
-  if (trend.length === 0) return <p className="text-sm text-muted">{t('admin.sheet.empty')}</p>
+  if (trend.length === 0)
+    return (
+      <div className="fx-fade mb-5 flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border bg-surface-2 py-16 text-center">
+        <span className="grid h-14 w-14 place-items-center rounded-full bg-fill text-muted">
+          <Activity size={26} strokeWidth={1.75} aria-hidden />
+        </span>
+        <p className="text-sm font-semibold text-text">{t('admin.sheet.empty')}</p>
+      </div>
+    )
 
   return (
-    <div className={'mb-5 grid gap-5 ' + (showGroups ? 'md:grid-cols-2' : 'grid-cols-1')}>
-      <Panel title={t('admin.analytics.trend')}>
+    <div className={'fx-rise mb-5 grid gap-5 ' + (showGroups ? 'md:grid-cols-2' : 'grid-cols-1')}>
+      <Panel title={t('admin.analytics.trend')} icon={<Activity size={16} strokeWidth={2} aria-hidden />}>
         <ChartCanvas build={trendBuild} />
       </Panel>
       {showGroups && (
-        <Panel title={t('admin.analytics.groupCompare')}>
+        <Panel title={t('admin.analytics.groupCompare')} icon={<BarChart3 size={16} strokeWidth={2} aria-hidden />}>
           <ChartCanvas build={groupBuild} />
         </Panel>
       )}
@@ -155,10 +164,13 @@ export function AnalyticsCharts({ members, log }: { members: Member[]; log: LogE
   )
 }
 
-function Panel({ title, children }: { title: string; children: React.ReactNode }) {
+function Panel({ title, icon, children }: { title: string; icon: ReactNode; children: ReactNode }) {
   return (
     <div className="surface-panel p-5">
-      <h3 className="section-kicker mb-4 border-b border-border pb-3">{title}</h3>
+      <div className="mb-4 flex items-center gap-2 border-b border-border pb-3">
+        <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">{icon}</span>
+        <h3 className="font-display text-base font-bold tracking-tight text-text">{title}</h3>
+      </div>
       <div className="relative h-56">{children}</div>
     </div>
   )

@@ -8,6 +8,7 @@ import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
+import { Search, ListChecks, Merge as MergeIcon, Users, AlertTriangle } from '../../components/ui/Icon'
 import { mergeTargets, canMerge, mergeSummary, type MergeState } from './merge'
 import { groupsOf } from './filters'
 import { IconKey } from './IconKey'
@@ -32,8 +33,20 @@ export function AdminMembers() {
   const [target, setTarget] = useState('')
   const [bulkBusy, setBulkBusy] = useState(false)
 
-  if (isLoading) return <p className="text-sm text-muted">{t('common.loading')}</p>
-  if (isError) return <p className="text-sm text-danger">{t('common.error')}</p>
+  if (isLoading) return (
+    <div className="fx-fade space-y-6">
+      <div className="fx-skeleton h-11 rounded-xl" />
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
+        {Array.from({ length: 12 }).map((_, i) => <div key={i} className="fx-skeleton h-20 rounded-2xl" />)}
+      </div>
+    </div>
+  )
+  if (isError) return (
+    <div className="fx-rise grid place-items-center py-16 text-center">
+      <div className="grid size-14 place-items-center rounded-full bg-danger/10 text-danger"><AlertTriangle className="size-6" aria-hidden /></div>
+      <p className="mt-4 text-sm font-semibold text-danger">{t('common.error')}</p>
+    </div>
+  )
   if (!data) return null
 
   const q = search.trim().toLowerCase()
@@ -78,28 +91,34 @@ export function AdminMembers() {
 
   return (
     <>
-      <div className="mb-5 flex flex-wrap gap-2 border-b border-border pb-5">
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={t('admin.members.search')}
-          aria-label={t('admin.members.search')}
-          className="min-w-[220px] flex-1"
-        />
+      <div className="mb-5 flex flex-wrap gap-2 border-b border-separator pb-5">
+        <div className="relative min-w-[220px] flex-1">
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-subtle" aria-hidden />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t('admin.members.search')}
+            aria-label={t('admin.members.search')}
+            className="pl-10"
+          />
+        </div>
         {data.canBulkSubgroup && (
           <Button variant="secondary" onClick={() => (selectMode ? exitSelect() : setSelectMode(true))}>
+            <ListChecks className="size-4" aria-hidden />
             {selectMode ? t('common.cancel') : t('admin.members.bulkMove.action')}
           </Button>
         )}
         {!selectMode && (
           <Button variant="secondary" onClick={() => setMerging(true)} disabled={data.members.length < 2}>
+            <MergeIcon className="size-4" aria-hidden />
             {t('admin.members.merge.action')}
           </Button>
         )}
       </div>
       {selectMode ? (
-        <div className="mb-4 flex flex-wrap items-center gap-2 border-l-2 border-primary bg-primary/[0.06] px-4 py-3">
-          <span className="font-mono text-xs font-semibold text-primary">
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-2xl border border-primary/25 bg-primary/[0.06] px-4 py-3 shadow-[var(--shadow-sm)]">
+          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary">
+            <ListChecks className="size-4" aria-hidden />
             {t('admin.members.bulkMove.selected', { n: selected.size })}
           </span>
           <Select value={target} onChange={(e) => setTarget(e.target.value)} className="min-w-[8rem] flex-1">
@@ -123,7 +142,8 @@ export function AdminMembers() {
           </Button>
         </div>
       ) : (
-        <div className="section-kicker mb-4">
+        <div className="mb-4 flex items-center gap-2 section-kicker">
+          <Users className="size-4 text-subtle" aria-hidden />
           {t('admin.nav.members')} · {members.length}
         </div>
       )}
@@ -133,11 +153,12 @@ export function AdminMembers() {
         // every other section (EM, staff-ish groups, no 부서) stays the plain surface.
         const tint = group === '대학부' || group === '청년부' ? hexTint(resolveGroupColor(cfg?.groupColors, group), 0.07) : undefined
         return (
-        <section key={group || 'none'} className="mb-8">
-          <h3 className="mb-3 border-b border-border pb-2 font-display text-base font-bold text-text">
-            {group || '—'} <span className="text-sm font-normal text-muted">· {list.length}</span>
+        <section key={group || 'none'} className="mb-8 fx-rise">
+          <h3 className="mb-3 flex items-center gap-2 border-b border-separator pb-2.5 font-display text-lg font-bold tracking-tight text-text">
+            {group || '—'}
+            <span className="rounded-full bg-fill px-2 py-0.5 text-xs font-semibold tabular-nums text-muted">{list.length}</span>
           </h3>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
             {list.map((m) => {
               const sel = selectMode && selected.has(m.id)
               return (
@@ -147,15 +168,15 @@ export function AdminMembers() {
                   onClick={() => (selectMode ? toggleSel(m.id) : setEditing(m))}
                   style={sel ? undefined : { background: tint }}
                   className={
-                    'min-h-20 rounded-xl border p-3.5 text-left transition-[background-color,border-color,box-shadow,transform] duration-200 [transition-timing-function:var(--ease-out-soft)] ' +
-                    'hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md active:translate-y-0 active:shadow-sm ' +
+                    'min-h-20 rounded-2xl border p-3.5 text-left shadow-[var(--shadow-sm)] transition-[background-color,border-color,box-shadow,transform] duration-200 [transition-timing-function:var(--ease-out-soft)] ' +
+                    'hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[var(--shadow)] active:translate-y-0 ' +
                     (sel ? 'border-primary bg-surface ring-2 ring-primary/40' : 'border-border' + (tint ? '' : ' bg-surface'))
                   }
                 >
                   <div className="leading-snug">
                     {selectMode && (
-                      <span className="mr-2 inline-grid h-4 w-4 place-items-center rounded-[2px] border border-primary align-middle text-[10px] text-primary">
-                        {sel ? '✓' : ''}
+                      <span className={'mr-2 inline-grid h-4 w-4 place-items-center rounded-full align-middle text-[10px] font-bold ' + (sel ? 'bg-primary text-primary-fg' : 'border border-border text-transparent')}>
+                        ✓
                       </span>
                     )}
                     <span className="break-words text-base font-semibold text-text">{m.name}</span>
@@ -177,8 +198,8 @@ export function AdminMembers() {
                       </>
                     )}
                   </div>
-                  <div className="text-xs text-muted">{[m.group_name, m.subgroup].filter(Boolean).join(' · ') || '—'}</div>
-                  {m.member_role && <div className="mt-1 font-mono text-[11px] text-subtle">{m.member_role}</div>}
+                  <div className="mt-1 text-xs text-muted">{[m.group_name, m.subgroup].filter(Boolean).join(' · ') || '—'}</div>
+                  {m.member_role && <div className="mt-1 text-[11px] font-medium text-subtle">{m.member_role}</div>}
                 </button>
               )
             })}
@@ -188,19 +209,20 @@ export function AdminMembers() {
       })}
       {staffMembers.length > 0 && (
         <>
-          <div className="mb-3 mt-6 font-mono text-xs uppercase tracking-wide text-subtle">
-            {t('admin.members.staffSection')} · {staffMembers.length}
+          <div className="mb-3 mt-6 flex items-center gap-2 section-kicker">
+            {t('admin.members.staffSection')}
+            <span className="rounded-full bg-fill px-2 py-0.5 text-[11px] font-semibold tabular-nums text-muted">{staffMembers.length}</span>
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
             {staffMembers.map((m) => (
               <button
                 key={m.id}
                 type="button"
                 onClick={() => setEditing(m)}
-                className="min-h-20 rounded-xl border border-border bg-surface p-3.5 text-left transition-[background-color,border-color,box-shadow,transform] duration-200 [transition-timing-function:var(--ease-out-soft)] hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md active:translate-y-0 active:shadow-sm"
+                className="min-h-20 rounded-2xl border border-border bg-surface p-3.5 text-left shadow-[var(--shadow-sm)] transition-[background-color,border-color,box-shadow,transform] duration-200 [transition-timing-function:var(--ease-out-soft)] hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[var(--shadow)] active:translate-y-0"
               >
                 <div className="text-base font-semibold text-text">{m.name}</div>
-                <div className="text-xs text-muted">{m.member_role || '—'}</div>
+                <div className="mt-1 text-xs text-muted">{m.member_role || '—'}</div>
               </button>
             ))}
           </div>
@@ -282,8 +304,9 @@ function MergeModal({ members, onClose }: { members: Member[]; onClose: () => vo
           </Select>
         </Field>
         {canMerge(s) && (
-          <p className="rounded-md bg-danger/10 px-3 py-2 text-xs text-danger">
-            {t('admin.members.merge.warn', { summary: mergeSummary(members, s) })}
+          <p className="flex items-start gap-2 rounded-xl bg-danger/10 px-3 py-2.5 text-xs text-danger">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
+            <span>{t('admin.members.merge.warn', { summary: mergeSummary(members, s) })}</span>
           </p>
         )}
       </div>

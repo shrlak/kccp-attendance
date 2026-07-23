@@ -17,11 +17,14 @@ import { useKioskLive, broadcastKioskChange } from './live'
 import { KioskGuestDialog } from './KioskGuestDialog'
 import { KioskNewMemberDialog } from './KioskNewMemberDialog'
 import { ThemeLangToggle } from '../../components/ui/ThemeLangToggle'
-import { Search, Check, Clock, ClipboardList, RotateCcw, AlertTriangle } from '../../components/ui/Icon'
+import {
+  Search, Check, Clock, ClipboardList, RotateCcw, AlertTriangle,
+  Users, DoorOpen, UserPlus, Sparkles,
+} from '../../components/ui/Icon'
 import { KccpMark } from '../checkin/KccpMark'
 
-const TILE = 'border-border bg-surface text-text hover:border-primary/35 hover:bg-surface-alt'
-const DONE_TILE = 'border-primary bg-primary text-white'
+const TILE = 'border-border bg-surface text-text shadow-[var(--shadow-sm)] hover:border-primary/40 hover:bg-surface-alt'
+const DONE_TILE = 'border-primary bg-primary text-white shadow-[0_6px_18px_color-mix(in_srgb,var(--primary)_30%,transparent)]'
 
 // Full-screen kiosk for touchscreen attendance (Phase 3). Runs on an already-verified
 // admin device, so taps go through the hardened member-checkin endpoint. Auto-refreshes
@@ -95,9 +98,9 @@ export function KioskView({ onExit }: { onExit: () => void }) {
       <button
         type="button"
         onClick={() => void tap(m)}
-        className={'flex min-h-14 items-center justify-center gap-1.5 rounded-xl border px-2 py-3 text-sm font-semibold transition-[background-color,border-color,transform,box-shadow] duration-200 [transition-timing-function:var(--ease-out-soft)] active:scale-[0.94] ' + (done ? DONE_TILE : TILE)}
+        className={'flex min-h-16 items-center justify-center gap-1.5 rounded-2xl border px-3 py-3 text-sm font-semibold transition-[background-color,border-color,transform,box-shadow] duration-200 [transition-timing-function:var(--ease-out-soft)] active:scale-[0.94] ' + (done ? DONE_TILE : TILE)}
       >
-        {done && <Check className="size-3.5 shrink-0" aria-hidden />}
+        {done && <Check className="size-4 shrink-0" strokeWidth={2.5} aria-hidden />}
         {m.name}
       </button>
     )
@@ -106,18 +109,19 @@ export function KioskView({ onExit }: { onExit: () => void }) {
   return (
     <div className="fixed inset-0 z-[999] flex flex-col bg-canvas">
       {/* Header: title + live attendance count + exit */}
-      <header className="flex items-center justify-between gap-3 border-b border-border bg-surface/[0.88] px-5 py-3 text-text pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur-xl sm:px-7">
+      <header className="material-bar flex items-center justify-between gap-3 border-b px-5 py-3 text-text pt-[calc(0.75rem+env(safe-area-inset-top))] sm:px-7">
         <div className="flex items-center gap-3">
-          <KccpMark size={32} />
+          <KccpMark size={34} />
           <div>
             <div className="font-display text-lg font-bold tracking-tight">{t('kiosk.title')}</div>
-            <div className="mt-0.5 text-[10px] font-semibold tracking-wide text-muted">KCCP Sunday Check-in</div>
+            <div className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">KCCP Sunday Check-in</div>
           </div>
         </div>
-        <div className="flex items-center gap-1">
-          <div className="mr-2 hidden border-r border-border pr-4 text-right sm:block">
-            <div className="text-xl font-bold tabular-nums">{count}</div>
-            <div className="text-[10px] font-semibold text-muted">{t('kiosk.count', { n: count })}</div>
+        <div className="flex items-center gap-2">
+          <div className="mr-1 hidden items-center gap-2 rounded-full bg-fill px-3.5 py-1.5 sm:flex">
+            <Users className="size-4 text-primary" strokeWidth={2} aria-hidden />
+            <span className="text-sm font-bold tabular-nums text-text">{count}</span>
+            <span className="text-xs font-semibold text-muted">{t('kiosk.count', { n: count })}</span>
           </div>
           <ThemeLangToggle />
           {/* One-tap exit, no confirmation — the session stays signed in and lands on
@@ -126,44 +130,56 @@ export function KioskView({ onExit }: { onExit: () => void }) {
           <button
             type="button"
             onClick={onExit}
-            className="min-h-10 rounded-full border border-border bg-surface-alt px-4 text-sm font-semibold text-muted hover:text-text"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-border bg-surface px-4 text-sm font-semibold text-muted transition-[background-color,color,transform] duration-200 [transition-timing-function:var(--ease-out-soft)] hover:bg-surface-alt hover:text-text active:scale-[0.96]"
           >
+            <DoorOpen className="size-4" strokeWidth={2} aria-hidden />
             {t('kiosk.exit')}
           </button>
         </div>
       </header>
 
-      <div className="mx-auto w-full max-w-[1500px] px-5 pt-4 sm:px-7">
+      <div className="mx-auto w-full max-w-[1500px] px-5 pt-5 sm:px-7">
         <div className="relative">
-        <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-subtle" aria-hidden />
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={t('kiosk.searchPlaceholder')}
-          aria-label={t('kiosk.searchPlaceholder')}
-          autoComplete="off"
-          autoCorrect="off"
-          spellCheck={false}
-          className="w-full rounded-xl border border-border bg-surface py-3.5 pl-10 pr-4 text-base text-text shadow-sm outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/15"
-        />
+          <Search className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-subtle" strokeWidth={2} aria-hidden />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t('kiosk.searchPlaceholder')}
+            aria-label={t('kiosk.searchPlaceholder')}
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck={false}
+            className="w-full rounded-2xl border border-border bg-surface py-4 pl-12 pr-4 text-lg text-text shadow-[var(--shadow-sm)] outline-none transition-[border-color,box-shadow] duration-200 [transition-timing-function:var(--ease-out-soft)] placeholder:text-subtle focus-visible:border-primary focus-visible:ring-[3.5px] focus-visible:ring-primary/18"
+          />
         </div>
         <div className="mt-2 text-right text-xs font-semibold text-muted sm:hidden">{t('kiosk.count', { n: count })}</div>
       </div>
 
-      <div className="mx-auto w-full max-w-[1500px] flex-1 overflow-y-auto px-5 py-4 sm:px-7">
+      <div className="mx-auto w-full max-w-[1500px] flex-1 overflow-y-auto px-5 py-5 sm:px-7">
         {isLoading ? (
-          <p className="py-12 text-center text-sm text-muted">{t('common.loading')}</p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+            {Array.from({ length: 18 }).map((_, i) => (
+              <div key={i} className="fx-skeleton h-16 rounded-2xl" aria-hidden />
+            ))}
+          </div>
         ) : !hasAnyResult ? (
-          <p className="py-12 text-center text-sm text-muted">
-            {search ? t('kiosk.noResults') : t('kiosk.noMembers')}
-          </p>
+          <div className="fx-rise flex flex-col items-center justify-center py-20 text-center">
+            <div className="mb-4 grid size-16 place-items-center rounded-full bg-fill text-subtle">
+              {search
+                ? <Search className="size-7" strokeWidth={1.75} aria-hidden />
+                : <Users className="size-7" strokeWidth={1.75} aria-hidden />}
+            </div>
+            <p className="text-base font-semibold text-text">
+              {search ? t('kiosk.noResults') : t('kiosk.noMembers')}
+            </p>
+          </div>
         ) : (
           <>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {cols.depts.map((dept) => {
                 const color = resolveGroupColor(cfg?.groupColors, dept.key)
                 return (
-                  <div key={dept.key} className="rounded-2xl p-3" style={{ background: hexTint(color, 0.07) }}>
+                  <div key={dept.key} className="rounded-[26px] border border-border/60 p-4" style={{ background: hexTint(color, 0.07) }}>
                     <div className="grid grid-cols-2 gap-x-3 gap-y-5 min-[480px]:grid-cols-4">
                       {dept.columns.map((part, i) => (
                         <div key={`${dept.key}-${i}`} className="flex flex-col gap-2">
@@ -176,7 +192,7 @@ export function KioskView({ onExit }: { onExit: () => void }) {
                                 {dept.key} <span className="text-subtle">{dept.total}</span>
                               </>
                             ) : (
-                              ' '
+                              ' '
                             )}
                           </div>
                           {part.length ? (
@@ -193,10 +209,10 @@ export function KioskView({ onExit }: { onExit: () => void }) {
             </div>
             {cols.others.length > 0 && (
               <>
-                <div className="mt-5 mb-2 text-xs font-semibold uppercase tracking-wide text-subtle">
+                <div className="section-kicker mb-2.5 mt-6">
                   {t('kiosk.other')}
                 </div>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-6">
+                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-6">
                   {cols.others.map((m) => (
                     <Tile key={m.id} m={m} />
                   ))}
@@ -208,19 +224,21 @@ export function KioskView({ onExit }: { onExit: () => void }) {
       </div>
 
       {/* Footer: guest + 새가족 registration */}
-      <footer className="flex gap-3 border-t border-border bg-surface px-5 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:px-7">
+      <footer className="material-bar flex gap-3 border-t px-5 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:px-7">
         <button
           type="button"
           onClick={() => setDialog('guest')}
-          className="min-h-12 flex-1 rounded-full border border-border bg-surface text-sm font-semibold text-text hover:bg-surface-alt"
+          className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full border border-border bg-surface text-sm font-semibold text-text shadow-[var(--shadow-sm)] transition-[background-color,transform] duration-200 [transition-timing-function:var(--ease-out-soft)] hover:bg-surface-alt active:scale-[0.98]"
         >
+          <UserPlus className="size-4" strokeWidth={2} aria-hidden />
           {t('kiosk.guest.action')}
         </button>
         <button
           type="button"
           onClick={() => setDialog('newMember')}
-          className="min-h-12 flex-1 rounded-full border border-primary bg-primary text-sm font-semibold text-primary-fg hover:bg-primary-hover"
+          className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full border border-primary bg-primary text-sm font-semibold text-primary-fg shadow-[var(--shadow-sm)] transition-[background-color,transform,box-shadow] duration-200 [transition-timing-function:var(--ease-out-soft)] hover:bg-primary-hover hover:shadow-[0_6px_20px_color-mix(in_srgb,var(--primary)_32%,transparent)] active:scale-[0.98]"
         >
+          <Sparkles className="size-4" strokeWidth={2} aria-hidden />
           {t('kiosk.newMember.action')}
         </button>
       </footer>
@@ -256,25 +274,27 @@ function SuccessOverlay({ tone, name, detail }: { tone: OverlayTone; name: strin
       aria-live="polite"
       className="fixed inset-0 z-[1002] flex flex-col items-center justify-center bg-canvas/[0.96] px-6 text-center backdrop-blur-xl"
     >
-      <div
-        className="mb-6 flex h-20 w-20 items-center justify-center rounded-xl border"
-        style={{ background: `color-mix(in oklab, ${color} 18%, transparent)`, borderColor: color, color }}
-      >
-        <OverlayIcon className={'size-10' + (tone === 'loading' ? ' fx-pulse' : '')} aria-hidden />
+      <div className="fx-pop flex flex-col items-center">
+        <div
+          className="mb-6 grid size-24 place-items-center rounded-full border-2 shadow-[var(--shadow-lg)]"
+          style={{ background: `color-mix(in oklab, ${color} 16%, transparent)`, borderColor: color, color }}
+        >
+          <OverlayIcon className={'size-11' + (tone === 'loading' ? ' fx-pulse' : '')} strokeWidth={2.25} aria-hidden />
+        </div>
+        <div className="font-display text-3xl font-bold tracking-tight" style={{ color }}>
+          {tone === 'loading'
+            ? t('kiosk.loading')
+            : tone === 'already'
+              ? t('kiosk.already')
+              : tone === 'undone'
+                ? t('kiosk.undone')
+                : tone === 'error'
+                  ? t('kiosk.fail')
+                  : t('kiosk.success')}
+        </div>
+        <div className="mt-2 text-lg font-semibold text-text">{name}</div>
+        {tone === 'error' && detail && <div className="mt-3 max-w-xs text-xs text-muted">{detail}</div>}
       </div>
-      <div className="font-display text-2xl font-semibold" style={{ color }}>
-        {tone === 'loading'
-          ? t('kiosk.loading')
-          : tone === 'already'
-            ? t('kiosk.already')
-            : tone === 'undone'
-              ? t('kiosk.undone')
-              : tone === 'error'
-                ? t('kiosk.fail')
-                : t('kiosk.success')}
-      </div>
-      <div className="mt-2 text-base font-semibold text-text">{name}</div>
-      {tone === 'error' && detail && <div className="mt-3 max-w-xs text-xs text-muted">{detail}</div>}
     </div>
   )
 }

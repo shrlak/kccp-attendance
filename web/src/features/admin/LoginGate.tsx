@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useAdminAuth } from '../../stores/useAdminAuth'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
+import { Lock, ChevronRight } from '../../components/ui/Icon'
 import { AccessShell } from '../../components/layout/AccessShell'
 
 export function LoginGate() {
@@ -27,14 +28,20 @@ export function LoginGate() {
 
         <button
           type="button"
-          className="mt-6 text-xs font-semibold text-muted underline underline-offset-4 hover:text-text"
+          className="mt-6 inline-flex items-center gap-1 text-xs font-semibold text-muted transition-colors hover:text-text"
           onClick={() => setShowPassword((v) => !v)}
         >
+          <Lock className="size-3.5" strokeWidth={2} aria-hidden />
           {t('admin.usePassword')}
+          <ChevronRight
+            className={'size-3.5 transition-transform duration-200 ' + (showPassword ? 'rotate-90' : '')}
+            strokeWidth={2}
+            aria-hidden
+          />
         </button>
 
         {showPassword && (
-          <div className="mt-4 border-l-2 border-border pl-4">
+          <div className="fx-fade mt-4 rounded-2xl border border-border bg-surface-2 p-4 shadow-[var(--shadow-sm)]">
             <Input
               type="password"
               value={pw}
@@ -54,6 +61,7 @@ export function LoginGate() {
               disabled={busy || !pw}
               className="mt-3 w-full"
             >
+              <Lock className="size-4" strokeWidth={2} aria-hidden />
               {busy ? t('common.loading') : t('admin.unlock')}
             </Button>
           </div>

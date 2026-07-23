@@ -13,7 +13,9 @@ import { getConfig, type Member } from '../../lib/api'
 import { Dialog } from '../../components/ui/Dialog'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
+import { Tag } from '../../components/ui/Tag'
 import { useToast } from '../../components/ui/Toast'
+import { ScanLine, Download, Search, HandHeart, Heart, Calendar, AlertTriangle } from '../../components/ui/Icon'
 import { EditModal, AttendanceModal } from './MemberDialogs'
 import { CardScanDialog } from './CardScanDialog'
 
@@ -31,8 +33,17 @@ export function AdminNewFamily() {
   const [exportOpen, setExportOpen] = useState(false)
   const [scanOpen, setScanOpen] = useState(false)
 
-  if (isLoading) return <p className="text-sm text-muted">{t('common.loading')}</p>
-  if (isError) return <p className="text-sm text-danger">{t('common.error')}</p>
+  if (isLoading) return (
+    <div className="fx-fade grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+      {Array.from({ length: 8 }).map((_, i) => <div key={i} className="fx-skeleton h-24 rounded-2xl" />)}
+    </div>
+  )
+  if (isError) return (
+    <div className="fx-rise grid place-items-center py-16 text-center">
+      <div className="grid size-14 place-items-center rounded-full bg-danger/10 text-danger"><AlertTriangle className="size-6" aria-hidden /></div>
+      <p className="mt-4 text-sm font-semibold text-danger">{t('common.error')}</p>
+    </div>
+  )
   if (!data) return null
 
   const today = easternNow().date
@@ -49,20 +60,23 @@ export function AdminNewFamily() {
     <>
       <GroupFilter members={data.members} value={filter} onChange={setFilter} />
 
-      <div className="mb-1.5 flex items-center gap-2">
-        <span className="rounded-full bg-primary/15 px-3 py-1 text-xs font-semibold text-primary">
+      <div className="mb-1.5 flex flex-wrap items-center gap-2">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+          <Heart className="size-3.5" aria-hidden />
           {year} {t(`admin.newfamily.season.${season}`)}
         </span>
-        <span className="font-mono text-xs uppercase tracking-wide text-subtle">
+        <span className="section-kicker">
           {t('admin.newfamily.title')} · {total}
         </span>
         <div className="ml-auto flex gap-2">
           {!readOnly && (
             <Button variant="secondary" size="sm" onClick={() => setScanOpen(true)}>
+              <ScanLine className="size-4" aria-hidden />
               {t('admin.newfamily.scan.action')}
             </Button>
           )}
           <Button variant="secondary" size="sm" onClick={() => setExportOpen(true)}>
+            <Download className="size-4" aria-hidden />
             {t('admin.newfamily.export.action')}
           </Button>
         </div>
@@ -71,20 +85,23 @@ export function AdminNewFamily() {
       <p className="mb-3 text-xs text-subtle">{t('admin.newfamily.legend')}</p>
 
       {dateGroups.length === 0 ? (
-        <p className="text-sm text-muted">{t('admin.newfamily.empty')}</p>
+        <div className="fx-rise grid place-items-center rounded-2xl border border-dashed border-border py-14 text-center">
+          <div className="grid size-14 place-items-center rounded-full bg-fill text-subtle"><Heart className="size-6" aria-hidden /></div>
+          <p className="mt-4 text-sm font-semibold text-muted">{t('admin.newfamily.empty')}</p>
+        </div>
       ) : (
-        <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-6">
           {dateGroups.map((g) => (
-            <div key={g.date ?? 'no-date'}>
-              <div className="mb-1.5 flex items-baseline gap-2 border-b border-border pb-1">
+            <div key={g.date ?? 'no-date'} className="fx-rise">
+              <div className="mb-2.5 flex items-center gap-2 border-b border-separator pb-2">
                 {g.date ? (
-                  <span className="font-mono text-sm font-semibold text-text">{g.date}</span>
+                  <span className="inline-flex items-center gap-1.5 text-sm font-semibold tabular-nums text-text"><Calendar className="size-4 text-subtle" aria-hidden />{g.date}</span>
                 ) : (
                   <span className="text-sm font-semibold text-warning">{t('admin.newfamily.noRegDate')}</span>
                 )}
-                <span className="text-xs text-subtle">{g.members.length}</span>
+                <span className="rounded-full bg-fill px-2 py-0.5 text-[11px] font-semibold tabular-nums text-muted">{g.members.length}</span>
               </div>
-              <ul className="grid grid-cols-4 gap-2">
+              <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
                 {g.members.map((m) => (
                   <NewFamilyCard key={m.id} member={m} onOpen={() => setEditing(m)} />
                 ))}
@@ -95,13 +112,14 @@ export function AdminNewFamily() {
       )}
 
       {months.length > 0 && (
-        <div className="mt-8 border-t border-border pt-4">
-          <div className="mb-3 font-mono text-xs uppercase tracking-wide text-subtle">{t('admin.newfamily.monthly')}</div>
+        <div className="mt-8 border-t border-separator pt-5">
+          <div className="mb-3 section-kicker">{t('admin.newfamily.monthly')}</div>
           <div className="flex flex-col gap-4">
             {months.map((g) => (
               <div key={g.month}>
-                <div className="mb-1.5 text-sm font-semibold text-text">
-                  {g.month} · {g.members.length}
+                <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-text">
+                  {g.month}
+                  <span className="rounded-full bg-fill px-2 py-0.5 text-[11px] font-semibold tabular-nums text-muted">{g.members.length}</span>
                 </div>
                 <ul className="flex flex-wrap gap-1.5">
                   {g.members.map((m) => (
@@ -109,7 +127,7 @@ export function AdminNewFamily() {
                       <button
                         type="button"
                         onClick={() => setEditing(m)}
-                        className="rounded-md border border-border bg-surface px-2.5 py-1 text-xs text-muted transition-colors hover:border-primary/30 hover:bg-surface-alt hover:text-text"
+                        className="rounded-full border border-border bg-surface px-3 py-1.5 text-xs text-muted transition-[background-color,border-color,color,transform] duration-200 [transition-timing-function:var(--ease-out-soft)] hover:border-primary/30 hover:bg-fill hover:text-text active:scale-95"
                       >
                         {m.name}
                         {[m.group_name, m.subgroup].filter(Boolean).length ? (
@@ -242,53 +260,60 @@ function ExportModal({ members, today, onClose }: { members: Member[]; today: st
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()} title={t('admin.newfamily.export.title')}>
       <p className="mb-3 text-sm text-muted">{t('admin.newfamily.export.select')}</p>
-      <Input
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder={t('admin.members.search')}
-        aria-label={t('admin.members.search')}
-        className="mb-2"
-      />
+      <div className="relative mb-2">
+        <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-subtle" aria-hidden />
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={t('admin.members.search')}
+          aria-label={t('admin.members.search')}
+          className="pl-10"
+        />
+      </div>
       <div className="mb-2 flex items-center justify-between">
-        <span className="font-mono text-xs uppercase tracking-wide text-subtle">
+        <span className="section-kicker">
           {t('admin.newfamily.export.selected', { n: selected.size })}
         </span>
-        <div className="flex gap-2">
+        <div className="flex gap-1">
           <button
             type="button"
             onClick={() => setSelected((cur) => new Set([...cur, ...visible.map((m) => m.id)]))}
-            className="text-xs font-semibold text-primary hover:underline"
+            className="rounded-full px-2.5 py-1 text-xs font-semibold text-primary hover:bg-primary/10"
           >
             {t('admin.newfamily.export.all')}
           </button>
           <button
             type="button"
             onClick={() => setSelected(new Set())}
-            className="text-xs font-semibold text-muted hover:underline"
+            className="rounded-full px-2.5 py-1 text-xs font-semibold text-muted hover:bg-fill"
           >
             {t('admin.newfamily.export.none')}
           </button>
         </div>
       </div>
-      <ul className="flex max-h-[42vh] flex-col gap-1 overflow-y-auto pr-1">
-        {visible.length === 0 && <li className="text-sm text-muted">{t('admin.newfamily.export.noMatch')}</li>}
-        {visible.map((m) => (
+      <ul className="flex max-h-[42vh] flex-col gap-1.5 overflow-y-auto pr-1">
+        {visible.length === 0 && <li className="py-4 text-center text-sm text-muted">{t('admin.newfamily.export.noMatch')}</li>}
+        {visible.map((m) => {
+          const checked = selected.has(m.id)
+          return (
           <li key={m.id}>
-            <label className="flex cursor-pointer items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-sm hover:bg-surface-alt">
+            <label className={'flex cursor-pointer items-center gap-2.5 rounded-xl border px-3 py-2.5 text-sm transition-colors ' + (checked ? 'border-primary/40 bg-primary/[0.06]' : 'border-border bg-surface hover:bg-fill')}>
               <input
                 type="checkbox"
-                checked={selected.has(m.id)}
+                className="size-4 accent-[var(--primary)]"
+                checked={checked}
                 disabled={busy !== null}
                 onChange={() => setSelected((cur) => toggleId(cur, m.id))}
               />
               <span className="font-medium text-text">{m.name}</span>
               <span className="text-xs text-muted">{[m.group_name, m.subgroup].filter(Boolean).join(' · ')}</span>
               {m.registration_date && (
-                <span className="ml-auto font-mono text-[11px] text-subtle">{m.registration_date}</span>
+                <span className="ml-auto tabular-nums text-[11px] text-subtle">{m.registration_date}</span>
               )}
             </label>
           </li>
-        ))}
+          )
+        })}
       </ul>
       <div className="mt-4 flex flex-wrap gap-2">
         <Button onClick={() => void confirmCopyCards()} disabled={busy !== null || selected.size === 0} className="flex-1 whitespace-pre-line text-center leading-tight">
@@ -319,19 +344,19 @@ function NewFamilyCard({ member, onOpen }: { member: Member; onOpen: () => void 
   const { t } = useTranslation()
 
   return (
-    <li className="rounded-lg border border-border bg-surface p-3">
+    <li className="rounded-2xl border border-border bg-surface p-3.5 shadow-[var(--shadow-sm)] transition-[box-shadow,transform] duration-200 [transition-timing-function:var(--ease-out-soft)] hover:-translate-y-0.5 hover:shadow-[var(--shadow)]">
       {/* Tap the card to open the member's full info/editor (feature parity with 멤버 탭).
           Education tracking (1·2주차, 새가족 교육 동산) lives on the 새가족 교육 탭 — this
           card stays focused on registration info, with a read-only glance at their
           education status. */}
       <button type="button" onClick={onOpen} className="block w-full text-left">
-        <div className="text-sm font-semibold text-text">
+        <div className="flex items-center gap-1.5 text-sm font-semibold text-text">
           {member.name}
           {member.pastoral_visit_requested && (
-            <span className="ml-1.5 text-xs" title={t('admin.newfamily.pastoralVisit')}>🙏</span>
+            <HandHeart className="size-3.5 text-primary" aria-label={t('admin.newfamily.pastoralVisit')} />
           )}
         </div>
-        <div className="text-xs text-muted">{[member.group_name, member.subgroup].filter(Boolean).join(' · ') || '—'}</div>
+        <div className="mt-0.5 text-xs text-muted">{[member.group_name, member.subgroup].filter(Boolean).join(' · ') || '—'}</div>
         {member.new_member_dongsan && (
           <div className="text-xs text-info">
             {t('admin.newfamily.eduDongsanTag')} {member.new_member_dongsan}
@@ -339,12 +364,12 @@ function NewFamilyCard({ member, onOpen }: { member: Member; onOpen: () => void 
         )}
         {member.phone && <div className="text-xs text-subtle">{member.phone}</div>}
         {(member.new_member_edu_week1 || member.new_member_edu_week2) && (
-          <div className="mt-1 flex gap-1">
+          <div className="mt-1.5 flex gap-1">
             {member.new_member_edu_week1 && (
-              <span className="rounded-full bg-info/10 px-1.5 py-0.5 text-[10px] font-semibold text-info">{t('admin.iconKey.eduWeek1')}</span>
+              <Tag tone="info" className="text-[10px]">{t('admin.iconKey.eduWeek1')}</Tag>
             )}
             {member.new_member_edu_week2 && (
-              <span className="rounded-full bg-info/10 px-1.5 py-0.5 text-[10px] font-semibold text-info">{t('admin.iconKey.eduWeek2')}</span>
+              <Tag tone="info" className="text-[10px]">{t('admin.iconKey.eduWeek2')}</Tag>
             )}
           </div>
         )}

@@ -3,7 +3,7 @@ import { forwardRef, type SelectHTMLAttributes } from 'react'
 // The native dropdown arrow is removed (appearance-none) for consistent cross-browser
 // styling, so draw our own down-chevron as a background image to keep the affordance.
 const CARET =
-  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23637068' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")"
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")"
 
 export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement>>(
   ({ className = '', style, ...props }, ref) => (
@@ -19,8 +19,9 @@ export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSel
       className={
         'w-full rounded-xl border border-border bg-surface pl-3.5 pr-10 py-2.5 text-text ' +
         'text-sm font-sans min-h-11 outline-none appearance-none cursor-pointer ' +
+        'shadow-[inset_0_1px_1px_rgba(0,0,0,0.02)] ' +
         'transition-[border-color,box-shadow,background-color] duration-200 [transition-timing-function:var(--ease-out-soft)] ' +
-        'hover:border-primary/30 focus-visible:border-primary focus-visible:ring-[3px] focus-visible:ring-primary/20 ' +
+        'hover:border-primary/30 focus-visible:border-primary focus-visible:ring-[3.5px] focus-visible:ring-primary/18 ' +
         className
       }
       {...props}

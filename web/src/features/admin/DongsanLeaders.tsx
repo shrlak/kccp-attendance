@@ -12,6 +12,7 @@ import { useRoster } from './useRoster'
 import { useToast } from '../../components/ui/Toast'
 import { Button } from '../../components/ui/Button'
 import { Select } from '../../components/ui/Select'
+import { Medal, Shield, AlertTriangle, Save } from '../../components/ui/Icon'
 import { leaderEntry, summerDongsanList, membersInDongsan, withLeader, setSubLeaderAt } from './dongsan'
 
 const SUMMER_KEY = '합동'
@@ -52,11 +53,17 @@ export function DongsanLeadersEditor() {
 
   return (
     <div>
-      <h2 className="font-display text-lg font-semibold text-text">{t('admin.settings.dongsanLeaders')}</h2>
-      <p className="mb-4 mt-1 text-sm text-muted">{t('admin.settings.dongsanLeadersDesc')}</p>
+      <div className="flex items-center gap-2.5">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gold/15 text-gold">
+          <Medal size={18} strokeWidth={2} aria-hidden />
+        </span>
+        <h2 className="font-display text-xl font-bold tracking-tight text-text">{t('admin.settings.dongsanLeaders')}</h2>
+      </div>
+      <p className="mb-4 mt-2 text-sm text-muted">{t('admin.settings.dongsanLeadersDesc')}</p>
 
       {summer && (
-        <p className="mb-4 w-fit rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs font-semibold text-warning">
+        <p className="mb-4 flex w-fit items-center gap-1.5 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-xs font-semibold text-warning">
+          <AlertTriangle size={14} strokeWidth={2} aria-hidden />
           {t('admin.settings.summerCombined')}
         </p>
       )}
@@ -138,15 +145,21 @@ function LeaderBlock({
   }
 
   return (
-    <div className="min-w-0 rounded-lg border border-border p-3">
-      <div className="mb-2.5 text-sm font-semibold text-primary">{header}</div>
+    <div className="min-w-0 rounded-2xl border border-border bg-surface-2 p-3.5 shadow-[var(--shadow-sm)]">
+      <div className="mb-3 flex items-center gap-1.5 text-sm font-bold tracking-tight text-text">
+        <Medal size={15} strokeWidth={2} className="shrink-0 text-gold" aria-hidden />
+        <span className="truncate">{header}</span>
+      </div>
 
       {members.length === 0 ? (
         <p className="text-xs text-muted">{t('admin.settings.noDongsanMembers')}</p>
       ) : (
         <>
           <label className="mb-3 block">
-            <span className="mb-1 block text-xs font-semibold text-subtle">{t('admin.settings.leader')}</span>
+            <span className="field-label flex items-center gap-1">
+              <Medal size={12} strokeWidth={2} className="text-gold" aria-hidden />
+              {t('admin.settings.leader')}
+            </span>
             <Select value={entry.leader} onChange={(e) => onLeader(e.target.value)}>
               <option value="">{t('admin.settings.noLeader')}</option>
               {members.map((n) => (
@@ -157,7 +170,10 @@ function LeaderBlock({
             </Select>
           </label>
 
-          <span className="mb-1.5 block text-xs font-semibold text-subtle">{t('admin.settings.subLeaders')}</span>
+          <span className="field-label flex items-center gap-1">
+            <Shield size={12} strokeWidth={2} className="text-muted" aria-hidden />
+            {t('admin.settings.subLeaders')}
+          </span>
           <div className="mb-3 flex flex-col gap-2">
             {Array.from({ length: Math.max(SUB_LEADER_SLOTS, entry.subLeaders.length) }, (_, i) => (
               <Select
@@ -177,6 +193,7 @@ function LeaderBlock({
           </div>
 
           <Button size="sm" onClick={save} disabled={saving || !dirty}>
+            {!saving && <Save size={14} strokeWidth={2} aria-hidden />}
             {saving ? t('common.loading') : t('admin.settings.save')}
           </Button>
         </>
