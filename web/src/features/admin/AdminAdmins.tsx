@@ -37,9 +37,50 @@ import { Button } from '../../components/ui/Button'
 import { Dialog } from '../../components/ui/Dialog'
 import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
+import { Tag } from '../../components/ui/Tag'
+import {
+  Shield, UserPlus, ClipboardList, MapPin, X, Check, AlertTriangle,
+} from '../../components/ui/Icon'
 import { useToast } from '../../components/ui/Toast'
+import type { ReactNode } from 'react'
 
 const ROLES: AdminRole[] = ['super_admin', 'leader', 'pastor', 'welcoming']
+
+type TagTone = 'primary' | 'gold' | 'info' | 'success' | 'muted'
+const ROLE_TONE: Record<string, TagTone> = {
+  super_admin: 'gold',
+  leader: 'primary',
+  pastor: 'info',
+  welcoming: 'success',
+}
+const roleTone = (role: string): TagTone => ROLE_TONE[role] ?? 'muted'
+
+// Section header: a soft icon chip, a display title, an optional count badge, and an
+// optional right-aligned action — the shared heading for every block on this screen.
+function Heading({
+  icon,
+  tone,
+  title,
+  count,
+  action,
+}: {
+  icon: ReactNode
+  tone: string
+  title: string
+  count?: number
+  action?: ReactNode
+}) {
+  return (
+    <div className="mb-4 flex items-center gap-3">
+      <span className={`grid size-8 shrink-0 place-items-center rounded-full ${tone}`}>{icon}</span>
+      <h3 className="font-display text-lg font-bold tracking-tight text-text">{title}</h3>
+      {count != null && (
+        <span className="rounded-full bg-fill px-2 py-0.5 text-xs font-semibold tabular-nums text-muted">{count}</span>
+      )}
+      {action && <div className="ml-auto">{action}</div>}
+    </div>
+  )
+}
 
 type DbRestoreTarget = { source: 'online'; key: string; date: string } | { source: 'upload'; file: File }
 
@@ -162,13 +203,14 @@ export function AdminAdmins() {
     <div className="w-full">
       {clearReqs.length > 0 && (
         <>
-          <h2 className="mb-2 font-display text-lg font-semibold text-text">{t('admin.admins.clearReq.title')}</h2>
-          <div className="mb-6 rounded-lg border border-danger/40 bg-danger/5 px-3 py-3">
-            <p className="mb-2 text-xs text-muted">
+          <Heading icon={<AlertTriangle size={16} strokeWidth={2} aria-hidden />} tone="bg-danger/12 text-danger" title={t('admin.admins.clearReq.title')} />
+          <div className="mb-6 rounded-2xl border border-danger/40 bg-danger/5 p-4">
+            <p className="mb-3 text-xs text-muted">
               {t('admin.admins.clearReq.by', { name: clearReqs.map((r) => r.requestedByName).join(', ') })}
             </p>
             <div className="flex gap-2">
               <Button size="sm" variant="danger" onClick={() => clearDecide(true)} disabled={clearBusy}>
+                <Check size={14} strokeWidth={2.5} aria-hidden />
                 {t('admin.admins.clearReq.approve')}
               </Button>
               <Button size="sm" variant="secondary" onClick={() => clearDecide(false)} disabled={clearBusy}>
@@ -179,40 +221,42 @@ export function AdminAdmins() {
           <hr className="my-6 border-border" />
         </>
       )}
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="font-display text-lg font-semibold text-text">
-          {t('admin.admins.adminsList')} · {roles.length}
-        </h2>
-        <Button size="sm" onClick={() => setAdding(true)}>
-          {t('admin.admins.addAdmin')}
-        </Button>
-      </div>
+      <Heading
+        icon={<Shield size={16} strokeWidth={2} aria-hidden />}
+        tone="bg-primary/10 text-primary"
+        title={t('admin.admins.adminsList')}
+        count={roles.length}
+        action={
+          <Button size="sm" onClick={() => setAdding(true)}>
+            <UserPlus size={15} strokeWidth={2} aria-hidden />
+            {t('admin.admins.addAdmin')}
+          </Button>
+        }
+      />
       {rolesLoading ? (
         <p className="text-sm text-muted">{t('common.loading')}</p>
       ) : roles.length === 0 ? (
         <p className="text-sm text-muted">{t('admin.admins.noAdmins')}</p>
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className="inset-list">
           {roles.map((r) => (
-            <li key={r.memberId} className="flex items-center justify-between gap-2 rounded-lg border border-border bg-surface px-3 py-2">
+            <li key={r.memberId} className="inset-row min-h-14 justify-between gap-2 py-2.5">
               <div className="min-w-0">
                 <div className="truncate text-sm font-semibold text-text">{r.name}</div>
                 {(r.group || r.subgroup) && (
-                  <div className="text-xs text-muted">{[r.group, r.subgroup].filter(Boolean).join(' · ')}</div>
+                  <div className="truncate text-xs text-muted">{[r.group, r.subgroup].filter(Boolean).join(' · ')}</div>
                 )}
               </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <span className="rounded-full bg-primary/15 px-2.5 py-0.5 text-xs font-semibold text-primary">
-                  {t(`admin.roles.${r.role}`)}
-                </span>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <Tag tone={roleTone(r.role)}>{t(`admin.roles.${r.role}`)}</Tag>
                 <button
                   type="button"
                   onClick={() => removeRole(r.memberId)}
                   disabled={roleBusy !== null}
                   aria-label={t('admin.admins.remove')}
-                  className="-my-2 grid min-h-11 min-w-11 place-items-center rounded-full text-base font-bold text-danger transition-colors hover:bg-danger/10 disabled:opacity-40"
+                  className="grid min-h-11 min-w-11 place-items-center rounded-full text-danger transition-[background-color,transform] duration-200 [transition-timing-function:var(--ease-out-soft)] hover:bg-danger/10 active:scale-90 disabled:opacity-40"
                 >
-                  ×
+                  <X size={17} strokeWidth={2.25} aria-hidden />
                 </button>
               </div>
             </li>
@@ -223,14 +267,18 @@ export function AdminAdmins() {
 
       <hr className="my-6 border-border" />
 
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="font-display text-lg font-semibold text-text">{t('admin.admins.auditLog')}</h2>
-        {showAudit && (
-          <Button variant="ghost" size="sm" onClick={() => setShowAudit(false)}>
-            {t('admin.admins.collapse')}
-          </Button>
-        )}
-      </div>
+      <Heading
+        icon={<ClipboardList size={16} strokeWidth={2} aria-hidden />}
+        tone="bg-fill text-muted"
+        title={t('admin.admins.auditLog')}
+        action={
+          showAudit ? (
+            <Button variant="ghost" size="sm" onClick={() => setShowAudit(false)}>
+              {t('admin.admins.collapse')}
+            </Button>
+          ) : undefined
+        }
+      />
       {!showAudit ? (
         <Button variant="secondary" onClick={() => setShowAudit(true)}>
           {t('admin.admins.loadAudit')}
@@ -240,12 +288,12 @@ export function AdminAdmins() {
       ) : (auditData?.log.length ?? 0) === 0 ? (
         <p className="text-sm text-muted">{t('admin.admins.noAudit')}</p>
       ) : (
-        <ul className="fx-rise flex flex-col gap-1.5">
+        <ul className="fx-rise inset-list text-xs">
           {auditData!.log.map((e, i) => (
-            <li key={`${e.ts}-${i}`} className="rounded-md border border-border bg-surface px-3 py-2 text-xs">
+            <li key={`${e.ts}-${i}`} className="px-4 py-2.5">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-mono font-semibold text-text">{e.action}</span>
-                <span className="text-subtle">{new Date(e.ts).toLocaleString()}</span>
+                <span className="tabular-nums text-subtle">{new Date(e.ts).toLocaleString()}</span>
               </div>
               <div className="mt-0.5 text-muted">
                 {e.adminName}
@@ -260,15 +308,19 @@ export function AdminAdmins() {
         <>
           <hr className="my-6 border-border" />
 
-          <div className="mb-1 flex items-center justify-between gap-3">
-            <h2 className="font-display text-lg font-semibold text-text">{t('admin.admins.loginLog')}</h2>
-            {showLogins && (
-              <Button variant="ghost" size="sm" onClick={() => setShowLogins(false)}>
-                {t('admin.admins.collapse')}
-              </Button>
-            )}
-          </div>
-          <p className="mb-3 text-xs text-muted">{t('admin.admins.loginLocationNote')}</p>
+          <Heading
+            icon={<MapPin size={16} strokeWidth={2} aria-hidden />}
+            tone="bg-info/10 text-info"
+            title={t('admin.admins.loginLog')}
+            action={
+              showLogins ? (
+                <Button variant="ghost" size="sm" onClick={() => setShowLogins(false)}>
+                  {t('admin.admins.collapse')}
+                </Button>
+              ) : undefined
+            }
+          />
+          <p className="mb-3 -mt-1 text-xs text-muted">{t('admin.admins.loginLocationNote')}</p>
           {!showLogins ? (
             <Button variant="secondary" onClick={() => setShowLogins(true)}>
               {t('admin.admins.loadLogins')}
@@ -278,17 +330,15 @@ export function AdminAdmins() {
           ) : (loginData?.log.length ?? 0) === 0 ? (
             <p className="text-sm text-muted">{t('admin.admins.noLogins')}</p>
           ) : (
-            <ul className="fx-rise flex flex-col gap-1.5">
+            <ul className="fx-rise inset-list text-xs">
               {loginData!.log.map((e, i) => (
-                <li key={`${e.ts}-${i}`} className="rounded-md border border-border bg-surface px-3 py-2 text-xs">
+                <li key={`${e.ts}-${i}`} className="px-4 py-2.5">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-semibold text-text">
+                    <span className="flex items-center gap-1.5 font-semibold text-text">
                       {e.memberName || t('admin.admins.sharedLogin')}
-                      <span className="ml-1.5 rounded-full bg-primary/15 px-2 py-0.5 font-semibold text-primary">
-                        {t(`admin.roles.${e.role}`)}
-                      </span>
+                      <Tag tone={roleTone(e.role)}>{t(`admin.roles.${e.role}`)}</Tag>
                     </span>
-                    <span className="text-subtle">{new Date(e.ts).toLocaleString()}</span>
+                    <span className="tabular-nums text-subtle">{new Date(e.ts).toLocaleString()}</span>
                   </div>
                   <div className="mt-0.5 font-mono text-muted">
                     {e.ip || '—'}
@@ -298,12 +348,13 @@ export function AdminAdmins() {
                     const loc = loginLocationDisplay(e)
                     if (!loc.text && loc.lat == null) return null
                     return (
-                      <div className="mt-0.5 text-muted">
+                      <div className="mt-1 text-muted">
                         <span
-                          className={`mr-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                            loc.precise ? 'bg-primary/15 text-primary' : 'bg-border/60 text-subtle'
+                          className={`mr-1.5 inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                            loc.precise ? 'bg-primary/15 text-primary' : 'bg-fill text-subtle'
                           }`}
                         >
+                          <MapPin size={10} strokeWidth={2.25} aria-hidden />
                           {loc.precise ? t('admin.admins.gpsPrecise') : t('admin.admins.gpsApprox')}
                         </span>
                         {loc.text}

@@ -15,6 +15,7 @@ import {
 } from './exports'
 import { Dialog } from '../../components/ui/Dialog'
 import { Button } from '../../components/ui/Button'
+import { Download, ChevronRight } from '../../components/ui/Icon'
 import { useToast } from '../../components/ui/Toast'
 
 // Export control for the Sheet tab. Offers Excel (.xlsx), KakaoTalk clipboard summary,
@@ -92,11 +93,12 @@ export function ExportMenu({ members, log, filter }: { members: Member[]; log: L
   return (
     <>
       <Button variant="secondary" size="sm" onClick={() => setOpen(true)} disabled={members.length === 0}>
+        <Download size={15} strokeWidth={2} aria-hidden />
         {t('admin.sheet.export.action')}
       </Button>
       {open && (
         <Dialog open onOpenChange={(o) => !o && setOpen(false)} title={t('admin.sheet.export.title')}>
-          <div className="flex flex-col gap-2">
+          <div className="inset-list">
             <ExportRow title={t('admin.sheet.export.excel')} desc={t('admin.sheet.export.excelDesc')} icon="📊" onClick={doExcel} disabled={busy} />
             <ExportRow title={t('admin.sheet.export.kakao')} desc={t('admin.sheet.export.kakaoDesc')} icon="💬" onClick={doKakao} disabled={busy} />
             <ExportRow title={t('admin.sheet.export.report')} desc={t('admin.sheet.export.reportDesc')} icon="🖨️" onClick={doReport} disabled={busy} />
@@ -125,15 +127,16 @@ function ExportRow({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="flex w-full items-center gap-3 rounded-lg border border-border bg-surface px-4 py-3 text-left transition-colors hover:bg-surface-alt disabled:opacity-50"
+      className="inset-row min-h-14 w-full py-2.5 text-left transition-[background-color,transform] duration-200 [transition-timing-function:var(--ease-out-soft)] hover:bg-fill active:scale-[0.99] disabled:opacity-50"
     >
-      <span className="text-xl" aria-hidden>
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-fill text-xl" aria-hidden>
         {icon}
       </span>
-      <span>
+      <span className="min-w-0 flex-1">
         <span className="block text-sm font-semibold text-text">{title}</span>
-        <span className="block text-xs text-muted">{desc}</span>
+        <span className="block truncate text-xs text-muted">{desc}</span>
       </span>
+      <ChevronRight size={17} strokeWidth={2.25} className="shrink-0 text-subtle" aria-hidden />
     </button>
   )
 }

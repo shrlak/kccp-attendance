@@ -19,6 +19,7 @@ import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
+import { Plus, Calendar } from '../../components/ui/Icon'
 import { memberHistory, hasEntryOn } from './attendance'
 import { easternNow } from '../../lib/checkinWindow'
 import { NewFamilyCardForm } from './NewFamilyCardForm'
@@ -37,7 +38,7 @@ const MEMBER_ROLES = ['', 'visitor', 'pastor', 'elder', 'deacon', 'mentor']
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-semibold text-subtle">{label}</span>
+      <span className="field-label">{label}</span>
       {children}
     </label>
   )
@@ -192,13 +193,13 @@ export function EditModal({
       <div className="flex max-h-[60vh] flex-col gap-3 overflow-y-auto pr-1">
         {/* ── 새가족 등록 카드 — edit the member's info directly on the paper card ── */}
         <div className="flex items-center justify-between gap-2">
-          <div className="text-xs font-bold uppercase tracking-wide text-subtle">{t('admin.members.card.section')}</div>
-          <div className="flex items-center gap-3">
+          <div className="section-kicker">{t('admin.members.card.section')}</div>
+          <div className="flex items-center gap-1">
             <button
               type="button"
               onClick={() => void copyCard()}
               disabled={exporting !== null}
-              className="text-xs font-semibold text-primary hover:underline disabled:opacity-50"
+              className="rounded-full px-2.5 py-1 text-xs font-semibold text-primary hover:bg-primary/10 disabled:opacity-50"
             >
               {exporting === 'copy' ? t('admin.newfamily.export.busy') : t('admin.members.card.copy')}
             </button>
@@ -206,7 +207,7 @@ export function EditModal({
               type="button"
               onClick={() => void downloadCard()}
               disabled={exporting !== null}
-              className="text-xs font-semibold text-primary hover:underline disabled:opacity-50"
+              className="rounded-full px-2.5 py-1 text-xs font-semibold text-primary hover:bg-primary/10 disabled:opacity-50"
             >
               {exporting === 'download' ? t('admin.newfamily.export.busy') : t('admin.members.card.download')}
             </button>
@@ -224,10 +225,10 @@ export function EditModal({
         )}
 
         {/* ── 상태 표기 box — 이주/귀국 spans, right beneath the card ── */}
-        <div className="rounded-lg border border-warning/30 bg-warning/5 p-3">
-          <div className="text-xs font-bold uppercase tracking-wide text-subtle">{t('admin.members.statusSection')}</div>
+        <div className="rounded-2xl border border-warning/30 bg-warning/5 p-4">
+          <div className="section-kicker">{t('admin.members.statusSection')}</div>
           <p className="mt-1.5 text-sm text-warning">{t('admin.members.statusHelp')}</p>
-          <div className="mt-2 flex flex-wrap gap-2">
+          <div className="mt-2.5 flex flex-wrap gap-2">
             {STATUS_PRESETS.map((note) => (
               <button
                 key={note}
@@ -235,10 +236,10 @@ export function EditModal({
                 aria-pressed={f.statusNote === note}
                 onClick={() => toggleStatusPreset(note)}
                 className={
-                  'min-h-9 rounded-md border px-3 text-sm transition-colors ' +
+                  'min-h-9 rounded-full border px-4 text-sm transition-[background-color,border-color,transform] duration-200 [transition-timing-function:var(--ease-out-soft)] active:scale-[0.96] ' +
                   (f.statusNote === note
                     ? 'border-warning bg-warning/15 font-semibold text-warning'
-                    : 'border-border bg-surface text-text hover:bg-surface-alt')
+                    : 'border-border bg-surface text-text hover:bg-fill')
                 }
               >
                 {note}
@@ -261,7 +262,7 @@ export function EditModal({
         </div>
 
         {/* ── 기본 정보 — the system fields the paper card doesn't carry ── */}
-        <div className="mt-1 border-t border-border pt-3 text-xs font-bold uppercase tracking-wide text-subtle">{t('admin.members.sectionBasic')}</div>
+        <div className="mt-1 border-t border-separator pt-4 section-kicker">{t('admin.members.sectionBasic')}</div>
         <Field label={t('admin.members.group')}>
           <Select value={f.group ?? ''} onChange={(e) => set('group', e.target.value)}>
             {GROUPS.map((g) => (
@@ -307,11 +308,11 @@ export function EditModal({
             value={f.notes ?? ''}
             onChange={(e) => set('notes', e.target.value)}
             rows={2}
-            className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/30"
+            className="w-full rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-text outline-none transition-[border-color,box-shadow] duration-200 [transition-timing-function:var(--ease-out-soft)] hover:border-primary/30 focus-visible:border-primary focus-visible:ring-[3.5px] focus-visible:ring-primary/18"
           />
         </Field>
-        <label className="flex items-center gap-2 text-sm text-text">
-          <input type="checkbox" checked={f.isNewMember ?? false} onChange={(e) => set('isNewMember', e.target.checked)} />
+        <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-border bg-surface px-3.5 py-3 text-sm font-medium text-text">
+          <input type="checkbox" checked={f.isNewMember ?? false} onChange={(e) => set('isNewMember', e.target.checked)} className="size-4 accent-[var(--primary)]" />
           {t('admin.members.isNewMember')}
         </label>
       </div>
@@ -325,7 +326,7 @@ export function EditModal({
       </div>
       {allowDelete &&
         (confirmDelete ? (
-          <div className="mt-3 rounded-lg border border-danger/30 bg-danger/5 p-3">
+          <div className="mt-3 rounded-2xl border border-danger/30 bg-danger/5 p-4">
             <p className="mb-2 text-xs text-danger">{t('admin.members.delete.warn')}</p>
             <div className="flex gap-2">
               <Button variant="secondary" onClick={() => setConfirmDelete(false)} disabled={deleting} className="flex-1">
@@ -406,36 +407,37 @@ export function AttendanceModal({
       {!readOnly && (
         <div className="mb-3 flex items-end gap-2">
           <label className="flex-1">
-            <span className="mb-1 block text-xs font-semibold text-subtle">{t('admin.members.attendance.date')}</span>
+            <span className="field-label">{t('admin.members.attendance.date')}</span>
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </label>
           <Button onClick={add} disabled={busy}>
+            <Plus className="size-4" aria-hidden />
             {t('admin.members.attendance.add')}
           </Button>
         </div>
       )}
-      <div className="mb-2 font-mono text-xs uppercase tracking-wide text-subtle">
+      <div className="mb-2 section-kicker">
         {t('admin.members.attendance.total', { n: history.length })}
       </div>
       {history.length === 0 ? (
-        <p className="text-sm text-muted">{t('admin.members.attendance.empty')}</p>
+        <div className="grid place-items-center rounded-2xl border border-dashed border-border py-10 text-center">
+          <div className="grid size-12 place-items-center rounded-full bg-fill text-subtle"><Calendar className="size-5" aria-hidden /></div>
+          <p className="mt-3 text-sm text-muted">{t('admin.members.attendance.empty')}</p>
+        </div>
       ) : (
-        <ul className="flex max-h-[45vh] flex-col gap-1.5 overflow-y-auto pr-1">
+        <ul className="inset-list max-h-[45vh] overflow-y-auto">
           {history.map((e) => (
-            <li
-              key={e.id}
-              className="flex items-center justify-between rounded-lg border border-border bg-surface px-3 py-2"
-            >
+            <li key={e.id} className="inset-row min-h-12 justify-between py-2.5">
               <span className="text-sm text-text">
                 {e.date}
-                {e.time && <span className="ml-2 font-mono text-xs text-muted">{e.time}</span>}
+                {e.time && <span className="ml-2 tabular-nums text-xs text-muted">{e.time}</span>}
               </span>
               {!readOnly && (
                 <button
                   type="button"
                   onClick={() => e.id !== undefined && remove(e.id)}
                   disabled={busy}
-                  className="text-xs font-semibold text-danger hover:underline disabled:opacity-50"
+                  className="rounded-full px-2.5 py-1 text-xs font-semibold text-danger hover:bg-danger/10 disabled:opacity-50"
                 >
                   {t('admin.members.attendance.remove')}
                 </button>

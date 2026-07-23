@@ -5,6 +5,7 @@ import { getConfig, getDongsanNames, updateDongsanNames, type DongsanNames } fro
 import { useToast } from '../../components/ui/Toast'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
+import { Sprout, Trash2, Plus, AlertTriangle, Save } from '../../components/ui/Icon'
 import { renameAt, addDongsan, removeAt, cleanNames, summerDongsanList } from './dongsan'
 import { DongsanLeadersEditor } from './DongsanLeaders'
 
@@ -102,11 +103,19 @@ export function DongsanNamesEditor({
 
   return (
     <div>
-      {title && <h2 className="font-display text-lg font-semibold text-text">{title}</h2>}
-      {desc && <p className={`text-sm text-muted ${title ? 'mb-4 mt-1' : 'mb-4'}`}>{desc}</p>}
+      {title && (
+        <div className="flex items-center gap-2.5">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-success/12 text-success">
+            <Sprout size={18} strokeWidth={2} aria-hidden />
+          </span>
+          <h2 className="font-display text-xl font-bold tracking-tight text-text">{title}</h2>
+        </div>
+      )}
+      {desc && <p className={`text-sm text-muted ${title ? 'mb-4 mt-2' : 'mb-4'}`}>{desc}</p>}
 
       {summer && (
-        <p className="mb-4 w-fit rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs font-semibold text-warning">
+        <p className="mb-4 flex w-fit items-center gap-1.5 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-xs font-semibold text-warning">
+          <AlertTriangle size={14} strokeWidth={2} aria-hidden />
           {t('admin.settings.summerCombined')}
         </p>
       )}
@@ -126,23 +135,25 @@ export function DongsanNamesEditor({
               />
               <Button
                 variant="ghost"
-                className="shrink-0"
+                size="sm"
+                className="shrink-0 !min-h-11 !w-11 !px-0 text-danger hover:bg-danger/10"
                 onClick={() => setCombined(combinedList.filter((_, i) => i !== idx))}
                 aria-label={`${t('admin.settings.removeDongsan')} ${name}`}
               >
-                {t('admin.settings.removeDongsan')}
+                <Trash2 size={16} strokeWidth={2} aria-hidden />
               </Button>
             </div>
           ))}
-          <Button variant="ghost" className="self-start" onClick={() => setCombined([...combinedList, ''])}>
-            + {t('admin.settings.addDongsan')}
+          <Button variant="ghost" size="sm" className="self-start" onClick={() => setCombined([...combinedList, ''])}>
+            <Plus size={15} strokeWidth={2.25} aria-hidden />
+            {t('admin.settings.addDongsan')}
           </Button>
         </div>
       ) : (
         <div className="flex flex-col gap-5">
           {groups.map((group) => (
             <div key={group}>
-              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-subtle">{group}</span>
+              <span className="section-kicker mb-2 block">{group}</span>
               <div className="flex flex-col gap-2">
                 {(names[group] ?? []).map((name, idx) => (
                   <div key={idx} className="flex items-center gap-2">
@@ -155,16 +166,18 @@ export function DongsanNamesEditor({
                     />
                     <Button
                       variant="ghost"
-                      className="shrink-0"
+                      size="sm"
+                      className="shrink-0 !min-h-11 !w-11 !px-0 text-danger hover:bg-danger/10"
                       onClick={() => setEdits(removeAt(names, group, idx))}
                       aria-label={`${t('admin.settings.removeDongsan')} ${name}`}
                     >
-                      {t('admin.settings.removeDongsan')}
+                      <Trash2 size={16} strokeWidth={2} aria-hidden />
                     </Button>
                   </div>
                 ))}
-                <Button variant="ghost" className="self-start" onClick={() => setEdits(addDongsan(names, group))}>
-                  + {t('admin.settings.addDongsan')}
+                <Button variant="ghost" size="sm" className="self-start" onClick={() => setEdits(addDongsan(names, group))}>
+                  <Plus size={15} strokeWidth={2.25} aria-hidden />
+                  {t('admin.settings.addDongsan')}
                 </Button>
               </div>
             </div>
@@ -172,7 +185,8 @@ export function DongsanNamesEditor({
         </div>
       )}
 
-      <Button className="mt-5" onClick={save} disabled={saving || !dirty}>
+      <Button className="mt-6" onClick={save} disabled={saving || !dirty}>
+        {!saving && <Save size={15} strokeWidth={2} aria-hidden />}
         {saving ? t('common.loading') : t('admin.settings.save')}
       </Button>
     </div>

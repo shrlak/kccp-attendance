@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Dialog } from '../../components/ui/Dialog'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
+import { Check } from '../../components/ui/Icon'
 import { useToast } from '../../components/ui/Toast'
 import { guestCheckin } from '../../lib/api'
 import { broadcastKioskChange } from './live'
@@ -51,7 +52,7 @@ export function KioskGuestDialog({ open, onClose }: { open: boolean; onClose: ()
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && close()} title={t('kiosk.guest.title')}>
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-4">
         <Input
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -64,26 +65,31 @@ export function KioskGuestDialog({ open, onClose }: { open: boolean; onClose: ()
           }}
         />
         <div>
-          <span className="mb-1 block text-xs font-semibold text-subtle">{t('kiosk.guest.group')}</span>
-          <div className="grid grid-cols-2 gap-2">
-            {GUEST_GROUPS.map((g) => (
-              <button
-                key={g}
-                type="button"
-                aria-pressed={group === g}
-                onClick={() => setGroup(g)}
-                className={`min-h-11 rounded-md border px-3 text-sm transition-colors ${
-                  group === g
-                    ? 'border-primary bg-primary/10 font-semibold text-primary'
-                    : 'border-border bg-surface text-text'
-                }`}
-              >
-                {g}
-              </button>
-            ))}
+          <span className="field-label">{t('kiosk.guest.group')}</span>
+          <div className="grid grid-cols-2 gap-2.5">
+            {GUEST_GROUPS.map((g) => {
+              const active = group === g
+              return (
+                <button
+                  key={g}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setGroup(g)}
+                  className={`inline-flex min-h-12 items-center justify-center gap-1.5 rounded-xl border px-3 text-sm font-semibold transition-[background-color,border-color,color,transform] duration-200 [transition-timing-function:var(--ease-out-soft)] active:scale-[0.97] ${
+                    active
+                      ? 'border-primary bg-primary/10 text-primary shadow-[var(--shadow-sm)]'
+                      : 'border-border bg-surface text-text hover:bg-surface-alt'
+                  }`}
+                >
+                  {active && <Check className="size-4 shrink-0" strokeWidth={2.5} aria-hidden />}
+                  {g}
+                </button>
+              )
+            })}
           </div>
         </div>
         <Button onClick={() => void submit()} disabled={!name.trim() || !group || busy} className="w-full">
+          <Check className="size-4" strokeWidth={2.25} aria-hidden />
           {busy ? t('common.loading') : t('kiosk.guest.submit')}
         </Button>
       </div>

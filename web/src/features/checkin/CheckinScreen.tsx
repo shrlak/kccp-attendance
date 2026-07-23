@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { Monitor } from '../../components/ui/Icon'
+import { Monitor, ArrowRight } from '../../components/ui/Icon'
 import { ThemeLangToggle, iconBtnClass } from '../../components/ui/ThemeLangToggle'
 import { KccpLogo } from './KccpLogo'
 import { useLang } from '../../stores/useLang'
@@ -10,7 +10,7 @@ import { useLang } from '../../stores/useLang'
 function TopBar() {
   const { t } = useTranslation()
   return (
-    <header className="pt-[env(safe-area-inset-top)]">
+    <header className="material-bar sticky top-0 z-20 border-b pt-[env(safe-area-inset-top)]">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-end px-5 sm:px-8">
         <ThemeLangToggle />
         <Link to="/admin" className={iconBtnClass + ' ml-1 px-2.5'}>
@@ -50,29 +50,46 @@ export function CheckinScreen() {
 
   return (
     <main className="relative flex min-h-dvh flex-col bg-canvas">
+      {/* Soft ambient accents behind the hero for gentle depth. */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -top-32 left-1/2 h-[30rem] w-[30rem] -translate-x-1/2 rounded-full bg-primary/[0.07] blur-3xl" />
+        <div className="absolute -bottom-40 right-[-6rem] h-80 w-80 rounded-full bg-gold/[0.06] blur-3xl" />
+      </div>
+
       <TopBar />
-      <section className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center px-6 py-10 text-center">
+
+      <section className="relative mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center px-6 py-14 text-center">
         <div className="fx-rise flex flex-col items-center">
-          <KccpLogo size={88} stacked />
-          <h1 className="mt-10 font-display text-5xl font-semibold tabular-nums tracking-[-0.03em] text-text sm:text-6xl">
+          <KccpLogo size={92} stacked />
+
+          <h1 className="mt-14 font-display text-7xl font-semibold leading-none tabular-nums tracking-[-0.045em] text-text sm:text-8xl">
             {timeLabel}
           </h1>
-          <div className="mt-3 text-base font-semibold text-muted">{todayLabel}</div>
+
+          <div className="mt-6 inline-flex items-center gap-2.5 rounded-full bg-fill px-4 py-2 text-sm font-semibold text-muted">
+            <span className="size-1.5 rounded-full bg-success fx-pulse" aria-hidden />
+            {todayLabel}
+          </div>
         </div>
       </section>
 
-      <div className="flex justify-center px-6 pb-[calc(2.5rem+env(safe-area-inset-bottom))]">
+      <div className="relative flex justify-center px-6 pb-[calc(3rem+env(safe-area-inset-bottom))]">
         <Link
           to="/kiosk"
           className={
-            'fx-rise inline-flex min-h-12 w-full max-w-sm items-center justify-center gap-2.5 rounded-full border px-8 py-3.5 text-base font-semibold ' +
+            'fx-rise group inline-flex min-h-14 w-full max-w-sm items-center justify-center gap-3 rounded-full border px-8 py-4 text-lg font-semibold ' +
             'transition-[background-color,border-color,color,transform,box-shadow] duration-200 [transition-timing-function:var(--ease-out-soft)] active:scale-[0.97] ' +
             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas ' +
-            'border-primary bg-primary text-primary-fg shadow-md shadow-primary/20 hover:border-primary-hover hover:bg-primary-hover hover:shadow-lg hover:shadow-primary/25'
+            'border-primary bg-primary text-primary-fg shadow-[0_8px_28px_color-mix(in_srgb,var(--primary)_32%,transparent)] hover:border-primary-hover hover:bg-primary-hover hover:brightness-[1.02] hover:shadow-[0_12px_36px_color-mix(in_srgb,var(--primary)_40%,transparent)]'
           }
         >
-          <Monitor className="size-5" aria-hidden />
+          <Monitor className="size-5" strokeWidth={2} aria-hidden />
           {t('landing.kioskButton')}
+          <ArrowRight
+            className="size-5 transition-transform duration-200 [transition-timing-function:var(--ease-out-soft)] group-hover:translate-x-0.5"
+            strokeWidth={2}
+            aria-hidden
+          />
         </Link>
       </div>
     </main>

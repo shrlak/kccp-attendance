@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import { Dialog } from '../../components/ui/Dialog'
 import { Button } from '../../components/ui/Button'
+import { Sparkles } from '../../components/ui/Icon'
 import { useToast } from '../../components/ui/Toast'
 import { kioskNewMember, type NewMemberFields } from '../../lib/api'
 import { easternNow } from '../../lib/checkinWindow'
@@ -85,7 +86,8 @@ export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose
       <div className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto pr-1">
         <NewFamilyCardForm value={card} onChange={patchCard} regDateFixed />
       </div>
-      <Button onClick={() => void submit()} disabled={busy} className="mt-4 w-full">
+      <Button onClick={() => void submit()} disabled={busy} className="mt-5 w-full">
+        <Sparkles className="size-4" strokeWidth={2} aria-hidden />
         {busy ? t('common.loading') : t('kiosk.newMember.submit')}
       </Button>
     </Dialog>

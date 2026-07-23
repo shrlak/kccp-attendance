@@ -20,6 +20,7 @@ import { Dialog } from '../../components/ui/Dialog'
 import { Button } from '../../components/ui/Button'
 import { Select } from '../../components/ui/Select'
 import { useToast } from '../../components/ui/Toast'
+import { Settings, GraduationCap, AlertTriangle, Check } from '../../components/ui/Icon'
 import { EditModal, AttendanceModal } from './MemberDialogs'
 
 const EDU_FILTERS: { key: EduFilter; labelKey: string }[] = [
@@ -46,8 +47,17 @@ export function AdminNewFamilyEdu() {
   const [attendanceFor, setAttendanceFor] = useState<Member | null>(null)
   const [dongsanNamesOpen, setDongsanNamesOpen] = useState(false)
 
-  if (isLoading) return <p className="text-sm text-muted">{t('common.loading')}</p>
-  if (isError) return <p className="text-sm text-danger">{t('common.error')}</p>
+  if (isLoading) return (
+    <div className="fx-fade grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
+      {Array.from({ length: 8 }).map((_, i) => <div key={i} className="fx-skeleton h-28 rounded-2xl" />)}
+    </div>
+  )
+  if (isError) return (
+    <div className="fx-rise grid place-items-center py-16 text-center">
+      <div className="grid size-14 place-items-center rounded-full bg-danger/10 text-danger"><AlertTriangle className="size-6" aria-hidden /></div>
+      <p className="mt-4 text-sm font-semibold text-danger">{t('common.error')}</p>
+    </div>
+  )
   if (!data) return null
 
   const today = easternNow().date
@@ -63,6 +73,7 @@ export function AdminNewFamilyEdu() {
           section so the tab stays focused on the roster. */}
       <div className="mb-3 flex justify-end">
         <Button variant="secondary" size="sm" onClick={() => setDongsanNamesOpen(true)}>
+          <Settings className="size-4" aria-hidden />
           {t('admin.settings.newMemberDongsanNames')}
         </Button>
       </div>
@@ -82,16 +93,20 @@ export function AdminNewFamilyEdu() {
         ))}
       </div>
 
-      <div className="mb-4 font-mono text-xs uppercase tracking-wide text-subtle">
+      <div className="mb-4 flex items-center gap-2 section-kicker">
+        <GraduationCap className="size-4 text-subtle" aria-hidden />
         {t('admin.newfamilyEdu.title')} · {visible.length}
       </div>
 
       {visible.length === 0 ? (
-        <p className="text-sm text-muted">
-          {t(currentSemester.length === 0 ? 'admin.newfamily.empty' : 'admin.newfamily.noFilterMatch')}
-        </p>
+        <div className="fx-rise grid place-items-center rounded-2xl border border-dashed border-border py-14 text-center">
+          <div className="grid size-14 place-items-center rounded-full bg-fill text-subtle"><GraduationCap className="size-6" aria-hidden /></div>
+          <p className="mt-4 text-sm font-semibold text-muted">
+            {t(currentSemester.length === 0 ? 'admin.newfamily.empty' : 'admin.newfamily.noFilterMatch')}
+          </p>
+        </div>
       ) : (
-        <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+        <ul className="fx-stagger grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
           {visible.map((m) => (
             <EduCard
               key={m.id}
@@ -151,7 +166,7 @@ function EduDongsanFilter({ members, value, onChange }: { members: Member[]; val
   if (groups.length <= 1 && eduDongsans.length <= 1) return null
 
   return (
-    <div className="mb-5 flex flex-col gap-2 border-b border-border pb-4">
+    <div className="mb-5 flex flex-col gap-2 border-b border-separator pb-4">
       {groups.length > 1 && (
         <div className="flex flex-wrap gap-1.5">
           <Pill active={!value.group} onClick={() => onChange({ group: '', subgroup: '' })}>
@@ -231,13 +246,13 @@ function EduCard({
   if (currentDongsan && !dongsanOptions.includes(currentDongsan)) dongsanOptions.push(currentDongsan)
 
   return (
-    <li className="rounded-lg border border-border bg-surface p-3">
+    <li className="rounded-2xl border border-border bg-surface p-3.5 shadow-[var(--shadow-sm)] transition-shadow duration-200 hover:shadow-[var(--shadow)]">
       {/* Tap the body to open the member's full info/editor (feature parity with 새가족 tab) */}
       <button type="button" onClick={onOpen} className="block w-full text-left">
         <div className="text-sm font-semibold text-text">{member.name}</div>
-        <div className="text-xs text-muted">{[member.group_name, member.subgroup].filter(Boolean).join(' · ') || '—'}</div>
+        <div className="mt-0.5 text-xs text-muted">{[member.group_name, member.subgroup].filter(Boolean).join(' · ') || '—'}</div>
       </button>
-      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+      <div className="mt-2.5 flex flex-wrap gap-x-3 gap-y-1.5">
         <EduCheck
           label={t('admin.newfamily.edu1')}
           checked={!!member.new_member_edu_week1}
@@ -251,8 +266,8 @@ function EduCard({
           onChange={(v) => void toggleEdu('newMemberEduWeek2', v)}
         />
       </div>
-      <label className="mt-2 block">
-        <span className="mb-1 block text-[11px] font-semibold text-subtle">{t('admin.members.eduDongsan')}</span>
+      <label className="mt-2.5 block">
+        <span className="mb-1 block text-[11px] font-semibold text-muted">{t('admin.members.eduDongsan')}</span>
         <Select
           value={currentDongsan}
           disabled={readOnly || busy !== null}
@@ -274,8 +289,17 @@ function EduCard({
 
 function EduCheck({ label, checked, disabled, onChange }: { label: string; checked: boolean; disabled: boolean; onChange: (v: boolean) => void }) {
   return (
-    <label className="flex items-center gap-1.5 text-xs text-text">
-      <input type="checkbox" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
+    <label
+      className={
+        'inline-flex cursor-pointer items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold transition-colors ' +
+        (disabled ? 'cursor-not-allowed opacity-50 ' : '') +
+        (checked ? 'bg-success/15 text-success' : 'bg-fill text-muted hover:text-text')
+      }
+    >
+      <input type="checkbox" className="sr-only" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
+      <span className={'grid size-4 place-items-center rounded-full ' + (checked ? 'bg-success text-white' : 'border border-border')}>
+        {checked && <Check className="size-3" strokeWidth={3} aria-hidden />}
+      </span>
       {label}
     </label>
   )

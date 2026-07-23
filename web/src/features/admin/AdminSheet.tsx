@@ -31,7 +31,9 @@ import { IconKey } from './IconKey'
 import { Dialog } from '../../components/ui/Dialog'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
+import { Tag } from '../../components/ui/Tag'
 import { useToast } from '../../components/ui/Toast'
+import { Plus, Trash2, AlertTriangle, Search, Calendar, ClipboardList, Check } from '../../components/ui/Icon'
 
 // Attendance spreadsheet: the Excel-style 출석부 grid (an on-screen replica of the exported
 // "Attendance" sheet — color-coded 동산 blocks, O/X cells, 예배 총 출석 + 총 출석 rows) or a
@@ -45,8 +47,18 @@ export function AdminSheet() {
   const { data, isLoading, isError } = useRoster(true)
   const { data: cfg } = useQuery({ queryKey: ['config'], queryFn: getConfig })
 
-  if (isLoading) return <p className="text-sm text-muted">{t('common.loading')}</p>
-  if (isError) return <p className="text-sm text-danger">{t('common.error')}</p>
+  if (isLoading) return (
+    <div className="fx-fade space-y-3">
+      <div className="fx-skeleton h-16 rounded-2xl" />
+      <div className="fx-skeleton h-64 rounded-2xl" />
+    </div>
+  )
+  if (isError) return (
+    <div className="fx-rise grid place-items-center py-16 text-center">
+      <div className="grid size-14 place-items-center rounded-full bg-danger/10 text-danger"><AlertTriangle className="size-6" aria-hidden /></div>
+      <p className="mt-4 text-sm font-semibold text-danger">{t('common.error')}</p>
+    </div>
+  )
   if (!data) return null
 
   const lang: Lang = i18n.language === 'en' ? 'en' : 'ko'
@@ -60,8 +72,8 @@ export function AdminSheet() {
     <>
       <StatsBar stats={computeStats(members, fLog, easternNow().date)} />
       <GroupFilter members={data.members} value={filter} onChange={setFilter} />
-      <div className="mb-3 flex items-center justify-between">
-        <div className="flex gap-1">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="segmented">
           <Toggle active={view === 'grid'} onClick={() => setView('grid')}>
             {t('admin.sheet.grid')}
           </Toggle>
@@ -69,15 +81,17 @@ export function AdminSheet() {
             {t('admin.sheet.log')}
           </Toggle>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <ExportMenu members={members} log={fLog} filter={filter} />
           {canBulk && (
             <Button variant="secondary" size="sm" onClick={() => setBulk(true)} disabled={data.members.length === 0}>
+              <Plus className="size-4" aria-hidden />
               {t('admin.sheet.bulk.action')}
             </Button>
           )}
           {data.canClearAttendance && (
             <Button variant="danger" size="sm" onClick={() => setClearing(true)}>
+              <Trash2 className="size-4" aria-hidden />
               {t('admin.sheet.clearAll.action')}
             </Button>
           )}
@@ -128,8 +142,9 @@ function ClearDialog({ isSuper, onClose }: { isSuper: boolean; onClose: () => vo
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()} title={t('admin.sheet.clearAll.title')}>
-      <p className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">
-        {t(isSuper ? 'admin.sheet.clearAll.warnSuper' : 'admin.sheet.clearAll.warnRequest')}
+      <p className="flex items-start gap-2 rounded-xl bg-danger/10 px-3.5 py-3 text-sm text-danger">
+        <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
+        <span>{t(isSuper ? 'admin.sheet.clearAll.warnSuper' : 'admin.sheet.clearAll.warnRequest')}</span>
       </p>
       <div className="mt-4 flex gap-2">
         <Button variant="secondary" onClick={onClose} className="flex-1">
@@ -180,32 +195,35 @@ function BulkModal({ data, onClose }: { data: RosterResponse; onClose: () => voi
     <Dialog open onOpenChange={(o) => !o && onClose()} title={t('admin.sheet.bulk.title')}>
       <div className="mb-3 flex items-end gap-2">
         <label className="flex-1">
-          <span className="mb-1 block text-xs font-semibold text-subtle">{t('admin.sheet.bulk.date')}</span>
+          <span className="field-label inline-flex items-center gap-1.5"><Calendar className="size-3.5" aria-hidden />{t('admin.sheet.bulk.date')}</span>
           <Input type="date" value={date} onChange={(e) => setDateReset(e.target.value)} />
         </label>
       </div>
-      <Input
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder={t('admin.members.search')}
-        aria-label={t('admin.members.search')}
-        className="mb-2"
-      />
+      <div className="relative mb-2">
+        <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-subtle" aria-hidden />
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={t('admin.members.search')}
+          aria-label={t('admin.members.search')}
+          className="pl-10"
+        />
+      </div>
       <div className="mb-2 flex items-center justify-between">
-        <span className="font-mono text-xs uppercase tracking-wide text-subtle">
+        <span className="section-kicker">
           {t('admin.sheet.bulk.selected', { n: selected.size })}
         </span>
-        <div className="flex gap-2">
-          <button type="button" onClick={() => setSelected(new Set(selectable.map((m) => m.id)))} className="text-xs font-semibold text-primary hover:underline">
+        <div className="flex gap-1">
+          <button type="button" onClick={() => setSelected(new Set(selectable.map((m) => m.id)))} className="rounded-full px-2.5 py-1 text-xs font-semibold text-primary hover:bg-primary/10">
             {t('admin.sheet.bulk.all')}
           </button>
-          <button type="button" onClick={() => setSelected(new Set())} className="text-xs font-semibold text-muted hover:underline">
+          <button type="button" onClick={() => setSelected(new Set())} className="rounded-full px-2.5 py-1 text-xs font-semibold text-muted hover:bg-fill">
             {t('admin.sheet.bulk.none')}
           </button>
         </div>
       </div>
-      <ul className="flex max-h-[42vh] flex-col gap-1 overflow-y-auto pr-1">
-        {candidates.length === 0 && <li className="text-sm text-muted">{t('admin.today.manualCheckin.none')}</li>}
+      <ul className="flex max-h-[42vh] flex-col gap-1.5 overflow-y-auto pr-1">
+        {candidates.length === 0 && <li className="py-4 text-center text-sm text-muted">{t('admin.today.manualCheckin.none')}</li>}
         {candidates.map((m) => {
           const here = present.has(m.id)
           const checked = here || selected.has(m.id)
@@ -213,19 +231,27 @@ function BulkModal({ data, onClose }: { data: RosterResponse; onClose: () => voi
             <li key={m.id}>
               <label
                 className={
-                  'flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm ' +
-                  (here ? 'bg-surface-alt opacity-60' : 'bg-surface cursor-pointer hover:bg-surface-alt')
+                  'flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-sm transition-colors ' +
+                  (here
+                    ? 'border-success/30 bg-success/5 opacity-70'
+                    : checked
+                      ? 'cursor-pointer border-primary/40 bg-primary/[0.06]'
+                      : 'cursor-pointer border-border bg-surface hover:bg-fill')
                 }
               >
+                <span className={'grid size-5 shrink-0 place-items-center rounded-full ' + (checked ? 'bg-primary text-primary-fg' : 'border border-border')}>
+                  {checked && <Check className="size-3.5" strokeWidth={3} aria-hidden />}
+                </span>
                 <input
                   type="checkbox"
+                  className="sr-only"
                   checked={checked}
                   disabled={here || saving}
                   onChange={() => setSelected((cur) => toggleId(cur, m.id))}
                 />
                 <span className="font-medium text-text">{m.name}</span>
                 <span className="text-xs text-muted">{[m.group_name, m.subgroup].filter(Boolean).join(' · ')}</span>
-                {here && <span className="ml-auto text-xs font-semibold text-success">✓</span>}
+                {here && <Check className="ml-auto size-4 text-success" strokeWidth={3} aria-hidden />}
               </label>
             </li>
           )
@@ -416,20 +442,23 @@ function GridView({
 
 function LogView({ log, empty }: { log: LogEntry[]; empty: string }) {
   const { t } = useTranslation()
-  if (log.length === 0) return <p className="text-sm text-muted">{empty}</p>
+  if (log.length === 0) return (
+    <div className="fx-rise grid place-items-center rounded-2xl border border-dashed border-border py-14 text-center">
+      <div className="grid size-14 place-items-center rounded-full bg-fill text-subtle"><ClipboardList className="size-6" aria-hidden /></div>
+      <p className="mt-4 text-sm font-semibold text-muted">{empty}</p>
+    </div>
+  )
   return (
-    <ul className="flex flex-col gap-1.5">
+    <ul className="fx-stagger inset-list text-sm">
       {log.map((e) => (
-        <li key={`${e.name}-${e.ts}`} className="flex items-center justify-between rounded-md border border-border bg-surface px-3 py-2 text-sm">
-          <span className="font-medium text-text">
+        <li key={`${e.name}-${e.ts}`} className="inset-row min-h-12 justify-between gap-3 py-2.5">
+          <span className="flex items-center gap-2 font-medium text-text">
             {e.name}
             {e.firstVisit && (
-              <span className="ml-2 rounded-full bg-gold/10 px-2 py-0.5 align-middle text-[10px] font-semibold text-gold">
-                {t('admin.iconKey.firstVisit')}
-              </span>
+              <Tag tone="gold" className="text-[10px]">{t('admin.iconKey.firstVisit')}</Tag>
             )}
           </span>
-          <span className="font-mono text-xs text-muted">
+          <span className="tabular-nums text-xs text-subtle">
             {e.date} · {e.time}
           </span>
         </li>
@@ -442,10 +471,11 @@ function Toggle({ active, onClick, children }: { active: boolean; onClick: () =>
   return (
     <button
       type="button"
+      aria-pressed={active}
       onClick={onClick}
       className={
-        'min-h-9 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ' +
-        (active ? 'bg-primary/15 text-primary' : 'border border-border bg-surface text-muted hover:bg-surface-alt')
+        'min-h-9 rounded-full px-4 py-1.5 text-xs font-semibold transition-[background-color,color,box-shadow] duration-200 [transition-timing-function:var(--ease-out-soft)] ' +
+        (active ? 'bg-surface text-primary shadow-[var(--shadow-sm)]' : 'text-muted hover:text-text')
       }
     >
       {children}

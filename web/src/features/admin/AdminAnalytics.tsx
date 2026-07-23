@@ -7,6 +7,7 @@ import { AnalyticsCharts } from './AnalyticsCharts'
 import { monthlySummary, semesterSummary, weeklyRecap, recapText, excludeOnBreak, type SemesterRow } from './analytics'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
+import { GraduationCap, Calendar, ListChecks, Copy, BarChart3 } from '../../components/ui/Icon'
 import type { Member, LogEntry } from '../../lib/api'
 
 // Analytics tab: trend + group-comparison charts, monthly/semester summary tables, and
@@ -28,7 +29,7 @@ export function AdminAnalytics() {
     <>
       <GroupFilter members={data.members} value={filter} onChange={setFilter} />
       <AnalyticsCharts members={members} log={log} />
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <div className="fx-rise grid grid-cols-1 gap-4 lg:grid-cols-3">
         <SemesterTable members={members} log={log} />
         <MonthlyTable members={members} log={log} />
         <WeeklyRecap log={log} />
@@ -41,7 +42,7 @@ function MonthlyTable({ members, log }: { members: Member[]; log: LogEntry[] }) 
   const { t } = useTranslation()
   const rows = monthlySummary(members, log)
   return (
-    <Section title={t('admin.analytics.monthly')}>
+    <Section title={t('admin.analytics.monthly')} icon={<Calendar size={15} strokeWidth={2} aria-hidden />}>
       {rows.length === 0 ? (
         <Empty />
       ) : (
@@ -58,7 +59,7 @@ function SemesterTable({ members, log }: { members: Member[]; log: LogEntry[] })
   const { t } = useTranslation()
   const rows = semesterSummary(members, log)
   return (
-    <Section title={t('admin.analytics.semester')}>
+    <Section title={t('admin.analytics.semester')} icon={<GraduationCap size={15} strokeWidth={2} aria-hidden />}>
       {rows.length === 0 ? (
         <Empty />
       ) : (
@@ -93,9 +94,11 @@ function WeeklyRecap({ log }: { log: LogEntry[] }) {
   return (
     <Section
       title={t('admin.analytics.weeklyRecap')}
+      icon={<ListChecks size={15} strokeWidth={2} aria-hidden />}
       action={
         rows.length > 0 ? (
           <Button variant="secondary" size="sm" onClick={copy}>
+            <Copy size={14} strokeWidth={2} aria-hidden />
             {t('admin.analytics.copy')}
           </Button>
         ) : null
@@ -115,14 +118,14 @@ function WeeklyRecap({ log }: { log: LogEntry[] }) {
 
 function SummaryTable({ head, rows }: { head: string[]; rows: { key: string; cells: (string | number)[] }[] }) {
   return (
-    <div className="overflow-x-auto">
+    <div className="-mx-1 overflow-x-auto">
       <table className="w-full border-collapse text-sm">
         <thead>
-          <tr className="border-b border-border">
+          <tr>
             {head.map((h, i) => (
               <th
                 key={h}
-                className={'px-3 py-2 font-mono text-[11px] uppercase tracking-wide text-subtle ' + (i === 0 ? 'text-left' : 'text-right')}
+                className={'px-3 pb-2 section-kicker ' + (i === 0 ? 'text-left' : 'text-right')}
               >
                 {h}
               </th>
@@ -131,13 +134,13 @@ function SummaryTable({ head, rows }: { head: string[]; rows: { key: string; cel
         </thead>
         <tbody>
           {rows.map((r) => (
-            <tr key={r.key} className="border-b border-border/60">
+            <tr key={r.key} className="border-t border-separator">
               {r.cells.map((c, i) => (
                 <td
                   key={i}
                   className={
-                    'px-3 py-2 ' +
-                    (i === 0 ? 'text-left font-medium text-text' : 'text-right font-mono tabular-nums text-muted')
+                    'px-3 py-2.5 ' +
+                    (i === 0 ? 'text-left font-semibold text-text' : 'text-right font-mono tabular-nums text-muted')
                   }
                 >
                   {c}
@@ -151,12 +154,13 @@ function SummaryTable({ head, rows }: { head: string[]; rows: { key: string; cel
   )
 }
 
-function Section({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
+function Section({ title, icon, action, children }: { title: string; icon?: ReactNode; action?: ReactNode; children: ReactNode }) {
   return (
     <section className="surface-panel p-5">
-      <div className="mb-3 flex items-center justify-between border-b border-border pb-3">
-        <h3 className="section-kicker">{title}</h3>
-        {action}
+      <div className="mb-4 flex items-center gap-2 border-b border-border pb-3">
+        {icon && <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">{icon}</span>}
+        <h3 className="font-display text-base font-bold tracking-tight text-text">{title}</h3>
+        {action && <span className="ml-auto">{action}</span>}
       </div>
       {children}
     </section>
@@ -165,5 +169,12 @@ function Section({ title, action, children }: { title: string; action?: ReactNod
 
 function Empty() {
   const { t } = useTranslation()
-  return <p className="text-sm text-muted">{t('admin.sheet.empty')}</p>
+  return (
+    <div className="flex flex-col items-center justify-center gap-2.5 py-8 text-center">
+      <span className="grid h-11 w-11 place-items-center rounded-full bg-fill text-muted">
+        <BarChart3 size={20} strokeWidth={1.75} aria-hidden />
+      </span>
+      <p className="text-sm text-muted">{t('admin.sheet.empty')}</p>
+    </div>
+  )
 }

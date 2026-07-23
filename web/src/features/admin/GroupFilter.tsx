@@ -12,7 +12,7 @@ export function GroupFilter({ members, value, onChange }: { members: Member[]; v
   if (groups.length <= 1 && subgroups.length <= 1) return null
 
   return (
-    <div className="mb-5 flex flex-col gap-2 border-b border-border pb-4">
+    <div className="mb-5 flex flex-col gap-2.5">
       {groups.length > 1 && (
         <div className="flex flex-wrap gap-1.5">
           <Pill active={!value.group} onClick={() => onChange({ group: '', subgroup: '' })}>
@@ -26,7 +26,8 @@ export function GroupFilter({ members, value, onChange }: { members: Member[]; v
         </div>
       )}
       {subgroups.length > 1 && (
-        <div className="flex flex-wrap gap-1.5 border-l-2 border-primary/30 pl-3">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 h-4 w-1 shrink-0 rounded-full bg-primary/40" aria-hidden />
           <Pill active={!value.subgroup} onClick={() => onChange({ ...value, subgroup: '' })}>
             {t('admin.filter.all')}
           </Pill>
@@ -47,11 +48,11 @@ export function Pill({ active, onClick, children }: { active: boolean; onClick: 
       type="button"
       onClick={onClick}
       className={
-        'min-h-8 rounded-full px-3 py-1 text-xs font-semibold ' +
+        'min-h-9 rounded-full px-3.5 py-1 text-xs font-semibold ' +
         'transition-[background-color,border-color,color,transform,box-shadow] duration-200 [transition-timing-function:var(--ease-out-soft)] active:scale-[0.94] ' +
         (active
-          ? 'border border-primary bg-primary text-primary-fg shadow-sm shadow-primary/25'
-          : 'border border-border bg-surface text-muted hover:border-primary/30 hover:bg-surface-alt')
+          ? 'bg-primary text-primary-fg shadow-[var(--shadow-sm)]'
+          : 'bg-fill text-muted hover:bg-fill-hover hover:text-text')
       }
     >
       {children}
