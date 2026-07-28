@@ -4,6 +4,8 @@ import { QueryClientProvider, QueryClient } from '@tanstack/react-query'
 import { i18n } from '../../lib/i18n'
 import { ToastProvider } from '../../components/ui/Toast'
 import { easternNow } from '../../lib/checkinWindow'
+import { addIsoDays } from '../../lib/semester'
+import { worshipSunday } from './newFamily'
 import type { LogEntry, Member, RosterResponse } from '../../lib/api'
 
 // Isolate AdminToday from its data hooks (which run their own queries).
@@ -87,6 +89,32 @@ describe('AdminToday — 새가족 / 방문자 status labels in the 오늘 tab',
     expect(screen.getAllByText('새가족').length).toBeGreaterThan(0)
     expect(screen.getAllByText('방문자').length).toBeGreaterThan(0)
     expect(screen.getByLabelText('상태 안내')).toBeInTheDocument()
+  })
+
+  it('tells this 주일의 새가족 apart from the previous week’s', () => {
+    const today = easternNow().date
+    // Anchor the two registration dates on the 주일 the app itself is looking at, so the
+    // cohorts hold whichever day the suite runs on.
+    const sunday = worshipSunday(today)
+    const fresh = { ...member('m3', '이번주새신자'), is_new_member: true, registration_date: sunday }
+    const prior = { ...member('m4', '지난주새신자'), is_new_member: true, registration_date: addIsoDays(sunday, -7) }
+    rosterData.data = {
+      role: 'super_admin',
+      canBulkSubgroup: true,
+      canClearAttendance: true,
+      members: [fresh, prior],
+      staffMembers: [],
+      log: [memberRow(fresh, today, 2), memberRow(prior, today, 3)],
+    } as unknown as RosterResponse & { staffMembers: Member[] }
+
+    renderWithProviders(<AdminToday />)
+
+    expect(screen.getByText('이번주새신자').closest('li')).toHaveTextContent('새가족 신규')
+    expect(screen.getByText('지난주새신자').closest('li')).toHaveTextContent('새가족 지난주')
+    // Both cohorts are spelled out in the legend.
+    const legend = screen.getByLabelText('상태 안내')
+    expect(legend).toHaveTextContent('새가족 신규')
+    expect(legend).toHaveTextContent('새가족 지난주')
   })
 
   it('leaves a regular member unmarked even on their first recorded visit', () => {

@@ -4,7 +4,16 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRoster } from './useRoster'
 import { easternNow } from '../../lib/checkinWindow'
 import { groupsOf, NO_FILTER, type Filter } from './filters'
-import { currentNewFamily, matchesEduFilter, eduDongsansOf, filterByEduDongsan, type EduFilter } from './newFamily'
+import {
+  currentNewFamily,
+  matchesEduFilter,
+  eduDongsansOf,
+  filterByEduDongsan,
+  newFamilyWeek,
+  type EduFilter,
+  type NewFamilyWeek,
+} from './newFamily'
+import { NewFamilyWeekChip } from './NewFamilyWeekChip'
 import { summerDongsanList } from './dongsan'
 import { Pill } from './GroupFilter'
 import { DongsanNamesEditor } from './AdminDongsan'
@@ -111,6 +120,7 @@ export function AdminNewFamilyEdu() {
             <EduCard
               key={m.id}
               member={m}
+              week={newFamilyWeek(m.registration_date, today)}
               readOnly={readOnly}
               summerMode={summerMode}
               dongsanNames={eduDongsanNames}
@@ -197,12 +207,14 @@ function EduDongsanFilter({ members, value, onChange }: { members: Member[]; val
 
 function EduCard({
   member,
+  week,
   readOnly,
   summerMode,
   dongsanNames,
   onOpen,
 }: {
   member: Member
+  week: NewFamilyWeek | null
   readOnly: boolean
   summerMode: boolean
   dongsanNames: DongsanNames | undefined
@@ -251,6 +263,10 @@ function EduCard({
       <button type="button" onClick={onOpen} className="block w-full text-left">
         <div className="text-sm font-semibold text-text">{member.name}</div>
         <div className="mt-0.5 text-xs text-muted">{[member.group_name, member.subgroup].filter(Boolean).join(' · ') || '—'}</div>
+        {/* 이번 주일에 등록한 새가족인지, 그 전 주에 등록했는지 — 교육 진도와 함께 보이도록. */}
+        {(week === 'thisWeek' || week === 'lastWeek') && (
+          <div className="mt-1.5"><NewFamilyWeekChip week={week} /></div>
+        )}
       </button>
       <div className="mt-2.5 flex flex-wrap gap-x-3 gap-y-1.5">
         <EduCheck

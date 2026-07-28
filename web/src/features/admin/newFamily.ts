@@ -133,6 +133,46 @@ export function isActiveNewFamily(m: Pick<Member, 'is_new_member' | 'new_member_
   return !!m.is_new_member && !(m.new_member_edu_week1 && m.new_member_edu_week2)
 }
 
+// How recently a 새가족 registered, measured in worship weeks from `today`:
+// 'thisWeek' = registered on/after the current 주일 (the newcomers of this Sunday),
+// 'lastWeek' = the week before it, 'earlier' = anything older. Weeks run 주일→토요일, so a
+// mid-week registration counts toward the 주일 that opened its week.
+export type NewFamilyWeek = 'thisWeek' | 'lastWeek' | 'earlier'
+
+// The 주일 that anchors `dateStr`'s week — the date itself on a Sunday, else the most
+// recent Sunday before it. Mid-week views therefore still speak of "this 주일" as the
+// Sunday just past, which is the service the 새가족 registered at.
+export function worshipSunday(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay()
+  return dow === 0 ? dateStr : addIsoDays(dateStr, -dow)
+}
+
+// Which worship week a registration date falls in, relative to `today`. Null when the
+// member has no registration date at all (nothing to place them by).
+export function newFamilyWeek(
+  registrationDate: string | null | undefined,
+  today: string,
+): NewFamilyWeek | null {
+  if (!registrationDate) return null
+  const sunday = worshipSunday(today)
+  if (registrationDate >= sunday) return 'thisWeek'
+  if (registrationDate >= addIsoDays(sunday, -7)) return 'lastWeek'
+  return 'earlier'
+}
+
+// name → worship week for every still-active 새가족 (isActiveNewFamily) — the lookup
+// behind the 오늘 tab's and 출석부's 이번 주일/지난주 새가족 marks. Members without a
+// registration date land in 'earlier' so they keep the plain 새가족 mark.
+export function activeNewFamilyWeeks(members: Member[], today: string): Map<string, NewFamilyWeek> {
+  const out = new Map<string, NewFamilyWeek>()
+  for (const m of members) {
+    if (!isActiveNewFamily(m)) continue
+    out.set(m.name, newFamilyWeek(m.registration_date, today) ?? 'earlier')
+  }
+  return out
+}
+
 // The 새가족 tab's 4-way education filter: 1주차만 이수 / 2주차만 이수 / 둘 다 이수 /
 // 아무것도 안 들음 — an exhaustive, mutually-exclusive partition of the two checkboxes.
 export type EduFilter = 'all' | 'week1' | 'week2' | 'both' | 'none'
