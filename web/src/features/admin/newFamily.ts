@@ -133,7 +133,8 @@ export function isActiveNewFamily(m: Pick<Member, 'is_new_member' | 'new_member_
   return !!m.is_new_member && !(m.new_member_edu_week1 && m.new_member_edu_week2)
 }
 
-// How recently a 새가족 registered, measured in worship weeks from `today`:
+// How recently a 새가족 registered, measured in worship weeks from `today` — the
+// 이번 주일 등록 / 지난주 등록 distinction the 새가족 · 새가족 교육 · 멤버 tabs colour-code:
 // 'thisWeek' = registered on/after the current 주일 (the newcomers of this Sunday),
 // 'lastWeek' = the week before it, 'earlier' = anything older. Weeks run 주일→토요일, so a
 // mid-week registration counts toward the 주일 that opened its week.
@@ -159,18 +160,6 @@ export function newFamilyWeek(
   if (registrationDate >= sunday) return 'thisWeek'
   if (registrationDate >= addIsoDays(sunday, -7)) return 'lastWeek'
   return 'earlier'
-}
-
-// name → worship week for every still-active 새가족 (isActiveNewFamily) — the lookup
-// behind the 오늘 tab's and 출석부's 이번 주일/지난주 새가족 marks. Members without a
-// registration date land in 'earlier' so they keep the plain 새가족 mark.
-export function activeNewFamilyWeeks(members: Member[], today: string): Map<string, NewFamilyWeek> {
-  const out = new Map<string, NewFamilyWeek>()
-  for (const m of members) {
-    if (!isActiveNewFamily(m)) continue
-    out.set(m.name, newFamilyWeek(m.registration_date, today) ?? 'earlier')
-  }
-  return out
 }
 
 // The 새가족 tab's 4-way education filter: 1주차만 이수 / 2주차만 이수 / 둘 다 이수 /
