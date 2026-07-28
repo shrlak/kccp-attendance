@@ -27,7 +27,7 @@ const L = {
   name: '이름',
   title: '출석부',
   count: (n: number) => `총 ${n}명 출석`,
-  newFamily: '오늘 등록 새가족',
+  newFamily: '오늘 등록한 새가족',
   visitor: '방문자',
 }
 
@@ -196,7 +196,7 @@ export function renderTodaySheet(group: string, entries: TodayRosterEntry[], dat
   }
   line(ctx, gridLeft + GRID_W, gridTop, gridLeft + GRID_W, gridTop + GRID_H) // right edge
 
-  // Legend (icon key): ✝️ 오늘 등록 새가족   👋 방문자
+  // Legend (icon key): ✝️ 오늘 등록한 새가족   👋 방문자
   ctx.textBaseline = 'middle'
   ctx.textAlign = 'left'
   ctx.font = '400 15px "Gowun Dodum", sans-serif'
