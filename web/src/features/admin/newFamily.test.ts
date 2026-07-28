@@ -11,6 +11,9 @@ import {
   registeredOnDate,
   isActiveNewFamily,
   matchesEduFilter,
+  worshipSunday,
+  newFamilyWeek,
+  activeNewFamilyWeeks,
 } from './newFamily'
 import type { Member } from '../../lib/api'
 import type { SemesterDates } from '../../lib/semester'
@@ -214,5 +217,63 @@ describe('monthlyRegistrations', () => {
     expect(groups.map((g) => g.month)).toEqual(['2026-06', '2026-05'])
     expect(groups[0].members.map((x) => x.id)).toEqual(['a', 'c']) // within month, newest first
     expect(groups[1].members.map((x) => x.id)).toEqual(['b'])
+  })
+})
+
+describe('worshipSunday', () => {
+  it('is the date itself on a Sunday', () => {
+    expect(worshipSunday('2026-07-26')).toBe('2026-07-26')
+  })
+  it('is the most recent Sunday on any other day', () => {
+    expect(worshipSunday('2026-07-27')).toBe('2026-07-26') // Monday
+    expect(worshipSunday('2026-07-31')).toBe('2026-07-26') // Friday
+    expect(worshipSunday('2026-08-01')).toBe('2026-07-26') // Saturday
+  })
+  it('walks back across a month boundary', () => {
+    expect(worshipSunday('2026-08-03')).toBe('2026-08-02')
+    expect(worshipSunday('2026-03-02')).toBe('2026-03-01')
+  })
+})
+
+describe('newFamilyWeek', () => {
+  const today = '2026-07-26' // a Sunday
+  it('places registrations on the current 주일 in thisWeek', () => {
+    expect(newFamilyWeek('2026-07-26', today)).toBe('thisWeek')
+  })
+  it('places the previous 주일 and its week in lastWeek', () => {
+    expect(newFamilyWeek('2026-07-19', today)).toBe('lastWeek')
+    expect(newFamilyWeek('2026-07-22', today)).toBe('lastWeek') // mid-week counts with its 주일
+    expect(newFamilyWeek('2026-07-25', today)).toBe('lastWeek')
+  })
+  it('places anything older in earlier', () => {
+    expect(newFamilyWeek('2026-07-18', today)).toBe('earlier')
+    expect(newFamilyWeek('2026-05-31', today)).toBe('earlier')
+  })
+  it('keeps the same buckets mid-week (this 주일 = the Sunday just past)', () => {
+    expect(newFamilyWeek('2026-07-26', '2026-07-29')).toBe('thisWeek')
+    expect(newFamilyWeek('2026-07-19', '2026-07-29')).toBe('lastWeek')
+  })
+  it('is null without a registration date', () => {
+    expect(newFamilyWeek(null, today)).toBeNull()
+    expect(newFamilyWeek(undefined, today)).toBeNull()
+    expect(newFamilyWeek('', today)).toBeNull()
+  })
+})
+
+describe('activeNewFamilyWeeks', () => {
+  const today = '2026-07-26'
+  it('maps active 새가족 names to their registration week', () => {
+    const weeks = activeNewFamilyWeeks([m('신규', true, '2026-07-26'), m('지난주', true, '2026-07-19'), m('오래전', true, '2026-06-07')], today)
+    expect(weeks.get('신규')).toBe('thisWeek')
+    expect(weeks.get('지난주')).toBe('lastWeek')
+    expect(weeks.get('오래전')).toBe('earlier')
+  })
+  it('skips non-새가족 and graduates (both education weeks done)', () => {
+    const done: Member = { ...m('졸업', true, '2026-07-26'), new_member_edu_week1: true, new_member_edu_week2: true }
+    const weeks = activeNewFamilyWeeks([m('일반', false, '2026-07-26'), done], today)
+    expect(weeks.size).toBe(0)
+  })
+  it('falls back to earlier when the 등록일 is missing', () => {
+    expect(activeNewFamilyWeeks([m('무등록일', true, null)], today).get('무등록일')).toBe('earlier')
   })
 })

@@ -5,6 +5,7 @@ import {
   todaySheetFilename,
   TODAY_SHEET_SLOTS,
   TODAY_SHEET_ROWS,
+  type NewFamilyWeeks,
   type TodayRosterEntry,
 } from './todaySheet'
 import type { LogEntry } from '../../lib/api'
@@ -24,7 +25,7 @@ describe('todayGroupRoster', () => {
     entry('C', '대학부', 40),
     entry('Old', '대학부', 5, '2026-06-14'), // a different date — excluded
   ]
-  const noNew = new Set<string>()
+  const noNew: NewFamilyWeeks = new Map()
 
   it('returns today’s entries for the group in check-in order, deduped', () => {
     expect(todayGroupRoster(log, today, '대학부', noNew)).toEqual([e('A'), e('B'), e('C')])
@@ -37,24 +38,33 @@ describe('todayGroupRoster', () => {
     expect(todayGroupRoster(log, '2026-06-14', '대학부', noNew)).toEqual([e('Old')])
   })
 
-  it('tags 방문자 by role and 새가족 by the new-member set', () => {
+  it('tags 방문자 by role and 새가족 by registration week (이번 주일 / 지난주 / 그 이전)', () => {
     const lg = [
       entry('회원', '대학부', 10),
-      entry('새가족이', '대학부', 20),
+      entry('신규', '대학부', 20),
+      entry('지난주', '대학부', 25),
+      entry('오래전', '대학부', 28),
       entry('방문이', '대학부', 30, today, { memberRole: 'guest' }),
       entry('손님', '대학부', 40, today, { memberRole: 'visitor' }),
     ]
-    expect(todayGroupRoster(lg, today, '대학부', new Set(['새가족이']))).toEqual([
+    const weeks: NewFamilyWeeks = new Map([
+      ['신규', 'thisWeek' as const],
+      ['지난주', 'lastWeek' as const],
+      ['오래전', 'earlier' as const],
+    ])
+    expect(todayGroupRoster(lg, today, '대학부', weeks)).toEqual([
       e('회원', null),
-      e('새가족이', 'newFamily'),
+      e('신규', 'newFamilyThisWeek'),
+      e('지난주', 'newFamilyLastWeek'),
+      e('오래전', 'newFamily'),
       e('방문이', 'visitor'),
       e('손님', 'visitor'),
     ])
   })
 
-  it('lets the visitor role win even if the name is also in the new-member set', () => {
+  it('lets the visitor role win even if the name is also a 새가족', () => {
     const lg = [entry('겹침', '대학부', 10, today, { memberRole: 'visitor' })]
-    expect(todayGroupRoster(lg, today, '대학부', new Set(['겹침']))).toEqual([e('겹침', 'visitor')])
+    expect(todayGroupRoster(lg, today, '대학부', new Map([['겹침', 'thisWeek' as const]]))).toEqual([e('겹침', 'visitor')])
   })
 })
 

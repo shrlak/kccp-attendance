@@ -4,7 +4,8 @@ import { useQuery } from '@tanstack/react-query'
 import { useRoster } from './useRoster'
 import { easternNow } from '../../lib/checkinWindow'
 import { filterMembers, NO_FILTER, type Filter } from './filters'
-import { semesterKey, newFamilyByDate, monthlyRegistrations } from './newFamily'
+import { semesterKey, newFamilyByDate, monthlyRegistrations, newFamilyWeek } from './newFamily'
+import { NewFamilyWeekChip } from './NewFamilyWeekChip'
 import { copyNewFamilyCards, saveNewFamilyCards } from './newFamilyCardImage'
 import { newFamilySheets, NEW_FAMILY_HEADER } from './exports'
 import { toggleId } from './bulk'
@@ -52,6 +53,9 @@ export function AdminNewFamily() {
   const allNewFamily = dateGroups.flatMap((g) => g.members)
   const total = allNewFamily.length
   const months = monthlyRegistrations(scopedMembers)
+  // 이번 주일 등록 vs 지난주 등록 — the two cohorts the 새가족팀 works with on a Sunday.
+  const thisWeekCount = allNewFamily.filter((m) => newFamilyWeek(m.registration_date, today) === 'thisWeek').length
+  const lastWeekCount = allNewFamily.filter((m) => newFamilyWeek(m.registration_date, today) === 'lastWeek').length
   const [, season] = semesterKey(today, cfg?.semesterDates).split('-')
   const year = semesterKey(today, cfg?.semesterDates).split('-')[0]
   const readOnly = data.role === 'pastor'
@@ -68,6 +72,8 @@ export function AdminNewFamily() {
         <span className="section-kicker">
           {t('admin.newfamily.title')} · {total}
         </span>
+        {thisWeekCount > 0 && <NewFamilyWeekChip week="thisWeek" count={thisWeekCount} />}
+        {lastWeekCount > 0 && <NewFamilyWeekChip week="lastWeek" count={lastWeekCount} />}
         <div className="ml-auto flex gap-2">
           {!readOnly && (
             <Button variant="secondary" size="sm" onClick={() => setScanOpen(true)}>
@@ -100,6 +106,8 @@ export function AdminNewFamily() {
                   <span className="text-sm font-semibold text-warning">{t('admin.newfamily.noRegDate')}</span>
                 )}
                 <span className="rounded-full bg-fill px-2 py-0.5 text-[11px] font-semibold tabular-nums text-muted">{g.members.length}</span>
+                {/* 이번 주일 / 지난주에 등록한 그룹만 표시 — 그 이전 등록일은 날짜만으로 충분. */}
+                <NewFamilyWeekChip week={newFamilyWeek(g.date, today)} />
               </div>
               <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
                 {g.members.map((m) => (

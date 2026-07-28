@@ -1,12 +1,22 @@
 import { useTranslation } from 'react-i18next'
 
-export type IconKeyItem = 'newFamily' | 'visitor' | 'firstVisit' | 'newMemberStar' | 'eduWeek1' | 'eduWeek2'
+export type IconKeyItem =
+  | 'newFamily'
+  | 'newFamilyThisWeek'
+  | 'newFamilyLastWeek'
+  | 'visitor'
+  | 'firstVisit'
+  | 'newMemberStar'
+  | 'eduWeek1'
+  | 'eduWeek2'
 
 // Each legend entry gets a small on-brand color dot echoing the tag colors used in the
 // roster/attendance rows. Dots are decorative (no text) so the label stays the sole
 // textContent of each chip.
 const dotTone: Record<IconKeyItem, string> = {
   newFamily: 'bg-primary',
+  newFamilyThisWeek: 'bg-primary',
+  newFamilyLastWeek: 'bg-gold',
   visitor: 'bg-info',
   firstVisit: 'bg-gold',
   newMemberStar: 'bg-gold',
