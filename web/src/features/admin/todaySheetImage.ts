@@ -5,7 +5,6 @@ import {
   todayGroupRoster,
   todaySheetFilename,
   todaySheetSlots,
-  type NewFamilyWeeks,
   type TodayRosterEntry,
   type TodaySheetTag,
 } from './todaySheet'
@@ -28,33 +27,18 @@ const L = {
   name: '이름',
   title: '출석부',
   count: (n: number) => `총 ${n}명 출석`,
-  newFamily: '새가족',
-  thisWeekReg: '이번 주일 등록',
-  lastWeekReg: '그 전 주 등록',
+  newFamily: '오늘 등록 새가족',
   visitor: '방문자',
 }
 
 // Status icon shown next to a name (matches the kiosk's ✝️ 새가족 / 👋 방문자 actions).
-const TAG_ICON: Record<Exclude<TodaySheetTag, null>, string> = {
-  newFamily: '✝️',
-  newFamilyThisWeek: '✝️',
-  newFamilyLastWeek: '✝️',
-  visitor: '👋',
-}
+const TAG_ICON: Record<Exclude<TodaySheetTag, null>, string> = { newFamily: '✝️', visitor: '👋' }
 
-// 새가족 icons carry a short word telling this 주일's registrations apart from the
-// previous week's; 새가족 registered longer ago (and 방문자) get the bare icon.
-const TAG_SUFFIX: Partial<Record<Exclude<TodaySheetTag, null>, string>> = {
-  newFamilyThisWeek: '신규',
-  newFamilyLastWeek: '지난주',
-}
-
-// A name with its status icon appended, e.g. "홍길동 ✝️" — plus the 주차 word for a
-// 새가족 registered this 주일 ("홍길동 ✝️신규") or the week before ("홍길동 ✝️지난주").
-// Plain name when untagged.
+// A name with its status icon appended, e.g. "홍길동 ✝️"; plain name when untagged. Only
+// the 새가족 who registered on the sheet's date carry ✝️ (see checkinTag).
 export function slotLabel(name: string, tag: TodaySheetTag): string {
   if (!name || !tag) return name
-  return `${name} ${TAG_ICON[tag]}${TAG_SUFFIX[tag] ?? ''}`
+  return `${name} ${TAG_ICON[tag]}`
 }
 
 // Logical-pixel layout; the canvas is rendered at SCALE× for a crisp raster.
@@ -212,18 +196,13 @@ export function renderTodaySheet(group: string, entries: TodayRosterEntry[], dat
   }
   line(ctx, gridLeft + GRID_W, gridTop, gridLeft + GRID_W, gridTop + GRID_H) // right edge
 
-  // Legend (icon key): ✝️ 새가족  ✝️신규 = 이번 주일 등록  ✝️지난주 = 그 전 주 등록  👋 방문자
+  // Legend (icon key): ✝️ 오늘 등록 새가족   👋 방문자
   ctx.textBaseline = 'middle'
   ctx.textAlign = 'left'
   ctx.font = '400 15px "Gowun Dodum", sans-serif'
   ctx.fillStyle = '#6b7280'
   const legendY = gridTop + GRID_H + LEGEND_H / 2 + 4
-  const legend = [
-    `${TAG_ICON.newFamily} ${L.newFamily}`,
-    `${TAG_ICON.newFamilyThisWeek}${TAG_SUFFIX.newFamilyThisWeek} = ${L.thisWeekReg}`,
-    `${TAG_ICON.newFamilyLastWeek}${TAG_SUFFIX.newFamilyLastWeek} = ${L.lastWeekReg}`,
-    `${TAG_ICON.visitor} ${L.visitor}`,
-  ]
+  const legend = [`${TAG_ICON.newFamily} ${L.newFamily}`, `${TAG_ICON.visitor} ${L.visitor}`]
   let legendX = gridLeft
   for (const item of legend) {
     ctx.fillText(item, legendX, legendY)
@@ -283,18 +262,17 @@ export async function copyCanvasToClipboard(canvas: HTMLCanvasElement): Promise<
   }
 }
 
-// Render the 대학부 + 청년부 sheets for `today`. `newFamilyWeeks` flags 새가족 so they get
-// the ✝️ icon, with 신규/지난주 telling this 주일's registrations apart from the previous
-// week's. Shared by the copy/save actions below so there's one render pass regardless of
-// which (or both) the operator picks.
+// Render the 대학부 + 청년부 sheets for `today`. `newMemberNames` holds the 새가족 who
+// registered on that very day — only they get the ✝️ icon. Shared by the copy/save
+// actions below so there's one render pass regardless of which (or both) the operator picks.
 async function buildTodaySheetCanvases(
   log: LogEntry[],
   today: string,
-  newFamilyWeeks: NewFamilyWeeks,
+  newMemberNames: ReadonlySet<string>,
 ): Promise<HTMLCanvasElement[]> {
   await ensureSheetFonts()
   return TODAY_SHEET_GROUPS.map((group) =>
-    renderTodaySheet(group, todayGroupRoster(log, today, group, newFamilyWeeks), today),
+    renderTodaySheet(group, todayGroupRoster(log, today, group, newMemberNames), today),
   )
 }
 
@@ -302,16 +280,16 @@ async function buildTodaySheetCanvases(
 export async function copyTodaySheets(
   log: LogEntry[],
   today: string,
-  newFamilyWeeks: NewFamilyWeeks,
+  newMemberNames: ReadonlySet<string>,
 ): Promise<{ copied: boolean }> {
-  const canvases = await buildTodaySheetCanvases(log, today, newFamilyWeeks)
+  const canvases = await buildTodaySheetCanvases(log, today, newMemberNames)
   const copied = await copyCanvasToClipboard(combineVertical(canvases, 80))
   return { copied }
 }
 
 // Download each 부서's sheet as its own JPG.
-export async function saveTodaySheets(log: LogEntry[], today: string, newFamilyWeeks: NewFamilyWeeks): Promise<void> {
-  const canvases = await buildTodaySheetCanvases(log, today, newFamilyWeeks)
+export async function saveTodaySheets(log: LogEntry[], today: string, newMemberNames: ReadonlySet<string>): Promise<void> {
+  const canvases = await buildTodaySheetCanvases(log, today, newMemberNames)
   for (let i = 0; i < TODAY_SHEET_GROUPS.length; i++) {
     const blob = await canvasToBlob(canvases[i], 'image/jpeg', 0.95)
     if (blob) downloadBlob(blob, todaySheetFilename(TODAY_SHEET_GROUPS[i], today, 'jpg'))

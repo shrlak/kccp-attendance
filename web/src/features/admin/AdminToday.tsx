@@ -4,8 +4,8 @@ import { useQuery } from '@tanstack/react-query'
 import { useRoster } from './useRoster'
 import { easternNow } from '../../lib/checkinWindow'
 import { todaysCheckins, weeklyComparison } from './today'
-import { activeNewFamilyWeeks } from './newFamily'
-import { checkinTag, type TodaySheetTag } from './todaySheet'
+import { registeredOnDate } from './newFamily'
+import { checkinTag } from './todaySheet'
 import { filterMembers, filterLog, NO_FILTER, type Filter } from './filters'
 import { leaderDashboard } from './stats'
 import { GroupFilter } from './GroupFilter'
@@ -45,12 +45,11 @@ export function AdminToday() {
   if (!data) return null
 
   const today = easternNow().date
-  // 새가족 by name → the 주일 they registered on — with checkinTag they drive the
-  // ✝️ 새가족 / 👋 방문자 marks in today's list, matching the exported 출석부, and split
-  // this 주일's registrations (신규) from the previous week's (지난주). Stops once a
-  // newcomer finishes both weeks of education (isActiveNewFamily), even though
-  // is_new_member itself stays true.
-  const newFamilyWeeks = activeNewFamilyWeeks(data.members, today)
+  // 새가족 by name — with checkinTag they drive the ✝️ 새가족 / 👋 방문자 icons in
+  // today's list, matching the exported 출석부. Only the 새가족 who registered *today*
+  // are marked: this tab and the sheet are about the day itself, so newcomers from
+  // earlier weeks appear unmarked (the 새가족 · 멤버 tabs still track them by 등록일).
+  const newMemberNames = new Set(registeredOnDate(data.members, today).map((m) => m.name))
 
   // Copy or save the 대학부/청년부 sheets as JPGs — separate actions since only the
   // clipboard copy is usually needed. Built from the full visible roster so both 부서
@@ -59,7 +58,7 @@ export function AdminToday() {
     if (!data) return
     setExporting('copy')
     try {
-      const { copied } = await copyTodaySheets(data.log, today, newFamilyWeeks)
+      const { copied } = await copyTodaySheets(data.log, today, newMemberNames)
       toast({ title: t(copied ? 'admin.mergedCopy.sheetsDone' : 'admin.mergedCopy.failed'), tone: copied ? 'ok' : 'err' })
     } catch {
       toast({ title: t('admin.today.export.saveFailed'), tone: 'err' })
@@ -72,7 +71,7 @@ export function AdminToday() {
     if (!data) return
     setExporting('save')
     try {
-      await saveTodaySheets(data.log, today, newFamilyWeeks)
+      await saveTodaySheets(data.log, today, newMemberNames)
       toast({ title: t('admin.today.export.saveDone'), tone: 'ok' })
     } catch {
       toast({ title: t('admin.today.export.saveFailed'), tone: 'err' })
@@ -154,7 +153,7 @@ export function AdminToday() {
           </Button>
         </div>
       </div>
-      <IconKey items={['newFamilyThisWeek', 'newFamilyLastWeek', 'newFamily', 'visitor']} />
+      <IconKey items={['newFamily', 'visitor']} />
       {todays.length === 0 ? (
         <div className="fx-rise grid place-items-center rounded-2xl border border-dashed border-border py-14 text-center">
           <div className="grid size-14 place-items-center rounded-full bg-fill text-subtle"><CalendarCheck className="size-6" aria-hidden /></div>
@@ -163,7 +162,7 @@ export function AdminToday() {
       ) : (
         <ul className="fx-stagger grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
           {todays.map((e) => {
-            const tag = checkinTag(e, newFamilyWeeks)
+            const tag = checkinTag(e, newMemberNames)
             const color = resolveGroupColor(cfg?.groupColors, e.group)
             const member = e.memberId
               ? (data.members.find((m) => m.id === e.memberId) ?? data.staffMembers.find((m) => m.id === e.memberId))
@@ -194,8 +193,8 @@ export function AdminToday() {
                         e.name
                       )}
                       {tag && (
-                        <span className={'rounded-full px-2 py-0.5 text-[10px] font-semibold ' + TAG_CLASS[tag]}>
-                          {t(`admin.iconKey.${tag}`)}
+                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                          {t(tag === 'visitor' ? 'admin.iconKey.visitor' : 'admin.iconKey.newFamily')}
                         </span>
                       )}
                     </div>
@@ -233,16 +232,6 @@ export function AdminToday() {
       )}
     </>
   )
-}
-
-// Badge styling per check-in tag. This 주일's 새가족 get the filled brand badge so they
-// stand out at a glance; last week's get a softer gold one, older 새가족 the original
-// tinted badge, 방문자 the info tint.
-const TAG_CLASS: Record<Exclude<TodaySheetTag, null>, string> = {
-  newFamilyThisWeek: 'bg-primary text-white',
-  newFamilyLastWeek: 'bg-gold/15 text-gold',
-  newFamily: 'bg-primary/10 text-primary',
-  visitor: 'bg-info/10 text-info',
 }
 
 function Stat({

@@ -111,9 +111,4 @@ describe('slotLabel', () => {
     expect(slotLabel('홍길동', 'newFamily')).toBe('홍길동 ✝️')
     expect(slotLabel('홍길동', 'visitor')).toBe('홍길동 👋')
   })
-
-  it('marks this 주일의 새가족 as 신규 and the previous week’s as 지난주', () => {
-    expect(slotLabel('홍길동', 'newFamilyThisWeek')).toBe('홍길동 ✝️신규')
-    expect(slotLabel('홍길동', 'newFamilyLastWeek')).toBe('홍길동 ✝️지난주')
-  })
 })

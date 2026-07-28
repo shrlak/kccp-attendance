@@ -5,7 +5,6 @@ import { i18n } from '../../lib/i18n'
 import { ToastProvider } from '../../components/ui/Toast'
 import { easternNow } from '../../lib/checkinWindow'
 import { addIsoDays } from '../../lib/semester'
-import { worshipSunday } from './newFamily'
 import type { LogEntry, Member, RosterResponse } from '../../lib/api'
 
 // Isolate AdminToday from its data hooks (which run their own queries).
@@ -74,7 +73,7 @@ describe('AdminToday — 방문자(guests) in the 오늘 tab', () => {
 describe('AdminToday — 새가족 / 방문자 status labels in the 오늘 tab', () => {
   it('tags 새가족 and 방문자 with readable labels and a legend', () => {
     const today = easternNow().date
-    const nf = { ...member('m2', '새신자'), is_new_member: true }
+    const nf = { ...member('m2', '새신자'), is_new_member: true, registration_date: today }
     rosterData.data = {
       role: 'super_admin',
       canBulkSubgroup: true,
@@ -91,13 +90,10 @@ describe('AdminToday — 새가족 / 방문자 status labels in the 오늘 tab',
     expect(screen.getByLabelText('상태 안내')).toBeInTheDocument()
   })
 
-  it('tells this 주일의 새가족 apart from the previous week’s', () => {
+  it('marks only the 새가족 who registered today, not earlier newcomers', () => {
     const today = easternNow().date
-    // Anchor the two registration dates on the 주일 the app itself is looking at, so the
-    // cohorts hold whichever day the suite runs on.
-    const sunday = worshipSunday(today)
-    const fresh = { ...member('m3', '이번주새신자'), is_new_member: true, registration_date: sunday }
-    const prior = { ...member('m4', '지난주새신자'), is_new_member: true, registration_date: addIsoDays(sunday, -7) }
+    const fresh = { ...member('m3', '오늘등록새신자'), is_new_member: true, registration_date: today }
+    const prior = { ...member('m4', '지난주새신자'), is_new_member: true, registration_date: addIsoDays(today, -7) }
     rosterData.data = {
       role: 'super_admin',
       canBulkSubgroup: true,
@@ -109,12 +105,8 @@ describe('AdminToday — 새가족 / 방문자 status labels in the 오늘 tab',
 
     renderWithProviders(<AdminToday />)
 
-    expect(screen.getByText('이번주새신자').closest('li')).toHaveTextContent('새가족 신규')
-    expect(screen.getByText('지난주새신자').closest('li')).toHaveTextContent('새가족 지난주')
-    // Both cohorts are spelled out in the legend.
-    const legend = screen.getByLabelText('상태 안내')
-    expect(legend).toHaveTextContent('새가족 신규')
-    expect(legend).toHaveTextContent('새가족 지난주')
+    expect(screen.getByText('오늘등록새신자').closest('li')).toHaveTextContent('새가족')
+    expect(screen.getByText('지난주새신자').closest('li')).not.toHaveTextContent('새가족')
   })
 
   it('leaves a regular member unmarked even on their first recorded visit', () => {

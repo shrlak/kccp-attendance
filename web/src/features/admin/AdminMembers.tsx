@@ -11,6 +11,9 @@ import { useToast } from '../../components/ui/Toast'
 import { Search, ListChecks, Merge as MergeIcon, Users, AlertTriangle } from '../../components/ui/Icon'
 import { mergeTargets, canMerge, mergeSummary, type MergeState } from './merge'
 import { groupsOf } from './filters'
+import { newFamilyWeek } from './newFamily'
+import { NewFamilyWeekChip } from './NewFamilyWeekChip'
+import { easternNow } from '../../lib/checkinWindow'
 import { IconKey } from './IconKey'
 import { EditModal, AttendanceModal, Field } from './MemberDialogs'
 import { resolveGroupColor, hexTint } from './groupColors'
@@ -49,6 +52,7 @@ export function AdminMembers() {
   )
   if (!data) return null
 
+  const today = easternNow().date
   const q = search.trim().toLowerCase()
   const members = q ? data.members.filter((m) => m.name.toLowerCase().includes(q)) : data.members
   const staffMembers = q ? data.staffMembers.filter((m) => m.name.toLowerCase().includes(q)) : data.staffMembers
@@ -182,9 +186,18 @@ export function AdminMembers() {
                     <span className="break-words text-base font-semibold text-text">{m.name}</span>
                     {m.is_new_member && (
                       <>
-                      <span className="ml-1.5 inline-block whitespace-nowrap rounded-full bg-gold/10 px-2 py-0.5 align-middle text-[10px] font-semibold text-gold">
-                        {t('admin.iconKey.newMemberStar')}
-                      </span>
+                      {/* 이번 주일 / 지난주에 등록한 새가족은 새가족 탭과 같은 색으로 구분하고,
+                          그보다 오래된 새가족은 기존 새가족 배지를 그대로 단다. */}
+                      {newFamilyWeek(m.registration_date, today) === 'thisWeek' || newFamilyWeek(m.registration_date, today) === 'lastWeek' ? (
+                        <NewFamilyWeekChip
+                          week={newFamilyWeek(m.registration_date, today)}
+                          className="ml-1.5 px-2 py-0.5 align-middle text-[10px]"
+                        />
+                      ) : (
+                        <span className="ml-1.5 inline-block whitespace-nowrap rounded-full bg-gold/10 px-2 py-0.5 align-middle text-[10px] font-semibold text-gold">
+                          {t('admin.iconKey.newMemberStar')}
+                        </span>
+                      )}
                       {m.new_member_edu_week1 && (
                         <span className="ml-1 inline-block whitespace-nowrap rounded-full bg-info/10 px-2 py-0.5 align-middle text-[10px] font-semibold text-info">
                           {t('admin.iconKey.eduWeek1')}
