@@ -60,7 +60,8 @@ export const CARD_PROMPT = [
   "3. 날짜(생년월일, 등록일)는 YYYY-MM-DD로 변환하세요. 카드에는 MM / DD / YYYY 순서로 적혀 있습니다.",
   "   두 자리 연도는 생년월일이면 19xx/20xx 중 자연스러운 쪽으로, 등록일이면 20xx로 해석하세요.",
   "4. 전화번호는 적힌 숫자 그대로 옮기세요 (하이픈 등 구분 기호 포함 가능).",
-  "5. '목사님 심방 요청'은 O에 표시되어 있으면 true, X에 표시되어 있으면 false입니다.",
+  "5. '목사님 심방 요청'은 O에 동그라미·체크 표시가 있으면 true, X에 표시가 있으면 false입니다.",
+  "   O와 X 어디에도 아무 표시가 없으면 반드시 null입니다. 표시가 없는 것을 false로 쓰지 마세요.",
   "6. 비어 있거나 판독할 수 없는 칸은 null로 두세요. 절대 추측하지 마세요.",
   "7. 카드가 여러 장이면 사진 속 위치 순서(위→아래, 왼쪽→오른쪽)로 배열에 담으세요.",
   "   카드끼리 내용을 섞지 말고, 각 카드는 그 카드에 적힌 값만으로 채우세요.",
@@ -84,7 +85,13 @@ export const CARD_SCHEMA = {
     baptismStatus: { type: "STRING", enum: ["유아세례", "입교", "세례", "해당없음"], nullable: true },
     faithDuration: { type: "STRING", enum: ["모태신앙", "1년 미만", "1-3년", "3-5년", "5년 이상"], nullable: true },
     registrationDate: { type: "STRING", nullable: true, description: "YYYY-MM-DD" },
-    pastoralVisitRequested: { type: "BOOLEAN", nullable: true },
+    // Structured output makes the model fill every field, and an unmarked O/X box is
+    // exactly where it likes to volunteer `false` — spell out that no mark means null.
+    pastoralVisitRequested: {
+      type: "BOOLEAN",
+      nullable: true,
+      description: "O 표시=true, X 표시=false, 아무 표시 없음=null",
+    },
   },
   required: [
     "name", "gender", "phone", "kakaoId", "birthDate", "affiliationCategory",
