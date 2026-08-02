@@ -17,6 +17,7 @@ import { easternNow } from '../../lib/checkinWindow'
 import { IconKey } from './IconKey'
 import { EditModal, AttendanceModal, Field } from './MemberDialogs'
 import { resolveGroupColor, hexTint } from './groupColors'
+import { refreshRoster } from '../../lib/live'
 
 // Members management: searchable card grid; tap a card to edit (scoped + read-only
 // enforced server-side). Renaming, group/동산 changes (= transfer), role, new-member,
@@ -84,7 +85,7 @@ export function AdminMembers() {
     try {
       const res = await bulkSetSubgroup([...selected], subgroup)
       toast({ title: t('admin.members.bulkMove.done', { n: res.updated }), tone: 'ok' })
-      await qc.invalidateQueries({ queryKey: ['roster'] })
+      await refreshRoster(qc)
       exitSelect()
     } catch {
       toast({ title: t('common.error'), tone: 'err' })
@@ -280,7 +281,7 @@ function MergeModal({ members, onClose }: { members: Member[]; onClose: () => vo
     setSaving(true)
     try {
       await mergeMembers(s.fromId, s.toId)
-      await qc.invalidateQueries({ queryKey: ['roster'] })
+      await refreshRoster(qc)
       toast({ title: t('admin.members.merge.done'), tone: 'ok' })
       onClose()
     } catch {

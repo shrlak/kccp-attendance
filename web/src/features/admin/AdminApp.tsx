@@ -36,6 +36,7 @@ import { AdminAdmins } from './AdminAdmins'
 import { AdminDongsan } from './AdminDongsan'
 import { AdminSettings } from './AdminSettings'
 import { KioskView } from '../kiosk/KioskView'
+import { useAttendanceLive } from '../../lib/live'
 
 type Tab =
   | 'today'
@@ -65,6 +66,10 @@ export function AdminApp() {
   const [navOpen, setNavOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
   const [backupBusy, setBackupBusy] = useState(false)
+  // Live cross-device sync for every admin tab: a kiosk check-in, another admin's
+  // 출석부 entry or a member-record edit refetches the roster here immediately, so the
+  // 출석부 and each member's 출석기록 never show different attendance.
+  useAttendanceLive()
   function selectTab(id: Tab) {
     setTab(id)
     setNavOpen(false)

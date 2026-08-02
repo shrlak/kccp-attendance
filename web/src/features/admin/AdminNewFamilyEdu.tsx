@@ -31,6 +31,7 @@ import { Select } from '../../components/ui/Select'
 import { useToast } from '../../components/ui/Toast'
 import { Settings, GraduationCap, AlertTriangle, Check } from '../../components/ui/Icon'
 import { EditModal, AttendanceModal } from './MemberDialogs'
+import { refreshRoster } from '../../lib/live'
 
 const EDU_FILTERS: { key: EduFilter; labelKey: string }[] = [
   { key: 'week1', labelKey: 'admin.newfamily.eduFilter.week1' },
@@ -229,7 +230,7 @@ function EduCard({
     setBusy(field)
     try {
       await updateMember(member.id, { [field]: value })
-      await qc.invalidateQueries({ queryKey: ['roster'] })
+      await refreshRoster(qc)
     } catch {
       toast({ title: t('common.error'), tone: 'err' })
     } finally {
@@ -241,7 +242,7 @@ function EduCard({
     setBusy('newMemberDongsan')
     try {
       await updateMember(member.id, { newMemberDongsan: value })
-      await qc.invalidateQueries({ queryKey: ['roster'] })
+      await refreshRoster(qc)
     } catch {
       toast({ title: t('common.error'), tone: 'err' })
     } finally {

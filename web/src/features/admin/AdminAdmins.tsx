@@ -43,6 +43,7 @@ import {
 } from '../../components/ui/Icon'
 import { useToast } from '../../components/ui/Toast'
 import type { ReactNode } from 'react'
+import { refreshRoster } from '../../lib/live'
 
 const ROLES: AdminRole[] = ['super_admin', 'leader', 'pastor', 'welcoming']
 
@@ -180,7 +181,7 @@ export function AdminAdmins() {
     try {
       if (approve) {
         await approveClear()
-        await qc.invalidateQueries({ queryKey: ['roster'] })
+        await refreshRoster(qc)
       } else {
         await rejectClear()
       }
@@ -617,7 +618,9 @@ function RestoreDbDialog({ target, onClose }: { target: DbRestoreTarget; onClose
         confirm: confirmText,
       })
       await Promise.all([
-        qc.invalidateQueries({ queryKey: ['roster'] }),
+        // Restoring swaps out the whole database — every other open device needs to
+        // drop what it is showing, not just this tab.
+        refreshRoster(qc),
         qc.invalidateQueries({ queryKey: ['config'] }),
         qc.invalidateQueries({ queryKey: ['adminRoles'] }),
         qc.invalidateQueries({ queryKey: ['dbBackups'] }),

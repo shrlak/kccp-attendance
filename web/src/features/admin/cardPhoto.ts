@@ -2,13 +2,15 @@ import { canvasToBlob } from './todaySheetImage'
 
 // ── 카드 사진 → 업로드용 base64 JPEG ──────────────────────────────────────────
 // Phone photos are 5–15MB; the extraction endpoint takes a JSON body, so downscale
-// client-side before encoding: long edge ≤1568px, JPEG q0.8 → typically well under
-// 500KB while keeping handwriting legible. Always re-encodes to JPEG, which also
-// converts anything the browser can decode (PNG/WebP/etc.); undecodable files
-// (e.g. HEIC on browsers without support) reject → the dialog shows "bad image".
+// client-side before encoding: long edge ≤2048px, JPEG q0.82 → typically well under
+// 1MB while keeping handwriting legible. The long edge covers the whole photo, so a
+// shot of four cards gives each one a quarter of it — hence the headroom over the
+// ~1568px a single card needs. Always re-encodes to JPEG, which also converts
+// anything the browser can decode (PNG/WebP/etc.); undecodable files (e.g. HEIC on
+// browsers without support) reject → the dialog shows "bad image".
 
-const MAX_EDGE = 1568
-const JPEG_QUALITY = 0.8
+const MAX_EDGE = 2048
+const JPEG_QUALITY = 0.82
 
 export async function fileToCardImage(file: File): Promise<{ base64: string; mediaType: 'image/jpeg' }> {
   const { source, width, height, cleanup } = await decodeImage(file)

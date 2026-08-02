@@ -154,13 +154,15 @@ export function AdminToday() {
         </div>
       </div>
       <IconKey items={['newFamily', 'visitor']} />
+      {/* Today's check-ins run 4 per row from 640px up; phones in portrait keep 2, where
+          four cards of name + 동산 + check-in time can't fit legibly across the screen. */}
       {todays.length === 0 ? (
         <div className="fx-rise grid place-items-center rounded-2xl border border-dashed border-border py-14 text-center">
           <div className="grid size-14 place-items-center rounded-full bg-fill text-subtle"><CalendarCheck className="size-6" aria-hidden /></div>
           <p className="mt-4 text-sm font-semibold text-muted">{t('admin.today.none')}</p>
         </div>
       ) : (
-        <ul className="fx-stagger grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+        <ul className="fx-stagger grid grid-cols-2 gap-2.5 sm:grid-cols-4">
           {todays.map((e) => {
             const tag = checkinTag(e, newMemberNames)
             const color = resolveGroupColor(cfg?.groupColors, e.group)

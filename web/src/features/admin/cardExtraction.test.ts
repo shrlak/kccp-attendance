@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { normalizeCardDate, normalizePhone, normalizeExtractedCard } from './cardExtraction'
+import {
+  normalizeCardDate,
+  normalizePhone,
+  normalizeExtractedCard,
+  normalizeExtractedCards,
+} from './cardExtraction'
 import { blankCardForm } from './newFamilyCard'
 
 const TODAY = '2026-07-06'
@@ -119,5 +124,40 @@ describe('normalizeExtractedCard', () => {
     expect(normalizeExtractedCard(null, TODAY)).toEqual(blankCardForm(TODAY))
     expect(normalizeExtractedCard('x', TODAY)).toEqual(blankCardForm(TODAY))
     expect(normalizeExtractedCard([1], TODAY)).toEqual(blankCardForm(TODAY))
+  })
+})
+
+describe('normalizeExtractedCards', () => {
+  it('keeps every card a photo contained, in order', () => {
+    const cards = normalizeExtractedCards(
+      [
+        { name: '김철수', gender: '남' },
+        { name: '이영희', gender: '여' },
+        { name: '박민수' },
+      ],
+      TODAY,
+    )
+    expect(cards.map((c) => c.name)).toEqual(['김철수', '이영희', '박민수'])
+    expect(cards[1].gender).toBe('여')
+  })
+  it('accepts a single object (older response shape) as a one-card list', () => {
+    const cards = normalizeExtractedCards({ name: '김철수' }, TODAY)
+    expect(cards).toHaveLength(1)
+    expect(cards[0].name).toBe('김철수')
+  })
+  it('drops entries with nothing readable on them', () => {
+    const cards = normalizeExtractedCards(
+      [{ name: '김철수' }, { name: null, phone: null }, { pastoralVisitRequested: false }],
+      TODAY,
+    )
+    // 등록일 alone doesn't count — it's defaulted onto every card, blank ones included.
+    expect(cards.map((c) => c.name)).toEqual(['김철수', ''])
+    expect(cards[1].pastoralVisitRequested).toBe(false)
+  })
+  it('falls back to one blank card when nothing was readable at all', () => {
+    expect(normalizeExtractedCards([], TODAY)).toEqual([blankCardForm(TODAY)])
+    expect(normalizeExtractedCards([{}, { name: '  ' }], TODAY)).toEqual([blankCardForm(TODAY)])
+    expect(normalizeExtractedCards(null, TODAY)).toEqual([blankCardForm(TODAY)])
+    expect(normalizeExtractedCards(undefined, TODAY)).toEqual([blankCardForm(TODAY)])
   })
 })

@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { canViewLoginLog, resolveAdmin, scopeFilter } from "./auth.ts";
-import { GEMINI_URL, buildGeminiBody, parseGeminiCard } from "./gemini.ts";
+import { availableCardModels, buildCardRequest, cardModelChain, parseCardResponse } from "./gemini.ts";
 // Decrypt-side of the weekly R2 backup pipeline (see scripts/backup/). age-encryption is
 // FiloSottile's own pure-JS port of `age` (no native/subprocess dependency, which Deno
 // edge functions can't shell out to anyway); postgres.js's .unsafe() with no parameters
@@ -238,12 +238,15 @@ function validSemesterDates(value: unknown): boolean {
   const [spring,summer,fall]=nums as {start:number;end:number}[];
   return spring.start<=spring.end&&spring.end<summer.start&&summer.start<=summer.end&&summer.end<fall.start&&fall.start<=fall.end;
 }
-// Card-photo-registration (Gemini /api/admin/extract-card) usage for the current
-// Pittsburgh calendar day. Every outbound Gemini request is audited before fetch(), so
-// failed provider responses and network failures count just like successful calls.
+// Card-photo-registration (/api/admin/extract-card) usage for the current Pittsburgh
+// calendar day. Every extraction attempt is audited before the first fetch(), so failed
+// provider responses and network failures count just like successful ones.
 // The allowance is fixed at the Gemini free-tier daily maximum for gemini-2.5-flash
-// (250 requests/day) — not admin-configurable; Gemini's own 429 covers anything beyond.
+// (250 requests/day) — not admin-configurable; the providers' own 429s cover the rest.
 const CARD_SCAN_DAILY_LIMIT=250;
+// How far down the free-model fallback chain one request may walk, and how long any
+// single model gets, so a chain of retries still fits the client's 60s budget.
+const CARD_MODEL_ATTEMPTS=4,CARD_MODEL_TIMEOUT_MS=20_000;
 async function cardScanUsage(sb: SB): Promise<{limit:number;used:number;remaining:number;day:string;resetsAt:number;updatedAt:number}> {
   const limit=CARD_SCAN_DAILY_LIMIT;
   const day=localDate();
@@ -1180,8 +1183,9 @@ Deno.serve(async (req: Request) => {
     }
 
     // 새가족 등록 카드 photo extraction: the admin panel sends a downscaled card photo
-    // (base64 JPEG); Gemini reads the handwriting/checkboxes into structured JSON which
-    // the client normalizes + shows for review — nothing is written to the DB here.
+    // (base64 JPEG); a free vision model reads the handwriting/checkboxes into structured
+    // JSON — one object per card, since a photo can show several — which the client
+    // normalizes + shows for review. Nothing is written to the DB here.
     // Audit logs only size/type, never the extracted PII.
     if(req.method==="POST"&&p==="/api/admin/extract-card") {
       const role=await resolveAdmin(sb,req);
@@ -1193,24 +1197,46 @@ Deno.serve(async (req: Request) => {
       if(image.length>8_000_000) return fail(413,"Image too large — retake with a smaller photo");
       const usage=await cardScanUsage(sb);
       if(usage.used>=usage.limit) return fail(429,"오늘 카드 스캔 한도("+usage.limit+"회)를 모두 사용했습니다");
-      const key=Deno.env.get("GEMINI_API_KEY");
-      if(!key) return fail(500,"GEMINI_API_KEY not configured — set it in Supabase Edge Function secrets");
-      // Record the actual provider call before sending it so every consumed request is
-      // reflected in the live usage counter, even when Gemini returns an error.
+      const keys={google:Deno.env.get("GEMINI_API_KEY")||"",openrouter:Deno.env.get("OPENROUTER_API_KEY")||""};
+      // Handwriting is hard and every model here is on a free tier, so one request may
+      // walk several: a model that is rate-limited, unavailable, or answers with nothing
+      // parseable hands off to the next. Models whose provider key is unset are skipped.
+      const chain=availableCardModels(cardModelChain(Deno.env.get("CARD_MODEL_CHAIN")),keys);
+      if(chain.length===0) return fail(500,"GEMINI_API_KEY not configured — set it in Supabase Edge Function secrets");
+      // Record the attempt before calling out so every consumed try is reflected in the
+      // live usage counter, even when every model in the chain errors. One row per
+      // request (not per model), so the fallbacks don't eat the daily allowance.
       const usageRecorded=await addAudit(sb,"extract-card",xDev,mediaType+" | "+Math.round(image.length*3/4/1024)+"KB | api-call");
       if(!usageRecorded) return fail(500,"Could not record card API usage — retry");
-      const gr=await fetch(GEMINI_URL,{method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":key},body:JSON.stringify(buildGeminiBody(image,mediaType))});
-      if(!gr.ok) {
-        const detail=await gr.text().catch(()=>"");
-        if(gr.status===429) return fail(429,"Gemini quota exceeded — wait a minute and retry");
-        return fail(502,"Gemini error "+gr.status+(detail?": "+detail.slice(0,200):""));
+      let cards:Record<string,unknown>[]|null=null,used=chain[0],lastError="",rateLimited=false;
+      // Capped so a long chain can't outlive the client's 60s budget (4 × 20s worst case).
+      for(const model of chain.slice(0,CARD_MODEL_ATTEMPTS)) {
+        used=model;
+        try {
+          const rq=buildCardRequest(model,image,mediaType,keys[model.provider]);
+          const gr=await fetch(rq.url,{method:"POST",headers:rq.headers,body:JSON.stringify(rq.body),signal:AbortSignal.timeout(CARD_MODEL_TIMEOUT_MS)});
+          if(!gr.ok) {
+            const detail=await gr.text().catch(()=>"");
+            if(gr.status===429) rateLimited=true;
+            lastError=model.label+" "+gr.status+(detail?": "+detail.slice(0,160):"");
+            continue;
+          }
+          cards=parseCardResponse(model,await gr.json().catch(()=>null));
+          if(cards) break;
+          lastError=model.label+": 카드를 읽지 못했습니다";
+        } catch(e) {
+          lastError=model.label+": "+((e as Error)?.message||"request failed");
+        }
       }
-      const card=parseGeminiCard(await gr.json().catch(()=>null));
-      if(!card) return fail(502,"Could not read card fields from the image");
+      // One photo can hold several cards (a stack on the table) — every card read out
+      // of it comes back in `cards`; `card` stays for older cached clients.
+      // Every model rate-limited is a wait-and-retry, not an unreadable photo — say so.
+      if(!cards&&rateLimited) return fail(429,"무료 AI 모델 사용량을 모두 소진했습니다 — 잠시 후 다시 시도해주세요 ("+lastError+")");
+      if(!cards) return fail(502,"Could not read card fields from the image"+(lastError?" ("+lastError+")":""));
       // The audit row above is already committed, so return the new remaining value
       // immediately instead of making the client wait for its next polling interval.
       const publicUsage={limit:usage.limit,remaining:Math.max(0,usage.remaining-1),day:usage.day,resetsAt:usage.resetsAt,updatedAt:Date.now()};
-      return ok({status:"ok",card,usage:publicUsage});
+      return ok({status:"ok",cards,card:cards[0],model:used.label,modelId:used.id,usage:publicUsage});
     }
 
     if(req.method==="POST"&&p==="/api/check-admin") {
