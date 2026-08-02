@@ -823,9 +823,19 @@ Deno.serve(async (req: Request) => {
       const upd: any={updated_at:new Date().toISOString()};
       for(const [k,col] of Object.entries(COLS)){ if(body[k]!==undefined) upd[col]=DATE_COLS.has(col)?(body[k]||null):body[k]; }
       await sb.from("members").update(upd).eq("id",memberId);
-      if(body.name!==undefined&&body.name!==m.name){
-        await sb.from("devices").update({name:body.name}).eq("member_id",memberId);
-        await sb.from("attendance_log").update({name:body.name}).eq("member_id",memberId);
+      // Attendance rows carry the 이름/부서/동산 they were stamped with at check-in, and the
+      // 출석부 filters on those — so a 새가족 who gets assigned a 동산 after their first
+      // Sundays would keep those rows filed under the old (usually empty) 동산 while the
+      // member tab already shows the new one, i.e. the two views disagree. Carry any
+      // identity/placement change onto the member's existing rows, the same propagation
+      // the bulk 동산 transfer and the merge already do.
+      const moved: any={};
+      if(body.name!==undefined&&body.name!==m.name) moved.name=body.name;
+      if(body.group!==undefined&&(body.group||"")!==(m.group_name||"")) moved.group_name=body.group||"";
+      if(body.subgroup!==undefined&&(body.subgroup||"")!==(m.subgroup||"")) moved.subgroup=body.subgroup||"";
+      if(Object.keys(moved).length){
+        await sb.from("devices").update(moved).eq("member_id",memberId);
+        await sb.from("attendance_log").update(moved).eq("member_id",memberId);
       }
       await addAudit(sb,"member-edit",xDev,(body.name||m.name)+" ("+memberId+")");
       return ok({status:"ok"});

@@ -69,15 +69,41 @@ count_query() {
   "
 }
 
-echo "== 4/6 Comparing row counts (source vs. restored) =="
-count_query > "$WORKDIR/counts-source.txt"
+echo "== 4/6 Comparing row counts (backup file vs. restored) =="
 count_query "$VERIFY_DB_URL" > "$WORKDIR/counts-restored.txt"
-if ! diff -u "$WORKDIR/counts-source.txt" "$WORKDIR/counts-restored.txt"; then
-  echo "::error::Row counts differ between source and restored backup — see diff above."
+# Counted from the dump itself, not from a second live query against production. What
+# this gate has to prove is that the file about to be encrypted restores completely —
+# and production keeps taking check-ins while the job runs, so a live-vs-restored diff
+# fails whenever a row lands between the dump and the comparison (exactly how run #21
+# failed: one attendance_log + one audit_log row arrived eight seconds after the dump,
+# and the identical re-run two minutes later passed). --column-inserts writes one
+# `INSERT INTO public.<table> …` statement per row, so counting them is an exact count
+# of what the backup carries; tables the dump has no rows for count 0.
+while IFS='|' read -r tbl _; do
+  rows=$(grep -cE "^INSERT INTO public\.\"?${tbl}\"? " "$WORKDIR/db.sql" || true)
+  printf '%s|%s\n' "$tbl" "$rows"
+done < "$WORKDIR/counts-restored.txt" > "$WORKDIR/counts-dump.txt"
+if ! diff -u "$WORKDIR/counts-dump.txt" "$WORKDIR/counts-restored.txt"; then
+  echo "::error::Row counts differ between the backup file and the restored copy — see diff above."
   exit 1
 fi
-echo "Row counts match:"
-cat "$WORKDIR/counts-source.txt"
+echo "Every row in the backup restored:"
+cat "$WORKDIR/counts-restored.txt"
+
+# Row-level drift against live production is expected (writes land during the run) and
+# is reported, not failed. An entire populated table missing from the dump is a
+# different thing — that's a lost table, not drift — so that still fails the run.
+count_query > "$WORKDIR/counts-source.txt"
+if ! diff -u "$WORKDIR/counts-source.txt" "$WORKDIR/counts-dump.txt" > "$WORKDIR/drift.diff"; then
+  echo "::notice::Production moved on while the backup ran — the dump is a consistent snapshot from before those writes."
+  cat "$WORKDIR/drift.diff"
+fi
+empty_in_dump=$(join -t'|' "$WORKDIR/counts-source.txt" "$WORKDIR/counts-dump.txt" \
+  | awk -F'|' '$2 > 0 && $3 == 0 {print $1}')
+if [ -n "$empty_in_dump" ]; then
+  echo "::error::These tables have rows in production but none in the dump: $(echo "$empty_in_dump" | tr '\n' ' ')"
+  exit 1
+fi
 
 echo "== 5/6 Encrypting =="
 tar czf "$WORKDIR/schema-source.tar.gz" -C supabase migrations functions

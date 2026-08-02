@@ -30,6 +30,14 @@ Deno.test("buildGeminiBody: image part first, prompt second, structured-output c
   assertEquals(CARDS_SCHEMA.items, CARD_SCHEMA);
 });
 
+Deno.test("심방 요청: an unmarked O/X box must read as null, never false", () => {
+  const visit = CARD_SCHEMA.properties.pastoralVisitRequested as { description?: string };
+  assertEquals(visit.description, "O 표시=true, X 표시=false, 아무 표시 없음=null");
+  // The same rule in the prompt, so the freeform (OpenRouter) path follows it too.
+  assertEquals(CARD_PROMPT.includes("표시가 없으면 반드시 null"), true);
+  assertEquals(CARD_PROMPT_FREEFORM.includes("표시가 없으면 반드시 null"), true);
+});
+
 Deno.test("CARD_SCHEMA: every property is nullable and required (null = illegible, not omitted)", () => {
   const props = Object.keys(CARD_SCHEMA.properties);
   assertEquals(props.length, 11);
