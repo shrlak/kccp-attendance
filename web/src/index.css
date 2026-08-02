@@ -89,6 +89,7 @@
 .fx-rise { animation: kccp-rise .5s var(--ease-out-soft) both; }
 .fx-fade { animation: kccp-fade .22s ease-out both; }
 .fx-pop { animation: kccp-pop .34s var(--ease-spring) both; }       /* dialogs */
+.fx-pop-fast { animation: kccp-pop .14s var(--ease-out-soft) both; } /* kiosk result screen */
 .fx-slide-up { animation: kccp-slide-up .36s var(--ease-spring) both; } /* toasts / sheets */
 .fx-draw { stroke-dasharray: 56; stroke-dashoffset: 56; animation: kccp-draw .45s .15s ease-out forwards; }
 .fx-countdown { transform-origin: left; animation: kccp-countdown linear forwards; }

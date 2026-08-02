@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRoster } from '../admin/useRoster'
@@ -18,13 +18,37 @@ import { KioskGuestDialog } from './KioskGuestDialog'
 import { KioskNewMemberDialog } from './KioskNewMemberDialog'
 import { ThemeLangToggle } from '../../components/ui/ThemeLangToggle'
 import {
-  Search, Check, Clock, ClipboardList, RotateCcw, AlertTriangle,
+  Search, Check, ClipboardList, RotateCcw, AlertTriangle,
   Users, DoorOpen, UserPlus, Sparkles,
 } from '../../components/ui/Icon'
 import { KccpMark } from '../checkin/KccpMark'
 
 const TILE = 'border-border bg-surface text-text shadow-[var(--shadow-sm)] hover:border-primary/40 hover:bg-surface-alt'
 const DONE_TILE = 'border-primary bg-primary text-white shadow-[0_6px_18px_color-mix(in_srgb,var(--primary)_30%,transparent)]'
+
+// Feedback overlay timing. 출석 완료 paints on the tap itself — optimistically, before the
+// network answers — and clears on a short fixed hold, so a line of people can tap straight
+// through instead of each waiting out a round-trip. Failures hold far longer: they're rare
+// and the operator actually has to read them.
+const HOLD_MS = 600
+const ERROR_HOLD_MS = 3500
+
+// Module-level and memoized, which matters at kiosk scale: declared inside KioskView it
+// would be a new component type on every render, so each overlay show/hide or 15s roster
+// poll tore down and rebuilt all ~200 tile buttons. Now only the tiles whose own `done`
+// actually changed re-render, and the tapped one repaints on the next frame.
+const Tile = memo(function Tile({ m, done, onTap }: { m: Member; done: boolean; onTap: (m: Member) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onTap(m)}
+      className={'flex min-h-16 items-center justify-center gap-1.5 rounded-2xl border px-3 py-3 text-sm font-semibold transition-[background-color,border-color,transform,box-shadow] duration-200 [transition-timing-function:var(--ease-out-soft)] active:scale-[0.94] ' + (done ? DONE_TILE : TILE)}
+    >
+      {done && <Check className="size-4 shrink-0" strokeWidth={2.5} aria-hidden />}
+      {m.name}
+    </button>
+  )
+})
 
 // Full-screen kiosk for touchscreen attendance (Phase 3). Runs on an already-verified
 // admin device, so taps go through the hardened member-checkin endpoint. Auto-refreshes
@@ -38,6 +62,13 @@ export function KioskView({ onExit }: { onExit: () => void }) {
   const [overlay, setOverlay] = useState<{ tone: OverlayTone; name: string; detail?: string } | null>(null)
   const [dialog, setDialog] = useState<'guest' | 'newMember' | null>(null)
   const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Optimistic tile state: memberId → present?, laid over the roster until the refetch
+  // confirms it. The tile flips on the tap instead of a round-trip later, which is what
+  // makes the short overlay hold safe — the screen can go away before the server answers
+  // and the grid still shows the right thing. `pending` holds the same member ids in a
+  // ref, so a second tap is caught even before the state re-render lands.
+  const [optimistic, setOptimistic] = useState<Record<string, boolean>>({})
+  const pending = useRef(new Set<string>())
 
   // Live cross-device sync: check-ins/undos made on any other kiosk or in the admin
   // panel arrive as broadcast pings; useRoster's own poll is the missed-ping fallback.
@@ -49,53 +80,77 @@ export function KioskView({ onExit }: { onExit: () => void }) {
   const members = data?.members ?? []
   const log = data?.log ?? []
   const present = presentNamesToday(log, today)
-  const count = attendanceCount(log, today)
+  const isPresent = (m: Member) => optimistic[m.id] ?? present.has(m.name)
+  // Header count follows the optimistic tiles: +1 for a member the log doesn't have yet,
+  // −1 for one whose undo hasn't synced. Only in-flight taps contribute.
+  const count = members.reduce((n, m) => {
+    const o = optimistic[m.id]
+    if (o === undefined || o === present.has(m.name)) return n
+    return n + (o ? 1 : -1)
+  }, attendanceCount(log, today))
   // 이주/한국 귀국 members whose status covers today never show as tiles.
   const visible = filterByName(members.filter((m) => !hiddenByStatus(m, today)), search)
   const cols = kioskColumns(visible)
   const hasAnyResult = cols.depts.some((d) => d.total > 0) || cols.others.length > 0
 
+  // Show a result screen and arm its own dismissal. Replaces whatever is on screen, so
+  // the next tap never waits for the previous person's overlay to time out.
+  function show(tone: OverlayTone, name: string, detail?: string) {
+    if (dismissTimer.current) clearTimeout(dismissTimer.current)
+    setOverlay({ tone, name, detail })
+    dismissTimer.current = setTimeout(() => setOverlay(null), tone === 'error' ? ERROR_HOLD_MS : HOLD_MS)
+  }
+
+  // Drop a member's optimistic override — either the roster has caught up with it or the
+  // mutation failed and the tile should fall back to what the log actually says.
+  function settle(id: string) {
+    pending.current.delete(id)
+    setOptimistic((prev) => {
+      if (!(id in prev)) return prev
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
+  }
+
   // Tiles toggle: tapping an unchecked member checks them in; tapping their green
   // (already checked-in) tile undoes today's attendance entry.
   async function tap(m: Member) {
-    if (dismissTimer.current) clearTimeout(dismissTimer.current)
+    // A tap whose sync hasn't landed yet is ignored: the tile is already showing the
+    // optimistic result and there's no log row id to undo with, so a second tap could
+    // only re-send the same check-in.
+    if (pending.current.has(m.id)) return
     const entry = present.has(m.name) ? todayEntryFor(log, today, m) : undefined
-    setOverlay({ tone: 'loading', name: m.name })
-    let hold = 1000
+    const undoing = entry?.id != null
+    pending.current.add(m.id)
+    setOptimistic((prev) => ({ ...prev, [m.id]: !undoing }))
+    // Paint the result now, ahead of the request — the tap itself is the confirmation.
+    show(undoing ? 'undone' : 'ok', m.name)
     try {
       if (entry?.id != null) {
         await removeAttendance(entry.id)
-        setOverlay({ tone: 'undone', name: m.name })
       } else {
         const res = await memberCheckin(m.id)
-        setOverlay(
-          res.status === 'already'
-            ? { tone: 'already', name: m.name }
-            : { tone: 'ok', name: m.name },
-        )
+        // Someone else got them first (a stale roster, not a failure). Correct the screen
+        // only while it's still this member's — a late amber pop-up would just be noise.
+        if (res.status === 'already') {
+          setOverlay((cur) => (cur?.tone === 'ok' && cur.name === m.name ? { ...cur, tone: 'already' } : cur))
+        }
       }
-      void refreshRoster(qc)
+      void refreshRoster(qc).finally(() => settle(m.id))
     } catch (e) {
-      // A real failure (auth/network) — show it as an error, not a misleading "already".
-      setOverlay({ tone: 'error', name: m.name, detail: (e as Error)?.message })
-      hold = 3500 // hold longer so the operator can read the failure
+      // A real failure (auth/network): roll the tile back and say so, however long after
+      // the tap it lands — the operator has to know this person is not checked in.
+      settle(m.id)
+      show('error', m.name, (e as Error)?.message)
     }
-    dismissTimer.current = setTimeout(() => setOverlay(null), hold)
   }
 
-  function Tile({ m }: { m: Member }) {
-    const done = present.has(m.name)
-    return (
-      <button
-        type="button"
-        onClick={() => void tap(m)}
-        className={'flex min-h-16 items-center justify-center gap-1.5 rounded-2xl border px-3 py-3 text-sm font-semibold transition-[background-color,border-color,transform,box-shadow] duration-200 [transition-timing-function:var(--ease-out-soft)] active:scale-[0.94] ' + (done ? DONE_TILE : TILE)}
-      >
-        {done && <Check className="size-4 shrink-0" strokeWidth={2.5} aria-hidden />}
-        {m.name}
-      </button>
-    )
-  }
+  // A stable callback so <Tile> can be memoized: `tap` itself is a new function every
+  // render (it closes over the log), which would defeat the memo on all of them.
+  const tapRef = useRef(tap)
+  useEffect(() => { tapRef.current = tap })
+  const onTap = useCallback((m: Member) => { void tapRef.current(m) }, [])
 
   return (
     <div className="fixed inset-0 z-[999] flex flex-col bg-canvas">
@@ -183,7 +238,7 @@ export function KioskView({ onExit }: { onExit: () => void }) {
                       {dept.columns.map((part, i) => (
                         <div key={`${dept.key}-${i}`} className="flex flex-col gap-2">
                           {part.length ? (
-                            part.map((m) => <Tile key={m.id} m={m} />)
+                            part.map((m) => <Tile key={m.id} m={m} done={isPresent(m)} onTap={onTap} />)
                           ) : (
                             <div className="py-3 text-center text-xs text-subtle">—</div>
                           )}
@@ -201,7 +256,7 @@ export function KioskView({ onExit }: { onExit: () => void }) {
                 </div>
                 <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-6">
                   {cols.others.map((m) => (
-                    <Tile key={m.id} m={m} />
+                    <Tile key={m.id} m={m} done={isPresent(m)} onTap={onTap} />
                   ))}
                 </div>
               </>
@@ -238,11 +293,12 @@ export function KioskView({ onExit }: { onExit: () => void }) {
   )
 }
 
-type OverlayTone = 'loading' | 'ok' | 'already' | 'undone' | 'error'
+type OverlayTone = 'ok' | 'already' | 'undone' | 'error'
 
 // Full-screen feedback overlay: green check for success, amber for already, blue for an
 // undone check-in, red for a real failure (with the underlying reason so a broken kiosk
-// is diagnosable on-screen).
+// is diagnosable on-screen). There is no pending state — the tap paints its result
+// straight away and only a failure ever changes it.
 function SuccessOverlay({ tone, name, detail }: { tone: OverlayTone; name: string; detail?: string }) {
   const { t } = useTranslation()
   const color =
@@ -254,30 +310,31 @@ function SuccessOverlay({ tone, name, detail }: { tone: OverlayTone; name: strin
           ? 'var(--danger)'
           : 'var(--success)'
   const OverlayIcon =
-    tone === 'loading' ? Clock : tone === 'already' ? ClipboardList : tone === 'undone' ? RotateCcw : tone === 'error' ? AlertTriangle : Check
+    tone === 'already' ? ClipboardList : tone === 'undone' ? RotateCcw : tone === 'error' ? AlertTriangle : Check
   return (
     <div
       role="status"
       aria-live="polite"
-      className="fixed inset-0 z-[1002] flex flex-col items-center justify-center bg-canvas/[0.96] px-6 text-center backdrop-blur-xl"
+      // Opaque rather than blurred: at 97% the blur is invisible anyway, and a
+      // full-screen backdrop-filter is the one thing that can cost a kiosk tablet
+      // whole frames on the way in.
+      className="fixed inset-0 z-[1002] flex flex-col items-center justify-center bg-canvas/[0.97] px-6 text-center"
     >
-      <div className="fx-pop flex flex-col items-center">
+      <div className="fx-pop-fast flex flex-col items-center">
         <div
           className="mb-6 grid size-24 place-items-center rounded-full border-2 shadow-[var(--shadow-lg)]"
           style={{ background: `color-mix(in oklab, ${color} 16%, transparent)`, borderColor: color, color }}
         >
-          <OverlayIcon className={'size-11' + (tone === 'loading' ? ' fx-pulse' : '')} strokeWidth={2.25} aria-hidden />
+          <OverlayIcon className="size-11" strokeWidth={2.25} aria-hidden />
         </div>
         <div className="font-display text-3xl font-bold tracking-tight" style={{ color }}>
-          {tone === 'loading'
-            ? t('kiosk.loading')
-            : tone === 'already'
-              ? t('kiosk.already')
-              : tone === 'undone'
-                ? t('kiosk.undone')
-                : tone === 'error'
-                  ? t('kiosk.fail')
-                  : t('kiosk.success')}
+          {tone === 'already'
+            ? t('kiosk.already')
+            : tone === 'undone'
+              ? t('kiosk.undone')
+              : tone === 'error'
+                ? t('kiosk.fail')
+                : t('kiosk.success')}
         </div>
         <div className="mt-2 text-lg font-semibold text-text">{name}</div>
         {tone === 'error' && detail && <div className="mt-3 max-w-xs text-xs text-muted">{detail}</div>}
