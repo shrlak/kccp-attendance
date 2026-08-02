@@ -5,7 +5,9 @@ import { useRoster } from './useRoster'
 import { easternNow } from '../../lib/checkinWindow'
 import { groupsOf, NO_FILTER, type Filter } from './filters'
 import {
-  currentNewFamily,
+  visibleNewFamily,
+  semesterBounds,
+  semesterKey,
   matchesEduFilter,
   eduDongsansOf,
   filterByEduDongsan,
@@ -72,8 +74,17 @@ export function AdminNewFamilyEdu() {
 
   const today = easternNow().date
   const scopedMembers = filterByEduDongsan(data.members, filter)
-  const currentSemester = currentNewFamily(scopedMembers, today, cfg?.semesterDates)
-  const visible = eduFilter === 'all' ? currentSemester : currentSemester.filter((m) => matchesEduFilter(m, eduFilter))
+  // 이번 학기 새가족 + 아직 교육이 끝나지 않아 이전 학기에서 넘어온 새가족 — 교육을 마쳐
+  // 목록에서 내려가려면 여기서 체크할 수 있어야 하므로 새가족 탭과 같은 기준으로 뽑는다.
+  const inScope = visibleNewFamily(scopedMembers, today, cfg?.semesterDates)
+  const visible = eduFilter === 'all' ? inScope : inScope.filter((m) => matchesEduFilter(m, eduFilter))
+  const currentKey = semesterKey(today, cfg?.semesterDates)
+  // 이전 학기에서 넘어온 카드에는 등록 학기를 달아준다 (이번 학기면 null).
+  const termLabel = (m: Member): string | null => {
+    if (!m.registration_date || semesterKey(m.registration_date, cfg?.semesterDates) === currentKey) return null
+    const { year, season } = semesterBounds(m.registration_date, cfg?.semesterDates)
+    return `${year} ${t(`admin.newfamily.season.${season}`)}`
+  }
   const readOnly = data.role === 'pastor'
   const summerMode = !!cfg?.summerMode
 
@@ -112,7 +123,7 @@ export function AdminNewFamilyEdu() {
         <div className="fx-rise grid place-items-center rounded-2xl border border-dashed border-border py-14 text-center">
           <div className="grid size-14 place-items-center rounded-full bg-fill text-subtle"><GraduationCap className="size-6" aria-hidden /></div>
           <p className="mt-4 text-sm font-semibold text-muted">
-            {t(currentSemester.length === 0 ? 'admin.newfamily.empty' : 'admin.newfamily.noFilterMatch')}
+            {t(inScope.length === 0 ? 'admin.newfamily.empty' : 'admin.newfamily.noFilterMatch')}
           </p>
         </div>
       ) : (
@@ -122,6 +133,7 @@ export function AdminNewFamilyEdu() {
               key={m.id}
               member={m}
               week={newFamilyWeek(m.registration_date, today)}
+              term={termLabel(m)}
               readOnly={readOnly}
               summerMode={summerMode}
               dongsanNames={eduDongsanNames}
@@ -209,6 +221,7 @@ function EduDongsanFilter({ members, value, onChange }: { members: Member[]; val
 function EduCard({
   member,
   week,
+  term,
   readOnly,
   summerMode,
   dongsanNames,
@@ -216,6 +229,7 @@ function EduCard({
 }: {
   member: Member
   week: NewFamilyWeek | null
+  term: string | null // 이전 학기에서 넘어온 새가족의 등록 학기 (이번 학기면 null)
   readOnly: boolean
   summerMode: boolean
   dongsanNames: DongsanNames | undefined
@@ -267,6 +281,13 @@ function EduCard({
         {/* 이번 주일에 등록한 새가족인지, 그 전 주에 등록했는지 — 교육 진도와 함께 보이도록. */}
         {(week === 'thisWeek' || week === 'lastWeek') && (
           <div className="mt-1.5"><NewFamilyWeekChip week={week} /></div>
+        )}
+        {/* 이전 학기에 등록했는데 교육이 남아 넘어온 새가족 — 어느 학기 사람인지 표시. */}
+        {term && (
+          <div className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-fill px-2 py-0.5 text-[10px] font-semibold text-muted">
+            <GraduationCap className="size-3" aria-hidden />
+            {term}
+          </div>
         )}
       </button>
       <div className="mt-2.5 flex flex-wrap gap-x-3 gap-y-1.5">
