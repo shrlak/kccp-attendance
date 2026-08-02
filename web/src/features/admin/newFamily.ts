@@ -200,16 +200,24 @@ export function filterByEduDongsan(members: Member[], f: Filter): Member[] {
   )
 }
 
-// 새가족 currently in scope: flagged is_new_member and either registered in the current
-// semester or missing a registration date (kept visible). Newest registration first.
-export function currentNewFamily(
+// 새가족 that belong on the 새가족 · 새가족 교육 탭. This term's registrations always show,
+// as does anyone missing a registration date. Someone who registered in an *earlier* term
+// keeps showing until they finish BOTH weeks of 새가족 교육 or the 새가족 표시 comes off —
+// a newcomer mid-education doesn't stop being one just because the semester rolled over.
+// Newest registration first.
+export function visibleNewFamily(
   members: Member[],
   today: string,
   semesterDates?: SemesterDates | null,
 ): Member[] {
   const { start, end } = semesterBounds(today, semesterDates)
   return members
-    .filter((m) => m.is_new_member && (!m.registration_date || (m.registration_date >= start && m.registration_date <= end)))
+    .filter((m) => {
+      if (!m.is_new_member) return false
+      if (!m.registration_date) return true
+      if (m.registration_date >= start && m.registration_date <= end) return true
+      return isActiveNewFamily(m)
+    })
     .sort(
       (a, b) =>
         (b.registration_date || '').localeCompare(a.registration_date || '') || a.name.localeCompare(b.name),
@@ -221,21 +229,57 @@ export interface DateGroup {
   members: Member[]
 }
 
-// Current-semester 새가족 split by registration date, newest date first; members missing a
-// registration date form a trailing group. Relies on currentNewFamily's ordering.
-export function newFamilyByDate(
-  members: Member[],
-  today: string,
-  semesterDates?: SemesterDates | null,
-): DateGroup[] {
+// Split an already-ordered 새가족 list into runs of equal 등록일, preserving that order —
+// so a newest-first list yields newest-date-first groups with the undated ones (which sort
+// last) trailing.
+export function groupByDate(list: Member[]): DateGroup[] {
   const out: DateGroup[] = []
-  for (const m of currentNewFamily(members, today, semesterDates)) {
+  for (const m of list) {
     const date = m.registration_date || null
     const last = out[out.length - 1]
     if (last && last.date === date) last.members.push(m)
     else out.push({ date, members: [m] })
   }
   return out
+}
+
+export interface SemesterGroup {
+  key: string // "2026-spring"
+  year: number
+  season: Season
+  start: string // ISO start of the term — the sort key
+  current: boolean // the term containing `today`
+  total: number
+  dates: DateGroup[]
+}
+
+// The 새가족 탭's list, separated by the 학기 each member registered in: the current term
+// first, then earlier terms (newest first) holding only the 새가족 carried over by
+// visibleNewFamily. Undated registrations sit in the current term, where they've always
+// been shown.
+export function newFamilyBySemester(
+  members: Member[],
+  today: string,
+  semesterDates?: SemesterDates | null,
+): SemesterGroup[] {
+  const currentKey = semesterKey(today, semesterDates)
+  const byKey = new Map<string, Member[]>()
+  for (const m of visibleNewFamily(members, today, semesterDates)) {
+    const key = m.registration_date ? semesterKey(m.registration_date, semesterDates) : currentKey
+    const list = byKey.get(key) ?? []
+    list.push(m)
+    byKey.set(key, list)
+  }
+  return [...byKey.entries()]
+    .map(([key, list]) => {
+      // Bounds of the term itself, not of today — read them off any of its members.
+      const anchor = list.find((m) => m.registration_date)?.registration_date ?? today
+      const { year, season, start } = semesterBounds(anchor, semesterDates)
+      return { key, year, season, start, current: key === currentKey, total: list.length, dates: groupByDate(list) }
+    })
+    // Current term pinned first (a mistyped future 등록일 must not outrank it), then the
+    // carried-over terms newest first.
+    .sort((a, b) => Number(b.current) - Number(a.current) || b.start.localeCompare(a.start))
 }
 
 // 새가족 registered exactly on `date` — the set the 등록 카드 JPG export ships

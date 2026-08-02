@@ -5,8 +5,9 @@ import {
   semesterSundays,
   transitionBounds,
   transitionSundays,
-  currentNewFamily,
-  newFamilyByDate,
+  visibleNewFamily,
+  groupByDate,
+  newFamilyBySemester,
   monthlyRegistrations,
   registeredOnDate,
   isActiveNewFamily,
@@ -104,49 +105,92 @@ describe('transitionSundays', () => {
   })
 })
 
-describe('currentNewFamily', () => {
+// Education state on top of the base member factory — an earlier term's 새가족 only stays
+// listed while both weeks aren't done.
+const edu = (base: Member, week1: boolean, week2: boolean): Member => ({
+  ...base, new_member_edu_week1: week1, new_member_edu_week2: week2,
+})
+
+describe('visibleNewFamily', () => {
   const members = [
-    m('cur', true, '2026-06-01'), // summer 2026 — in scope when today is summer
-    m('old', true, '2026-02-01'), // spring 2026 — out of scope
+    m('cur', true, '2026-06-01'), // summer 2026 — this term
     m('noreg', true, null), // no reg date — kept visible
     m('notNew', false, '2026-06-02'), // not flagged — excluded
+    edu(m('oldUnfinished', true, '2026-02-01'), true, false), // spring, 1주차만 — carried over
+    edu(m('oldDone', true, '2026-02-02'), true, true), // spring, 교육 완료 — dropped
+    m('oldNoEdu', true, '2026-02-03'), // spring, 아무것도 안 들음 — carried over
   ]
-  it('keeps current-semester new members and undated ones, drops the rest', () => {
-    expect(currentNewFamily(members, '2026-06-08').map((x) => x.id).sort()).toEqual(['cur', 'noreg'])
+  it('keeps this term, undated members, and earlier terms still short of both education weeks', () => {
+    expect(visibleNewFamily(members, '2026-06-08').map((x) => x.id).sort())
+      .toEqual(['cur', 'noreg', 'oldNoEdu', 'oldUnfinished'])
   })
-  it('uses both configured start and end dates when filtering', () => {
+  it('drops an earlier term member once the 새가족 표시 comes off, education or not', () => {
+    const dropped = { ...edu(m('gone', true, '2026-02-01'), false, false), is_new_member: false }
+    expect(visibleNewFamily([dropped], '2026-06-08')).toEqual([])
+  })
+  it('keeps this term regardless of education progress', () => {
+    const done = edu(m('curDone', true, '2026-06-01'), true, true)
+    expect(visibleNewFamily([done], '2026-06-08').map((x) => x.id)).toEqual(['curDone'])
+  })
+  it('uses both configured start and end dates for the current-term window', () => {
     const custom: SemesterDates = {
       spring: { start: '01-01', end: '04-30' },
       summer: { start: '06-01', end: '07-31' },
       fall: { start: '09-01', end: '12-31' },
     }
     const candidates = [
-      m('before', true, '2026-05-31'),
+      edu(m('before', true, '2026-05-31'), true, true),
       m('inside', true, '2026-06-01'),
-      m('after', true, '2026-08-01'),
+      edu(m('after', true, '2026-08-01'), true, true),
     ]
-    expect(currentNewFamily(candidates, '2026-07-01', custom).map((x) => x.id)).toEqual(['inside'])
+    expect(visibleNewFamily(candidates, '2026-07-01', custom).map((x) => x.id)).toEqual(['inside'])
   })
 })
 
-describe('newFamilyByDate', () => {
-  it('splits current-semester new members by registration date, newest first, undated last', () => {
-    const members = [
-      m('b1', true, '2026-05-31'),
-      m('a1', true, '2026-06-07'),
-      m('a2', true, '2026-06-07'),
-      m('none', true, null),
-      m('old', true, '2026-02-01'), // spring — out of scope
-      m('notNew', false, '2026-06-07'), // not flagged — excluded
-    ]
-    const groups = newFamilyByDate(members, '2026-06-08')
+describe('groupByDate', () => {
+  it('splits an ordered list into runs of the same 등록일, undated trailing', () => {
+    const list = [m('a1', true, '2026-06-07'), m('a2', true, '2026-06-07'), m('b1', true, '2026-05-31'), m('none', true, null)]
+    const groups = groupByDate(list)
     expect(groups.map((g) => g.date)).toEqual(['2026-06-07', '2026-05-31', null])
     expect(groups[0].members.map((x) => x.id)).toEqual(['a1', 'a2'])
-    expect(groups[1].members.map((x) => x.id)).toEqual(['b1'])
     expect(groups[2].members.map((x) => x.id)).toEqual(['none'])
   })
-  it('returns no groups when nothing is in scope', () => {
-    expect(newFamilyByDate([m('old', true, '2026-02-01')], '2026-06-08')).toEqual([])
+  it('returns no groups for an empty list', () => {
+    expect(groupByDate([])).toEqual([])
+  })
+})
+
+describe('newFamilyBySemester', () => {
+  it('separates carried-over terms from the current one, current first then newest term', () => {
+    const members = [
+      m('b1', true, '2026-05-31'), // summer 2026 (current)
+      m('a1', true, '2026-06-07'),
+      m('a2', true, '2026-06-07'),
+      m('none', true, null), // undated — sits in the current term
+      edu(m('spring', true, '2026-02-01'), false, true), // spring 2026 — carried over
+      edu(m('lastFall', true, '2025-09-01'), true, false), // fall 2025 — carried over
+      edu(m('springDone', true, '2026-02-02'), true, true), // 교육 완료 — gone
+      m('notNew', false, '2026-06-07'),
+    ]
+    const groups = newFamilyBySemester(members, '2026-06-08')
+
+    expect(groups.map((g) => g.key)).toEqual(['2026-summer', '2026-spring', '2025-fall'])
+    expect(groups.map((g) => g.current)).toEqual([true, false, false])
+    expect(groups[0].total).toBe(4)
+    expect(groups[0].dates.map((g) => g.date)).toEqual(['2026-06-07', '2026-05-31', null])
+    expect(groups[0].dates[0].members.map((x) => x.id)).toEqual(['a1', 'a2'])
+    expect(groups[1].dates[0].members.map((x) => x.id)).toEqual(['spring'])
+    expect(groups[2].dates[0].members.map((x) => x.id)).toEqual(['lastFall'])
+  })
+  it('keeps the current term first even when a registration date lands in a later one', () => {
+    const groups = newFamilyBySemester(
+      [m('typo', true, '2026-11-30'), m('now', true, '2026-06-01')],
+      '2026-06-08',
+    )
+    expect(groups.map((g) => g.key)).toEqual(['2026-summer', '2026-fall'])
+  })
+  it('returns no groups when nobody is in scope', () => {
+    expect(newFamilyBySemester([edu(m('done', true, '2026-02-01'), true, true)], '2026-06-08')).toEqual([])
   })
 })
 

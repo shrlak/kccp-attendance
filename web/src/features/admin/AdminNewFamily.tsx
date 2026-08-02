@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useRoster } from './useRoster'
 import { easternNow } from '../../lib/checkinWindow'
 import { filterMembers, NO_FILTER, type Filter } from './filters'
-import { semesterKey, newFamilyByDate, monthlyRegistrations, newFamilyWeek } from './newFamily'
+import { semesterKey, newFamilyBySemester, monthlyRegistrations, newFamilyWeek } from './newFamily'
 import { NewFamilyWeekChip } from './NewFamilyWeekChip'
 import { copyNewFamilyCards, saveNewFamilyCards } from './newFamilyCardImage'
 import { newFamilySheets, NEW_FAMILY_HEADER } from './exports'
@@ -16,7 +16,7 @@ import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
 import { Tag } from '../../components/ui/Tag'
 import { useToast } from '../../components/ui/Toast'
-import { ScanLine, Download, Search, HandHeart, Heart, Calendar, AlertTriangle } from '../../components/ui/Icon'
+import { ScanLine, Download, Search, HandHeart, Heart, Calendar, GraduationCap, AlertTriangle } from '../../components/ui/Icon'
 import { EditModal, AttendanceModal } from './MemberDialogs'
 import { CardScanDialog } from './CardScanDialog'
 
@@ -49,9 +49,11 @@ export function AdminNewFamily() {
 
   const today = easternNow().date
   const scopedMembers = filterMembers(data.members, filter)
-  const dateGroups = newFamilyByDate(scopedMembers, today, cfg?.semesterDates)
-  const allNewFamily = dateGroups.flatMap((g) => g.members)
+  // 학기별 섹션: 이번 학기 + 아직 새가족 교육이 끝나지 않아 넘어온 이전 학기들.
+  const semesters = newFamilyBySemester(scopedMembers, today, cfg?.semesterDates)
+  const allNewFamily = semesters.flatMap((s) => s.dates.flatMap((g) => g.members))
   const total = allNewFamily.length
+  const carriedOver = semesters.filter((s) => !s.current).reduce((n, s) => n + s.total, 0)
   const months = monthlyRegistrations(scopedMembers)
   // 이번 주일 등록 vs 지난주 등록 — the two cohorts the 새가족팀 works with on a Sunday.
   const thisWeekCount = allNewFamily.filter((m) => newFamilyWeek(m.registration_date, today) === 'thisWeek').length
@@ -74,6 +76,12 @@ export function AdminNewFamily() {
         </span>
         {thisWeekCount > 0 && <NewFamilyWeekChip week="thisWeek" count={thisWeekCount} />}
         {lastWeekCount > 0 && <NewFamilyWeekChip week="lastWeek" count={lastWeekCount} />}
+        {carriedOver > 0 && (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-fill px-3 py-1 text-xs font-semibold text-muted">
+            <GraduationCap className="size-3.5" aria-hidden />
+            {t('admin.newfamily.carriedOverCount', { n: carriedOver })}
+          </span>
+        )}
         <div className="ml-auto flex gap-2">
           {!readOnly && (
             <Button variant="secondary" size="sm" onClick={() => setScanOpen(true)}>
@@ -87,34 +95,56 @@ export function AdminNewFamily() {
           </Button>
         </div>
       </div>
-      {/* Legend for the card badge below */}
-      <p className="mb-3 text-xs text-subtle">{t('admin.newfamily.legend')}</p>
+      {/* Legend for the card badge below + why an earlier term's 새가족 are still listed */}
+      <p className="mb-3 text-xs text-subtle">
+        {t('admin.newfamily.legend')} · {t('admin.newfamily.carryOverLegend')}
+      </p>
 
-      {dateGroups.length === 0 ? (
+      {semesters.length === 0 ? (
         <div className="fx-rise grid place-items-center rounded-2xl border border-dashed border-border py-14 text-center">
           <div className="grid size-14 place-items-center rounded-full bg-fill text-subtle"><Heart className="size-6" aria-hidden /></div>
           <p className="mt-4 text-sm font-semibold text-muted">{t('admin.newfamily.empty')}</p>
         </div>
       ) : (
-        <div className="flex flex-col gap-6">
-          {dateGroups.map((g) => (
-            <div key={g.date ?? 'no-date'} className="fx-rise">
-              <div className="mb-2.5 flex items-center gap-2 border-b border-separator pb-2">
-                {g.date ? (
-                  <span className="inline-flex items-center gap-1.5 text-sm font-semibold tabular-nums text-text"><Calendar className="size-4 text-subtle" aria-hidden />{g.date}</span>
-                ) : (
-                  <span className="text-sm font-semibold text-warning">{t('admin.newfamily.noRegDate')}</span>
-                )}
-                <span className="rounded-full bg-fill px-2 py-0.5 text-[11px] font-semibold tabular-nums text-muted">{g.members.length}</span>
-                {/* 이번 주일 / 지난주에 등록한 그룹만 표시 — 그 이전 등록일은 날짜만으로 충분. */}
-                <NewFamilyWeekChip week={newFamilyWeek(g.date, today)} />
-              </div>
-              <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
-                {g.members.map((m) => (
-                  <NewFamilyCard key={m.id} member={m} onOpen={() => setEditing(m)} />
+        <div className="flex flex-col gap-8">
+          {semesters.map((s) => (
+            // 학기 이름을 붙인 랜드마크 — 이번 학기 섹션은 머리글이 없으므로 (위쪽 학기
+            // 칩이 대신한다) 스크린리더에는 이 이름표가 유일한 구분점이다.
+            <section key={s.key} aria-label={`${s.year} ${t(`admin.newfamily.season.${s.season}`)}`}>
+              {/* 이번 학기는 위쪽 학기 칩이 이미 이름표 역할을 하므로 머리글 없이 그대로 —
+                  넘어온 이전 학기만 학기 이름을 달고 따로 묶인다. */}
+              {!s.current && (
+                <div className="mb-3 flex flex-wrap items-center gap-2 border-b-2 border-separator pb-2">
+                  <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-muted">
+                    <GraduationCap className="size-4 text-subtle" aria-hidden />
+                    {s.year} {t(`admin.newfamily.season.${s.season}`)}
+                  </span>
+                  <span className="rounded-full bg-fill px-2 py-0.5 text-[11px] font-semibold tabular-nums text-muted">{s.total}</span>
+                  <Tag tone="warning" className="text-[10px]">{t('admin.newfamily.eduIncomplete')}</Tag>
+                </div>
+              )}
+              <div className="flex flex-col gap-6">
+                {s.dates.map((g) => (
+                  <div key={g.date ?? 'no-date'} className="fx-rise">
+                    <div className="mb-2.5 flex items-center gap-2 border-b border-separator pb-2">
+                      {g.date ? (
+                        <span className="inline-flex items-center gap-1.5 text-sm font-semibold tabular-nums text-text"><Calendar className="size-4 text-subtle" aria-hidden />{g.date}</span>
+                      ) : (
+                        <span className="text-sm font-semibold text-warning">{t('admin.newfamily.noRegDate')}</span>
+                      )}
+                      <span className="rounded-full bg-fill px-2 py-0.5 text-[11px] font-semibold tabular-nums text-muted">{g.members.length}</span>
+                      {/* 이번 주일 / 지난주에 등록한 그룹만 표시 — 그 이전 등록일은 날짜만으로 충분. */}
+                      <NewFamilyWeekChip week={newFamilyWeek(g.date, today)} />
+                    </div>
+                    <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
+                      {g.members.map((m) => (
+                        <NewFamilyCard key={m.id} member={m} onOpen={() => setEditing(m)} />
+                      ))}
+                    </ul>
+                  </div>
                 ))}
-              </ul>
-            </div>
+              </div>
+            </section>
           ))}
         </div>
       )}
