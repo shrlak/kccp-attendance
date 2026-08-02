@@ -34,6 +34,7 @@ import { Button } from '../../components/ui/Button'
 import { Tag } from '../../components/ui/Tag'
 import { useToast } from '../../components/ui/Toast'
 import { Plus, Trash2, AlertTriangle, Search, Calendar, ClipboardList, Check } from '../../components/ui/Icon'
+import { refreshRoster } from '../../lib/live'
 
 // Attendance spreadsheet: the Excel-style 출석부 grid (an on-screen replica of the exported
 // "Attendance" sheet — color-coded 동산 blocks, O/X cells, 예배 총 출석 + 총 출석 rows) or a
@@ -128,7 +129,7 @@ function ClearDialog({ isSuper, onClose }: { isSuper: boolean; onClose: () => vo
       const res = await clearAttendance()
       if (res.status === 'cleared') {
         toast({ title: t('admin.sheet.clearAll.cleared'), tone: 'ok' })
-        await qc.invalidateQueries({ queryKey: ['roster'] })
+        await refreshRoster(qc)
       } else {
         toast({ title: t('admin.sheet.clearAll.requested'), tone: 'ok' })
       }
@@ -182,7 +183,7 @@ function BulkModal({ data, onClose }: { data: RosterResponse; onClose: () => voi
     try {
       const res = await addBulkAttendance([...selected], date)
       toast({ title: t('admin.sheet.bulk.done', { n: res.added }), tone: 'ok' })
-      await qc.invalidateQueries({ queryKey: ['roster'] })
+      await refreshRoster(qc)
       onClose()
     } catch {
       toast({ title: t('common.error'), tone: 'err' })

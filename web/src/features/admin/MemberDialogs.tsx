@@ -25,6 +25,7 @@ import { easternNow } from '../../lib/checkinWindow'
 import { NewFamilyCardForm } from './NewFamilyCardForm'
 import { cardFormFromMember, joinAffiliation, type CardFormValue } from './newFamilyCard'
 import { copyNewFamilyCards, saveNewFamilyCards } from './newFamilyCardImage'
+import { refreshRoster } from '../../lib/live'
 
 // 상태 표기 quick presets — canonical note values the 출석부 renders as grey spans.
 // 방학 additionally hides the member from the kiosk and excludes their attendance from
@@ -164,7 +165,7 @@ export function EditModal({
         registrationDate: card.registrationDate || null,
         pastoralVisitRequested: card.pastoralVisitRequested,
       })
-      await qc.invalidateQueries({ queryKey: ['roster'] })
+      await refreshRoster(qc)
       toast({ title: t('admin.members.saved'), tone: 'ok' })
       onClose()
     } catch {
@@ -178,7 +179,7 @@ export function EditModal({
     setDeleting(true)
     try {
       await deleteMember(member.id)
-      await qc.invalidateQueries({ queryKey: ['roster'] })
+      await refreshRoster(qc)
       toast({ title: t('admin.members.delete.done', { name: member.name }), tone: 'ok' })
       onClose()
     } catch {
@@ -381,7 +382,7 @@ export function AttendanceModal({
       const res = await addMemberAttendance(member.id, date)
       if (res.status === 'already') toast({ title: t('admin.members.attendance.already'), tone: 'warn' })
       else toast({ title: t('admin.members.attendance.added'), tone: 'ok' })
-      await qc.invalidateQueries({ queryKey: ['roster'] })
+      await refreshRoster(qc)
     } catch {
       toast({ title: t('common.error'), tone: 'err' })
     } finally {
@@ -394,7 +395,7 @@ export function AttendanceModal({
     try {
       await removeAttendance(id)
       toast({ title: t('admin.members.attendance.removed'), tone: 'ok' })
-      await qc.invalidateQueries({ queryKey: ['roster'] })
+      await refreshRoster(qc)
     } catch {
       toast({ title: t('common.error'), tone: 'err' })
     } finally {

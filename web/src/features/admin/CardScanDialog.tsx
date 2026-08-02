@@ -11,17 +11,21 @@ import { extractCard, kioskNewMember, getCardScanUsage, type NewMemberFields } f
 import { easternNow } from '../../lib/checkinWindow'
 import { NewFamilyCardForm } from './NewFamilyCardForm'
 import { blankCardForm, groupForAffiliation, joinAffiliation, type CardFormValue } from './newFamilyCard'
-import { normalizeExtractedCard } from './cardExtraction'
+import { normalizeExtractedCards } from './cardExtraction'
 import { fileToCardImage } from './cardPhoto'
+import { refreshRoster } from '../../lib/live'
 
 // 카드 사진으로 등록: photograph/upload the paper 새가족 등록 카드; the edge function
-// has Gemini read the handwriting/checkboxes, and the result pre-fills the editable
-// card replica for review — nothing is saved until the admin checks it and taps 등록.
-// Registration goes through the same endpoint as the kiosk 새가족 등록, with an
-// optional "오늘 출석 체크" (unchecked → skipCheckin, e.g. entering a stack of cards
-// later in the week). Several photos can be picked at once — the stack is worked
-// through one card at a time (extract → review → 등록/건너뛰기 → next), and a card
-// that fails to extract is toasted with its position and the batch moves on.
+// has a vision model read the handwriting/checkboxes, and the result pre-fills the
+// editable card replica for review — nothing is saved until the admin checks it and
+// taps 등록. Registration goes through the same endpoint as the kiosk 새가족 등록, with
+// an optional "오늘 출석 체크" (unchecked → skipCheckin, e.g. entering a stack of cards
+// later in the week).
+// Two dimensions of batching, both walked one card at a time (extract → review →
+// 등록/건너뛰기 → next): several photos can be picked at once, and a single photo can
+// hold several cards (a stack laid out on the table) — every card in it is recognized
+// and reviewed. A photo that fails to extract is toasted with its position and the
+// batch moves on.
 type Phase = 'pick' | 'extracting' | 'review'
 
 export function CardScanDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -44,15 +48,20 @@ export function CardScanDialog({ open, onClose }: { open: boolean; onClose: () =
   const [phase, setPhase] = useState<Phase>('pick')
   const [queue, setQueue] = useState<File[]>([])
   const [index, setIndex] = useState(0)
-  const [card, setCard] = useState<CardFormValue>(() => blankCardForm(easternNow().date))
+  // Every card recognized in photo `index`, and which of them is being reviewed.
+  const [cards, setCards] = useState<CardFormValue[]>(() => [blankCardForm(easternNow().date)])
+  const [cardIndex, setCardIndex] = useState(0)
+  const [model, setModel] = useState('')
   const [checkinToday, setCheckinToday] = useState(true)
   const [busy, setBusy] = useState(false)
 
-  const patchCard = (patch: Partial<CardFormValue>) => setCard((cur) => ({ ...cur, ...patch }))
+  const card = cards[cardIndex] ?? blankCardForm(easternNow().date)
+  const patchCard = (patch: Partial<CardFormValue>) =>
+    setCards((cur) => cur.map((c, i) => (i === cardIndex ? { ...c, ...patch } : c)))
 
-  // "카드 2 / 5" position tag — only meaningful for a multi-card batch.
-  const progressTag = (list: File[], i: number) =>
-    list.length > 1 ? t('admin.newfamily.scan.progress', { n: i + 1, total: list.length }) : ''
+  // "사진 2 / 5" position tag — only meaningful for a multi-photo batch.
+  const photoTag = (list: File[], i: number) =>
+    list.length > 1 ? t('admin.newfamily.scan.photoProgress', { n: i + 1, total: list.length }) : ''
 
   // Back to a fresh pick — also clears the input's value so re-picking the same
   // file (after a failure or 다시 선택) re-fires onChange.
@@ -60,7 +69,9 @@ export function CardScanDialog({ open, onClose }: { open: boolean; onClose: () =
     setPhase('pick')
     setQueue([])
     setIndex(0)
-    setCard(blankCardForm(easternNow().date))
+    setCards([blankCardForm(easternNow().date)])
+    setCardIndex(0)
+    setModel('')
     setCheckinToday(true)
     setBusy(false)
     if (fileRef.current) fileRef.current.value = ''
@@ -78,13 +89,14 @@ export function CardScanDialog({ open, onClose }: { open: boolean; onClose: () =
     void processFile(list, 0)
   }
 
-  // Extract card i of the batch. A card that can't be read (undecodable file, quota,
-  // illegible photo) is toasted with its position and the batch moves on, so one bad
-  // photo doesn't sink the whole stack.
+  // Extract photo i of the batch — which may contain more than one card. A photo that
+  // can't be read (undecodable file, quota, illegible) is toasted with its position and
+  // the batch moves on, so one bad photo doesn't sink the whole stack.
   async function processFile(list: File[], i: number) {
     setIndex(i)
     setPhase('extracting')
-    const tag = progressTag(list, i)
+    setCardIndex(0)
+    const tag = photoTag(list, i)
     const prefix = tag ? `${tag} — ` : ''
     let image: { base64: string; mediaType: string }
     try {
@@ -93,20 +105,26 @@ export function CardScanDialog({ open, onClose }: { open: boolean; onClose: () =
       // Undecodable file (e.g. HEIC without browser support) — distinct message so
       // the fix ("use a JPG/screenshot") is obvious.
       toast({ title: prefix + t('admin.newfamily.scan.badImage'), tone: 'err' })
-      advance(list, i)
+      nextPhoto(list, i)
       return
     }
     try {
       const res = await extractCard(image.base64, image.mediaType)
-      setCard(normalizeExtractedCard(res.card, easternNow().date))
+      // Older deployed function versions answer with a single `card`; both shapes
+      // normalize to a list, so one photo of several cards yields several forms.
+      const found = normalizeExtractedCards(res.cards ?? res.card, easternNow().date)
+      setCards(found)
+      setCardIndex(0)
+      setModel(res.model || '')
       setPhase('review')
+      if (found.length > 1) toast({ title: t('admin.newfamily.scan.foundCards', { n: found.length }), tone: 'ok' })
       // The server returns the post-call allowance so this dialog updates immediately.
       qc.setQueryData(['cardScanUsage'], res.usage)
     } catch (e) {
       // Surface the server's reason (missing secret, quota, unreadable card) —
       // these are actionable, unlike a generic failure.
       toast({ title: prefix + ((e as Error)?.message || t('admin.newfamily.scan.failed')), tone: 'err' })
-      advance(list, i)
+      nextPhoto(list, i)
     } finally {
       // Failed provider calls also consume a try. Refetch after every attempted request
       // so other open admin tabs and this batch converge on the audited count quickly.
@@ -114,11 +132,21 @@ export function CardScanDialog({ open, onClose }: { open: boolean; onClose: () =
     }
   }
 
-  // Move past card i without registering it: extract the next card, or fall back to
-  // the picker after the last one (for a single photo that is exactly 다시 선택).
-  function advance(list: File[], i: number) {
+  // Move past photo i: extract the next photo, or fall back to the picker after the
+  // last one (for a single photo that is exactly 다시 선택).
+  function nextPhoto(list: File[], i: number) {
     if (i + 1 < list.length) void processFile(list, i + 1)
     else reset()
+  }
+
+  // Is there another card to review after this one — in this photo or a later one?
+  const hasMore = cardIndex + 1 < cards.length || index + 1 < queue.length
+
+  // Move past the current card without registering it: the next card read out of this
+  // photo first, then the next photo.
+  function advance() {
+    if (cardIndex + 1 < cards.length) setCardIndex(cardIndex + 1)
+    else nextPhoto(queue, index)
   }
 
   async function submit() {
@@ -150,13 +178,14 @@ export function CardScanDialog({ open, onClose }: { open: boolean; onClose: () =
         skipCheckin: !checkinToday,
       }
       await kioskNewMember(payload)
-      await qc.invalidateQueries({ queryKey: ['roster'] })
+      await refreshRoster(qc)
       toast({ title: t('admin.newfamily.scan.done', { name: payload.name }), tone: 'ok' })
-      if (index + 1 < queue.length) {
+      if (hasMore) {
         // More cards in the stack — keep the dialog (and the 오늘 출석 체크 choice)
-        // and roll straight into the next extraction.
+        // and roll straight into the next card, extracting the next photo if this
+        // one is used up.
         setBusy(false)
-        void processFile(queue, index + 1)
+        advance()
       } else {
         close()
       }
@@ -166,7 +195,11 @@ export function CardScanDialog({ open, onClose }: { open: boolean; onClose: () =
     }
   }
 
-  const progress = progressTag(queue, index)
+  // Two independent positions: which photo of the batch, and which card of that photo.
+  // Each tag is shown only when it says something (a 1-of-1 count is noise).
+  const photoProgress = photoTag(queue, index)
+  const cardProgress =
+    cards.length > 1 ? t('admin.newfamily.scan.progress', { n: cardIndex + 1, total: cards.length }) : ''
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && close()} title={t('admin.newfamily.scan.title')} wide>
@@ -205,7 +238,7 @@ export function CardScanDialog({ open, onClose }: { open: boolean; onClose: () =
 
       {phase === 'extracting' && (
         <div className="fx-fade flex flex-col items-center gap-4 py-12 text-center">
-          {progress && <Tag tone="primary" className="tabular-nums">{progress}</Tag>}
+          {photoProgress && <Tag tone="primary" className="tabular-nums">{photoProgress}</Tag>}
           <span className="fx-pulse grid h-14 w-14 place-items-center rounded-full bg-primary/10 text-primary">
             <ScanLine size={26} strokeWidth={1.75} aria-hidden />
           </span>
@@ -220,7 +253,9 @@ export function CardScanDialog({ open, onClose }: { open: boolean; onClose: () =
               <ImagePlus size={16} strokeWidth={2} aria-hidden />
             </span>
             <p className="text-sm text-muted">
-              {progress && <Tag tone="primary" className="mr-2 align-middle tabular-nums">{progress}</Tag>}
+              {photoProgress && <Tag tone="primary" className="mr-2 align-middle tabular-nums">{photoProgress}</Tag>}
+              {cardProgress && <Tag tone="primary" className="mr-2 align-middle tabular-nums">{cardProgress}</Tag>}
+              {model && <Tag tone="muted" className="mr-2 align-middle">{model}</Tag>}
               {t('admin.newfamily.scan.reviewHint')}
             </p>
           </div>
@@ -242,8 +277,10 @@ export function CardScanDialog({ open, onClose }: { open: boolean; onClose: () =
             </label>
           </div>
           <div className="mt-4 flex gap-2">
-            <Button variant="ghost" onClick={() => advance(queue, index)} disabled={busy}>
-              {queue.length > 1 ? t('admin.newfamily.scan.skip') : t('admin.newfamily.scan.retake')}
+            <Button variant="ghost" onClick={advance} disabled={busy}>
+              {queue.length > 1 || cards.length > 1
+                ? t('admin.newfamily.scan.skip')
+                : t('admin.newfamily.scan.retake')}
             </Button>
             <Button onClick={() => void submit()} disabled={busy} className="flex-1">
               {busy ? t('common.loading') : t('admin.newfamily.scan.submit')}

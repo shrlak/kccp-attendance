@@ -9,7 +9,7 @@ import { kioskNewMember, type NewMemberFields } from '../../lib/api'
 import { easternNow } from '../../lib/checkinWindow'
 import { NewFamilyCardForm } from '../admin/NewFamilyCardForm'
 import { blankCardForm, groupForAffiliation, joinAffiliation, type CardFormValue } from '../admin/newFamilyCard'
-import { broadcastKioskChange } from './live'
+import { refreshRoster } from '../../lib/live'
 
 // 새가족 (new-family) registration from the kiosk: a blank paper 새가족 등록 카드 to
 // fill in directly — type into the card's cells, tap its checkboxes. 등록일 is stamped
@@ -67,8 +67,7 @@ export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose
         pastoralVisitRequested: card.pastoralVisitRequested,
       }
       await kioskNewMember(payload)
-      broadcastKioskChange()
-      await qc.invalidateQueries({ queryKey: ['roster'] })
+      await refreshRoster(qc)
       toast({ title: t('kiosk.newMember.done', { name: payload.name }), tone: 'ok' })
       close()
     } catch (e) {

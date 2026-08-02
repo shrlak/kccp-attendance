@@ -13,7 +13,7 @@ import {
   todayEntryFor,
   hiddenByStatus,
 } from './kiosk'
-import { useKioskLive, broadcastKioskChange } from './live'
+import { useAttendanceLive, refreshRoster } from '../../lib/live'
 import { KioskGuestDialog } from './KioskGuestDialog'
 import { KioskNewMemberDialog } from './KioskNewMemberDialog'
 import { ThemeLangToggle } from '../../components/ui/ThemeLangToggle'
@@ -39,17 +39,9 @@ export function KioskView({ onExit }: { onExit: () => void }) {
   const [dialog, setDialog] = useState<'guest' | 'newMember' | null>(null)
   const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Live cross-device sync: other kiosks' check-ins/undos arrive as broadcast pings.
-  useKioskLive()
-
-  // 15-second roster auto-refresh as the fallback for changes made outside a kiosk
-  // (admin panel, self check-in); cleared on unmount (which includes exit).
-  useEffect(() => {
-    const id = setInterval(() => {
-      void qc.invalidateQueries({ queryKey: ['roster'] })
-    }, 15_000)
-    return () => clearInterval(id)
-  }, [qc])
+  // Live cross-device sync: check-ins/undos made on any other kiosk or in the admin
+  // panel arrive as broadcast pings; useRoster's own poll is the missed-ping fallback.
+  useAttendanceLive()
 
   useEffect(() => () => { if (dismissTimer.current) clearTimeout(dismissTimer.current) }, [])
 
@@ -82,8 +74,7 @@ export function KioskView({ onExit }: { onExit: () => void }) {
             : { tone: 'ok', name: m.name },
         )
       }
-      broadcastKioskChange()
-      void qc.invalidateQueries({ queryKey: ['roster'] })
+      void refreshRoster(qc)
     } catch (e) {
       // A real failure (auth/network) — show it as an error, not a misleading "already".
       setOverlay({ tone: 'error', name: m.name, detail: (e as Error)?.message })

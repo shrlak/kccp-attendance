@@ -85,3 +85,22 @@ export function normalizeExtractedCard(raw: unknown, today: string): CardFormVal
     pastoralVisitRequested: r.pastoralVisitRequested === true ? true : r.pastoralVisitRequested === false ? false : null,
   }
 }
+
+// Did the model actually read something off this card? 등록일 is excluded because it
+// falls back to `today` for every card, blank ones included.
+function hasContent(c: CardFormValue): boolean {
+  return Boolean(
+    c.name || c.gender || c.phone || c.kakaoId || c.birthDate || c.affiliationCategory ||
+      c.affiliationDetail || c.baptismStatus || c.faithDuration,
+  ) || c.pastoralVisitRequested !== null
+}
+
+// One photo can show several cards, so extraction returns a list. Empty-looking
+// entries (a stray background object the model volunteered) are dropped; a payload
+// with nothing readable at all still yields one blank card, so an unreadable photo
+// lands on an empty review form to fill in by hand instead of an error.
+export function normalizeExtractedCards(raw: unknown, today: string): CardFormValue[] {
+  const list = Array.isArray(raw) ? raw : raw && typeof raw === 'object' ? [raw] : []
+  const cards = list.map((r) => normalizeExtractedCard(r, today)).filter(hasContent)
+  return cards.length > 0 ? cards : [blankCardForm(today)]
+}

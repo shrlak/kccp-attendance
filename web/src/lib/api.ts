@@ -511,11 +511,14 @@ export const kioskNewMember = (fields: NewMemberFields) =>
   api<{ status: 'ok'; memberId: string; time?: string }>('POST', '/api/admin/kiosk-new-member', fields)
 
 // 새가족 등록 카드 photo extraction: sends a downscaled card photo (base64) to the edge
-// function, which has Gemini read the handwriting/checkboxes into raw card JSON —
+// function, which has a vision model read the handwriting/checkboxes into raw card JSON —
 // normalized client-side (cardExtraction.ts) before showing it for review. Nothing is
-// saved server-side. Gemini vision can take well over the default 12s budget.
+// saved server-side. `cards` holds every card found in the photo (a stack photographed
+// in one shot yields several); `card` is the first one, kept for older clients. `model`
+// names the free model that read it — the server falls back through a chain of them, so
+// a single call can take well over the default 12s budget.
 export const extractCard = (image: string, mediaType: string) =>
-  api<{ status: 'ok'; card: Record<string, unknown>; usage: CardScanUsage }>('POST', '/api/admin/extract-card', { image, mediaType }, undefined, 60_000)
+  api<{ status: 'ok'; cards?: Record<string, unknown>[]; card?: Record<string, unknown>; model?: string; usage: CardScanUsage }>('POST', '/api/admin/extract-card', { image, mediaType }, undefined, 60_000)
 
 export interface CardScanUsage {
   limit: number

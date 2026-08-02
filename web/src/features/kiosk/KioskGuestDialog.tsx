@@ -7,7 +7,7 @@ import { Button } from '../../components/ui/Button'
 import { Check } from '../../components/ui/Icon'
 import { useToast } from '../../components/ui/Toast'
 import { guestCheckin } from '../../lib/api'
-import { broadcastKioskChange } from './live'
+import { refreshRoster } from '../../lib/live'
 
 // The 부서 a visitor is attending — puts them on that group's 오늘 sheet / 출석부 이미지.
 const GUEST_GROUPS = ['대학부', '청년부'] as const
@@ -34,8 +34,7 @@ export function KioskGuestDialog({ open, onClose }: { open: boolean; onClose: ()
     setBusy(true)
     try {
       const res = await guestCheckin(n, group)
-      broadcastKioskChange()
-      await qc.invalidateQueries({ queryKey: ['roster'] })
+      await refreshRoster(qc)
       toast(
         res.status === 'already'
           ? { title: t('kiosk.guest.already', { name: n }), tone: 'warn' }
