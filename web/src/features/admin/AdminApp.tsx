@@ -37,18 +37,7 @@ import { AdminDongsan } from './AdminDongsan'
 import { AdminSettings } from './AdminSettings'
 import { KioskView } from '../kiosk/KioskView'
 import { useAttendanceLive } from '../../lib/live'
-
-type Tab =
-  | 'today'
-  | 'sheet'
-  | 'members'
-  | 'analytics'
-  | 'newfamily'
-  | 'newfamilyEdu'
-  | 'visitors'
-  | 'admins'
-  | 'dongsan'
-  | 'settings'
+import { readLastTab, writeLastTab, clearLastTab, type Tab } from './adminTab'
 
 // Compact administration shell. Desktop (lg+) keeps the 64 px icon rail that expands
 // only when someone needs its labels; below lg the rail (hover-driven, so useless on
@@ -61,7 +50,9 @@ export function AdminApp() {
   const navigate = useNavigate()
   const identity = useAdminAuth((s) => s.identity)
   const signOut = useAdminAuth((s) => s.signOut)
-  const [tab, setTab] = useState<Tab>('today')
+  // Restored from the last visit in this browser tab, so a reload (or the Google OAuth
+  // round-trip) comes back to the same screen instead of 오늘.
+  const [tab, setTab] = useState<Tab>(() => readLastTab() ?? 'today')
   const [kiosk, setKiosk] = useState(false)
   const [navOpen, setNavOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
@@ -72,11 +63,13 @@ export function AdminApp() {
   useAttendanceLive()
   function selectTab(id: Tab) {
     setTab(id)
+    writeLastTab(id)
     setNavOpen(false)
     setMoreOpen(false)
   }
-  // Sign out drops back to the public landing page.
+  // Sign out drops back to the public landing page, and forgets which tab we were on.
   function handleSignOut() {
+    clearLastTab()
     signOut()
     navigate('/')
   }
@@ -133,6 +126,10 @@ export function AdminApp() {
   ]
 
   const visibleTabs = tabs.filter((item) => item.show)
+  // A tab restored from before a reload can be out of this role's reach — a device that
+  // was on 설정 signing back in as a leader, say. Fall back to 오늘 rather than rendering
+  // a titled but empty page.
+  const activeTab = visibleTabs.some((item) => item.id === tab) ? tab : 'today'
   // Mobile bottom bar: the 4 everyday tabs stay one tap away; everything else lives in
   // the 더보기 sheet (any tab badges roll up onto 더보기 so they stay visible).
   const primaryTabs = visibleTabs.slice(0, 4)
@@ -144,7 +141,7 @@ export function AdminApp() {
       ? [{ id: 'more', label: t('admin.nav.more'), icon: MoreHorizontal, badge: moreBadge }]
       : []),
   ]
-  const bottomActive = primaryTabs.some((item) => item.id === tab) ? tab : 'more'
+  const bottomActive = primaryTabs.some((item) => item.id === activeTab) ? activeTab : 'more'
 
   return (
     <div className="min-h-dvh bg-canvas">
@@ -178,7 +175,7 @@ export function AdminApp() {
                 key={item.id}
                 icon={item.icon}
                 label={t(`admin.nav.${item.id}`)}
-                active={tab === item.id}
+                active={activeTab === item.id}
                 open={navOpen}
                 onClick={() => selectTab(item.id)}
                 badge={item.badge}
@@ -194,7 +191,7 @@ export function AdminApp() {
               <KccpMark size={26} />
             </span>
             <div className="min-w-0 flex-1">
-              <h1 className="truncate font-display text-2xl font-bold tracking-tight text-text">{t(`admin.nav.${tab}`)}</h1>
+              <h1 className="truncate font-display text-2xl font-bold tracking-tight text-text">{t(`admin.nav.${activeTab}`)}</h1>
               <p className="mt-0.5 truncate text-xs text-muted">{dateLabel} · {roleScope}</p>
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
@@ -218,19 +215,19 @@ export function AdminApp() {
         </header>
 
         <div className="mx-auto max-w-[1480px] px-5 py-5 pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:px-8 md:py-7 md:pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-7">
-          {/* key={tab} remounts the wrapper on every tab switch so the fade runs — a
+          {/* key={activeTab} remounts the wrapper on every tab switch so the fade runs — a
               light cross-fade instead of content snapping into place. */}
-          <div key={tab} className="fx-fade">
-            {tab === 'today' && <AdminToday />}
-            {tab === 'sheet' && <AdminSheet />}
-            {tab === 'members' && <AdminMembers />}
-            {tab === 'analytics' && <AdminAnalytics />}
-            {tab === 'newfamily' && <AdminNewFamily />}
-            {tab === 'newfamilyEdu' && <AdminNewFamilyEdu />}
-            {tab === 'visitors' && <AdminVisitors />}
-            {tab === 'admins' && isSuper && <AdminAdmins />}
-            {tab === 'dongsan' && isSuper && <AdminDongsan />}
-            {tab === 'settings' && isSuper && <AdminSettings />}
+          <div key={activeTab} className="fx-fade">
+            {activeTab === 'today' && <AdminToday />}
+            {activeTab === 'sheet' && <AdminSheet />}
+            {activeTab === 'members' && <AdminMembers />}
+            {activeTab === 'analytics' && <AdminAnalytics />}
+            {activeTab === 'newfamily' && <AdminNewFamily />}
+            {activeTab === 'newfamilyEdu' && <AdminNewFamilyEdu />}
+            {activeTab === 'visitors' && <AdminVisitors />}
+            {activeTab === 'admins' && isSuper && <AdminAdmins />}
+            {activeTab === 'dongsan' && isSuper && <AdminDongsan />}
+            {activeTab === 'settings' && isSuper && <AdminSettings />}
           </div>
         </div>
       </main>
@@ -247,7 +244,7 @@ export function AdminApp() {
         <div className="grid grid-cols-3 gap-2.5">
           {moreTabs.map((item) => {
             const Icon = item.icon
-            const active = tab === item.id
+            const active = activeTab === item.id
             return (
               <button
                 key={item.id}

@@ -70,5 +70,7 @@ Korean church (한국중앙교회 피츠버그 대학·청년부) attendance sys
 ## Status
 Full Phase 1–4 parity + production cutover complete. Shipped: branded landing, KCCP logo
 (light/dark), 동산 admin tab (summer-combined names), bulk 동산 assign/unassign, clear-all
-attendance with super-approval, analytics layout, logout/reload→home. See `docs/superpowers/`
+attendance with super-approval, analytics layout, logout→home (a **reload stays put**: the
+route is the screen, and the admin panel's tab is remembered in `sessionStorage` via
+`web/src/features/admin/adminTab.ts`). See `docs/superpowers/`
 (gitignored; force-added curated docs) for the parity inventory, cutover plan, and runbook.

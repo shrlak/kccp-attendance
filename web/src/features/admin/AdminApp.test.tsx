@@ -18,6 +18,9 @@ const apiStub = {
 
 beforeEach(() => {
   queryClient.clear()
+  // The panel remembers its tab in sessionStorage — clear it so tests don't inherit
+  // each other's last tab.
+  sessionStorage.clear()
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify(apiStub), { status: 200 })))
   useAdminAuth.setState({
     status: 'authed',
@@ -145,5 +148,46 @@ describe('AdminApp ministry navigation', () => {
       expect(screen.queryByRole('button', { name })).toBeNull()
     }
     expect(screen.getAllByText(/새가족팀 · 전체/).length).toBeGreaterThan(0)
+  })
+})
+
+// 리로드하면 이전에 보던 화면으로 돌아온다: 라우트는 URL이, 관리자 패널의 탭은
+// sessionStorage가 기억한다 (adminTab.ts). 마운트 = 리로드 이후의 첫 렌더.
+describe('AdminApp 탭 복원', () => {
+  it('restores the tab that was open before the reload instead of 오늘', () => {
+    sessionStorage.setItem('kccp-admin-tab', 'newfamily')
+    renderApp()
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('새가족')
+  })
+
+  it('remembers a tab as soon as it is selected', () => {
+    const { container } = renderApp()
+    const aside = container.querySelector('aside')!
+    fireEvent.mouseEnter(aside)
+    fireEvent.click(within(aside).getByRole('button', { name: '출석부' }))
+    expect(sessionStorage.getItem('kccp-admin-tab')).toBe('sheet')
+  })
+
+  it('falls back to 오늘 when the remembered tab is out of this role’s reach', () => {
+    sessionStorage.setItem('kccp-admin-tab', 'settings')
+    useAdminAuth.setState({
+      status: 'authed',
+      identity: { role: 'leader', group: '', subgroup: '', ministry: '' },
+    })
+    renderApp()
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('오늘')
+  })
+
+  it('ignores a stored value that is not a tab', () => {
+    sessionStorage.setItem('kccp-admin-tab', 'not-a-tab')
+    renderApp()
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('오늘')
+  })
+
+  it('forgets the tab on sign-out, so the next sign-in starts on 오늘', () => {
+    sessionStorage.setItem('kccp-admin-tab', 'members')
+    renderApp()
+    fireEvent.click(screen.getAllByRole('button', { name: '로그아웃' })[0])
+    expect(sessionStorage.getItem('kccp-admin-tab')).toBeNull()
   })
 })
