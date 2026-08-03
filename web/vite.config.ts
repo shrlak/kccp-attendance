@@ -1,3 +1,4 @@
+import { resolve } from 'node:path'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
@@ -20,6 +21,14 @@ export default defineConfig({
     // The lazily-loaded heavyweights (SheetJS, Chart.js) legitimately exceed the default
     // 500 kB warning; the route chunks are what we actually watch, and they're far under it.
     chunkSizeWarningLimit: 900,
+    rollupOptions: {
+      // Two documents, one app. share.html is the iPhone home-screen entry — see the
+      // comment at the top of that file for why it can't just be the /share SPA route.
+      input: {
+        main: resolve(__dirname, 'index.html'),
+        share: resolve(__dirname, 'share.html'),
+      },
+    },
   },
   plugins: [
     react(),
@@ -77,5 +86,23 @@ export default defineConfig({
         },
       },
     }),
+    // vite-plugin-pwa injects its manifest link into *every* HTML entry, leaving
+    // share.html declaring two manifests — and which one wins decides where the
+    // home-screen icon lands, which is not something to bet an iPhone on. Strip the
+    // injected one so share.html declares only its own. Must sit *after* VitePWA in
+    // this array: both hooks are enforce/order 'post', so array order is what decides
+    // who rewrites the HTML last.
+    {
+      name: 'kccp-share-manifest-only',
+      enforce: 'post',
+      transformIndexHtml: {
+        order: 'post',
+        handler(html: string, ctx: { filename?: string; path?: string }) {
+          const id = ctx.filename ?? ctx.path ?? ''
+          if (!id.endsWith('share.html')) return html
+          return html.replace(/\s*<link rel="manifest" href="[^"]*\/manifest\.webmanifest"[^>]*>/g, '')
+        },
+      },
+    },
   ],
 })
