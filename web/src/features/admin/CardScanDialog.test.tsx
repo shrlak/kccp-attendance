@@ -27,12 +27,12 @@ vi.mock('./cardPhoto', () => ({
 beforeAll(async () => { await i18n.init() })
 beforeEach(() => { vi.clearAllMocks() })
 
-function renderDialog(onClose = vi.fn()) {
+function renderDialog(onClose = vi.fn(), initialFiles?: File[]) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={qc}>
       <ToastProvider>
-        <CardScanDialog open onClose={onClose} />
+        <CardScanDialog open onClose={onClose} initialFiles={initialFiles} />
       </ToastProvider>
     </QueryClientProvider>,
   )
@@ -214,5 +214,43 @@ describe('CardScanDialog — multi-card batch', () => {
     await userEvent.upload(screen.getByLabelText('카드 사진 선택'), file('a.jpg'))
 
     expect(await screen.findByLabelText('이름')).toHaveValue('김새가')
+  })
+})
+
+// Photos arriving from the phone's share sheet (/share → sw.ts) are handed to the dialog
+// already picked, so the flow starts at 인식 rather than at the file input.
+describe('CardScanDialog — photos handed over by the share sheet', () => {
+  it('extracts straight away without a pick step', async () => {
+    const { extractCard } = await import('../../lib/api')
+    ;(extractCard as ReturnType<typeof vi.fn>).mockResolvedValueOnce(cardJson('김새가'))
+    renderDialog(vi.fn(), [file('shared.jpg')])
+
+    expect(await screen.findByLabelText('이름')).toHaveValue('김새가')
+    expect(screen.queryByLabelText('카드 사진 선택')).not.toBeInTheDocument()
+    expect(extractCard).toHaveBeenCalledTimes(1)
+  })
+
+  it('walks a multi-photo share as one batch', async () => {
+    const { extractCard, kioskNewMember } = await import('../../lib/api')
+    ;(extractCard as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce(cardJson('김새가'))
+      .mockResolvedValueOnce(cardJson('이새가'))
+    ;(kioskNewMember as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ok', memberId: 'm1' })
+    renderDialog(vi.fn(), [file('a.jpg'), file('b.jpg')])
+
+    expect(await screen.findByLabelText('이름')).toHaveValue('김새가')
+    expect(screen.getByText('사진 1 / 2')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: '등록' }))
+    expect(await screen.findByText('사진 2 / 2')).toBeInTheDocument()
+    expect(await screen.findByLabelText('이름')).toHaveValue('이새가')
+  })
+
+  it('extracts a shared photo exactly once — a metered call must not fire twice', async () => {
+    const { extractCard } = await import('../../lib/api')
+    ;(extractCard as ReturnType<typeof vi.fn>).mockResolvedValue(cardJson('김새가'))
+    renderDialog(vi.fn(), [file('shared.jpg')])
+
+    await screen.findByLabelText('이름')
+    await waitFor(() => expect(extractCard).toHaveBeenCalledTimes(1))
   })
 })

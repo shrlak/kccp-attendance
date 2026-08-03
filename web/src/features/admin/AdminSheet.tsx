@@ -282,6 +282,10 @@ const CELL = 'whitespace-nowrap border border-[#b7b7b7] px-3 py-1.5'
 // Variable-length cells (names, status notes) truncate instead of stretching their
 // column, so every 동산 block's table keeps the same fixed-layout width.
 const CLIP = 'overflow-hidden text-ellipsis'
+// The 이름 column is pinned to the left edge of the horizontal scroll. `border-collapse`
+// doesn't repaint a sticky cell's own right border reliably, so the column's separating
+// edge is drawn as a box-shadow instead.
+const STICKY_NAME = 'sticky left-0 z-[1] shadow-[1px_0_0_#b7b7b7]'
 const DARK = '#1f2937'
 
 // Fixed column widths (px), shared by every 동산 block so all tables end up the exact
@@ -327,7 +331,7 @@ function GridView({
   if (model.sections.length === 0) return <p className="text-sm text-muted">{L.empty}</p>
 
   return (
-    <div className="overflow-x-auto">
+    <div>
       <p className="mb-3 text-sm text-muted">
         {semesterLabel(today, lang, semesterDates)} · {filterLabel(filter.group, filter.subgroup, lang)}
       </p>
@@ -350,7 +354,11 @@ function GridView({
           <b>{L.subleaderKey}</b>
         </span>
       </div>
-      <div className="flex flex-col gap-6 text-sm" style={{ color: DARK }}>
+      {/* Only the tables scroll sideways — the caption and legend above stay put, where
+          before they were dragged along inside the scroll area and slid off screen on a
+          phone. The 이름 column is pinned so a row stays identifiable once the Sunday
+          columns are scrolled past it. */}
+      <div className="scroll-x flex flex-col gap-6 text-sm" style={{ color: DARK }}>
         {model.sections.map((s, si) => {
           const { light: lightArgb, medium: mediumArgb } = blockColors(si)
           const light = cssColor(lightArgb)
@@ -370,7 +378,7 @@ function GridView({
                 </colgroup>
                 <thead>
                   <tr>
-                    <th className={`${CELL} ${CLIP} text-left font-bold`} style={{ background: light }}>{L.name}</th>
+                    <th className={`${CELL} ${CLIP} ${STICKY_NAME} text-left font-bold`} style={{ background: light }}>{L.name}</th>
                     <th className={`${CELL} text-center font-bold`} style={{ background: pink }}>{L.memberTotal}</th>
                     {model.dateLabels.map((d) => (
                       <th key={d} className={`${CELL} text-center font-bold`} style={{ background: medium }}>{d}</th>
@@ -387,13 +395,13 @@ function GridView({
                         // grid is fixed light-scheme (hex fills) like the export, so hardcoded
                         // hex highlights are consistent here.
                         <td
-                          className={`${CELL} ${CLIP} text-left font-bold`}
+                          className={`${CELL} ${CLIP} ${STICKY_NAME} text-left font-bold`}
                           style={{ background: role === '동산지기' ? '#FFF3C4' : '#FFF9E1' }}
                         >
                           {r.member.name}
                         </td>
                       ) : (
-                        <td className={`${CELL} ${CLIP} bg-white text-left font-medium`}>{r.member.name}</td>
+                        <td className={`${CELL} ${CLIP} ${STICKY_NAME} bg-white text-left font-medium`}>{r.member.name}</td>
                       )}
                       <td className={`${CELL} bg-white text-center font-bold`}>{r.total}</td>
                       {r.marks.map((c, di) => {
@@ -424,7 +432,7 @@ function GridView({
                 </tbody>
                 <tfoot>
                   <tr>
-                    <td colSpan={2} className={`${CELL} text-left font-bold`} style={{ background: medium }}>{L.total}</td>
+                    <td colSpan={2} className={`${CELL} ${STICKY_NAME} text-left font-bold`} style={{ background: medium }}>{L.total}</td>
                     {model.dates.map((d, i) => (
                       <td key={d} className={`${CELL} bg-white text-center font-bold`}>
                         {s.totals[i]}

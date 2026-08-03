@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.worker.tsbuildinfo",
+    "target": "es2023",
+    /* WebWorker instead of DOM: sw.ts runs in the service worker global scope, and
+       mixing the two lib sets makes `self` ambiguous. */
+    "lib": ["ES2023", "WebWorker"],
+    "module": "esnext",
+    "types": [],
+    "skipLibCheck": true,
+
+    "moduleResolution": "bundler",
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "erasableSyntaxOnly": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["src/sw.ts", "src/lib/sharedCards.ts"]
+}

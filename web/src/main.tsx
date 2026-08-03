@@ -8,9 +8,28 @@ import { I18nextProvider } from 'react-i18next'
 import { i18n } from './lib/i18n'
 import './stores/useTheme'
 import { queryClient } from './lib/queryClient'
+import { hydrateQueryCache, startQueryPersistence } from './lib/queryPersist'
 import { AppRoutes } from './app/routes'
 
 registerSW({ immediate: true })
+
+// Put last session's roster/config back before the first render, so a reload paints the
+// panel instead of its loading skeletons while the refetch is still in flight.
+hydrateQueryCache(queryClient)
+startQueryPersistence(queryClient)
+
+// The Google OAuth redirect deliberately lands on the site root (a real file on GitHub
+// Pages, so it never depends on the 404.html fallback) and the auth store's module-level
+// listener is what verifies the session and forwards to /admin. That store now arrives
+// with the lazily-loaded admin chunk, which the landing page never pulls in — so on the
+// one page load that *is* the callback, load it explicitly. Supabase leaves `?code=`
+// (PKCE) or a `#access_token=` hash on the URL, and the store reads the same markers.
+if (
+  new URLSearchParams(window.location.search).has('code') ||
+  window.location.hash.includes('access_token')
+) {
+  void import('./stores/useAdminAuth')
+}
 
 // Match the Vite base (GitHub Project Pages subpath) so client routes resolve under
 // /kccp-attendance/ instead of the domain root. BASE_URL is '/' in dev → basename '/'.

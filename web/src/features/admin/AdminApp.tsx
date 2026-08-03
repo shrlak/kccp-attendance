@@ -23,6 +23,8 @@ import {
   Settings,
   MoreHorizontal,
   LogOut,
+  Save,
+  Monitor,
 } from '../../components/ui/Icon'
 import { KccpMark } from '../checkin/KccpMark'
 import { AdminToday } from './AdminToday'
@@ -185,36 +187,44 @@ export function AdminApp() {
       </aside>
 
       <main className="min-h-dvh lg:pl-16">
-        <header className="material-bar sticky top-0 z-20 border-b px-5 py-3 pt-[calc(0.75rem+env(safe-area-inset-top))]">
-          <div className="mx-auto flex max-w-[1480px] items-center justify-between gap-4">
+        {/* Five labelled controls plus the title never fit across a phone — at 320 px the
+            heading was squeezed down to a single character. On mobile the header keeps
+            only the two actions that are used mid-service (키오스크, 로그아웃), as icons;
+            테마·언어 and 백업 move into the 더보기 sheet below. From `sm` up everything is
+            back in the bar with its label. */}
+        <header className="material-bar safe-x sticky top-0 z-20 border-b py-3 pt-[calc(0.75rem+var(--safe-top))]">
+          <div className="mx-auto flex max-w-[1480px] items-center justify-between gap-2 sm:gap-4">
             <span className="grid shrink-0 place-items-center lg:hidden" aria-hidden>
               <KccpMark size={26} />
             </span>
             <div className="min-w-0 flex-1">
-              <h1 className="truncate font-display text-2xl font-bold tracking-tight text-text">{t(`admin.nav.${activeTab}`)}</h1>
+              <h1 className="truncate font-display text-xl font-bold tracking-tight text-text sm:text-2xl">{t(`admin.nav.${activeTab}`)}</h1>
               <p className="mt-0.5 truncate text-xs text-muted">{dateLabel} · {roleScope}</p>
             </div>
-            <div className="flex shrink-0 items-center gap-1.5">
-              <ThemeLangToggle />
-              {canRunBackup && (
-                <Button variant="secondary" size="sm" onClick={runBackup} disabled={backupBusy}>
-                  {backupBusy ? t('common.loading') : t('admin.admins.dbBackup.runNow')}
-                </Button>
-              )}
+            <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
+              <span className="hidden items-center gap-1.5 sm:flex">
+                <ThemeLangToggle />
+                {canRunBackup && (
+                  <Button variant="secondary" size="sm" onClick={runBackup} disabled={backupBusy}>
+                    {backupBusy ? t('common.loading') : t('admin.admins.dbBackup.runNow')}
+                  </Button>
+                )}
+              </span>
               {canKiosk && (
-                <Button variant="secondary" size="sm" onClick={() => setKiosk(true)}>
-                  {t('kiosk.enter')}
+                <Button variant="secondary" size="sm" onClick={() => setKiosk(true)} className="max-sm:aspect-square max-sm:px-0">
+                  <Monitor className="size-4 sm:hidden" strokeWidth={2} aria-hidden />
+                  <span className="max-sm:sr-only">{t('kiosk.enter')}</span>
                 </Button>
               )}
-              <Button variant="ghost" size="sm" onClick={handleSignOut}>
+              <Button variant="ghost" size="sm" onClick={handleSignOut} className="max-sm:aspect-square max-sm:px-0">
                 <LogOut className="size-4" strokeWidth={2} aria-hidden />
-                {t('admin.signOut')}
+                <span className="max-sm:sr-only">{t('admin.signOut')}</span>
               </Button>
             </div>
           </div>
         </header>
 
-        <div className="mx-auto max-w-[1480px] px-5 py-5 pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:px-8 md:py-7 md:pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-7">
+        <div className="safe-x mx-auto max-w-[1480px] py-5 pb-[calc(5.5rem+var(--safe-bottom))] md:py-7 md:pb-[calc(5.5rem+var(--safe-bottom))] md:[--gutter:2rem] lg:pb-7">
           {/* key={activeTab} remounts the wrapper on every tab switch so the fade runs — a
               light cross-fade instead of content snapping into place. */}
           <div key={activeTab} className="fx-fade">
@@ -277,6 +287,21 @@ export function AdminApp() {
               </button>
             )
           })}
+        </div>
+
+        {/* The controls the header gives up on a phone (see the comment there). Only
+            rendered where they've actually been displaced — from `sm` up they're in the
+            bar and repeating them here would be two of each. */}
+        <div className="mt-4 border-t border-separator pt-4 sm:hidden">
+          <div className="flex flex-wrap items-center gap-2">
+            <ThemeLangToggle />
+            {canRunBackup && (
+              <Button variant="secondary" size="sm" onClick={runBackup} disabled={backupBusy} className="ml-auto">
+                <Save className="size-4" strokeWidth={2} aria-hidden />
+                {backupBusy ? t('common.loading') : t('admin.admins.dbBackup.runNow')}
+              </Button>
+            )}
+          </div>
         </div>
       </Dialog>
 

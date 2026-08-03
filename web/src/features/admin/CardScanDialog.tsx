@@ -1,11 +1,11 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Dialog } from '../../components/ui/Dialog'
 import { Button } from '../../components/ui/Button'
 import { Switch } from '../../components/ui/Switch'
 import { Tag } from '../../components/ui/Tag'
-import { ScanLine, Camera, ImagePlus, CheckCircle2 } from '../../components/ui/Icon'
+import { ScanLine, Camera, ImagePlus, CheckCircle2, Share2 } from '../../components/ui/Icon'
 import { useToast } from '../../components/ui/Toast'
 import { extractCard, kioskNewMember, getCardScanUsage, type NewMemberFields } from '../../lib/api'
 import { easternNow } from '../../lib/checkinWindow'
@@ -26,9 +26,19 @@ import { refreshRoster } from '../../lib/live'
 // hold several cards (a stack laid out on the table) — every card in it is recognized
 // and reviewed. A photo that fails to extract is toasted with its position and the
 // batch moves on.
+// `initialFiles` skips the picker entirely: the /share screen passes the photos the OS
+// handed over through the phone's share sheet, so a shared card goes straight to 인식.
 type Phase = 'pick' | 'extracting' | 'review'
 
-export function CardScanDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function CardScanDialog({
+  open,
+  onClose,
+  initialFiles,
+}: {
+  open: boolean
+  onClose: () => void
+  initialFiles?: File[]
+}) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const toast = useToast()
@@ -45,8 +55,11 @@ export function CardScanDialog({ open, onClose }: { open: boolean; onClose: () =
     refetchOnReconnect: true,
   })
   const fileRef = useRef<HTMLInputElement>(null)
-  const [phase, setPhase] = useState<Phase>('pick')
-  const [queue, setQueue] = useState<File[]>([])
+  // Photos handed over by the share sheet arrive already picked, so the dialog opens
+  // *in* the batch rather than at the picker — seeded here instead of assigned from an
+  // effect, which would render the pick step for a frame and then replace it.
+  const [phase, setPhase] = useState<Phase>(() => (initialFiles?.length ? 'extracting' : 'pick'))
+  const [queue, setQueue] = useState<File[]>(() => initialFiles ?? [])
   const [index, setIndex] = useState(0)
   // Every card recognized in photo `index`, and which of them is being reviewed.
   const [cards, setCards] = useState<CardFormValue[]>(() => [blankCardForm(easternNow().date)])
@@ -88,6 +101,20 @@ export function CardScanDialog({ open, onClose }: { open: boolean; onClose: () =
     setQueue(list)
     void processFile(list, 0)
   }
+
+  // Kick off the extraction those seeded photos are already showing a spinner for. The
+  // ref makes it fire exactly once per mount: extraction costs a metered vision-model
+  // call, and StrictMode runs effects twice in development.
+  const autoStarted = useRef(false)
+  useEffect(() => {
+    if (!open || autoStarted.current) return
+    if (!initialFiles || initialFiles.length === 0) return
+    autoStarted.current = true
+    void processFile(initialFiles, 0)
+    // processFile is recreated every render but is stable in behavior; the ref above is
+    // what actually guards against a second run.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialFiles])
 
   // Extract photo i of the batch — which may contain more than one card. A photo that
   // can't be read (undecodable file, quota, illegible) is toasted with its position and
@@ -231,8 +258,15 @@ export function CardScanDialog({ open, onClose }: { open: boolean; onClose: () =
             multiple
             aria-label={t('admin.newfamily.scan.pick')}
             onChange={(e) => pickFiles(e.target.files)}
-            className="text-xs text-muted file:mr-3 file:inline-flex file:min-h-11 file:cursor-pointer file:items-center file:rounded-full file:border-0 file:bg-primary file:px-5 file:text-sm file:font-semibold file:text-primary-fg file:shadow-[var(--shadow-sm)] hover:file:bg-primary-hover"
+            className="max-w-full text-xs text-muted file:mr-3 file:inline-flex file:min-h-11 file:cursor-pointer file:items-center file:rounded-full file:border-0 file:bg-primary file:px-5 file:text-sm file:font-semibold file:text-primary-fg file:shadow-[var(--shadow-sm)] hover:file:bg-primary-hover"
           />
+          {/* The share-sheet route (manifest share_target → /share) is invisible unless
+              someone is told about it, and this is where they're already thinking about
+              card photos. */}
+          <p className="flex max-w-sm items-start gap-2 rounded-xl bg-fill px-3 py-2 text-left text-[11px] leading-5 text-subtle">
+            <Share2 size={13} strokeWidth={2} className="mt-0.5 shrink-0" aria-hidden />
+            {t('admin.newfamily.scan.shareHint')}
+          </p>
         </div>
       )}
 
@@ -259,7 +293,10 @@ export function CardScanDialog({ open, onClose }: { open: boolean; onClose: () =
               {t('admin.newfamily.scan.reviewHint')}
             </p>
           </div>
-          <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto pr-1">
+          {/* On a phone the dialog is itself a scrolling sheet, so a second scroll area
+              inside it just makes the card replica a cramped window; let it run full
+              height there and cap it only on the centered desktop modal. */}
+          <div className="flex flex-col gap-4 sm:max-h-[60vh] sm:overflow-y-auto sm:pr-1">
             <NewFamilyCardForm value={card} onChange={patchCard} />
           </div>
           <div className="mt-4 inset-list">

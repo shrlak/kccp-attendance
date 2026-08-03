@@ -53,13 +53,17 @@ export function AccessShell({
         </div>
       </section>
 
-      <section className="relative flex min-h-dvh items-center justify-center px-5 py-20 sm:px-8">
-        <div className="absolute right-5 top-5 flex items-center gap-1 pt-[env(safe-area-inset-top)] sm:right-8 sm:top-7">
+      {/* py-20 alone leaves the card taller than a phone in landscape, where the whole
+          viewport is ~370 px — the top of the form would sit above the fold with nothing
+          indicating it. `short:` trims the vertical padding so the card fits or, failing
+          that, starts at the top of a scroll rather than centered off-screen. */}
+      <section className="safe-x relative flex min-h-dvh items-center justify-center py-20 short:items-start short:py-8 sm:[--gutter:2rem]">
+        <div className="absolute right-[max(1.25rem,var(--safe-right))] top-5 flex items-center gap-1 pt-[var(--safe-top)] sm:right-8 sm:top-7">
           <ThemeLangToggle />
         </div>
 
         <div className="fx-rise w-full max-w-[420px]">
-          <Link to="/" className="mb-10 inline-flex items-center gap-2.5 lg:hidden">
+          <Link to="/" className="mb-10 inline-flex items-center gap-2.5 short:mb-6 lg:hidden">
             <KccpMark size={32} />
             <span className="text-sm font-bold tracking-tight text-text">KCCP 대학 · 청년부</span>
           </Link>

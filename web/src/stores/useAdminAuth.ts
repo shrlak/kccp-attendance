@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import { adminVerify, adminVerifyGoogle, getLoginPosition, setAdminPassword, setAdminToken, type AdminIdentity } from '../lib/api'
 import { supabase } from '../lib/supabase'
+import { queryClient } from '../lib/queryClient'
+import { clearPersistedQueries } from '../lib/queryPersist'
 
 const PW_KEY = 'kccp-admin-pw'
 // Where the Google OAuth callback should land. Set before the redirect (the kiosk gate
@@ -37,6 +39,23 @@ function isIdleExpired(): boolean {
   } catch { return false }
 }
 
+// Is there a session this tab is about to restore — a saved break-glass password, or one
+// of supabase-js's persisted token entries? Used only to pick the *initial* status, so a
+// signed-in admin opens on the loading screen instead of watching the login form flash
+// past while the restore (which is always at least a round trip away) completes.
+function hasRestorableSession(): boolean {
+  try {
+    if (readPw() && !isIdleExpired()) return true
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key?.startsWith('sb-') && key.includes('auth-token')) return true
+    }
+  } catch {
+    /* non-fatal */
+  }
+  return false
+}
+
 export type AdminStatus = 'idle' | 'verifying' | 'authed' | 'error'
 export type AdminAuthMethod = 'password' | 'google' | null
 
@@ -52,7 +71,7 @@ interface AdminAuthState {
 }
 
 export const useAdminAuth = create<AdminAuthState>((set) => ({
-  status: 'idle',
+  status: hasRestorableSession() ? 'verifying' : 'idle',
   identity: null,
   method: null,
 
@@ -101,6 +120,11 @@ export const useAdminAuth = create<AdminAuthState>((set) => ({
     setAdminToken(null)
     writePw(null)
     clearActivity()
+    // The roster snapshot kept for fast reloads (lib/queryPersist) belongs to whoever
+    // was signed in — drop it with the session, in memory and on disk alike, so the next
+    // login never paints the previous admin's scope.
+    clearPersistedQueries()
+    queryClient.clear()
     void supabase.auth.signOut()
     set({ status: 'idle', identity: null, method: null })
   },
@@ -178,12 +202,25 @@ async function verifyGoogleSession(accessToken: string, captureLocation: boolean
 // A saved break-glass password is only worth rehydrating if the tab hasn't been idle past
 // the timeout — otherwise drop it so the reload lands on the login screen instead of
 // silently re-authing a long-stale session.
+// Nothing left to restore: drop the optimistic 'verifying' the store may have started in
+// (see hasRestorableSession) so the login form actually appears. Only ever moves *out* of
+// 'verifying', so it can't stomp on a real sign-in that's already in flight.
+function settleIdle(): void {
+  if (useAdminAuth.getState().status === 'verifying') {
+    useAdminAuth.setState({ status: 'idle', identity: null, method: null })
+  }
+}
+
 function rehydratePassword(): void {
   const stored = readPw()
-  if (!stored) return
+  if (!stored) {
+    settleIdle()
+    return
+  }
   if (isIdleExpired()) {
     writePw(null)
     clearActivity()
+    settleIdle()
     return
   }
   // Silent reload re-auth — not an explicit sign-in, so don't prompt for location.

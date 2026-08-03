@@ -4,6 +4,16 @@
 /* Class-based dark mode — the theme store toggles `.dark` on <html> */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Height-based variants. Tailwind's breakpoints are all width-based, which says nothing
+   about a phone turned sideways: an iPhone in landscape is ~370 px tall but wide enough
+   to hit `sm:`/`md:`, so width-tuned hero type and paddings overflow it. `short` is the
+   escape hatch for anything whose vertical rhythm has to give. */
+@custom-variant short (@media (max-height: 660px));
+@custom-variant tall (@media (min-height: 860px));
+/* A phone held sideways: short, but with width to spare. Screens that stack vertically
+   in portrait can lay out across instead of overflowing. */
+@custom-variant landscape-compact (@media (orientation: landscape) and (max-height: 660px));
+
 /* `inline` resolves var(--token) at runtime so utilities react to .dark */
 @theme inline {
   --color-canvas: var(--canvas);
@@ -51,6 +61,17 @@
        gently overshooting spring for anything that travels or scales. */
     --ease-out-soft: cubic-bezier(0.2, 0.65, 0.3, 1);
     --ease-spring: cubic-bezier(0.34, 1.35, 0.5, 1);
+
+    /* Display cutouts. The viewport is `viewport-fit=cover`, so in landscape the notch
+       and the rounded corners overlap the left/right edges of the page — these are what
+       the `.safe-x` gutter widens against. Named here (rather than inlined at each use)
+       so a screen can compose them into any padding calculation. */
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+    /* The page's baseline horizontal margin, before any cutout is taken into account. */
+    --gutter: 1.25rem;
   }
   html { -webkit-tap-highlight-color: transparent; font-size: 16px; }
   body {
@@ -61,7 +82,20 @@
     font-feature-settings: 'ss05' 1, 'ss07' 1, 'cv11' 1;
     letter-spacing: -0.011em;
   }
+  /* A single stray wide child (an unclipped table, an over-long 동산 name) used to make
+     the whole page pan sideways on a phone, which reads as a broken layout. `clip`
+     rather than `hidden`: it doesn't create a scroll container, so the sticky headers
+     and bottom nav keep positioning against the viewport. Regions that legitimately
+     scroll sideways (the 출석부 grid) own their own overflow-x-auto and are unaffected. */
+  html, body { overflow-x: clip; }
   button, input, select, textarea { font: inherit; }
+  /* iOS Safari zooms the page in when a control with text under 16 px takes focus, and
+     leaves it zoomed — the layout ends up wider than the screen and panned sideways for
+     the rest of the session. Only touch devices need this; pointer devices keep the
+     app's smaller, denser type. */
+  @media (pointer: coarse) {
+    input, select, textarea { font-size: 16px; }
+  }
   ::selection { background: color-mix(in srgb, var(--primary) 24%, transparent); }
   /* Large numerals/headings get slightly tighter optical tracking, Apple-style. */
   h1, h2, h3 { letter-spacing: -0.021em; }
@@ -91,6 +125,12 @@
 .fx-pop { animation: kccp-pop .34s var(--ease-spring) both; }       /* dialogs */
 .fx-pop-fast { animation: kccp-pop .14s var(--ease-out-soft) both; } /* kiosk result screen */
 .fx-slide-up { animation: kccp-slide-up .36s var(--ease-spring) both; } /* toasts / sheets */
+/* Dialogs present as a bottom sheet on phones and a centered card from `sm` up, so the
+   entrance has to switch with them — a rise from the bottom edge vs. a scale-in on the
+   spot. Expressed here rather than as a Tailwind variant because these animation classes
+   are plain CSS, which `sm:` can't reach. */
+.fx-sheet { animation: kccp-slide-up .36s var(--ease-spring) both; }
+@media (min-width: 40rem) { .fx-sheet { animation: kccp-pop .34s var(--ease-spring) both; } }
 .fx-draw { stroke-dasharray: 56; stroke-dashoffset: 56; animation: kccp-draw .45s .15s ease-out forwards; }
 .fx-countdown { transform-origin: left; animation: kccp-countdown linear forwards; }
 
@@ -111,6 +151,24 @@
 }
 
 @layer components {
+  /* Page gutter that also clears a landscape display cutout. `--gutter` is the normal
+     margin and can be re-tuned per breakpoint from the markup (e.g. `md:[--gutter:2rem]`);
+     the inset only ever widens it, so nothing moves on a device without a notch. */
+  .safe-x {
+    padding-left: max(var(--gutter), var(--safe-left));
+    padding-right: max(var(--gutter), var(--safe-right));
+  }
+
+  /* A region that scrolls sideways on purpose (the 출석부 grid, the card replica).
+     `overscroll-behavior-x: contain` stops the swipe from escaping into the browser's
+     back gesture once the table hits its end — on a phone that used to navigate away
+     mid-scroll. */
+  .scroll-x {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+  }
+
   /* Elevated card/panel — the primary content container across the app. */
   .surface-panel {
     @apply border border-border bg-surface;
