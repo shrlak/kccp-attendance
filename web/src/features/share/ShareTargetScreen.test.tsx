@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query'
@@ -6,35 +7,40 @@ import { i18n } from '../../lib/i18n'
 import { ToastProvider } from '../../components/ui/Toast'
 
 vi.mock('../../lib/api', () => ({
-  adminVerify: vi.fn(),
-  adminVerifyGoogle: vi.fn(),
-  getLoginPosition: vi.fn().mockResolvedValue(null),
-  setAdminPassword: vi.fn(),
-  setAdminToken: vi.fn(),
+  // The share link must never reach the admin endpoints — these are here so a regression
+  // that swaps them back in shows up as a call on the wrong mock.
   extractCard: vi.fn(),
   kioskNewMember: vi.fn(),
-  getCardScanUsage: vi.fn().mockResolvedValue({
+  getCardScanUsage: vi.fn().mockRejectedValue(new Error('admin endpoint — needs a login')),
+  extractCardViaShare: vi.fn(),
+  shareNewMember: vi.fn(),
+  getShareCardScanUsage: vi.fn().mockResolvedValue({
     limit: 60,
     remaining: 57,
-    day: '2026-08-02',
+    day: '2026-08-03',
     resetsAt: 1,
     updatedAt: 1,
   }),
 }))
 
-// The auth store registers onAuthStateChange at import time.
-vi.mock('../../lib/supabase', () => ({
-  supabase: {
-    auth: {
-      onAuthStateChange: vi.fn().mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } }),
-      signInWithOAuth: vi.fn(),
-      signOut: vi.fn().mockResolvedValue({}),
+// CardScanDialog reaches lib/live, which opens a realtime channel on the shared client.
+vi.mock('../../lib/supabase', () => {
+  const channel = { on: vi.fn().mockReturnThis(), subscribe: vi.fn(), send: vi.fn() }
+  return {
+    supabase: {
+      auth: {
+        onAuthStateChange: vi.fn().mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } }),
+        signInWithOAuth: vi.fn(),
+        signOut: vi.fn().mockResolvedValue({}),
+      },
+      channel: vi.fn().mockReturnValue(channel),
+      removeChannel: vi.fn(),
     },
-  },
-}))
+  }
+})
 
 // Canvas isn't available in jsdom, so the photo pipeline is stubbed — what's under test
-// is the hand-off, not the encoder.
+// is the hand-off and which endpoints it uses, not the encoder.
 vi.mock('../admin/cardPhoto', () => ({
   fileToCardImage: vi.fn().mockResolvedValue({ base64: 'img', mediaType: 'image/jpeg' }),
 }))
@@ -52,11 +58,16 @@ beforeEach(async () => {
   // "nothing was shared" — otherwise a previous test's photo leaks into the next one.
   const { readSharedCards } = await import('../../lib/sharedCards')
   ;(readSharedCards as ReturnType<typeof vi.fn>).mockResolvedValue([])
-  const { useAdminAuth } = await import('../../stores/useAdminAuth')
-  useAdminAuth.setState({ status: 'idle', identity: null })
 })
 
 const sharedPhoto = (name = 'card.jpg') => new File(['x'], name, { type: 'image/jpeg' })
+
+const extracted = {
+  status: 'ok',
+  cards: [{ name: '김새가', affiliationCategory: '대학생' }],
+  model: 'Gemini 2.5 Flash',
+  usage: { limit: 60, remaining: 56, day: '2026-08-03', resetsAt: 1, updatedAt: 1 },
+}
 
 async function renderShare() {
   const { ShareTargetScreen } = await import('./ShareTargetScreen')
@@ -72,65 +83,66 @@ async function renderShare() {
   )
 }
 
-async function signIn(role: 'welcoming' | 'pastor' = 'welcoming') {
-  const { useAdminAuth } = await import('../../stores/useAdminAuth')
-  useAdminAuth.setState({
-    status: 'authed',
-    identity: { role, group: '', subgroup: '', ministry: '' },
-  })
-}
-
-describe('ShareTargetScreen', () => {
-  it('shows the login gate when the shared-to device has no session', async () => {
-    const { readSharedCards } = await import('../../lib/sharedCards')
-    ;(readSharedCards as ReturnType<typeof vi.fn>).mockResolvedValue([sharedPhoto()])
+describe('ShareTargetScreen — no login required', () => {
+  it('never shows a login gate, even with no session at all', async () => {
     await renderShare()
 
-    expect(await screen.findByRole('button', { name: 'Google로 로그인' })).toBeInTheDocument()
-    // The photos must survive the sign-in — including the Google redirect, which reloads
-    // the page — so nothing is consumed until the scan dialog actually has them.
-    const { clearSharedCards } = await import('../../lib/sharedCards')
-    expect(clearSharedCards).not.toHaveBeenCalled()
+    expect(await screen.findByRole('button', { name: '카드 사진 선택' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Google로 로그인' })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('관리자 비밀번호')).not.toBeInTheDocument()
   })
 
   it('takes a shared photo straight into card review, and consumes the hand-off', async () => {
     const { readSharedCards, clearSharedCards } = await import('../../lib/sharedCards')
     ;(readSharedCards as ReturnType<typeof vi.fn>).mockResolvedValue([sharedPhoto()])
-    const { extractCard } = await import('../../lib/api')
-    ;(extractCard as ReturnType<typeof vi.fn>).mockResolvedValue({
-      status: 'ok',
-      cards: [{ name: '김새가', affiliationCategory: '대학생' }],
-      model: 'Gemini 2.5 Flash',
-      usage: { limit: 60, remaining: 56, day: '2026-08-02', resetsAt: 1, updatedAt: 1 },
-    })
-    await signIn()
+    const { extractCardViaShare } = await import('../../lib/api')
+    ;(extractCardViaShare as ReturnType<typeof vi.fn>).mockResolvedValue(extracted)
     await renderShare()
 
     expect(await screen.findByLabelText('이름')).toHaveValue('김새가')
-    // No pick step: the OS already chose the photo.
-    expect(screen.queryByRole('button', { name: '카드 사진 선택' })).not.toBeInTheDocument()
     await waitFor(() => expect(clearSharedCards).toHaveBeenCalled())
   })
 
-  it('offers the picker when opened from the home-screen shortcut with nothing shared', async () => {
-    await signIn()
+  it('reads the card through the unauthenticated endpoint, not the admin one', async () => {
+    const { readSharedCards } = await import('../../lib/sharedCards')
+    ;(readSharedCards as ReturnType<typeof vi.fn>).mockResolvedValue([sharedPhoto()])
+    const { extractCard, extractCardViaShare } = await import('../../lib/api')
+    ;(extractCardViaShare as ReturnType<typeof vi.fn>).mockResolvedValue(extracted)
     await renderShare()
 
-    expect(await screen.findByRole('button', { name: '카드 사진 선택' })).toBeInTheDocument()
-    const { extractCard } = await import('../../lib/api')
+    await screen.findByLabelText('이름')
+    expect(extractCardViaShare).toHaveBeenCalledTimes(1)
     expect(extractCard).not.toHaveBeenCalled()
   })
 
-  it('refuses to register for a read-only pastor account', async () => {
+  it('registers through the unauthenticated endpoint, not the admin one', async () => {
     const { readSharedCards } = await import('../../lib/sharedCards')
     ;(readSharedCards as ReturnType<typeof vi.fn>).mockResolvedValue([sharedPhoto()])
-    await signIn('pastor')
+    const { extractCardViaShare, shareNewMember, kioskNewMember } = await import('../../lib/api')
+    ;(extractCardViaShare as ReturnType<typeof vi.fn>).mockResolvedValue(extracted)
+    ;(shareNewMember as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ok', memberId: 'm1' })
     await renderShare()
 
-    expect(
-      await screen.findByText('목사님 계정은 읽기 전용이라 새가족을 등록할 수 없습니다.'),
-    ).toBeInTheDocument()
-    const { extractCard } = await import('../../lib/api')
-    expect(extractCard).not.toHaveBeenCalled()
+    await screen.findByLabelText('이름')
+    await userEvent.click(screen.getByRole('button', { name: '등록' }))
+
+    await waitFor(() => expect(shareNewMember).toHaveBeenCalledTimes(1))
+    expect(kioskNewMember).not.toHaveBeenCalled()
+    expect((shareNewMember as ReturnType<typeof vi.fn>).mock.calls[0][0]).toMatchObject({
+      name: '김새가',
+      // 소속 "대학생" maps to the 대학부 부서, same as a registration made inside the panel.
+      group: '대학부',
+    })
+  })
+
+  it('shows the remaining daily allowance from the unauthenticated counter', async () => {
+    const { getCardScanUsage, getShareCardScanUsage } = await import('../../lib/api')
+    await renderShare()
+
+    await userEvent.click(await screen.findByRole('button', { name: '카드 사진 선택' }))
+
+    expect(await screen.findByText('오늘 57회 남음')).toBeInTheDocument()
+    expect(getShareCardScanUsage).toHaveBeenCalled()
+    expect(getCardScanUsage).not.toHaveBeenCalled()
   })
 })
