@@ -198,7 +198,7 @@ function r2StorageLimitBytes(): number {
 // Excluded paths: verify (login only), the backup endpoints themselves, and both
 // restore flows — auto-backing-up right after restoring an older snapshot would
 // overwrite current.* in R2 with pre-restore-era data and destroy the newer copy.
-const AUTO_BACKUP_EXCLUDE=[/^\/api\/admin\/verify$/,/^\/api\/admin\/db-backup\//,/^\/api\/admin\/restore$/,/^\/api\/admin\/extract-card$/];
+const AUTO_BACKUP_EXCLUDE=[/^\/api\/admin\/verify$/,/^\/api\/admin\/db-backup\//,/^\/api\/admin\/restore$/,/^\/api\/admin\/extract-card$/,/^\/api\/share\//];
 async function maybeAutoBackup(sb:any,p:string): Promise<void> {
   if(AUTO_BACKUP_EXCLUDE.some((re)=>re.test(p))) return;
   const pat=Deno.env.get("GITHUB_PAT"); if(!pat) return;
@@ -544,9 +544,15 @@ Deno.serve(async (req: Request) => {
 
     // 카드 사진 등록 (Gemini extract-card) usage for today's Pittsburgh calendar day.
     // The public response deliberately exposes tries left, not tries already used.
-    if(req.method==="GET"&&p==="/api/admin/card-scan-usage") {
-      const role=await resolveAdmin(sb,req);
-      if(!role) return fail(401,"Not authorized");
+    // /api/share/... is the unauthenticated twin of each card endpoint below, used by the
+    // share-link registration page (web/share.html). Same implementation, same shared daily
+    // scan quota — the only difference is that no admin role is resolved, because that page
+    // deliberately has no login. Anyone with the link can register a 새가족 card.
+    if(req.method==="GET"&&(p==="/api/admin/card-scan-usage"||p==="/api/share/card-scan-usage")) {
+      if(p==="/api/admin/card-scan-usage") {
+        const role=await resolveAdmin(sb,req);
+        if(!role) return fail(401,"Not authorized");
+      }
       const {limit,remaining,day,resetsAt,updatedAt}=await cardScanUsage(sb);
       return ok({limit,remaining,day,resetsAt,updatedAt});
     }
@@ -1162,10 +1168,13 @@ Deno.serve(async (req: Request) => {
     // is_new_member=true and the extended profile fields, links a NEW-{ts} device, then
     // immediately records today's attendance (first_visit) — unless body.skipCheckin
     // (admin card-scan path). Hardened (verifyAdmin); pastor read-only; audited.
-    if(req.method==="POST"&&p==="/api/admin/kiosk-new-member") {
-      const role=await resolveAdmin(sb,req);
-      if(!role) return fail(401,"Not authorized");
-      if(role.role==="pastor") return fail(403,"Read-only");
+    if(req.method==="POST"&&(p==="/api/admin/kiosk-new-member"||p==="/api/share/new-member")) {
+      const viaShare=p==="/api/share/new-member";
+      if(!viaShare) {
+        const role=await resolveAdmin(sb,req);
+        if(!role) return fail(401,"Not authorized");
+        if(role.role==="pastor") return fail(403,"Read-only");
+      }
       const name=(body.name||"").trim(); const group=(body.group||"").trim();
       if(!name||!group) return fail(400,"name and group required");
       const subgroup=(body.subgroup||"").trim();
@@ -1188,7 +1197,7 @@ Deno.serve(async (req: Request) => {
       // today's attendance — e.g. entering a stack of paper cards later in the week.
       // The kiosk never sends the flag, so its check-them-in-now behavior is unchanged.
       if(!body.skipCheckin) await sb.from("attendance_log").insert({device_id:newId,member_id:memberId,name,group_name:group,subgroup,date:today,time_str:time,ts:Date.now(),is_manual:true,admin_added:false,first_visit:true});
-      await addAudit(sb,"new-member-register",xDev,name+" | "+group+(body.skipCheckin?" | no-checkin":""));
+      await addAudit(sb,"new-member-register",xDev,name+" | "+group+(body.skipCheckin?" | no-checkin":"")+(viaShare?" | share-link":""));
       return ok({status:"ok",memberId,time});
     }
 
@@ -1197,10 +1206,13 @@ Deno.serve(async (req: Request) => {
     // JSON — one object per card, since a photo can show several — which the client
     // normalizes + shows for review. Nothing is written to the DB here.
     // Audit logs only size/type, never the extracted PII.
-    if(req.method==="POST"&&p==="/api/admin/extract-card") {
-      const role=await resolveAdmin(sb,req);
-      if(!role) return fail(401,"Not authorized");
-      if(role.role==="pastor") return fail(403,"Read-only");
+    if(req.method==="POST"&&(p==="/api/admin/extract-card"||p==="/api/share/extract-card")) {
+      const viaExtractShare=p==="/api/share/extract-card";
+      if(!viaExtractShare) {
+        const role=await resolveAdmin(sb,req);
+        if(!role) return fail(401,"Not authorized");
+        if(role.role==="pastor") return fail(403,"Read-only");
+      }
       const image=typeof body.image==="string"?body.image:"";
       const mediaType=["image/jpeg","image/png","image/webp"].includes(body.mediaType)?body.mediaType:"image/jpeg";
       if(!image) return fail(400,"image required");
@@ -1216,7 +1228,7 @@ Deno.serve(async (req: Request) => {
       // Record the attempt before calling out so every consumed try is reflected in the
       // live usage counter, even when every model in the chain errors. One row per
       // request (not per model), so the fallbacks don't eat the daily allowance.
-      const usageRecorded=await addAudit(sb,"extract-card",xDev,mediaType+" | "+Math.round(image.length*3/4/1024)+"KB | api-call");
+      const usageRecorded=await addAudit(sb,"extract-card",xDev,mediaType+" | "+Math.round(image.length*3/4/1024)+"KB | api-call"+(viaExtractShare?" | share-link":""));
       if(!usageRecorded) return fail(500,"Could not record card API usage — retry");
       let cards:Record<string,unknown>[]|null=null,used=chain[0],lastError="",rateLimited=false;
       // Capped so a long chain can't outlive the client's 60s budget (4 × 20s worst case).

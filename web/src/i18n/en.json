@@ -61,7 +61,7 @@
   },
   "common": { "cancel": "Cancel", "save": "Save", "loading": "Loading…", "error": "Connection error", "retry": "Try again", "close": "Close" },
   "notFound": { "message": "We couldn’t find that page", "description": "Return to the KCCP College & Young Adult attendance page and start again.", "home": "Back to attendance" },
-  "share": { "title": "Register a new-family card", "received": "Received {{n}} photo(s)", "receivedHint": "Reading the card now. Check what was recognized, then register.", "emptyHint": "From your phone's photo app, tap Share → KCCP 출석 to land here directly. You can also pick a photo now.", "pick": "Choose card photos", "goToPanel": "Go to the admin panel", "readOnly": "Pastor accounts are read-only and cannot register new family." },
+  "share": { "title": "Register a new-family card", "received": "Received {{n}} photo(s)", "receivedHint": "Reading the card now. Check what was recognized, then register.", "emptyHint": "From your phone's photo app, tap Share → KCCP 출석 to land here directly. You can also pick a photo now.", "pick": "Choose card photos", "goToPanel": "Go to the admin panel" },
   "admin": {
     "title": "Admin",
     "pageTitle": "Admin Page",

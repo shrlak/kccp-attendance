@@ -7,13 +7,21 @@ import { Switch } from '../../components/ui/Switch'
 import { Tag } from '../../components/ui/Tag'
 import { ScanLine, Camera, ImagePlus, CheckCircle2, Share2 } from '../../components/ui/Icon'
 import { useToast } from '../../components/ui/Toast'
-import { extractCard, kioskNewMember, getCardScanUsage, type NewMemberFields } from '../../lib/api'
+import {
+  extractCard,
+  kioskNewMember,
+  getCardScanUsage,
+  extractCardViaShare,
+  shareNewMember,
+  getShareCardScanUsage,
+  type NewMemberFields,
+} from '../../lib/api'
 import { easternNow } from '../../lib/checkinWindow'
 import { NewFamilyCardForm } from './NewFamilyCardForm'
 import { blankCardForm, groupForAffiliation, joinAffiliation, type CardFormValue } from './newFamilyCard'
 import { normalizeExtractedCards } from './cardExtraction'
 import { fileToCardImage } from './cardPhoto'
-import { refreshRoster } from '../../lib/live'
+import { refreshRoster, broadcastAttendanceChange } from '../../lib/live'
 
 // 카드 사진으로 등록: photograph/upload the paper 새가족 등록 카드; the edge function
 // has a vision model read the handwriting/checkboxes, and the result pre-fills the
@@ -28,25 +36,33 @@ import { refreshRoster } from '../../lib/live'
 // batch moves on.
 // `initialFiles` skips the picker entirely: the /share screen passes the photos the OS
 // handed over through the phone's share sheet, so a shared card goes straight to 인식.
+// `publicMode` is the share link's other half: share.html carries no login, so it talks
+// to the unauthenticated /api/share/* endpoints and can't touch the admin-only roster
+// query afterwards.
 type Phase = 'pick' | 'extracting' | 'review'
 
 export function CardScanDialog({
   open,
   onClose,
   initialFiles,
+  publicMode = false,
 }: {
   open: boolean
   onClose: () => void
   initialFiles?: File[]
+  publicMode?: boolean
 }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const toast = useToast()
   // Refetch on open, every two seconds while the dialog is visible, and after each API
   // request below. This is the same server-side counter that enforces the daily limit.
+  // Separate cache keys so a signed-in admin who also opens the share link doesn't have
+  // one view's counter overwritten by the other's.
+  const usageKey = publicMode ? ['cardScanUsage', 'share'] : ['cardScanUsage']
   const { data: usage } = useQuery({
-    queryKey: ['cardScanUsage'],
-    queryFn: getCardScanUsage,
+    queryKey: usageKey,
+    queryFn: publicMode ? getShareCardScanUsage : getCardScanUsage,
     enabled: open,
     staleTime: 0,
     refetchOnMount: 'always',
@@ -136,7 +152,7 @@ export function CardScanDialog({
       return
     }
     try {
-      const res = await extractCard(image.base64, image.mediaType)
+      const res = await (publicMode ? extractCardViaShare : extractCard)(image.base64, image.mediaType)
       // Older deployed function versions answer with a single `card`; both shapes
       // normalize to a list, so one photo of several cards yields several forms.
       const found = normalizeExtractedCards(res.cards ?? res.card, easternNow().date)
@@ -146,7 +162,7 @@ export function CardScanDialog({
       setPhase('review')
       if (found.length > 1) toast({ title: t('admin.newfamily.scan.foundCards', { n: found.length }), tone: 'ok' })
       // The server returns the post-call allowance so this dialog updates immediately.
-      qc.setQueryData(['cardScanUsage'], res.usage)
+      qc.setQueryData(usageKey, res.usage)
     } catch (e) {
       // Surface the server's reason (missing secret, quota, unreadable card) —
       // these are actionable, unlike a generic failure.
@@ -155,7 +171,7 @@ export function CardScanDialog({
     } finally {
       // Failed provider calls also consume a try. Refetch after every attempted request
       // so other open admin tabs and this batch converge on the audited count quickly.
-      void qc.invalidateQueries({ queryKey: ['cardScanUsage'] })
+      void qc.invalidateQueries({ queryKey: usageKey })
     }
   }
 
@@ -204,8 +220,12 @@ export function CardScanDialog({
         pastoralVisitRequested: card.pastoralVisitRequested,
         skipCheckin: !checkinToday,
       }
-      await kioskNewMember(payload)
-      await refreshRoster(qc)
+      await (publicMode ? shareNewMember : kioskNewMember)(payload)
+      // The share link has no roster to refetch (that query is admin-only), but the ping
+      // still goes out so any admin panel or kiosk that is open picks the new 새가족 up
+      // immediately — same as a registration made from inside the panel.
+      if (publicMode) broadcastAttendanceChange()
+      else await refreshRoster(qc)
       toast({ title: t('admin.newfamily.scan.done', { name: payload.name }), tone: 'ok' })
       if (hasMore) {
         // More cards in the stack — keep the dialog (and the 오늘 출석 체크 choice)

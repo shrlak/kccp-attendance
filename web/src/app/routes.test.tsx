@@ -55,11 +55,13 @@ describe('routes', () => {
     expect(screen.getByRole('button', { name: 'Google로 로그인' })).toBeInTheDocument()
   })
 
-  // The share target: a photo shared from the phone lands here, and an unauthenticated
-  // device has to reach the login rather than the scan flow.
-  it('gates /share behind the admin login gate when not authed', async () => {
+  // The share target is deliberately open: a photo shared from the phone, or the card
+  // link handed to whoever is at the welcome desk, must reach the scan flow with no
+  // sign-in in the way.
+  it('opens /share without any login', async () => {
     renderAt('/share')
-    expect(await screen.findByRole('button', { name: 'Google로 로그인' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: '카드 사진 선택' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Google로 로그인' })).not.toBeInTheDocument()
   })
 
   it('renders the 404 page for an unknown path', () => {

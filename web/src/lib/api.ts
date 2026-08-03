@@ -532,3 +532,16 @@ export interface CardScanUsage {
 // admin). The server counts every outbound Gemini request, including failed responses;
 // only the number remaining is exposed, and the daily limit is super-admin-configurable.
 export const getCardScanUsage = () => api<CardScanUsage>('GET', '/api/admin/card-scan-usage')
+
+// ── Share-link card registration (no login) ──────────────────────────────────
+// share.html registers 새가족 cards without any sign-in, so it calls the unauthenticated
+// twins of the three endpoints above. Server-side they run the same code paths and draw
+// on the same shared daily scan quota; the only difference is that no admin role is
+// resolved. Anyone holding the link can register a card — that is the intent.
+export const extractCardViaShare = (image: string, mediaType: string) =>
+  api<{ status: 'ok'; cards?: Record<string, unknown>[]; card?: Record<string, unknown>; model?: string; usage: CardScanUsage }>('POST', '/api/share/extract-card', { image, mediaType }, undefined, 60_000)
+
+export const shareNewMember = (fields: NewMemberFields) =>
+  api<{ status: 'ok'; memberId: string; time?: string }>('POST', '/api/share/new-member', fields)
+
+export const getShareCardScanUsage = () => api<CardScanUsage>('GET', '/api/share/card-scan-usage')
