@@ -35,6 +35,15 @@ if (
 // /kccp-attendance/ instead of the domain root. BASE_URL is '/' in dev → basename '/'.
 const basename = import.meta.env.BASE_URL.replace(/\/$/, '') || '/'
 
+// share.html is the iPhone home-screen entry (see the comment at the top of that file):
+// a real document, because iOS launches a home-screen app at its manifest's start_url
+// and a manifest can only point at one. It boots this same app, so rewrite the URL to
+// the /share route the router actually knows before the first render — replaceState, so
+// there's no flash of a 404 and no extra history entry to back into.
+if (window.location.pathname.endsWith('/share.html')) {
+  window.history.replaceState({}, '', `${import.meta.env.BASE_URL}share${window.location.search}`)
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
