@@ -118,7 +118,7 @@ function WeeklyRecap({ log }: { log: LogEntry[] }) {
 
 function SummaryTable({ head, rows }: { head: string[]; rows: { key: string; cells: (string | number)[] }[] }) {
   return (
-    <div className="-mx-1 overflow-x-auto">
+    <div className="scroll-x -mx-1">
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr>

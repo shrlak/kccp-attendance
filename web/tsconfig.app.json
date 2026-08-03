@@ -22,5 +22,8 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"]
+  /* The service worker compiles against the WebWorker lib instead — see
+     tsconfig.worker.json, which owns sw.ts. */
+  "include": ["src"],
+  "exclude": ["src/sw.ts"]
 }

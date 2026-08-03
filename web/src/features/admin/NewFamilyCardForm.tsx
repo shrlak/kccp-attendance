@@ -32,7 +32,7 @@ export function NewFamilyCardForm({
   return (
     // shrink-0: as a flex item in the dialog's max-h column this scroll container's
     // min-content height is 0 — without it the whole card squashes flat.
-    <div className="shrink-0 overflow-x-auto">
+    <div className="scroll-x shrink-0">
       <div className="min-w-[440px] border-2 border-[#111] bg-white text-[#111]">
         <div className="border-b border-[#111] bg-[#efefef] px-2 py-2 text-center font-display text-sm font-bold">
           {CARD_TITLE}

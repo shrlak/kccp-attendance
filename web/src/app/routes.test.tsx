@@ -8,7 +8,17 @@ import { AppRoutes } from './routes'
 
 // Importing + awaiting i18n makes our custom instance react-i18next's default and
 // guarantees it's ready, so useTranslation() resolves real strings (not keys).
-beforeAll(async () => { await i18n.init() })
+beforeAll(async () => {
+  await i18n.init()
+  // Warm the lazy route chunks. Under Vitest the first of these imports has to transform
+  // supabase-js and the entire admin tree, which on its own can outlast a findBy timeout
+  // — the tests are about routing, not about module transform time.
+  await Promise.all([
+    import('../features/admin/AdminShell'),
+    import('../features/kiosk/KioskShell'),
+    import('../features/share/ShareTargetScreen'),
+  ])
+})
 beforeEach(() => { queryClient.clear() })
 
 function renderAt(path: string) {
@@ -31,16 +41,25 @@ describe('routes', () => {
     expect(screen.queryByRole('button', { name: '체크인' })).not.toBeInTheDocument()
   })
 
-  it('renders the admin login gate at /admin', () => {
+  // /admin, /kiosk and /share are lazy route chunks (routes.tsx), so each renders the
+  // Suspense splash for a tick before its screen appears — hence findBy, not getBy.
+  it('renders the admin login gate at /admin', async () => {
     renderAt('/admin')
+    expect(await screen.findByRole('button', { name: 'Google로 로그인' })).toBeInTheDocument()
+  })
+
+  it('gates /kiosk behind the kiosk login gate when not authed (password + Google)', async () => {
+    renderAt('/kiosk')
+    expect(await screen.findByLabelText('키오스크 비밀번호')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '키오스크 시작' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Google로 로그인' })).toBeInTheDocument()
   })
 
-  it('gates /kiosk behind the kiosk login gate when not authed (password + Google)', () => {
-    renderAt('/kiosk')
-    expect(screen.getByLabelText('키오스크 비밀번호')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '키오스크 시작' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Google로 로그인' })).toBeInTheDocument()
+  // The share target: a photo shared from the phone lands here, and an unauthenticated
+  // device has to reach the login rather than the scan flow.
+  it('gates /share behind the admin login gate when not authed', async () => {
+    renderAt('/share')
+    expect(await screen.findByRole('button', { name: 'Google로 로그인' })).toBeInTheDocument()
   })
 
   it('renders the 404 page for an unknown path', () => {

@@ -7,7 +7,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+    <!-- Lets the UA paint form controls, scrollbars and the pre-CSS canvas in the right
+         scheme, so a dark-mode phone doesn't flash white before the stylesheet lands. -->
+    <meta name="color-scheme" content="light dark" />
     <meta name="description" content="피츠버그 한인중앙교회 대학·청년부 출석 시스템" />
+    <!-- Added to the home screen (the one-tap route into 새가족 카드 등록 on iPhones,
+         which don't implement Web Share Target) the app runs chromeless, so the layout's
+         safe-area padding is what keeps content clear of the notch and home indicator. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="KCCP 출석" />
     <title>KCCP 대학·청년부 출석</title>
     <!-- Theme FOUC guard: apply the persisted (or system) theme to <html> before
          first paint, so the page doesn't flash light before the bundle hydrates. -->
@@ -25,12 +35,24 @@
       })()
     </script>
     <!-- Pretendard gives the Korean-first interface consistent proportions across church
-         tablets, office PCs, and members' phones. -->
+         tablets, office PCs, and members' phones. Loaded without blocking the render:
+         `media="print"` keeps it off the critical path, and the onload flip applies it as
+         soon as it arrives. Until then the local SF Pro / Apple SD Gothic Neo fallback in
+         --font-sans carries the text, so first paint never waits on a third-party CDN.
+         The service worker also caches it (src/sw.ts), so a reload is offline-fast. -->
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
     <link
       rel="stylesheet"
+      media="print"
+      onload="this.media='all'; this.onload=null"
       href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
     />
+    <noscript>
+      <link
+        rel="stylesheet"
+        href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
+      />
+    </noscript>
   </head>
   <body>
     <div id="root"></div>

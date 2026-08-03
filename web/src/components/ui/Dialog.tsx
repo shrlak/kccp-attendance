@@ -23,13 +23,19 @@ export function Dialog({ open, onOpenChange, title, children, wide }: DialogProp
         {/* fx-pop runs on mount, i.e. each open — a small springy scale+rise entrance.
             The wrapper stays transform-positioned; the inner div animates so the two
             transforms don't fight. */}
+        {/* Phone geometry is a bottom sheet, not a centered card: it sits in the thumb's
+            reach, it can be taller (a centered card has to leave room above *and* below,
+            which in landscape left almost nothing), and its bottom padding clears the home
+            indicator. From `sm` up it's the centered modal it has always been. */}
         <RDialog.Content
-          className={`fixed left-1/2 top-1/2 z-[1001] -translate-x-1/2 -translate-y-1/2
-            ${wide ? 'w-[min(720px,calc(100vw-2rem))]' : 'w-[min(440px,calc(100vw-2rem))]'}`}
+          className={`fixed inset-x-0 bottom-0 z-[1001] sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2
+            ${wide ? 'sm:w-[min(720px,calc(100vw-2rem))]' : 'sm:w-[min(440px,calc(100vw-2rem))]'}`}
         >
-          <div className="fx-pop max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-[26px] border border-border bg-surface p-6 shadow-[var(--shadow-pop)] focus:outline-none sm:p-7">
+          <div className="fx-sheet max-h-[92dvh] overflow-y-auto overscroll-contain rounded-t-[26px] border border-border bg-surface p-6 pb-[calc(1.5rem+var(--safe-bottom))] shadow-[var(--shadow-pop)] focus:outline-none sm:max-h-[calc(100dvh-2rem)] sm:rounded-[26px] sm:p-7 sm:pb-7">
+          {/* Sheet grab handle — the affordance that says this panel is dismissible. */}
+          <div className="mx-auto mb-4 h-1 w-9 rounded-full bg-fill-hover sm:hidden" aria-hidden />
           <div className="mb-5 flex items-start justify-between gap-4">
-            <div>
+            <div className="min-w-0">
               <div className="section-kicker mb-1.5">KCCP Attendance</div>
               <RDialog.Title className="font-display text-[22px] font-bold leading-tight tracking-[-0.02em] text-text">{title}</RDialog.Title>
             </div>
