@@ -58,11 +58,13 @@ const TERM_END_OVERRIDES: Record<string, string> = {
 // (semesterSundays), clamped to the term's effective start (TERM_START_OVERRIDES) and run
 // through the term-end override when set — otherwise only through `today`. ISO ascending.
 export function exportSundays(today: string, semesterDates?: SemesterDates | null): string[] {
-  // 예배 doesn't stop just because `today` falls between two configured 학기 — show that
-  // gap's own Sundays (through today) instead of freezing on the previous term's already-
-  // finished columns. Only possible once an admin's saved term dates leave a break.
+  // 예배 doesn't stop just because `today` falls between two configured 학기 — the moment a
+  // term ends the sheet rolls over to the gap's own table instead of freezing on the finished
+  // term's columns. Like a term, the gap shows its *whole* Sunday set (upcoming ones blank
+  // until they pass), so the transition sheet is a real table from its first day rather than
+  // an empty one. Only possible once an admin's saved term dates leave a break.
   const transition = transitionBounds(today, semesterDates)
-  if (transition) return transitionSundays(transition, today)
+  if (transition) return transitionSundays(transition, transition.end)
   // Once an administrator saves explicit term dates, they are the source of truth and
   // the sheet exposes the whole configured term (future Sundays remain blank until they
   // occur). Before that, preserve the one-off legacy 2026 overrides below.
@@ -240,22 +242,34 @@ export function buildAttendanceModel(
   return { dates, dateLabels: dates.map(formatGridDate), sections }
 }
 
-// buildAttendanceModel's groupBy for `today`: by 동산 normally, or by 부서 alone during a
-// transition period (no configured 학기 covers `today`) — 동산 assignments are term-scoped
-// and don't cleanly apply to the gap between them.
+// buildAttendanceModel's groupBy for one kind of period: by 동산 inside a 학기, by 부서 alone
+// during a transition gap — 동산 assignments are term-scoped and don't cleanly apply between
+// two terms.
+export function periodGroupBy(
+  kind: 'semester' | 'transition',
+  unassigned: string,
+): (m: Member) => string {
+  return (m: Member) => (kind === 'transition' ? m.group_name : m.subgroup) || unassigned
+}
+
+// periodGroupBy for the period containing `today` (no configured 학기 covers it → transition).
 export function attendanceGroupBy(
   today: string,
   semesterDates: SemesterDates | null | undefined,
   unassigned: string,
 ): (m: Member) => string {
-  const inTransition = !!transitionBounds(today, semesterDates)
-  return (m: Member) => (inTransition ? m.group_name : m.subgroup) || unassigned
+  return periodGroupBy(transitionBounds(today, semesterDates) ? 'transition' : 'semester', unassigned)
 }
 
 // Human label for the semester containing `today`, e.g. "2026 여름 학기" / "Summer 2026" —
-// or, between two configured 학기, a transition-period label instead.
+// or, between two configured 학기, a transition-period label carrying the gap's own date
+// range, so it's obvious at a glance which stretch of 예배 the table covers.
 export function semesterLabel(today: string, lang: Lang, semesterDates?: SemesterDates | null): string {
-  if (transitionBounds(today, semesterDates)) return lang === 'ko' ? '학기 사이 (전환 기간)' : 'Between terms'
+  const transition = transitionBounds(today, semesterDates)
+  if (transition) {
+    const range = `${formatGridDate(transition.start)}–${formatGridDate(transition.end)}`
+    return lang === 'ko' ? `학기 사이 (전환 기간) · ${range}` : `Between terms · ${range}`
+  }
   const { year, season } = semesterBounds(today, semesterDates)
   if (lang === 'ko') {
     const ko = season === 'spring' ? '봄' : season === 'summer' ? '여름' : '가을'
@@ -307,18 +321,44 @@ export function gridSheet(
   today: string,
   semesterDates?: SemesterDates | null,
 ): SheetData {
-  const L =
-    lang === 'ko'
-      ? { name: '이름', memberTotal: '예배 총 출석', total: '총 출석', key: 'KEY', present: '출석', absent: '결석', etc: '기타', unassigned: '동산 미지정', newFamily: '새가족' }
-      : { name: 'Name', memberTotal: 'Worship Total', total: 'Total', key: 'KEY', present: 'Present', absent: 'Absent', etc: 'Other', unassigned: 'Unassigned', newFamily: 'New family' }
+  return attendanceSheet(
+    members,
+    log,
+    lang,
+    exportSundays(today, semesterDates),
+    today,
+    attendanceGroupBy(today, semesterDates, sheetLabels(lang).unassigned),
+  )
+}
+
+// The Attendance sheet's own labels, shared by gridSheet and the archive workbooks.
+export function sheetLabels(lang: Lang) {
+  return lang === 'ko'
+    ? { name: '이름', memberTotal: '예배 총 출석', total: '총 출석', key: 'KEY', present: '출석', absent: '결석', etc: '기타', unassigned: '동산 미지정', newFamily: '새가족' }
+    : { name: 'Name', memberTotal: 'Worship Total', total: 'Total', key: 'KEY', present: 'Present', absent: 'Absent', etc: 'Other', unassigned: 'Unassigned', newFamily: 'New family' }
+}
+
+// gridSheet's body over an explicit date list and grouping — the form the archive exports
+// use, where the columns are a *past* term's Sundays rather than the current one's. `today`
+// still drives the blank-until-data rules; an archive passes the period's own end so nothing
+// inside it counts as upcoming.
+export function attendanceSheet(
+  members: Member[],
+  log: LogEntry[],
+  lang: Lang,
+  dates: string[],
+  today: string,
+  groupBy?: (m: Member) => string,
+): SheetData {
+  const L = sheetLabels(lang)
 
   const model = buildAttendanceModel(
     members,
     log,
-    exportSundays(today, semesterDates),
+    dates,
     today,
     { unassigned: L.unassigned, newFamily: L.newFamily },
-    attendanceGroupBy(today, semesterDates, L.unassigned),
+    groupBy,
   )
   const nDates = model.dates.length
 

@@ -72,5 +72,9 @@ Full Phase 1–4 parity + production cutover complete. Shipped: branded landing,
 (light/dark), 동산 admin tab (summer-combined names), bulk 동산 assign/unassign, clear-all
 attendance with super-approval, analytics layout, logout→home (a **reload stays put**: the
 route is the screen, and the admin panel's tab is remembered in `sessionStorage` via
-`web/src/features/admin/adminTab.ts`). See `docs/superpowers/`
+`web/src/features/admin/adminTab.ts`), 출석부 archives (`features/admin/archive.ts` +
+`ArchiveSection.tsx`: the sheet rolls over to the next 학기 — or the gap between two, shown
+with the gap's own full Sunday set — the day a term ends, and every finished 학기/전환 기간,
+학년도 and calendar year is downloadable as an Excel workbook built from the log at click
+time, so clearing attendance clears the archives too). See `docs/superpowers/`
 (gitignored; force-added curated docs) for the parity inventory, cutover plan, and runbook.

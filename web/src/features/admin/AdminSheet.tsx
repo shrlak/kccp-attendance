@@ -26,6 +26,7 @@ import { useDongsanRole } from './useDongsanRole'
 import { computeStats } from './stats'
 import { GroupFilter } from './GroupFilter'
 import { ExportMenu } from './ExportMenu'
+import { ArchiveSection } from './ArchiveSection'
 import { StatsBar } from './StatsBar'
 import { IconKey } from './IconKey'
 import { Dialog } from '../../components/ui/Dialog'
@@ -111,6 +112,15 @@ export function AdminSheet() {
       ) : (
         <LogView log={log} empty={t('admin.sheet.empty')} />
       )}
+      {/* Finished 학기 / 전환 기간 / 연도 출석부, downloadable — the tab's closing section. */}
+      <ArchiveSection
+        members={members}
+        log={fLog}
+        filter={filter}
+        today={today}
+        lang={lang}
+        semesterDates={cfg?.semesterDates}
+      />
       {bulk && <BulkModal data={data} onClose={() => setBulk(false)} />}
       {clearing && <ClearDialog isSuper={data.role === 'super_admin'} onClose={() => setClearing(false)} />}
     </>

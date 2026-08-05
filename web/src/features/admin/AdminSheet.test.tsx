@@ -95,6 +95,28 @@ describe('AdminSheet 출석부 (Excel-style grid)', () => {
     expect(cellsOf(await rowOf('B'))).toEqual(['B', '0', '', '', '', '', '', '', '', '', ''])
   })
 
+  it('tells you when the running term will be archived, while nothing is finished yet', async () => {
+    renderSheet()
+    await screen.findByRole('heading', { name: '믿음동산' })
+
+    expect(screen.getByRole('heading', { name: '지난 학기 · 연도 출석부' })).toBeInTheDocument()
+    // 여름학기 (기본 일정: 05/10–08/14) is still running on 06/21 → no archives yet.
+    expect(screen.getByText(/이번 학기가 끝나면\(2026\.08\.14\)/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /다운로드/ })).not.toBeInTheDocument()
+  })
+
+  it('lists the finished term (and the closed 학년도) with a download once the term is over', async () => {
+    vi.setSystemTime(new Date('2026-09-15T16:00:00Z')) // 가을학기 중 — 여름학기는 끝났다
+    renderSheet()
+    await screen.findByRole('heading', { name: '지난 학기 · 연도 출석부' })
+
+    expect(screen.getByText('2026 여름 학기')).toBeInTheDocument()
+    expect(screen.getByText('2025–26 학년도')).toBeInTheDocument() // 08/14에 끝난 학년도
+    // 두 아카이브 모두 같은 두 주일을 담고 있다 (학년도는 여름학기를 포함).
+    expect(screen.getAllByText(/예배 2주 · 기록 2건/).length).toBe(2)
+    expect(screen.getAllByRole('button', { name: /다운로드/ }).length).toBe(2)
+  })
+
   it('renders a status mark as one grey cell spanning the covered dates (master-sheet style)', async () => {
     const { container } = renderSheet()
     await screen.findByRole('heading', { name: '믿음동산' })
