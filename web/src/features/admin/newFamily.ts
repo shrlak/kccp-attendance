@@ -88,6 +88,12 @@ export function semesterSundays(
   return sundaysInRange(start, end, through)
 }
 
+// Every Sunday in [start, end] (inclusive) — the worship dates of an arbitrary window, used
+// by the archive exports where the window is a finished term or gap rather than "today"'s.
+export function sundaysBetween(start: string, end: string): string[] {
+  return sundaysInRange(start, end, end)
+}
+
 export interface TransitionBounds {
   start: string // ISO, inclusive — the day after the previous term ended
   end: string // ISO, inclusive — the day before the next term starts

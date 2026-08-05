@@ -67,14 +67,14 @@ describe('semesterLabel', () => {
     expect(semesterLabel('2026-02-01', 'ko')).toBe('2026 봄 학기')
     expect(semesterLabel('2026-09-01', 'en')).toBe('Fall 2026')
   })
-  it('shows a transition-period label instead, when the date falls in a configured gap', () => {
+  it('shows a transition-period label with the gap\'s range, when the date falls in a configured gap', () => {
     const custom: SemesterDates = {
       spring: { start: '01-12', end: '04-30' },
       summer: { start: '06-01', end: '07-31' },
       fall: { start: '09-01', end: '12-15' },
     }
-    expect(semesterLabel('2026-05-15', 'ko', custom)).toBe('학기 사이 (전환 기간)')
-    expect(semesterLabel('2026-05-15', 'en', custom)).toBe('Between terms')
+    expect(semesterLabel('2026-05-15', 'ko', custom)).toBe('학기 사이 (전환 기간) · 05/01/2026–05/31/2026')
+    expect(semesterLabel('2026-05-15', 'en', custom)).toBe('Between terms · 05/01/2026–05/31/2026')
   })
 })
 
@@ -206,14 +206,21 @@ describe('exportSundays', () => {
       '2026-07-19',
     ])
   })
-  it('shows the transition gap\'s own Sundays (through today) instead of freezing on the finished term', () => {
+  it('rolls over to the transition gap\'s own full Sunday set instead of freezing on the finished term', () => {
     const custom: SemesterDates = {
       spring: { start: '01-05', end: '04-26' },
       summer: { start: '06-14', end: '07-19' },
       fall: { start: '09-06', end: '12-13' },
     }
-    // 07/19 summer ends, 09/06 fall starts — 07/26 and 08/02 are transition Sundays.
-    expect(exportSundays('2026-08-02', custom)).toEqual(['2026-07-26', '2026-08-02'])
+    // 07/19 summer ends, 09/06 fall starts → the gap runs 07/20–09/05. Like a term, the
+    // whole column set shows from day one; the upcoming Sundays render blank until they pass.
+    const gapSundays = ['2026-07-26', '2026-08-02', '2026-08-09', '2026-08-16', '2026-08-23', '2026-08-30']
+    expect(exportSundays('2026-08-02', custom)).toEqual(gapSundays)
+    // The switch happens the moment the term is over — the day after 07/19, before the
+    // gap's own first Sunday, the table is already the gap's.
+    expect(exportSundays('2026-07-20', custom)).toEqual(gapSundays)
+    // …and the next term's first day switches again, to the fall columns.
+    expect(exportSundays('2026-09-06', custom)[0]).toBe('2026-09-06')
   })
 })
 
