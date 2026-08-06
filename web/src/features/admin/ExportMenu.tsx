@@ -17,6 +17,7 @@ import { Dialog } from '../../components/ui/Dialog'
 import { Button } from '../../components/ui/Button'
 import { Download, ChevronRight } from '../../components/ui/Icon'
 import { useToast } from '../../components/ui/Toast'
+import { prefetchExcel } from '../../app/prefetch'
 
 // Export control for the Sheet tab. Offers Excel (.xlsx), KakaoTalk clipboard summary,
 // and a printable HTML report — all built client-side from the already-scoped roster.
@@ -92,7 +93,14 @@ export function ExportMenu({ members, log, filter }: { members: Member[]; log: L
 
   return (
     <>
-      <Button variant="secondary" size="sm" onClick={() => setOpen(true)} disabled={members.length === 0}>
+      {/* Opening the menu is the cue to fetch SheetJS: Excel is the first row in it, and a
+          400 kB library downloading only after the tap is what made 내보내기 feel stuck. */}
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={() => { prefetchExcel(); setOpen(true) }}
+        disabled={members.length === 0}
+      >
         <Download size={15} strokeWidth={2} aria-hidden />
         {t('admin.sheet.export.action')}
       </Button>

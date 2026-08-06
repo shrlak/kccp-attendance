@@ -15,7 +15,7 @@ import {
   KIOSK_DEPTS,
   type KioskDept,
 } from './kiosk'
-import { useAttendanceLive, refreshRoster } from '../../lib/live'
+import { useAttendanceLive, refreshRosterSettled } from '../../lib/live'
 import { KioskGuestDialog } from './KioskGuestDialog'
 import { KioskNewMemberDialog } from './KioskNewMemberDialog'
 import { ThemeLangToggle } from '../../components/ui/ThemeLangToggle'
@@ -163,7 +163,7 @@ export function KioskView({ onExit }: { onExit: () => void }) {
           setOverlay((cur) => (cur?.tone === 'ok' && cur.name === m.name ? { ...cur, tone: 'already' } : cur))
         }
       }
-      void refreshRoster(qc).finally(() => settle(m.id))
+      void refreshRosterSettled(qc).finally(() => settle(m.id))
     } catch (e) {
       // A real failure (auth/network): roll the tile back and say so, however long after
       // the tap it lands — the operator has to know this person is not checked in.

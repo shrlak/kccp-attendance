@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { adminVerify, adminVerifyGoogle, getLoginPosition, setAdminPassword, setAdminToken, type AdminIdentity } from '../lib/api'
+import { adminVerify, adminVerifyGoogle, getLoginPosition, GEO_LOGIN_WAIT_MS, setAdminPassword, setAdminToken, type AdminIdentity } from '../lib/api'
 import { supabase } from '../lib/supabase'
 import { queryClient } from '../lib/queryClient'
 import { clearPersistedQueries } from '../lib/queryPersist'
@@ -82,7 +82,7 @@ export const useAdminAuth = create<AdminAuthState>((set) => ({
       setAdminPassword(password)
       // Best-effort precise location, only for an explicit sign-in (not a silent reload).
       // Guarded against hanging (see getLoginPosition); resolves null if declined/unsupported.
-      const coords = captureLocation ? await getLoginPosition() : null
+      const coords = captureLocation ? await getLoginPosition(GEO_LOGIN_WAIT_MS) : null
       const identity = await adminVerify(password, coords)
       writePw(password)
       writeActivity()
@@ -188,7 +188,7 @@ async function verifyGoogleSession(accessToken: string, captureLocation: boolean
     setAdminToken(accessToken)
     // Best-effort precise location, only on a fresh sign-in (not a passive session restore
     // on every reload). Guarded against hanging; resolves null if declined/unsupported.
-    const coords = captureLocation ? await getLoginPosition() : null
+    const coords = captureLocation ? await getLoginPosition(GEO_LOGIN_WAIT_MS) : null
     const identity = await adminVerifyGoogle(coords)
     useAdminAuth.setState({ status: 'authed', identity, method: 'google' })
     if (isOAuthCallback) navigateAfterOAuth()

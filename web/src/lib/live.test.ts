@@ -25,7 +25,8 @@ vi.mock('@tanstack/react-query', async (orig) => ({
   useQueryClient: () => qc,
 }))
 
-const { useAttendanceLive, broadcastAttendanceChange, refreshRoster } = await import('./live')
+const { useAttendanceLive, broadcastAttendanceChange, refreshRoster, refreshRosterSettled } =
+  await import('./live')
 
 // The broadcast handler the module registered on the live channel.
 const fireBroadcast = () => {
@@ -82,11 +83,11 @@ describe('useAttendanceLive', () => {
 })
 
 describe('refreshRoster', () => {
-  it('refetches here and pings the other devices', async () => {
+  it('refetches here and pings the other devices', () => {
     const view = renderHook(() => useAttendanceLive())
     const invalidate = vi.spyOn(qc, 'invalidateQueries').mockResolvedValue()
 
-    await refreshRoster(qc)
+    refreshRoster(qc)
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['roster'] })
     expect(channels[0].send).toHaveBeenCalledWith(
@@ -96,6 +97,22 @@ describe('refreshRoster', () => {
     expect(Object.keys(channels[0].send.mock.calls[0][0].payload)).toEqual(['ts'])
     invalidate.mockRestore()
     view.unmount()
+  })
+
+  it('does not hand back the refetch — a save must not wait on it', () => {
+    const invalidate = vi.spyOn(qc, 'invalidateQueries').mockReturnValue(new Promise<void>(() => {}))
+    // A never-settling refetch: refreshRoster still returns straight away, which is what
+    // lets the dialog close on the mutation's own response.
+    expect(refreshRoster(qc)).toBeUndefined()
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['roster'] })
+    invalidate.mockRestore()
+  })
+
+  it('refreshRosterSettled resolves with the refetch, for optimistic UI', async () => {
+    const invalidate = vi.spyOn(qc, 'invalidateQueries').mockResolvedValue()
+    await expect(refreshRosterSettled(qc)).resolves.toBeUndefined()
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['roster'] })
+    invalidate.mockRestore()
   })
 
   it('is a no-op when no channel is joined (e.g. tests, offline)', () => {

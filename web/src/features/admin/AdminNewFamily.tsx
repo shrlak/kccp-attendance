@@ -17,6 +17,7 @@ import { Button } from '../../components/ui/Button'
 import { Tag } from '../../components/ui/Tag'
 import { useToast } from '../../components/ui/Toast'
 import { ScanLine, Download, Search, HandHeart, Heart, Calendar, GraduationCap, AlertTriangle } from '../../components/ui/Icon'
+import { prefetchExcel } from '../../app/prefetch'
 import { EditModal, AttendanceModal } from './MemberDialogs'
 import { CardScanDialog } from './CardScanDialog'
 
@@ -89,7 +90,9 @@ export function AdminNewFamily() {
               {t('admin.newfamily.scan.action')}
             </Button>
           )}
-          <Button variant="secondary" size="sm" onClick={() => setExportOpen(true)}>
+          {/* Same as the 출석부 menu: opening the confirm dialog starts SheetJS downloading,
+              so the actual export doesn't wait on the library. */}
+          <Button variant="secondary" size="sm" onClick={() => { prefetchExcel(); setExportOpen(true) }}>
             <Download className="size-4" aria-hidden />
             {t('admin.newfamily.export.action')}
           </Button>

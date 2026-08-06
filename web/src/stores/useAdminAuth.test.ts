@@ -4,6 +4,7 @@ vi.mock('../lib/api', () => ({
   adminVerify: vi.fn(),
   adminVerifyGoogle: vi.fn(),
   getLoginPosition: vi.fn().mockResolvedValue(null),
+  GEO_LOGIN_WAIT_MS: 2000,
   setAdminPassword: vi.fn(),
   setAdminToken: vi.fn(),
 }))

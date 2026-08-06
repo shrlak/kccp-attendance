@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { api, getLoginPosition } from './api'
+import { api, getLoginPosition, GEO_LOGIN_WAIT_MS } from './api'
 import { getDeviceId } from './device'
 
 beforeEach(() => {
@@ -79,5 +79,24 @@ describe('getLoginPosition', () => {
   it('resolves null (never throws) when getCurrentPosition throws synchronously', async () => {
     setGeo({ getCurrentPosition: () => { throw new Error('blocked by permissions policy') } })
     expect(await getLoginPosition()).toBeNull()
+  })
+
+  // 로그인은 GPS를 오래 기다리지 않는다: 2초 안에 안 잡히면 좌표 없이 진행하고, 서버가
+  // IP 기준(대략) 위치로 대신 기록한다. 이게 "로그인이 멈춰 있다"의 원인이었다.
+  it('gives up after the caller-supplied deadline — a sign-in never waits 9s for a fix', async () => {
+    vi.useFakeTimers()
+    setGeo({ getCurrentPosition: () => { /* a cold fix that never lands in time */ } })
+    const p = getLoginPosition(GEO_LOGIN_WAIT_MS)
+    let settled = false
+    void p.then(() => { settled = true })
+    await vi.advanceTimersByTimeAsync(GEO_LOGIN_WAIT_MS - 1)
+    expect(settled).toBe(false)
+    await vi.advanceTimersByTimeAsync(2)
+    expect(await p).toBeNull()
+  })
+
+  it('still returns a fix that lands inside the deadline', async () => {
+    setGeo({ getCurrentPosition: (ok: (p: unknown) => void) => ok({ coords: { latitude: 40.44, longitude: -79.99, accuracy: 8 } }) })
+    expect(await getLoginPosition(GEO_LOGIN_WAIT_MS)).toEqual({ lat: 40.44, lon: -79.99, accuracy: 8 })
   })
 })

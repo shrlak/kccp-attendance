@@ -244,7 +244,7 @@ function EduCard({
     setBusy(field)
     try {
       await updateMember(member.id, { [field]: value })
-      await refreshRoster(qc)
+      refreshRoster(qc)
     } catch {
       toast({ title: t('common.error'), tone: 'err' })
     } finally {
@@ -256,7 +256,7 @@ function EduCard({
     setBusy('newMemberDongsan')
     try {
       await updateMember(member.id, { newMemberDongsan: value })
-      await refreshRoster(qc)
+      refreshRoster(qc)
     } catch {
       toast({ title: t('common.error'), tone: 'err' })
     } finally {

@@ -546,29 +546,38 @@ Deno.serve(async (req: Request) => {
     // Scoped roster (replaces the world-readable /api/data for staff): super/pastor → all
     // members; leader → their 동산 (summer-mode 합동 handled by scopeFilter).
     if(req.method==="GET"&&p==="/api/roster") {
-      const role=await resolveAdmin(sb,req);
+      // 이 응답이 앱에서 제일 자주, 제일 오래 기다리는 요청이라 순차 왕복을 최대한 줄인다.
+      // 인증과 설정 읽기는 서로를 기다릴 이유가 없으니 함께 보낸다. (설정 *쓰기*인 롤오버는
+      // 401 뒤로 미룬다 — 인증 안 된 요청이 학기 롤오버를 촉발하면 안 된다.)
+      const [role,baseCfg]=await Promise.all([resolveAdmin(sb,req),getCfg(sb)]);
       if(!role) return fail(401,"Not authorized");
       // Every admin page load is also the clock that retires a finished 학기's 동산 편성
       // (no-op except on the first request after a term ends).
-      const cfg=await rolloverDongsan(sb,await maybeRollSchedule(sb,await getCfg(sb))); const scope=scopeFilter(role,summerNow(cfg));
+      const cfg=await rolloverDongsan(sb,await maybeRollSchedule(sb,baseCfg)); const scope=scopeFilter(role,summerNow(cfg));
       let mq:any=sb.from("members").select("*").order("name",{ascending:true});
       if(!scope.all){mq=mq.in("group_name",scope.groups);if(scope.subgroup)mq=mq.eq("subgroup",scope.subgroup);}
-      const {data:members}=await mq;
+      // 멤버 목록 · 방문자 출석 · (리더/새가족팀이면) 본인 이름 — 셋 다 서로 독립이라 한 번에.
+      // 방문자(guests) have no member_id and no 부서/동산, so the member-id filter below
+      // drops them. Fold them in for unscoped admins (super/pastor) so they appear in — and
+      // count toward — the 오늘 tab; scoped leaders keep just their 동산 (guests aren't theirs).
+      const needsTag=role.role==="leader"||role.role==="welcoming";
+      const [mRes,gRes,meRes]:any[]=await Promise.all([
+        mq,
+        scope.all?sb.from("attendance_log").select("*").eq("is_guest",true).order("ts",{ascending:false}):Promise.resolve({data:[]}),
+        needsTag?sb.from("members").select("name").eq("id",role.memberId).single():Promise.resolve({data:null}),
+      ]);
+      const members=mRes?.data;
       const ids=(members||[]).map((m:any)=>m.id);
       const {data:md}=ids.length?await sb.from("attendance_log").select("*").in("member_id",ids).order("ts",{ascending:false}):{data:[] as any[]};
       let logs:any[]=md||[];
-      // 방문자(guests) have no member_id and no 부서/동산, so the member-id filter above
-      // drops them. Fold them in for unscoped admins (super/pastor) so they appear in — and
-      // count toward — the 오늘 tab; scoped leaders keep just their 동산 (guests aren't theirs).
-      if(scope.all){const {data:gd}=await sb.from("attendance_log").select("*").eq("is_guest",true).order("ts",{ascending:false});if(gd&&gd.length)logs=logs.concat(gd);}
+      const gd=gRes?.data; if(gd&&gd.length)logs=logs.concat(gd);
       // Bulk 동산 reassignment: super-admins + staff + leaders who are NOT 동산지기/부동산지기.
       // Clear-all-attendance: super (direct) + staff/leader/welcoming non-동산지기 (request).
       // staff (break-glass 리더+새가족팀) has no 동산지기 tag, so it gets both.
       let canBulkSubgroup=role.role==="super_admin"||role.role==="staff";
       let canClearAttendance=role.role==="super_admin"||role.role==="staff";
-      if(role.role==="leader"||role.role==="welcoming"){
-        const {data:me}=await sb.from("members").select("name").eq("id",role.memberId).single();
-        const tag=isDongsanLeaderName((me as any)?.name||"",role.group,role.subgroup,cfg.dongsan_leaders,summerNow(cfg));
+      if(needsTag){
+        const tag=isDongsanLeaderName(meRes?.data?.name||"",role.group,role.subgroup,cfg.dongsan_leaders,summerNow(cfg));
         if(role.role==="leader") canBulkSubgroup=!tag;
         canClearAttendance=!tag;
       }

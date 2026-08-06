@@ -67,7 +67,7 @@ export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose
         pastoralVisitRequested: card.pastoralVisitRequested,
       }
       await kioskNewMember(payload)
-      await refreshRoster(qc)
+      refreshRoster(qc)
       toast({ title: t('kiosk.newMember.done', { name: payload.name }), tone: 'ok' })
       close()
     } catch (e) {

@@ -141,7 +141,7 @@ function ClearDialog({ isSuper, onClose }: { isSuper: boolean; onClose: () => vo
       const res = await clearAttendance()
       if (res.status === 'cleared') {
         toast({ title: t('admin.sheet.clearAll.cleared'), tone: 'ok' })
-        await refreshRoster(qc)
+        refreshRoster(qc)
       } else {
         toast({ title: t('admin.sheet.clearAll.requested'), tone: 'ok' })
       }
@@ -196,7 +196,7 @@ function BulkModal({ data, onClose }: { data: RosterResponse; onClose: () => voi
     try {
       const res = await addBulkAttendance([...selected], date)
       toast({ title: t('admin.sheet.bulk.done', { n: res.added }), tone: 'ok' })
-      await refreshRoster(qc)
+      refreshRoster(qc)
       onClose()
     } catch {
       toast({ title: t('common.error'), tone: 'err' })

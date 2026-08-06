@@ -86,6 +86,29 @@ Korean church (한국중앙교회 피츠버그 대학·청년부) attendance sys
   HTTP smoke tests of the live function/site fail with "Host not in allowlist". Verify via
   `mcp__Supabase__*` (DB/list_edge_functions) and the GitHub MCP instead.
 
+## Perceived speed — where the waits live
+- **A save must never wait on the roster refetch.** `refreshRoster(qc)` (lib/live.ts) is
+  deliberately `void`, not awaitable: the mutation already returned, so the dialog closes on
+  its own response and the refetch lands underneath. `refreshRosterSettled(qc)` is the
+  awaitable twin, for the two callers that need it — the kiosk (holds an optimistic tile
+  until the roster confirms) and the DB restore. Re-adding `await refreshRoster(...)`
+  reintroduces a full members+log round trip on every save.
+- **`/api/roster` is the app's hot path** (every tab reads it, `staleTime: 0`,
+  `refetchInterval: 15s`). Its independent queries are batched: `resolveAdmin` ⟂ `getCfg`,
+  then members ⟂ guests ⟂ the leader's 동산지기 lookup. The rollover *writes* stay after the
+  401 so an unauthenticated request can't trigger a term rollover.
+- **Reload** paints from the sessionStorage snapshot (`lib/queryPersist.ts`) before the first
+  render; the refetch corrects it underneath.
+- **Screen changes** are prefetched, not loaded on tap (`app/prefetch.ts`): route chunks on
+  intent *and* on idle after first paint, Chart.js (203 kB) on idle once the panel is up.
+  SheetJS (863 kB) is intent-only — the 내보내기 menu opening and hovering an 아카이브
+  download — because it's the biggest dependency and exporting is deliberate.
+- **Sign-in waits ≤2 s for GPS** (`GEO_LOGIN_WAIT_MS`), then goes without it; a cold
+  high-accuracy fix used to hold the verifying screen for up to 9 s to enrich a log line.
+  The server still records the IP city estimate, which the viewer labels 대략.
+- `fx-*` durations in `index.css` are entrance timings between a tap and usable content —
+  keep them short (fade .12s, pop .2s, rise .28s); they are not decoration.
+
 ## Git workflow
 - Develop on the assigned `claude/...` branch. PRs created as **drafts**, **squash**-merged.
 - The branch is deleted on each merge; recurring pattern to ship the next change cleanly:

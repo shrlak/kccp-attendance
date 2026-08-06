@@ -225,7 +225,7 @@ export function CardScanDialog({
       // still goes out so any admin panel or kiosk that is open picks the new 새가족 up
       // immediately — same as a registration made from inside the panel.
       if (publicMode) broadcastAttendanceChange()
-      else await refreshRoster(qc)
+      else refreshRoster(qc)
       toast({ title: t('admin.newfamily.scan.done', { name: payload.name }), tone: 'ok' })
       if (hasMore) {
         // More cards in the stack — keep the dialog (and the 오늘 출석 체크 choice)

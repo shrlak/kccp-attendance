@@ -10,6 +10,7 @@ import './stores/useTheme'
 import { queryClient } from './lib/queryClient'
 import { hydrateQueryCache, startQueryPersistence } from './lib/queryPersist'
 import { AppRoutes } from './app/routes'
+import { prefetchRoutesOnIdle } from './app/prefetch'
 
 registerSW({ immediate: true })
 
@@ -55,3 +56,7 @@ createRoot(document.getElementById('root')!).render(
     </QueryClientProvider>
   </StrictMode>,
 )
+
+// With the first screen painted, pull the other screens' chunks in the background so the
+// first tap on 관리자 or 키오스크 doesn't wait on a download.
+prefetchRoutesOnIdle()
