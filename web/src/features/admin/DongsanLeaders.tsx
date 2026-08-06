@@ -16,6 +16,7 @@ import { Medal, Shield, AlertTriangle, Save } from '../../components/ui/Icon'
 import { leaderEntry, summerDongsanList, membersInDongsan, withLeader, setSubLeaderAt } from './dongsan'
 
 const SUMMER_KEY = '합동'
+const KM_GROUPS = ['대학부', '청년부']
 
 // Settings-tab editor: assign the 동산지기 + 부동산지기 for each 동산 (super-admin only).
 // In summer mode the 동산 list collapses to a single combined ("합동") set spanning both
@@ -31,22 +32,30 @@ export function DongsanLeadersEditor() {
 
   const summer = !!cfg?.summerMode
 
-  const blocks = useMemo(() => {
+  // 부서마다 자기 줄을 갖는다 — 대학부 동산과 청년부 동산이 한 줄에 섞이지 않도록
+  // 섹션으로 나눠 렌더한다. 여름 모드에서는 합동 한 덩어리가 유일한 섹션이다.
+  const sections = useMemo(() => {
     if (!names || !roster) return []
     if (summer) {
-      return summerDongsanList(names).map((subgroup) => ({
+      return [{
         group: SUMMER_KEY,
-        subgroup,
-        members: membersInDongsan(roster.members, null, subgroup),
-      }))
+        blocks: summerDongsanList(names).map((subgroup) => ({
+          group: SUMMER_KEY,
+          subgroup,
+          members: membersInDongsan(roster.members, null, subgroup),
+        })),
+      }]
     }
-    return Object.keys(names).flatMap((group) =>
-      (names[group] ?? []).map((subgroup) => ({
+    return KM_GROUPS.concat(Object.keys(names).filter((g) => !KM_GROUPS.includes(g)))
+      .map((group) => ({
         group,
-        subgroup,
-        members: membersInDongsan(roster.members, group, subgroup),
-      })),
-    )
+        blocks: (names[group] ?? []).map((subgroup) => ({
+          group,
+          subgroup,
+          members: membersInDongsan(roster.members, group, subgroup),
+        })),
+      }))
+      .filter((section) => section.blocks.length > 0)
   }, [names, roster, summer])
 
   if (!names || !leaders || !roster) return <p className="text-sm text-muted">{t('common.loading')}</p>
@@ -68,33 +77,46 @@ export function DongsanLeadersEditor() {
         </p>
       )}
 
-      {/* Auto-fit columns: the summer 합동 set (4 동산) sits in a single row on desktop;
-          with more 동산 (semester mode lists every 부서's) the cards wrap gracefully. */}
-      <div className="grid grid-cols-1 gap-x-4 gap-y-5 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fit,minmax(10rem,1fr))]">
-        {blocks.map(({ group, subgroup, members }) => {
-          const key = `${group}__${subgroup}`
-          const entry = edits[key] ?? leaderEntry(leaders, group, subgroup)
-          return (
-            <LeaderBlock
-              key={key}
-              header={group === SUMMER_KEY ? subgroup : `${group} · ${subgroup}`}
-              members={members}
-              entry={entry}
-              dirty={key in edits}
-              onLeader={(name) => setEdits((e) => ({ ...e, [key]: withLeader(entry, name) }))}
-              onSub={(idx, name) => setEdits((e) => ({ ...e, [key]: setSubLeaderAt(entry, idx, name) }))}
-              onSaved={() =>
-                setEdits((e) => {
-                  const next = { ...e }
-                  delete next[key]
-                  return next
-                })
-              }
-              group={group}
-              subgroup={subgroup}
-            />
-          )
-        })}
+      {sections.length === 0 && (
+        <p className="rounded-xl border border-dashed border-border px-3 py-2 text-xs text-muted">
+          {t('admin.settings.dongsanEmptyAfterTerm')}
+        </p>
+      )}
+
+      {/* One row per 부서: each section's cards auto-fit across their own grid, so 대학부
+          and 청년부 동산 never share a row. 여름 모드는 합동 한 섹션뿐이다. */}
+      <div className="flex flex-col gap-7">
+        {sections.map((section) => (
+          <div key={section.group}>
+            {section.group !== SUMMER_KEY && <span className="section-kicker mb-2 block">{section.group}</span>}
+            <div className="grid grid-cols-1 gap-x-4 gap-y-5 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fit,minmax(10rem,1fr))]">
+              {section.blocks.map(({ group, subgroup, members }) => {
+                const key = `${group}__${subgroup}`
+                const entry = edits[key] ?? leaderEntry(leaders, group, subgroup)
+                return (
+                  <LeaderBlock
+                    key={key}
+                    header={group === SUMMER_KEY ? subgroup : subgroup}
+                    members={members}
+                    entry={entry}
+                    dirty={key in edits}
+                    onLeader={(name) => setEdits((e) => ({ ...e, [key]: withLeader(entry, name) }))}
+                    onSub={(idx, name) => setEdits((e) => ({ ...e, [key]: setSubLeaderAt(entry, idx, name) }))}
+                    onSaved={() =>
+                      setEdits((e) => {
+                        const next = { ...e }
+                        delete next[key]
+                        return next
+                      })
+                    }
+                    group={group}
+                    subgroup={subgroup}
+                  />
+                )
+              })}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   )

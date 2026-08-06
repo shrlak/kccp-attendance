@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRoster } from './useRoster'
-import { mergeMembers, bulkSetSubgroup, getConfig, type Member } from '../../lib/api'
+import { mergeMembers, bulkSetSubgroup, getConfig, getDongsanNames, type Member } from '../../lib/api'
 import { Dialog } from '../../components/ui/Dialog'
 import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
@@ -11,6 +11,7 @@ import { useToast } from '../../components/ui/Toast'
 import { Search, ListChecks, Merge as MergeIcon, Users, AlertTriangle } from '../../components/ui/Icon'
 import { mergeTargets, canMerge, mergeSummary, type MergeState } from './merge'
 import { groupsOf } from './filters'
+import { summerDongsanList } from './dongsan'
 import { newFamilyWeek } from './newFamily'
 import { NewFamilyWeekChip } from './NewFamilyWeekChip'
 import { easternNow } from '../../lib/checkinWindow'
@@ -28,6 +29,9 @@ export function AdminMembers() {
   const toast = useToast()
   const { data, isLoading, isError } = useRoster(true)
   const { data: cfg } = useQuery({ queryKey: ['config'], queryFn: getConfig })
+  // 일괄 이동의 동산 목록은 설정된 동산 이름에서 온다 — 학기가 바뀌어 아무도 동산에
+  // 속해 있지 않을 때도 새 학기 동산으로 여러 명을 한 번에 넣을 수 있어야 하므로.
+  const { data: dongsanNames } = useQuery({ queryKey: ['dongsanNames'], queryFn: getDongsanNames })
   const [editing, setEditing] = useState<Member | null>(null)
   const [attendanceFor, setAttendanceFor] = useState<Member | null>(null)
   const [merging, setMerging] = useState(false)
@@ -57,7 +61,22 @@ export function AdminMembers() {
   const q = search.trim().toLowerCase()
   const members = q ? data.members.filter((m) => m.name.toLowerCase().includes(q)) : data.members
   const staffMembers = q ? data.staffMembers.filter((m) => m.name.toLowerCase().includes(q)) : data.staffMembers
-  const dongsanOptions = [...new Set(data.members.map((m) => m.subgroup).filter(Boolean))].sort()
+  // 일괄 이동 목록: 고른 멤버의 부서에 설정된 동산만 보여준다 — 대학부를 골랐으면 대학부
+  // 동산, 청년부를 골랐으면 청년부 동산. 아직 아무도 안 골랐으면 양쪽을 다 보여주고,
+  // 두 부서를 섞어 골랐으면 두 부서의 동산이 함께 나온다. 여름 모드는 합동 한 벌뿐.
+  const selectedGroups = new Set(
+    data.members.filter((m) => selected.has(m.id)).map((m) => m.group_name).filter(Boolean),
+  )
+  const nameGroups = Object.keys(dongsanNames ?? {})
+  const activeGroups = selectedGroups.size ? [...selectedGroups] : nameGroups
+  const configuredDongsan = cfg?.summerMode
+    ? summerDongsanList(dongsanNames ?? {})
+    : activeGroups.flatMap((g) => dongsanNames?.[g] ?? [])
+  // 이미 그 부서 누군가가 속해 있는 동산도 (설정에서 빠졌더라도) 고를 수 있게 둔다.
+  const inUse = data.members
+    .filter((m) => (selectedGroups.size ? selectedGroups.has(m.group_name) : true))
+    .map((m) => m.subgroup)
+  const dongsanOptions = [...new Set([...configuredDongsan, ...inUse].filter(Boolean))].sort() as string[]
 
   // The card grid is split into one section per 부서 (대학부 first, then 청년부, …);
   // members without a 부서 gather in a trailing "—" section.
@@ -73,6 +92,8 @@ export function AdminMembers() {
       else n.add(id)
       return n
     })
+    // 부서가 달라지면 고른 동산이 더 이상 후보가 아닐 수 있다 — 그때는 비운다.
+    setTarget((cur) => (cur && !dongsanOptions.includes(cur) ? '' : cur))
   }
   function exitSelect() {
     setSelectMode(false)

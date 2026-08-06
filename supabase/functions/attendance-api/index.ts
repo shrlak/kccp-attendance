@@ -90,6 +90,38 @@ function currentStatusMark(marks: {note:string;start:string|null;end:string|null
   return pick??{note:"",start:null,end:null};
 }
 
+// 같은 사람이 다시 등록되면 새 행을 만들지 않고 기존 멤버를 찾아 준다: 이름이 같고 부서도
+// 같으면 같은 사람으로 본다. 전화번호나 생년월일이 둘 다 있는데 서로 다르면 동명이인으로
+// 보고 병합하지 않는다 (교회 명단은 동명이인을 "김서현(청년부)"처럼 구분해 적는다).
+async function findDuplicateMember(sb: SB, name: string, group: string, body: any) {
+  const {data}=await sb.from("members").select("*").eq("name",name);
+  const rows=(data||[]) as any[];
+  return rows.find((r)=>{
+    if(group&&(r.group_name||"")&&r.group_name!==group) return false;
+    const phone=(body.phone||"").replace(/\D/g,""), rphone=(r.phone||"").replace(/\D/g,"");
+    if(phone&&rphone&&phone!==rphone) return false;
+    const birth=(body.birthDate||""), rbirth=(r.birth_date||"");
+    if(birth&&rbirth&&birth!==rbirth) return false;
+    return true;
+  })||null;
+}
+// 병합 규칙: 나중에 들어온 값이 이긴다. 새 등록이 비워 둔 칸은 기존 값을 그대로 둔다.
+// 등록일자만 예외로 더 이른 날짜를 지킨다 — 출석부가 등록일 이전 주일을 빈칸으로 두므로
+// 나중 날짜로 덮으면 이미 쌓인 출석이 화면에서 사라진다.
+function mergedMemberFields(existing: any, body: any, subgroup: string, today: string) {
+  const upd: any={updated_at:new Date().toISOString(),is_new_member:true};
+  const put=(col:string,val:unknown)=>{ if(val!==undefined&&val!==null&&val!=="") upd[col]=val; };
+  put("group_name",(body.group||"").trim());
+  put("subgroup",subgroup);
+  put("gender",body.gender); put("phone",body.phone); put("kakao_id",body.kakaoId);
+  put("birth_date",body.birthDate); put("baptism_status",body.baptismStatus);
+  put("school_or_work",body.schoolOrWork); put("faith_duration",body.faithDuration);
+  if(body.pastoralVisitRequested===true||body.pastoralVisitRequested===false) upd.pastoral_visit_requested=body.pastoralVisitRequested;
+  const reg=((body.registrationDate||"").trim())||today;
+  upd.registration_date=existing.registration_date&&existing.registration_date<reg?existing.registration_date:reg;
+  return upd;
+}
+
 // 학기가 끝나면 동산을 없애고 모두를 동산에서 뺀다 — 한 학기당 정확히 한 번, 학기가 끝난
 // 다음 첫 요청에서. 지우기 전에 그 학기의 편성(+동산 이름/동산지기)을 config.dongsan_history에
 // 얼려두므로, 지난 학기 출석부는 그대로 동산별로 남는다. 출석 기록(attendance_log)의 동산
@@ -1274,26 +1306,45 @@ Deno.serve(async (req: Request) => {
       if(!name||!group) return fail(400,"name and group required");
       const subgroup=(body.subgroup||"").trim();
       const today=localDate(),time=localTime();
-      const {data:created}=await sb.from("members").insert({
-        name,group_name:group,subgroup,is_new_member:true,
-        gender:body.gender||"",phone:body.phone||"",kakao_id:body.kakaoId||"",
-        birth_date:body.birthDate||null,baptism_status:body.baptismStatus||"해당없음",
-        school_or_work:body.schoolOrWork||"",faith_duration:body.faithDuration||"",
-        // 등록일자 defaults to the date the member is added but the operator may set it
-        // explicitly (e.g. back-fill someone who joined earlier). Attendance percentages
-        // count from this date.
-        registration_date:(body.registrationDate||"").trim()||today,pastoral_visit_requested:body.pastoralVisitRequested===true?true:body.pastoralVisitRequested===false?false:null,
-      }).select("id").single();
-      const memberId=(created as {id?:string}|null)?.id||null;
+      // 이미 같은 사람이 등록돼 있으면 행을 하나 더 만들지 않고 그 멤버에 최신 정보를 덮어쓴다
+      // (출석 기록·기기가 그대로 이어진다).
+      const dup=await findDuplicateMember(sb,name,group,body);
+      let memberId: string|null=null, merged=false;
+      if(dup){
+        await sb.from("members").update(mergedMemberFields(dup,body,subgroup,today)).eq("id",dup.id);
+        memberId=dup.id; merged=true;
+      } else {
+        const {data:created}=await sb.from("members").insert({
+          name,group_name:group,subgroup,is_new_member:true,
+          gender:body.gender||"",phone:body.phone||"",kakao_id:body.kakaoId||"",
+          birth_date:body.birthDate||null,baptism_status:body.baptismStatus||"해당없음",
+          school_or_work:body.schoolOrWork||"",faith_duration:body.faithDuration||"",
+          // 등록일자 defaults to the date the member is added but the operator may set it
+          // explicitly (e.g. back-fill someone who joined earlier). Attendance percentages
+          // count from this date.
+          registration_date:(body.registrationDate||"").trim()||today,pastoral_visit_requested:body.pastoralVisitRequested===true?true:body.pastoralVisitRequested===false?false:null,
+        }).select("id").single();
+        memberId=(created as {id?:string}|null)?.id||null;
+      }
       if(!memberId) return fail(500,"Could not create member");
-      const newId="NEW-"+Date.now();
-      await sb.from("devices").insert({id:newId,name,group_name:group,subgroup,member_id:memberId,is_new_member:true});
+      // 기기: 병합이면 이미 연결된 기기를 재사용하고, 없을 때만 새로 만든다.
+      const {data:existingDev}=merged?await sb.from("devices").select("id").eq("member_id",memberId).limit(1):{data:null};
+      const newId=(existingDev as {id?:string}[]|null)?.[0]?.id||("NEW-"+Date.now());
+      if(!(existingDev as unknown[]|null)?.length){
+        await sb.from("devices").insert({id:newId,name,group_name:group,subgroup,member_id:memberId,is_new_member:true});
+      } else {
+        await sb.from("devices").update({name,group_name:group,subgroup}).eq("id",newId);
+      }
       // skipCheckin (admin card-scan path): create the member + device but don't record
       // today's attendance — e.g. entering a stack of paper cards later in the week.
       // The kiosk never sends the flag, so its check-them-in-now behavior is unchanged.
-      if(!body.skipCheckin) await sb.from("attendance_log").insert({device_id:newId,member_id:memberId,name,group_name:group,subgroup,date:today,time_str:time,ts:Date.now(),is_manual:true,admin_added:false,first_visit:true});
-      await addAudit(sb,"new-member-register",xDev,name+" | "+group+(body.skipCheckin?" | no-checkin":"")+(viaShare?" | share-link":""));
-      return ok({status:"ok",memberId,time});
+      // 병합된 사람이 오늘 이미 출석했다면 줄을 하나 더 남기지 않는다.
+      const already=merged?(await sb.from("attendance_log").select("id").eq("member_id",memberId).eq("date",today).limit(1)).data:null;
+      if(!body.skipCheckin&&!(already as unknown[]|null)?.length){
+        await sb.from("attendance_log").insert({device_id:newId,member_id:memberId,name,group_name:group,subgroup,date:today,time_str:time,ts:Date.now(),is_manual:true,admin_added:false,first_visit:!merged});
+      }
+      await addAudit(sb,merged?"new-member-merge":"new-member-register",xDev,name+" | "+group+(merged?" | 중복 등록 → 기존 멤버에 병합":"")+(body.skipCheckin?" | no-checkin":"")+(viaShare?" | share-link":""));
+      return ok({status:"ok",memberId,time,merged});
     }
 
     // 새가족 등록 카드 photo extraction: the admin panel sends a downscaled card photo

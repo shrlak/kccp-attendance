@@ -53,6 +53,30 @@ export function splitAffiliation(schoolOrWork: string): { category: AffiliationC
 // 세례 여부 options — the Korean label is the canonical stored value; the paper card
 // prints a small English caption after each.
 export const BAPTISM_OPTIONS = ['유아세례', '입교', '세례', '해당없음'] as const
+// 세례 여부는 여러 개를 고를 수 있다 (예: 유아세례 + 입교). 컬럼은 그대로 문자열이라
+// ", "로 이어 붙여 저장한다 — 예전에 저장된 한 개짜리 값도 그대로 읽힌다.
+export function parseBaptism(value: string | null | undefined): string[] {
+  return (value || '')
+    .split(',')
+    .map((v) => v.trim())
+    .filter((v) => v.length > 0)
+}
+
+export function formatBaptism(list: string[]): string {
+  // 카드에 인쇄된 순서(유아세례 → 입교 → 세례 → 해당없음)를 유지한다.
+  const known = BAPTISM_OPTIONS.filter((o) => list.includes(o))
+  const extra = list.filter((v) => !BAPTISM_OPTIONS.includes(v as (typeof BAPTISM_OPTIONS)[number]))
+  return [...known, ...extra].join(', ')
+}
+
+// 옵션 하나를 켜고 끈다. "해당없음"은 다른 항목과 같이 설정될 수 없으므로 서로를 지운다.
+export function toggleBaptism(value: string | null | undefined, option: string): string {
+  const list = parseBaptism(value)
+  if (list.includes(option)) return formatBaptism(list.filter((v) => v !== option))
+  if (option === '해당없음') return option
+  return formatBaptism([...list.filter((v) => v !== '해당없음'), option])
+}
+
 export const BAPTISM_CAPTIONS: Record<string, string> = {
   유아세례: 'Infant Baptism',
   입교: 'Confirmation',
@@ -196,7 +220,7 @@ export function cardModel(m: Member): CardModel {
           label: '세례 여부',
           content: {
             kind: 'checks',
-            options: BAPTISM_OPTIONS.map((o) => ({ label: o, caption: BAPTISM_CAPTIONS[o], checked: baptism === o })),
+            options: BAPTISM_OPTIONS.map((o) => ({ label: o, caption: BAPTISM_CAPTIONS[o], checked: parseBaptism(baptism).includes(o) })),
             extra: '',
           },
         },
