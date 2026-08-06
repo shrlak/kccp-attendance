@@ -18,11 +18,48 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Did this push touch the edge function? That decides whether the Pages deploy has
+  # anything to be atomic *about* (see the `deploy` gate below). Failing safe means
+  # answering "yes": a redundant function deploy is idempotent, a missed one is not.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      functions: ${{ steps.filter.outputs.functions }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # need both ends of the push range to diff them
+
+      - name: Detect supabase/functions changes
+        id: filter
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          changed=true
+          if [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] \
+             && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            if git diff --quiet "$BEFORE" "$GITHUB_SHA" -- supabase/functions; then changed=false; fi
+          fi
+          echo "functions=$changed" >> "$GITHUB_OUTPUT"
+          echo "supabase/functions changed in this push: $changed"
+
   deploy:
-    # Gate the frontend flip on a successful edge-function deploy so the cutover is atomic:
-    # if the function deploy fails, Pages is skipped and the site stays on the previous
-    # (legacy) build rather than serving React against the old function.
-    needs: deploy-edge-function
+    # Gate the frontend flip on the edge-function deploy so a cutover that needs both is
+    # atomic: if the function deploy *fails*, Pages is skipped and the site stays on the
+    # previous build rather than serving React against the old function.
+    #
+    # But only a *failure* blocks. When the push didn't touch supabase/functions the job is
+    # skipped, and there is nothing to be atomic about — the function already running in
+    # production is the one this frontend was built against. Treating that skip as a block
+    # is what let three consecutive runner outages ("The job was not acquired by Runner of
+    # type hosted") hold back a frontend-only deploy that had no edge-function work in it.
+    #
+    # `changes` must have succeeded too: if the detection itself failed we don't know
+    # whether the function changed, the function job would have skipped, and shipping the
+    # frontend anyway is exactly the mismatch this gate exists to prevent.
+    needs: [changes, deploy-edge-function]
+    if: ${{ !cancelled() && needs.changes.result == 'success' && needs.deploy-edge-function.result != 'failure' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -90,6 +127,10 @@ jobs:
           artifact_name: github-pages-${{ github.run_id }}-${{ github.run_attempt }}
 
   deploy-edge-function:
+    # Only when the push actually changed the function. Deploying an unchanged function on
+    # every frontend commit bought nothing and put a flaky third job in front of Pages.
+    needs: changes
+    if: ${{ needs.changes.outputs.functions == 'true' }}
     runs-on: ubuntu-latest
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
@@ -120,7 +161,10 @@ jobs:
   # PR associated with the commit, falling back to a commit comment for direct pushes.
   notify:
     needs: [deploy-edge-function, deploy]
-    if: success()
+    # `success()` would be false whenever the function job is legitimately skipped, so a
+    # frontend-only deploy would go live without ever announcing itself. Ask the real
+    # question instead: Pages went out, and the function did not fail.
+    if: ${{ !cancelled() && needs.deploy.result == 'success' && needs.deploy-edge-function.result != 'failure' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -133,7 +177,11 @@ jobs:
           script: |
             const { owner, repo } = context.repo
             const sha = context.sha
-            const body = `✅ Production deploy succeeded for \`${sha.slice(0, 7)}\` — edge function + GitHub Pages are live.`
+            // Say which pieces actually shipped — "edge function + Pages are live" on a
+            // run that never touched the function would be a claim nobody verified.
+            const fn = ${{ toJSON(needs.deploy-edge-function.result) }}
+            const what = fn === 'success' ? 'edge function + GitHub Pages are live' : 'GitHub Pages is live (edge function unchanged)'
+            const body = `✅ Production deploy succeeded for \`${sha.slice(0, 7)}\` — ${what}.`
             const { data: prs } = await github.rest.repos.listPullRequestsAssociatedWithCommit({ owner, repo, commit_sha: sha })
             if (prs.length > 0) {
               for (const pr of prs) {
