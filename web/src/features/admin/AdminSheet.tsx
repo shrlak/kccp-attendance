@@ -5,6 +5,7 @@ import { useRoster } from './useRoster'
 import {
   buildAttendanceModel,
   attendanceGroupBy,
+  awayOn,
   blockColors,
   cssColor,
   exportSundays,
@@ -180,7 +181,8 @@ function BulkModal({ data, onClose }: { data: RosterResponse; onClose: () => voi
   const [saving, setSaving] = useState(false)
 
   const present = memberIdsPresentOn(data.log, date)
-  const candidates = checkinCandidates(data.members, search)
+  // 한국 귀국 / 이주 중인 멤버는 출석부에서 숨기므로 일괄 출석 목록에도 올리지 않는다.
+  const candidates = checkinCandidates(data.members.filter((m) => !awayOn(m, date)), search)
   const selectable = candidates.filter((m) => !present.has(m.id))
 
   function setDateReset(d: string) {

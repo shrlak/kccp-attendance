@@ -3,6 +3,7 @@ import type { CalendarLike } from '../../lib/semester'
 import { buildGrid } from './sheet'
 import { semesterBounds, semesterKey, semesterSundays, transitionBounds, transitionSundays, isActiveNewFamily } from './newFamily'
 import { splitAffiliation } from './newFamilyCard'
+import { awayForRange, noteOn } from '../../lib/status'
 
 // ── Pure export helpers ──────────────────────────────────────────────────────
 // Everything here is side-effect free so it can be unit-tested. The thin DOM bits
@@ -133,14 +134,9 @@ export function beforeRegistration(m: Member, date: string): boolean {
   return !!m.registration_date && date < m.registration_date
 }
 
-// The member's stored status mark (한국 귀국 등) if it covers `date`: from status_start
-// through status_end, or open-ended (through the last shown Sunday) when status_end is null.
-function statusNote(m: Member, date: string): string | null {
-  if (!m.status_note || !m.status_start) return null
-  if (date < m.status_start) return null
-  if (m.status_end && date > m.status_end) return null
-  return m.status_note
-}
+// 상태 표기 (한국 귀국 / 방학 …) covering `date`, from the member's mark list — see
+// lib/status.ts. Re-exported here so the sheet's callers keep one import.
+export { isAwayNote, awayOn, awayForRange } from '../../lib/status'
 
 export interface AttendanceSection {
   subgroup: string
@@ -177,6 +173,11 @@ export function buildAttendanceModel(
   labels: AttendanceLabels,
   groupBy: (m: Member) => string = (m) => m.subgroup || labels.unassigned,
 ): AttendanceModel {
+  // 한국 귀국 / 이주 for the whole shown stretch → not part of this sheet at all.
+  const roster = dates.length
+    ? members.filter((m) => !awayForRange(m, dates[0], dates[dates.length - 1]))
+    : members
+
   // name -> every date that name attended (the denormalized log carries the name).
   const attended = new Map<string, Set<string>>()
   for (const e of log) {
@@ -190,7 +191,7 @@ export function buildAttendanceModel(
 
   const order: string[] = []
   const byKey = new Map<string, Member[]>()
-  for (const m of members) {
+  for (const m of roster) {
     const key = groupBy(m) || labels.unassigned
     let bucket = byKey.get(key)
     if (!bucket) {
@@ -210,7 +211,7 @@ export function buildAttendanceModel(
     const rows: AttendanceMemberRow[] = sectionMembers.map((m, mi) => {
       const present = presents[mi]
       const marks: CellMark[] = dates.map((d, di) => {
-        const note = statusNote(m, d) ?? (isActiveNewFamily(m) && beforeRegistration(m, d) ? labels.newFamily : null)
+        const note = noteOn(m, d) ?? (isActiveNewFamily(m) && beforeRegistration(m, d) ? labels.newFamily : null)
         if (note) return { kind: 'note', note, span: 1 }
         if (beforeRegistration(m, d)) return { kind: 'blank' }
         if (isFutureDate(d, today) || !hasData[di]) return { kind: 'blank' }

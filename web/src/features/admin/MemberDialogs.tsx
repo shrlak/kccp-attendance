@@ -19,9 +19,10 @@ import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
-import { Plus, Calendar } from '../../components/ui/Icon'
+import { Plus, Trash2, Calendar } from '../../components/ui/Icon'
 import { memberHistory, hasEntryOn } from './attendance'
 import { easternNow } from '../../lib/checkinWindow'
+import { statusMarks, type StatusMark } from '../../lib/status'
 import { NewFamilyCardForm } from './NewFamilyCardForm'
 import { cardFormFromMember, joinAffiliation, type CardFormValue } from './newFamilyCard'
 import { copyNewFamilyCards, saveNewFamilyCards } from './newFamilyCardImage'
@@ -36,9 +37,9 @@ const GROUPS = ['대학부', '청년부', 'EM', 'Adult Ministry']
 const MEMBER_ROLES = ['', 'visitor', 'pastor', 'elder', 'deacon', 'mentor']
 
 // A labelled form field wrapper, shared by the member dialogs (and the merge dialog).
-export function Field({ label, children }: { label: string; children: ReactNode }) {
+export function Field({ label, children, className = '' }: { label: string; children: ReactNode; className?: string }) {
   return (
-    <label className="block">
+    <label className={`block ${className}`}>
       <span className="field-label">{label}</span>
       {children}
     </label>
@@ -78,9 +79,7 @@ export function EditModal({
     memberRole: member.member_role,
     isNewMember: member.is_new_member,
     notes: member.notes,
-    statusNote: member.status_note ?? '',
-    statusStart: member.status_start ?? null,
-    statusEnd: member.status_end ?? null,
+    statusMarks: statusMarks(member),
     newMemberDongsan: member.new_member_dongsan ?? '',
   })
   const [saving, setSaving] = useState(false)
@@ -115,11 +114,20 @@ export function EditModal({
     set('isNewMember', false)
   }
 
-  // 상태 표기 quick preset — tapping the active one clears it; activating one starts
-  // the covered span today unless a start date is already set.
+  // 상태 표기 목록 — 멤버 한 명이 여러 개(방학 → 한국 귀국 …)를 가질 수 있다.
+  const marks = f.statusMarks ?? []
+  const setMarks = (next: StatusMark[]) => set('statusMarks', next)
+  const patchMark = (idx: number, patch: Partial<StatusMark>) =>
+    setMarks(marks.map((mark, i) => (i === idx ? { ...mark, ...patch } : mark)))
+  const addMark = (note = '') => setMarks([...marks, { note, start: easternNow().date, end: null }])
+  const removeMark = (idx: number) => setMarks(marks.filter((_, i) => i !== idx))
+
+  // 프리셋 — 같은 문구의 표기가 이미 있으면 그걸 지우고(토글), 없으면 오늘부터 시작하는
+  // 표기를 하나 더 얹는다.
   function toggleStatusPreset(note: string) {
-    if (f.statusNote === note) return set('statusNote', '')
-    setF((cur) => ({ ...cur, statusNote: note, statusStart: cur.statusStart || easternNow().date }))
+    const existing = marks.findIndex((mark) => mark.note === note)
+    if (existing >= 0) return removeMark(existing)
+    addMark(note)
   }
 
   // Copy or download this member's 새가족 등록 카드 as a JPG (same renderer as the
@@ -230,35 +238,57 @@ export function EditModal({
           <div className="section-kicker">{t('admin.members.statusSection')}</div>
           <p className="mt-1.5 text-sm text-warning">{t('admin.members.statusHelp')}</p>
           <div className="mt-2.5 flex flex-wrap gap-2">
-            {STATUS_PRESETS.map((note) => (
+            {STATUS_PRESETS.map((note) => {
+              const on = marks.some((mark) => mark.note === note)
+              return (
               <button
                 key={note}
                 type="button"
-                aria-pressed={f.statusNote === note}
+                aria-pressed={on}
                 onClick={() => toggleStatusPreset(note)}
                 className={
                   'min-h-9 rounded-full border px-4 text-sm transition-[background-color,border-color,transform] duration-200 [transition-timing-function:var(--ease-out-soft)] active:scale-[0.96] ' +
-                  (f.statusNote === note
+                  (on
                     ? 'border-warning bg-warning/15 font-semibold text-warning'
                     : 'border-border bg-surface text-text hover:bg-fill')
                 }
               >
                 {note}
               </button>
-            ))}
+              )
+            })}
           </div>
           <div className="mt-3 flex flex-col gap-3">
-            <Field label={t('admin.members.statusNote')}>
-              <Input value={f.statusNote ?? ''} onChange={(e) => set('statusNote', e.target.value)} />
-            </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label={t('admin.members.statusStart')}>
-                <Input type="date" value={f.statusStart ?? ''} onChange={(e) => set('statusStart', e.target.value)} />
-              </Field>
-              <Field label={t('admin.members.statusEnd')}>
-                <Input type="date" value={f.statusEnd ?? ''} onChange={(e) => set('statusEnd', e.target.value)} />
-              </Field>
-            </div>
+            {marks.map((mark, idx) => (
+              <div key={idx} className="rounded-xl border border-border bg-surface p-3">
+                <div className="flex items-end gap-2">
+                  <Field label={t('admin.members.statusNote')} className="min-w-0 flex-1">
+                    <Input value={mark.note} onChange={(e) => patchMark(idx, { note: e.target.value })} />
+                  </Field>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="mb-0.5 shrink-0 !min-h-11 !w-11 !px-0 text-danger hover:bg-danger/10"
+                    onClick={() => removeMark(idx)}
+                    aria-label={`${t('admin.members.statusRemove')} ${mark.note}`}
+                  >
+                    <Trash2 size={16} strokeWidth={2} aria-hidden />
+                  </Button>
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-3">
+                  <Field label={t('admin.members.statusStart')}>
+                    <Input type="date" value={mark.start ?? ''} onChange={(e) => patchMark(idx, { start: e.target.value || null })} />
+                  </Field>
+                  <Field label={t('admin.members.statusEnd')}>
+                    <Input type="date" value={mark.end ?? ''} onChange={(e) => patchMark(idx, { end: e.target.value || null })} />
+                  </Field>
+                </div>
+              </div>
+            ))}
+            <Button variant="ghost" size="sm" className="self-start" onClick={() => addMark()}>
+              <Plus size={15} strokeWidth={2.25} aria-hidden />
+              {t('admin.members.statusAdd')}
+            </Button>
           </div>
         </div>
 

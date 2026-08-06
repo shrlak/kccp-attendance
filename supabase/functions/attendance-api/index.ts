@@ -66,6 +66,30 @@ async function maybeRollSchedule(sb: SB, cfg: any) {
   await sb.from("config").update({semester_schedule:rolled,updated_at:new Date().toISOString()}).eq("id",1);
   return {...cfg,semester_schedule:rolled};
 }
+// 상태 표기(한국 귀국 · 방학 …)는 멤버당 여러 개다: [{note,start,end}]. 저장 전에 모양을
+// 다듬고(문구 trim, 빈 날짜 → null, 문구 없는 항목 제거) 시작일 순으로 정렬한다.
+function cleanStatusMarks(value: unknown): {note:string;start:string|null;end:string|null}[] | null {
+  if(!Array.isArray(value)) return null;
+  const out: {note:string;start:string|null;end:string|null}[]=[];
+  for(const raw of value){
+    if(!raw||typeof raw!=="object") continue;
+    const mark=raw as {note?:unknown;start?:unknown;end?:unknown};
+    const note=typeof mark.note==="string"?mark.note.trim():"";
+    if(!note) continue;
+    const iso=(v:unknown)=>typeof v==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(v)?v:null;
+    const start=iso(mark.start), end=iso(mark.end);
+    if(start&&end&&end<start) continue; // 거꾸로 된 기간은 버린다
+    out.push({note,start,end});
+  }
+  return out.sort((a,b)=>(a.start||"").localeCompare(b.start||""));
+}
+// 예전 단일 컬럼(status_note/start/end)에 mirror 할 표기: 오늘을 덮는 것, 없으면 가장 최근 것.
+function currentStatusMark(marks: {note:string;start:string|null;end:string|null}[], today: string) {
+  const covering=marks.filter((m)=>m.start&&m.start<=today&&(!m.end||today<=m.end));
+  const pick=covering[covering.length-1]??marks[marks.length-1];
+  return pick??{note:"",start:null,end:null};
+}
+
 // 학기가 끝나면 동산을 없애고 모두를 동산에서 뺀다 — 한 학기당 정확히 한 번, 학기가 끝난
 // 다음 첫 요청에서. 지우기 전에 그 학기의 편성(+동산 이름/동산지기)을 config.dongsan_history에
 // 얼려두므로, 지난 학기 출석부는 그대로 동산별로 남는다. 출석 기록(attendance_log)의 동산
@@ -891,6 +915,14 @@ Deno.serve(async (req: Request) => {
       const DATE_COLS=new Set(["birth_date","registration_date","status_start","status_end"]);
       const upd: any={updated_at:new Date().toISOString()};
       for(const [k,col] of Object.entries(COLS)){ if(body[k]!==undefined) upd[col]=DATE_COLS.has(col)?(body[k]||null):body[k]; }
+      // 상태 표기 목록 — 목록을 저장하고, 예전 단일 컬럼에는 현재(또는 최신) 표기를 남긴다.
+      if(body.statusMarks!==undefined){
+        const marks=cleanStatusMarks(body.statusMarks);
+        if(!marks) return fail(400,"statusMarks must be a list");
+        const cur=currentStatusMark(marks,localDate());
+        upd.status_marks=marks;
+        upd.status_note=cur.note; upd.status_start=cur.start; upd.status_end=cur.end;
+      }
       await sb.from("members").update(upd).eq("id",memberId);
       // Attendance rows carry the 이름/부서/동산 they were stamped with at check-in, and the
       // 출석부 filters on those — so a 새가족 who gets assigned a 동산 after their first

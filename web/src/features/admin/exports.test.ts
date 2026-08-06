@@ -506,3 +506,37 @@ describe('newFamilySheets', () => {
     expect(newFamilySheets([member('1', 'A', '')])[0].name).toBe('미지정')
   })
 })
+
+describe('buildAttendanceModel — 한국 귀국 / 이주', () => {
+  const labels = { unassigned: '동산 미지정', newFamily: '새가족' }
+  const dates = ['2026-08-09', '2026-08-16', '2026-08-23']
+  const log = [entry('A', '2026-08-09', 1), entry('B', '2026-08-09', 2)]
+
+  it('drops a member whose 귀국 covers every shown Sunday', () => {
+    const members = [
+      member('1', 'A'),
+      member('2', 'B'),
+      member('3', 'C', '청년부', '건영동산'),
+    ]
+    members[2].status_marks = [{ note: '한국 귀국', start: '2026-07-05', end: null }]
+    const model = buildAttendanceModel(members, log, dates, '2026-08-09', labels)
+    expect(model.sections[0].rows.map((r) => r.member.name)).toEqual(['A', 'B'])
+  })
+
+  it('keeps a member who left partway through the shown stretch (그 기간 기록은 남는다)', () => {
+    const members = [member('1', 'A'), member('3', 'C', '청년부', '건영동산')]
+    members[1].status_marks = [{ note: '이주', start: '2026-08-16', end: null }]
+    const model = buildAttendanceModel(members, log, dates, '2026-08-23', labels)
+    const c = model.sections[0].rows.find((r) => r.member.name === 'C')!
+    expect(c).toBeTruthy()
+    // 떠난 뒤 주일은 회색 표기로 덮인다.
+    expect(c.marks[1]).toMatchObject({ kind: 'note', note: '이주' })
+  })
+
+  it('leaves 방학 members in place (they are coming back)', () => {
+    const members = [member('1', 'A'), member('3', 'C', '청년부', '건영동산')]
+    members[1].status_marks = [{ note: '방학', start: '2026-07-05', end: null }]
+    const model = buildAttendanceModel(members, log, dates, '2026-08-09', labels)
+    expect(model.sections[0].rows.map((r) => r.member.name)).toEqual(['A', 'C'])
+  })
+})

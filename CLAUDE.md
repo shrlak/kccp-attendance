@@ -43,6 +43,12 @@ Korean church (한국중앙교회 피츠버그 대학·청년부) attendance sys
   (service-role) is the only data path.
 - 동산지기/부동산지기 are a **display-badge** system (`config.dongsan_leaders`), distinct from the
   `leader` admin role.
+- **상태 표기 = a list per member** (`members.status_marks` `[{note,start,end}]`; the old single
+  `status_note/start/end` trio is still mirrored by the server and read as a one-entry fallback).
+  `web/src/lib/status.ts` is the single reader: 귀국/이주 hides the member from the **출석부**
+  (when the mark covers the whole shown stretch — a mid-term departure keeps its earlier O/X) and
+  from the **키오스크** (along with 방학, `hiddenFromKiosk`); 방학 also drops out of the 통계
+  denominator. Other notes (돌아옴 …) just grey out their dates.
 - **Login history is 김호연-only**: `/api/admin/login-log` (login_log + `ip_geo` IP→place
   cache, filled from ipwho.is) is gated by `canViewLoginLog` in `auth.ts` — requires
   super_admin **and** memberId == `LOGIN_LOG_VIEWER_MEMBER_ID` (김호연's UUID, env-overridable),
