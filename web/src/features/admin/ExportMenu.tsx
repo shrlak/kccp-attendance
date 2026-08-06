@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import type { Member, LogEntry } from '../../lib/api'
-import { getConfig } from '../../lib/api'
+import { configCalendar, getConfig } from '../../lib/api'
 import { easternNow } from '../../lib/checkinWindow'
 import type { Filter } from './filters'
 import {
@@ -39,7 +39,7 @@ export function ExportMenu({ members, log, filter }: { members: Member[]; log: L
       // of the main bundle.
       const XLSX = await import('xlsx-js-style')
       const wb = XLSX.utils.book_new()
-      const { aoa, merges, fills } = gridSheet(members, log, lang, today, cfg?.semesterDates)
+      const { aoa, merges, fills } = gridSheet(members, log, lang, today, configCalendar(cfg))
       const attendance = XLSX.utils.aoa_to_sheet(aoa)
       attendance['!merges'] = merges
       // Paint the per-동산 header colors onto the cells the grid marked.
@@ -77,7 +77,7 @@ export function ExportMenu({ members, log, filter }: { members: Member[]; log: L
       subgroup: filter.subgroup,
       today,
       lang,
-      semesterDates: cfg?.semesterDates,
+      semesterDates: configCalendar(cfg),
     })
     const win = window.open('', '_blank')
     if (!win) {

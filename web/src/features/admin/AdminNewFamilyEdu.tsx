@@ -19,7 +19,7 @@ import { NewFamilyWeekChip } from './NewFamilyWeekChip'
 import { summerDongsanList } from './dongsan'
 import { Pill } from './GroupFilter'
 import { DongsanNamesEditor } from './AdminDongsan'
-import {
+import { configCalendar,
   getConfig,
   getNewMemberDongsanNames,
   updateNewMemberDongsanNames,
@@ -76,13 +76,13 @@ export function AdminNewFamilyEdu() {
   const scopedMembers = filterByEduDongsan(data.members, filter)
   // 이번 학기 새가족 + 아직 교육이 끝나지 않아 이전 학기에서 넘어온 새가족 — 교육을 마쳐
   // 목록에서 내려가려면 여기서 체크할 수 있어야 하므로 새가족 탭과 같은 기준으로 뽑는다.
-  const inScope = visibleNewFamily(scopedMembers, today, cfg?.semesterDates)
+  const inScope = visibleNewFamily(scopedMembers, today, configCalendar(cfg))
   const visible = eduFilter === 'all' ? inScope : inScope.filter((m) => matchesEduFilter(m, eduFilter))
-  const currentKey = semesterKey(today, cfg?.semesterDates)
+  const currentKey = semesterKey(today, configCalendar(cfg))
   // 이전 학기에서 넘어온 카드에는 등록 학기를 달아준다 (이번 학기면 null).
   const termLabel = (m: Member): string | null => {
-    if (!m.registration_date || semesterKey(m.registration_date, cfg?.semesterDates) === currentKey) return null
-    const { year, season } = semesterBounds(m.registration_date, cfg?.semesterDates)
+    if (!m.registration_date || semesterKey(m.registration_date, configCalendar(cfg)) === currentKey) return null
+    const { year, season } = semesterBounds(m.registration_date, configCalendar(cfg))
     return `${year} ${t(`admin.newfamily.season.${season}`)}`
   }
   const readOnly = data.role === 'pastor'

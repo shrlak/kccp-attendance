@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { canViewLoginLog, resolveAdmin, scopeFilter } from "./auth.ts";
-import { isSummerTerm, lastEndedTermKey, subgroupSnapshot, trimHistory } from "./term.ts";
+import { DEFAULT_SEMESTER_DATES, isSummerTerm, lastEndedTermKey, mergeSchedule, rollSchedule, sameSchedule, scheduleOf, scheduleToDates, subgroupSnapshot, trimHistory, validSchedule } from "./term.ts";
 import { availableCardModels, buildCardRequest, cardModelChain, parseCardResponse } from "./gemini.ts";
 // Decrypt-side of the weekly R2 backup pipeline (see scripts/backup/). age-encryption is
 // FiloSottile's own pure-JS port of `age` (no native/subprocess dependency, which Deno
@@ -57,7 +57,15 @@ async function getCfg(sb: SB) { const {data}=await sb.from("config").select("*")
 // 여름 모드 = 오늘이 여름학기 안인가. Was an admin toggle (config.summer_mode); it is now
 // derived from the saved 학기 일정, so it switches itself on the day 여름학기 starts and off
 // the day after it ends. The old column is left in place but never read or written.
-function summerNow(cfg: any) { return isSummerTerm(localDate(),cfg?.semester_dates); }
+function summerNow(cfg: any) { return isSummerTerm(localDate(),cfg?.semester_dates,cfg?.semester_schedule); }
+// 2년치 학기 일정을 굴린다: 끝난 학기는 편집 목록에서 빠지고(보관은 유지) 맨 뒤에 다음 학기가
+// 붙는다. 바뀐 게 없으면 쓰지 않으므로 매 요청에 불러도 안전하다.
+async function maybeRollSchedule(sb: SB, cfg: any) {
+  const rolled=rollSchedule(localDate(),cfg?.semester_dates,cfg?.semester_schedule);
+  if(sameSchedule(rolled,scheduleOf(cfg?.semester_schedule))) return cfg;
+  await sb.from("config").update({semester_schedule:rolled,updated_at:new Date().toISOString()}).eq("id",1);
+  return {...cfg,semester_schedule:rolled};
+}
 // 학기가 끝나면 동산을 없애고 모두를 동산에서 뺀다 — 한 학기당 정확히 한 번, 학기가 끝난
 // 다음 첫 요청에서. 지우기 전에 그 학기의 편성(+동산 이름/동산지기)을 config.dongsan_history에
 // 얼려두므로, 지난 학기 출석부는 그대로 동산별로 남는다. 출석 기록(attendance_log)의 동산
@@ -486,7 +494,7 @@ Deno.serve(async (req: Request) => {
       if(!role) return fail(401,"Not authorized");
       // Every admin page load is also the clock that retires a finished 학기's 동산 편성
       // (no-op except on the first request after a term ends).
-      const cfg=await rolloverDongsan(sb,await getCfg(sb)); const scope=scopeFilter(role,summerNow(cfg));
+      const cfg=await rolloverDongsan(sb,await maybeRollSchedule(sb,await getCfg(sb))); const scope=scopeFilter(role,summerNow(cfg));
       let mq:any=sb.from("members").select("*").order("name",{ascending:true});
       if(!scope.all){mq=mq.in("group_name",scope.groups);if(scope.subgroup)mq=mq.eq("subgroup",scope.subgroup);}
       const {data:members}=await mq;
@@ -525,7 +533,7 @@ Deno.serve(async (req: Request) => {
     if(req.method==="POST"&&p==="/api/admin/settings") {
       const role=await resolveAdmin(sb,req);
       if(role?.role!=="super_admin") return fail(403,"Super admin required");
-      const {groupColors,semesterDates}=body;
+      const {groupColors,semesterDates,semesterSchedule}=body;
       const upd: any={updated_at:new Date().toISOString()};
       if(groupColors!==undefined&&groupColors&&typeof groupColors==="object"){
         const HEX=/^#[0-9a-fA-F]{6}$/; const clean: Record<string,string>={};
@@ -537,6 +545,16 @@ Deno.serve(async (req: Request) => {
       if(semesterDates!==undefined){
         if(!validSemesterDates(semesterDates)) return fail(400,"Invalid semester dates");
         upd.semester_dates=semesterDates;
+      }
+      // 2년치 학기 목록. 저장된 지난 학기는 그대로 남기고(아카이브가 그 날짜를 쓴다) 보내온
+      // 목록으로 앞부분을 갈아끼운 뒤, 매년 반복되는 템플릿도 최신 패턴으로 맞춰 둔다.
+      if(semesterSchedule!==undefined){
+        if(!validSchedule(semesterSchedule)) return fail(400,"Invalid semester schedule");
+        const cfg=await getCfg(sb);
+        const merged=mergeSchedule(semesterSchedule,cfg.semester_schedule,localDate());
+        upd.semester_schedule=merged;
+        const tmpl=scheduleToDates(merged,validSemesterDates(cfg.semester_dates)?cfg.semester_dates:DEFAULT_SEMESTER_DATES);
+        if(validSemesterDates(tmpl)) upd.semester_dates=tmpl;
       }
       const {error}=await sb.from("config").update(upd).eq("id",1);
       if(error) throw new Error(error.message);
@@ -1526,6 +1544,7 @@ Deno.serve(async (req: Request) => {
       const cfg=await getCfg(sb);
       return ok({
         summerMode:summerNow(cfg),
+        semesterSchedule:scheduleOf(cfg.semester_schedule),
         groupColors:cfg.group_colors||{"대학부":"#E0A800","청년부":"#3B82F6"},
         semesterDates:validSemesterDates(cfg.semester_dates)?cfg.semester_dates:null,
       });

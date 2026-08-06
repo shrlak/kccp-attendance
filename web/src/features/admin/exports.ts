@@ -1,5 +1,5 @@
 import type { Member, LogEntry } from '../../lib/api'
-import type { SemesterDates } from '../../lib/semester'
+import type { CalendarLike } from '../../lib/semester'
 import { buildGrid } from './sheet'
 import { semesterBounds, semesterKey, semesterSundays, transitionBounds, transitionSundays, isActiveNewFamily } from './newFamily'
 import { splitAffiliation } from './newFamilyCard'
@@ -57,7 +57,7 @@ const TERM_END_OVERRIDES: Record<string, string> = {
 // Worship Sundays shown in the export for the term containing `today`: the semester Sundays
 // (semesterSundays), clamped to the term's effective start (TERM_START_OVERRIDES) and run
 // through the term-end override when set — otherwise only through `today`. ISO ascending.
-export function exportSundays(today: string, semesterDates?: SemesterDates | null): string[] {
+export function exportSundays(today: string, semesterDates?: CalendarLike): string[] {
   // 예배 doesn't stop just because `today` falls between two configured 학기 — the moment a
   // term ends the sheet rolls over to the gap's own table instead of freezing on the finished
   // term's columns. Like a term, the gap shows its *whole* Sunday set (upcoming ones blank
@@ -255,7 +255,7 @@ export function periodGroupBy(
 // periodGroupBy for the period containing `today` (no configured 학기 covers it → transition).
 export function attendanceGroupBy(
   today: string,
-  semesterDates: SemesterDates | null | undefined,
+  semesterDates: CalendarLike,
   unassigned: string,
 ): (m: Member) => string {
   return periodGroupBy(transitionBounds(today, semesterDates) ? 'transition' : 'semester', unassigned)
@@ -264,7 +264,7 @@ export function attendanceGroupBy(
 // Human label for the semester containing `today`, e.g. "2026 여름 학기" / "Summer 2026" —
 // or, between two configured 학기, a transition-period label carrying the gap's own date
 // range, so it's obvious at a glance which stretch of 예배 the table covers.
-export function semesterLabel(today: string, lang: Lang, semesterDates?: SemesterDates | null): string {
+export function semesterLabel(today: string, lang: Lang, semesterDates?: CalendarLike): string {
   const transition = transitionBounds(today, semesterDates)
   if (transition) {
     const range = `${formatGridDate(transition.start)}–${formatGridDate(transition.end)}`
@@ -319,7 +319,7 @@ export function gridSheet(
   log: LogEntry[],
   lang: Lang,
   today: string,
-  semesterDates?: SemesterDates | null,
+  semesterDates?: CalendarLike,
 ): SheetData {
   return attendanceSheet(
     members,
@@ -579,7 +579,7 @@ export interface ReportOpts {
   subgroup: string
   today: string
   lang: Lang
-  semesterDates?: SemesterDates | null
+  semesterDates?: CalendarLike
 }
 
 function escapeHtml(s: string): string {
