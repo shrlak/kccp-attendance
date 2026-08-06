@@ -1,9 +1,9 @@
 import type { Member } from '../../lib/api'
 import {
-  DEFAULT_SEMESTER_DATES,
-  dateForYear,
   addIsoDays,
-  type SemesterDates,
+  calendarOf,
+  termRange,
+  type CalendarLike,
 } from '../../lib/semester'
 import type { Filter } from './filters'
 
@@ -16,38 +16,24 @@ export interface SemesterBounds {
   end: string // ISO date, inclusive
 }
 
-// Semester bounds for the term containing `dateStr`. Saved month/day ranges are
-// projected into that date's year; the legacy boundaries remain the fallback. During a
-// configured break between terms, the most recently started term remains the label, but
-// membership/date columns are still clamped to its explicit end.
-export function semesterBounds(dateStr: string, semesterDates?: SemesterDates | null): SemesterBounds {
+// Semester bounds for the term containing `dateStr`. The 2년치 학기 목록 wins when it lists
+// that year's term; otherwise the recurring month/day template is projected into the year
+// (see lib/semester.ts termRange). During a configured break between terms, the most
+// recently started term remains the label, but membership/date columns are still clamped to
+// its explicit end.
+export function semesterBounds(dateStr: string, semesterDates?: CalendarLike): SemesterBounds {
   const year = Number(dateStr.slice(0, 4))
-  const dates = semesterDates ?? DEFAULT_SEMESTER_DATES
-  const spring = {
-    year,
-    season: 'spring' as const,
-    start: dateForYear(year, dates.spring.start),
-    end: dateForYear(year, dates.spring.end),
-  }
-  const summer = {
-    year,
-    season: 'summer' as const,
-    start: dateForYear(year, dates.summer.start),
-    end: dateForYear(year, dates.summer.end),
-  }
-  const fall = {
-    year,
-    season: 'fall' as const,
-    start: dateForYear(year, dates.fall.start),
-    end: dateForYear(year, dates.fall.end),
-  }
+  const cal = calendarOf(semesterDates)
+  const spring = { year, season: 'spring' as const, ...termRange(year, 'spring', cal) }
+  const summer = { year, season: 'summer' as const, ...termRange(year, 'summer', cal) }
+  const fall = { year, season: 'fall' as const, ...termRange(year, 'fall', cal) }
   if (dateStr >= fall.start) return fall
   if (dateStr >= summer.start) return summer
   return spring
 }
 
 // Semester key like "2026-spring" for the term containing `dateStr`.
-export function semesterKey(dateStr: string, semesterDates?: SemesterDates | null): string {
+export function semesterKey(dateStr: string, semesterDates?: CalendarLike): string {
   const { year, season } = semesterBounds(dateStr, semesterDates)
   return `${year}-${season}`
 }
@@ -82,7 +68,7 @@ function sundaysInRange(start: string, end: string, through: string): string[] {
 export function semesterSundays(
   today: string,
   through: string = today,
-  semesterDates?: SemesterDates | null,
+  semesterDates?: CalendarLike,
 ): string[] {
   const { start, end } = semesterBounds(today, semesterDates)
   return sundaysInRange(start, end, through)
@@ -104,23 +90,20 @@ export interface TransitionBounds {
 // configured term, including the default boundaries (spring/summer/fall run back-to-back,
 // so they never leave a gap) — this only ever fires once an admin saves term dates that
 // leave a break between them.
-export function transitionBounds(dateStr: string, semesterDates?: SemesterDates | null): TransitionBounds | null {
+export function transitionBounds(dateStr: string, semesterDates?: CalendarLike): TransitionBounds | null {
   const year = Number(dateStr.slice(0, 4))
-  const dates = semesterDates ?? DEFAULT_SEMESTER_DATES
-  const springStart = dateForYear(year, dates.spring.start)
-  const springEnd = dateForYear(year, dates.spring.end)
-  const summerStart = dateForYear(year, dates.summer.start)
-  const summerEnd = dateForYear(year, dates.summer.end)
-  const fallStart = dateForYear(year, dates.fall.start)
-  const fallEnd = dateForYear(year, dates.fall.end)
+  const cal = calendarOf(semesterDates)
+  const { start: springStart, end: springEnd } = termRange(year, 'spring', cal)
+  const { start: summerStart, end: summerEnd } = termRange(year, 'summer', cal)
+  const { start: fallStart, end: fallEnd } = termRange(year, 'fall', cal)
 
   // Before this year's spring even starts: the wraparound gap since last year's fall
   // ended (dateStr's own year makes it unconditionally after that fall's end).
-  if (dateStr < springStart) return { start: addIsoDays(dateForYear(year - 1, dates.fall.end), 1), end: addIsoDays(springStart, -1) }
+  if (dateStr < springStart) return { start: addIsoDays(termRange(year - 1, 'fall', cal).end, 1), end: addIsoDays(springStart, -1) }
   if (dateStr > springEnd && dateStr < summerStart) return { start: addIsoDays(springEnd, 1), end: addIsoDays(summerStart, -1) }
   if (dateStr > summerEnd && dateStr < fallStart) return { start: addIsoDays(summerEnd, 1), end: addIsoDays(fallStart, -1) }
   // After this year's fall ends: the wraparound gap until next year's spring starts.
-  if (dateStr > fallEnd) return { start: addIsoDays(fallEnd, 1), end: addIsoDays(dateForYear(year + 1, dates.spring.start), -1) }
+  if (dateStr > fallEnd) return { start: addIsoDays(fallEnd, 1), end: addIsoDays(termRange(year + 1, 'spring', cal).start, -1) }
   return null
 }
 
@@ -214,7 +197,7 @@ export function filterByEduDongsan(members: Member[], f: Filter): Member[] {
 export function visibleNewFamily(
   members: Member[],
   today: string,
-  semesterDates?: SemesterDates | null,
+  semesterDates?: CalendarLike,
 ): Member[] {
   const { start, end } = semesterBounds(today, semesterDates)
   return members
@@ -266,7 +249,7 @@ export interface SemesterGroup {
 export function newFamilyBySemester(
   members: Member[],
   today: string,
-  semesterDates?: SemesterDates | null,
+  semesterDates?: CalendarLike,
 ): SemesterGroup[] {
   const currentKey = semesterKey(today, semesterDates)
   const byKey = new Map<string, Member[]>()

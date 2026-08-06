@@ -15,8 +15,8 @@ import {
   NOTE_FILL,
   type Lang,
 } from './exports'
-import { addBulkAttendance, clearAttendance, getConfig, type LogEntry, type Member, type RosterResponse } from '../../lib/api'
-import type { SemesterDates } from '../../lib/semester'
+import { addBulkAttendance, clearAttendance, configCalendar, getConfig, type LogEntry, type Member, type RosterResponse } from '../../lib/api'
+import type { CalendarLike } from '../../lib/semester'
 import { easternNow } from '../../lib/checkinWindow'
 import { checkinCandidates } from './today'
 import { memberIdsPresentOn, toggleId } from './bulk'
@@ -107,7 +107,7 @@ export function AdminSheet() {
           lang={lang}
           today={today}
           filter={filter}
-          semesterDates={cfg?.semesterDates}
+          semesterDates={configCalendar(cfg)}
         />
       ) : (
         <LogView log={log} empty={t('admin.sheet.empty')} />
@@ -119,7 +119,7 @@ export function AdminSheet() {
         filter={filter}
         today={today}
         lang={lang}
-        semesterDates={cfg?.semesterDates}
+        semesterDates={configCalendar(cfg)}
         dongsanHistory={data.dongsanHistory}
       />
       {bulk && <BulkModal data={data} onClose={() => setBulk(false)} />}
@@ -318,7 +318,7 @@ function GridView({
   lang: Lang
   today: string
   filter: Filter
-  semesterDates?: SemesterDates | null
+  semesterDates?: CalendarLike
 }) {
   const roleOf = useDongsanRole()
   const L =

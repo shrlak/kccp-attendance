@@ -10,7 +10,7 @@ import { copyNewFamilyCards, saveNewFamilyCards } from './newFamilyCardImage'
 import { newFamilySheets, NEW_FAMILY_HEADER } from './exports'
 import { toggleId } from './bulk'
 import { GroupFilter } from './GroupFilter'
-import { getConfig, type Member } from '../../lib/api'
+import { configCalendar, getConfig, type Member } from '../../lib/api'
 import { Dialog } from '../../components/ui/Dialog'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
@@ -50,7 +50,7 @@ export function AdminNewFamily() {
   const today = easternNow().date
   const scopedMembers = filterMembers(data.members, filter)
   // 학기별 섹션: 이번 학기 + 아직 새가족 교육이 끝나지 않아 넘어온 이전 학기들.
-  const semesters = newFamilyBySemester(scopedMembers, today, cfg?.semesterDates)
+  const semesters = newFamilyBySemester(scopedMembers, today, configCalendar(cfg))
   const allNewFamily = semesters.flatMap((s) => s.dates.flatMap((g) => g.members))
   const total = allNewFamily.length
   const carriedOver = semesters.filter((s) => !s.current).reduce((n, s) => n + s.total, 0)
@@ -58,8 +58,8 @@ export function AdminNewFamily() {
   // 이번 주일 등록 vs 지난주 등록 — the two cohorts the 새가족팀 works with on a Sunday.
   const thisWeekCount = allNewFamily.filter((m) => newFamilyWeek(m.registration_date, today) === 'thisWeek').length
   const lastWeekCount = allNewFamily.filter((m) => newFamilyWeek(m.registration_date, today) === 'lastWeek').length
-  const [, season] = semesterKey(today, cfg?.semesterDates).split('-')
-  const year = semesterKey(today, cfg?.semesterDates).split('-')[0]
+  const [, season] = semesterKey(today, configCalendar(cfg)).split('-')
+  const year = semesterKey(today, configCalendar(cfg)).split('-')[0]
   const readOnly = data.role === 'pastor'
 
   return (

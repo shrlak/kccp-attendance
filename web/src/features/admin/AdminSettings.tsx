@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { getConfig, getCardScanUsage, updateSettings } from '../../lib/api'
+import { configCalendar, getConfig, getCardScanUsage, updateSettings } from '../../lib/api'
 import { useToast } from '../../components/ui/Toast'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
@@ -12,12 +12,10 @@ import { DEFAULT_GROUP_COLORS, isValidHex } from './groupColors'
 import { easternNow } from '../../lib/checkinWindow'
 import {
   DEFAULT_SEMESTER_DATES,
-  SEMESTER_SEASONS,
-  dateForYear,
-  isValidSemesterDates,
-  monthDayFromDate,
-  type SemesterDates,
-  type SemesterSeason,
+  buildSchedule,
+  calendarOf,
+  isValidSchedule,
+  type SemesterSchedule,
 } from '../../lib/semester'
 
 const GROUPS = ['대학부', '청년부'] as const
@@ -40,18 +38,23 @@ export function AdminSettings() {
   })
   const [colorEdits, setColorEdits] = useState<Record<string, string> | undefined>(undefined)
   const [colorsSaving, setColorsSaving] = useState(false)
-  const [semesterEdits, setSemesterEdits] = useState<SemesterDates | undefined>(undefined)
+  const [semesterEdits, setSemesterEdits] = useState<SemesterSchedule | undefined>(undefined)
   const [semesterSaving, setSemesterSaving] = useState(false)
 
   const colors = colorEdits ?? cfg?.groupColors ?? DEFAULT_GROUP_COLORS
   const colorsDirty = colorEdits !== undefined
   const colorsValid = GROUPS.every((g) => isValidHex(colors[g] ?? ''))
-  const currentYear = Number(easternNow().date.slice(0, 4))
-  const semesterDates = semesterEdits ?? cfg?.semesterDates ?? DEFAULT_SEMESTER_DATES
+  const today = easternNow().date
+  // The 2년치 window an admin edits: the saved schedule's current + upcoming terms, topped up
+  // from the recurring template when the server hasn't stored a schedule yet. Finished terms
+  // stay on the server (the archives need them) but leave this list — that is the rolling
+  // window: as each term ends it drops off the front and a fresh one appears at the back.
+  const savedTerms = useMemo(() => buildSchedule(today, calendarOf(configCalendar(cfg))), [cfg, today])
+  const terms = semesterEdits ?? savedTerms
+  const semesterDatesValid = isValidSchedule(terms)
   // The 여름 모드 status line describes what the server is actually doing, so it reads the
   // saved schedule — not the unsaved edits sitting in the form above it.
   const savedSemesterDates = cfg?.semesterDates ?? DEFAULT_SEMESTER_DATES
-  const semesterDatesValid = isValidSemesterDates(semesterDates)
   const usageRemaining = scanUsage?.remaining ?? 0
   const remainingPercent = scanUsage
     ? scanUsage.limit > 0
@@ -78,18 +81,15 @@ export function AdminSettings() {
     }
   }
 
-  function setSemesterDate(season: SemesterSeason, field: 'start' | 'end', date: string) {
-    setSemesterEdits({
-      ...semesterDates,
-      [season]: { ...semesterDates[season], [field]: date ? monthDayFromDate(date) : '' },
-    })
+  function setTermDate(index: number, field: 'start' | 'end', date: string) {
+    setSemesterEdits(terms.map((term, i) => (i === index ? { ...term, [field]: date } : term)))
   }
 
   async function saveSemesterDates() {
     if (!semesterDatesValid) return
     setSemesterSaving(true)
     try {
-      await updateSettings({ semesterDates })
+      await updateSettings({ semesterSchedule: terms })
       await qc.invalidateQueries({ queryKey: ['config'] })
       setSemesterEdits(undefined)
       toast({ title: t('admin.settings.saved'), tone: 'ok' })
@@ -107,41 +107,35 @@ export function AdminSettings() {
           icon={<Calendar size={18} strokeWidth={2} aria-hidden />}
           tone="bg-primary/10 text-primary"
           title={t('admin.settings.semesterDates')}
-          desc={t('admin.settings.semesterDatesDesc', { year: currentYear, nextYear: currentYear + 1 })}
+          desc={t('admin.settings.semesterDatesDesc', { count: terms.length })}
         />
         <div className="mb-3 grid gap-3 lg:grid-cols-3">
-          {SEMESTER_SEASONS.map((season) => {
-            // US academic year: fall belongs to the earlier calendar year, spring and summer
-            // to the next one (e.g. 2026-27 → Fall 2026, Spring 2027, Summer 2027). The picker
-            // year is display-only — only the month/day is saved.
-            const seasonYear = season === 'fall' ? currentYear : currentYear + 1
+          {terms.map((term, i) => {
+            const running = today >= term.start && today <= term.end
             return (
-            <fieldset key={season} className="rounded-2xl border border-border bg-surface-2 p-4 shadow-[var(--shadow-sm)]">
+            <fieldset key={`${term.year}-${term.season}`} className="rounded-2xl border border-border bg-surface-2 p-4 shadow-[var(--shadow-sm)]">
               {/* legend renders as an in-card header (float trick) instead of the
                   browser's border-interrupting legend style; fieldset keeps semantics. */}
-              <legend className="float-left mb-3 w-full p-0 font-display text-sm font-bold tracking-tight text-text">
-                {t(`admin.settings.semester.${season}`)}
-                <span className="ml-1.5 font-sans font-normal text-subtle">{seasonYear}</span>
+              <legend className="float-left mb-3 flex w-full items-center gap-1.5 p-0 font-display text-sm font-bold tracking-tight text-text">
+                {t(`admin.settings.semester.${term.season}`)}
+                <span className="font-sans font-normal text-subtle">{term.year}</span>
+                {running && <Tag tone="primary" className="ml-auto">{t('admin.settings.termRunning')}</Tag>}
               </legend>
               <div className="clear-both grid grid-cols-2 gap-2">
                 <label>
                   <span className="field-label">{t('admin.settings.semesterStart')}</span>
                   <Input
                     type="date"
-                    min={`${seasonYear}-01-01`}
-                    max={`${seasonYear}-12-31`}
-                    value={dateForYear(seasonYear, semesterDates[season].start)}
-                    onChange={(e) => setSemesterDate(season, 'start', e.target.value)}
+                    value={term.start}
+                    onChange={(e) => setTermDate(i, 'start', e.target.value)}
                   />
                 </label>
                 <label>
                   <span className="field-label">{t('admin.settings.semesterEnd')}</span>
                   <Input
                     type="date"
-                    min={`${seasonYear}-01-01`}
-                    max={`${seasonYear}-12-31`}
-                    value={dateForYear(seasonYear, semesterDates[season].end)}
-                    onChange={(e) => setSemesterDate(season, 'end', e.target.value)}
+                    value={term.end}
+                    onChange={(e) => setTermDate(i, 'end', e.target.value)}
                   />
                 </label>
               </div>
@@ -149,6 +143,7 @@ export function AdminSettings() {
             )
           })}
         </div>
+        <p className="mb-3 text-xs text-muted">{t('admin.settings.semesterRollNote')}</p>
         {!semesterDatesValid && (
           <p className="mb-3 text-xs font-semibold text-danger">{t('admin.settings.semesterDatesInvalid')}</p>
         )}

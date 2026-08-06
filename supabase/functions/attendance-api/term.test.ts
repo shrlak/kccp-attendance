@@ -7,9 +7,14 @@ import {
   currentSeason,
   isSummerTerm,
   lastEndedTermKey,
+  mergeSchedule,
+  rollSchedule,
+  sameSchedule,
+  scheduleToDates,
   semesterDatesOf,
   subgroupSnapshot,
   trimHistory,
+  validSchedule,
   type DongsanHistory,
   type SemesterDates,
 } from "./term.ts";
@@ -60,6 +65,66 @@ Deno.test("lastEndedTermKey is the term whose 동산 편성 the rollover retires
   assertEquals(lastEndedTermKey("2026-12-14", saved), "2026-fall");
   // Early January still reaches back to last year's 가을학기.
   assertEquals(lastEndedTermKey("2027-01-02", saved), "2026-fall");
+});
+
+Deno.test("rollSchedule seeds two years of terms from the template", () => {
+  const seeded = rollSchedule("2026-08-05", saved, []);
+  assertEquals(seeded.length, 6);
+  assertEquals(seeded[0], { year: 2026, season: "fall", start: "2026-09-06", end: "2026-12-13" });
+  assertEquals(seeded[5], { year: 2028, season: "summer", start: "2028-06-07", end: "2028-08-08" });
+  // Idempotent: rolling an already-rolled schedule on the same day changes nothing.
+  assertEquals(sameSchedule(rollSchedule("2026-08-05", saved, seeded), seeded), true);
+});
+
+Deno.test("a finished term leaves the window, a fresh one is appended, and the old one is kept", () => {
+  const seeded = rollSchedule("2026-08-05", saved, []);
+  const after = rollSchedule("2026-12-14", saved, seeded); // 가을학기가 끝난 다음 날
+  const window = after.filter((t) => t.end >= "2026-12-14");
+  assertEquals(window.length, 6);
+  assertEquals(`${window[0].year}-${window[0].season}`, "2027-spring"); // 하나씩 앞으로
+  assertEquals(`${window[5].year}-${window[5].season}`, "2028-fall"); // 맨 뒤에 새 학기
+  // 끝난 학기는 목록에 남는다 — 지난 학기 출석부가 그 날짜를 쓴다.
+  assertEquals(after.some((t) => t.year === 2026 && t.season === "fall"), true);
+});
+
+Deno.test("stored terms keep their dates; appended ones inherit the newest pattern", () => {
+  const seeded = rollSchedule("2026-08-05", saved, []);
+  const edited = seeded.map((t) => (t.year === 2028 && t.season === "summer" ? { ...t, end: "2028-08-20" } : t));
+  // An already-listed term is never rewritten by a roll.
+  assertEquals(rollSchedule("2026-10-01", saved, edited).find((t) => t.year === 2028 && t.season === "summer")?.end, "2028-08-20");
+  // A newly appended term follows the latest same-season dates rather than the template.
+  assertEquals(rollSchedule("2028-08-21", saved, edited).find((t) => t.year === 2029 && t.season === "summer")?.end, "2029-08-20");
+});
+
+Deno.test("mergeSchedule keeps finished terms the saved window no longer covers", () => {
+  const seeded = rollSchedule("2026-08-05", saved, []);
+  const after = rollSchedule("2026-12-14", saved, seeded);
+  const window = after.filter((t) => t.end >= "2026-12-14");
+  const merged = mergeSchedule(window, after, "2026-12-14");
+  assertEquals(merged.some((t) => t.year === 2026 && t.season === "fall"), true);
+  assertEquals(merged.length, after.length);
+});
+
+Deno.test("validSchedule rejects backwards or overlapping terms", () => {
+  assertEquals(validSchedule(rollSchedule("2026-08-05", saved, [])), true);
+  assertEquals(validSchedule([]), false);
+  assertEquals(validSchedule([{ year: 2026, season: "fall", start: "2026-09-06", end: "2026-09-01" }]), false);
+  assertEquals(
+    validSchedule([
+      { year: 2026, season: "fall", start: "2026-09-06", end: "2026-12-13" },
+      { year: 2027, season: "spring", start: "2026-12-01", end: "2027-05-09" },
+    ]),
+    false,
+  );
+});
+
+Deno.test("the schedule wins over the template for 여름 모드 and the rollover key", () => {
+  const longSummer = [{ year: 2027, season: "summer" as const, start: "2027-06-07", end: "2027-08-20" }];
+  assertEquals(isSummerTerm("2027-08-15", saved, longSummer), true);
+  assertEquals(isSummerTerm("2027-08-15", saved, []), false); // template ends 08-08
+  assertEquals(lastEndedTermKey("2027-08-21", saved, longSummer), "2027-summer");
+  // The template a schedule implies — each season's newest entry as MM-DD.
+  assertEquals(scheduleToDates(longSummer, saved).summer, { start: "06-07", end: "08-20" });
 });
 
 Deno.test("subgroupSnapshot freezes only the members who are in a 동산", () => {

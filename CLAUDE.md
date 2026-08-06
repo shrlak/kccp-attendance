@@ -22,6 +22,14 @@ Korean church (한국중앙교회 피츠버그 대학·청년부) attendance sys
 - `members` (UUID identity) ⟵ `devices.member_id` / `attendance_log.member_id`; roles in
   `member_roles` (super_admin / leader / pastor / welcoming). Leaders are scoped by group+동산
   (summer mode: KM leaders span 대학부+청년부 = 합동). Pastor is read-only.
+- **학기 일정 = 2년치 롤링 목록** (`config.semester_schedule`, `[{year,season,start,end}]` with
+  real dates): the 설정 탭 edits the 6 terms that haven't finished (2 academic years). A term that
+  ends leaves that window and a fresh one is appended at the back (`rollSchedule`, run on every
+  `/api/roster`); finished terms stay stored (last 12) because the archives need the dates the term
+  actually ran on. `config.semester_dates` is now just the recurring MM-DD **fallback template** for
+  years the list doesn't cover, re-derived from the list on save (`scheduleToDates`). Every date
+  helper resolves a term through `termRange(year, season, calendar)` — web `lib/semester.ts`
+  (`calendarOf`/`TermCalendar`, fed by `api.ts` `configCalendar(cfg)`), server `term.ts`.
 - **여름 모드 is derived, not a toggle**: `term.ts` `isSummerTerm(오늘, config.semester_dates)` —
   on for exactly the 여름학기, off the day after. `config.summer_mode` is dead (never read/written);
   the 설정 탭 shows the state, not a switch.

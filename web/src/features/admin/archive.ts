@@ -1,9 +1,9 @@
 import type { Member, LogEntry } from '../../lib/api'
 import {
-  DEFAULT_SEMESTER_DATES,
-  dateForYear,
   addIsoDays,
-  type SemesterDates,
+  calendarOf,
+  termRange,
+  type CalendarLike,
 } from '../../lib/semester'
 import type { Season } from './newFamily'
 import { sundaysBetween } from './newFamily'
@@ -49,15 +49,14 @@ export interface Period {
 // opened when last year's 가을학기 ended, 봄학기, its trailing gap, 여름학기, its trailing gap,
 // 가을학기. The gap *after* 가을학기 belongs to the next year's list (it opens this December
 // but is the run-up to next 봄학기), so consecutive years tile without overlapping.
-export function periodsInYear(year: number, semesterDates?: SemesterDates | null): Period[] {
-  const dates = semesterDates ?? DEFAULT_SEMESTER_DATES
+export function periodsInYear(year: number, semesterDates?: CalendarLike): Period[] {
+  const cal = calendarOf(semesterDates)
   // Calendar order (봄 → 여름 → 가을), not the settings editor's academic display order.
   const seasons: Season[] = ['spring', 'summer', 'fall']
   const out: Period[] = []
-  let prevEnd = dateForYear(year - 1, dates.fall.end)
+  let prevEnd = termRange(year - 1, 'fall', cal).end
   for (const season of seasons) {
-    const start = dateForYear(year, dates[season].start)
-    const end = dateForYear(year, dates[season].end)
+    const { start, end } = termRange(year, season, cal)
     const gapStart = addIsoDays(prevEnd, 1)
     const gapEnd = addIsoDays(start, -1)
     // Back-to-back terms (the defaults) leave no gap at all — then there's no period to add.
@@ -72,7 +71,7 @@ export function periodsInYear(year: number, semesterDates?: SemesterDates | null
 
 // Every period overlapping [from, to], chronological. Spans as many calendar years as the
 // range covers (+1, so a range ending inside a year-crossing gap still picks that gap up).
-export function periodsBetween(from: string, to: string, semesterDates?: SemesterDates | null): Period[] {
+export function periodsBetween(from: string, to: string, semesterDates?: CalendarLike): Period[] {
   const firstYear = Number(from.slice(0, 4))
   const lastYear = Number(to.slice(0, 4))
   const out: Period[] = []
@@ -88,17 +87,17 @@ export function clipPeriod(p: Period, start: string, end: string): Period {
 
 // The 학년도 (US academic year) a date belongs to: the year whose 가을학기 opened it. Runs
 // 가을 → 다음 가을 직전, so every date belongs to exactly one 학년도 (gaps included).
-export function academicYearOf(date: string, semesterDates?: SemesterDates | null): number {
-  const dates = semesterDates ?? DEFAULT_SEMESTER_DATES
+export function academicYearOf(date: string, semesterDates?: CalendarLike): number {
+  const cal = calendarOf(semesterDates)
   const year = Number(date.slice(0, 4))
-  return date >= dateForYear(year, dates.fall.start) ? year : year - 1
+  return date >= termRange(year, 'fall', cal).start ? year : year - 1
 }
 
-export function academicYearBounds(year: number, semesterDates?: SemesterDates | null): { start: string; end: string } {
-  const dates = semesterDates ?? DEFAULT_SEMESTER_DATES
+export function academicYearBounds(year: number, semesterDates?: CalendarLike): { start: string; end: string } {
+  const cal = calendarOf(semesterDates)
   return {
-    start: dateForYear(year, dates.fall.start),
-    end: addIsoDays(dateForYear(year + 1, dates.fall.start), -1),
+    start: termRange(year, 'fall', cal).start,
+    end: addIsoDays(termRange(year + 1, 'fall', cal).start, -1),
   }
 }
 
@@ -139,7 +138,7 @@ function periodSheetsIn(
   log: LogEntry[],
   start: string,
   end: string,
-  semesterDates?: SemesterDates | null,
+  semesterDates?: CalendarLike,
 ): Period[] {
   return periodsBetween(start, end, semesterDates)
     .map((p) => clipPeriod(p, start, end))
@@ -153,7 +152,7 @@ function periodSheetsIn(
 export function archiveEntries(
   log: LogEntry[],
   today: string,
-  semesterDates?: SemesterDates | null,
+  semesterDates?: CalendarLike,
 ): ArchiveEntry[] {
   if (log.length === 0) return []
   const first = log.reduce((min, e) => (e.date < min ? e.date : min), log[0].date)

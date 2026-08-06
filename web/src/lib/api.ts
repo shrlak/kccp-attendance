@@ -1,5 +1,5 @@
 import { getDeviceId } from './device'
-import type { SemesterDates } from './semester'
+import { DEFAULT_SEMESTER_DATES, type SemesterDates, type SemesterSchedule, type TermCalendar } from './semester'
 
 const API_BASE =
   (import.meta.env.VITE_API_BASE as string | undefined) ??
@@ -64,12 +64,26 @@ export interface AppConfig {
   // Keyed by group name; falls back to DEFAULT_GROUP_COLORS (./features/admin/groupColors)
   // for any group not present.
   groupColors: Record<string, string>
-  // Optional until the semester-dates migration is applied and a super-admin saves a
-  // schedule. Consumers retain the legacy boundaries when this is null/absent.
+  // The recurring MM-DD template — the pattern every year falls back to. Optional until the
+  // semester-dates migration is applied and a super-admin saves a schedule; consumers retain
+  // the legacy boundaries when this is null/absent.
   semesterDates?: SemesterDates | null
+  // 2년치 학기 일정: the concrete terms an admin edits, retained past terms included. Wins
+  // over the template for any year/season it lists (see lib/semester.ts termRange). The
+  // server rolls it forward as terms end.
+  semesterSchedule?: SemesterSchedule | null
 }
 
 export const getConfig = () => api<AppConfig>('GET', '/api/config')
+
+// The term calendar to hand to any date helper: the saved schedule over the recurring
+// template. One call site instead of remembering to pass both. Undefined when the church has
+// saved neither — callers still treat that as "no configured schedule" (the pre-settings
+// legacy boundaries), exactly as they did when this was a bare semesterDates.
+export function configCalendar(cfg?: AppConfig | null): TermCalendar | undefined {
+  if (!cfg?.semesterDates && !cfg?.semesterSchedule?.length) return undefined
+  return { dates: cfg?.semesterDates ?? DEFAULT_SEMESTER_DATES, schedule: cfg?.semesterSchedule ?? [] }
+}
 
 // ── Admin (hardened: Google JWT, or a shared team password from any device) ───
 // Three break-glass passwords route a password-only login on an unroled device to a role:
@@ -247,7 +261,9 @@ export const rejectClear = () => api<{ status: string }>('POST', '/api/admin/att
 // so there is nothing to set.
 export interface SettingsPatch {
   groupColors?: Record<string, string>
-  semesterDates?: SemesterDates
+  // The 2년치 학기 목록. The server derives the recurring template from it, so the two never
+  // drift apart — there is no separate semesterDates patch any more.
+  semesterSchedule?: SemesterSchedule
 }
 
 // Update any subset of the app-wide settings (super-admin). Only the provided

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Member, LogEntry } from '../../lib/api'
-import type { SemesterDates } from '../../lib/semester'
+import type { CalendarLike } from '../../lib/semester'
 import type { Filter } from './filters'
 import type { Lang } from './exports'
 import { semesterBounds, transitionBounds } from './newFamily'
@@ -37,7 +37,7 @@ export function ArchiveSection({
   filter: Filter
   today: string
   lang: Lang
-  semesterDates?: SemesterDates | null
+  semesterDates?: CalendarLike
   // 학기 종료 시 얼려둔 동산 편성 — 그 학기 시트를 당시 동산으로 묶는 데 쓴다.
   dongsanHistory?: DongsanHistory | null
 }) {
@@ -164,7 +164,7 @@ function pendingHint(
   t: (key: string, opts?: Record<string, unknown>) => string,
   today: string,
   lang: Lang,
-  semesterDates?: SemesterDates | null,
+  semesterDates?: CalendarLike,
 ): string {
   const transition = transitionBounds(today, semesterDates)
   const end = transition ? transition.end : semesterBounds(today, semesterDates).end
