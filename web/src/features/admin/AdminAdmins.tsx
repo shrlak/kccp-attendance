@@ -43,7 +43,7 @@ import {
 } from '../../components/ui/Icon'
 import { useToast } from '../../components/ui/Toast'
 import type { ReactNode } from 'react'
-import { refreshRoster } from '../../lib/live'
+import { refreshRoster, refreshRosterSettled } from '../../lib/live'
 
 const ROLES: AdminRole[] = ['super_admin', 'leader', 'pastor', 'welcoming']
 
@@ -181,7 +181,7 @@ export function AdminAdmins() {
     try {
       if (approve) {
         await approveClear()
-        await refreshRoster(qc)
+        refreshRoster(qc)
       } else {
         await rejectClear()
       }
@@ -617,10 +617,12 @@ function RestoreDbDialog({ target, onClose }: { target: DbRestoreTarget; onClose
         privateKey: privateKey.trim(),
         confirm: confirmText,
       })
+      // Restoring swaps out the whole database — every other open device needs to drop
+      // what it is showing, not just this tab. Unlike an ordinary save this one does wait
+      // for the refetches: the dialog is about to hand the panel back with an entirely
+      // different dataset behind it.
       await Promise.all([
-        // Restoring swaps out the whole database — every other open device needs to
-        // drop what it is showing, not just this tab.
-        refreshRoster(qc),
+        refreshRosterSettled(qc),
         qc.invalidateQueries({ queryKey: ['config'] }),
         qc.invalidateQueries({ queryKey: ['adminRoles'] }),
         qc.invalidateQueries({ queryKey: ['dbBackups'] }),

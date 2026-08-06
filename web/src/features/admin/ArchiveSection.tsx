@@ -18,6 +18,7 @@ import {
 import { Button } from '../../components/ui/Button'
 import { Download, Archive } from '../../components/ui/Icon'
 import { useToast } from '../../components/ui/Toast'
+import { onIntent, prefetchExcel } from '../../app/prefetch'
 
 // 출석부 tab, bottom section: every finished 학기 / 전환 기간, then every finished 학년도 and
 // calendar year, each downloadable as its own Excel workbook (see archive.ts for the pure
@@ -145,6 +146,7 @@ function ArchiveList({
               variant="secondary"
               size="sm"
               onClick={() => onDownload(e)}
+              {...onIntent(prefetchExcel)}
               disabled={busy !== null}
               aria-label={`${archiveLabel(e, lang)} ${t('admin.sheet.archive.download')}`}
             >

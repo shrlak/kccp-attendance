@@ -31,7 +31,10 @@ export function AdminSettings() {
     queryKey: ['cardScanUsage'],
     queryFn: getCardScanUsage,
     staleTime: 0,
-    refetchInterval: 2_000,
+    // A read-out of today's allowance, not a live counter — the scan dialog polls at 2s
+    // while someone is actually scanning. Doing that here too meant 30 requests a minute
+    // to the same edge function that serves the roster, for a number that barely moves.
+    refetchInterval: 15_000,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useAdminAuth } from '../../stores/useAdminAuth'
@@ -40,6 +40,7 @@ import { AdminSettings } from './AdminSettings'
 import { KioskView } from '../kiosk/KioskView'
 import { useAttendanceLive } from '../../lib/live'
 import { readLastTab, writeLastTab, clearLastTab, type Tab } from './adminTab'
+import { prefetchPanelExtrasOnIdle } from '../../app/prefetch'
 
 // Compact administration shell. Desktop (lg+) keeps the 64 px icon rail that expands
 // only when someone needs its labels; below lg the rail (hover-driven, so useless on
@@ -63,6 +64,9 @@ export function AdminApp() {
   // 출석부 entry or a member-record edit refetches the roster here immediately, so the
   // 출석부 and each member's 출석기록 never show different attendance.
   useAttendanceLive()
+  // Every tab already ships inside this chunk; Chart.js (분석) is the one thing that would
+  // still have to download on a tab switch, so pull it once the panel is idle.
+  useEffect(prefetchPanelExtrasOnIdle, [])
   function selectTab(id: Tab) {
     setTab(id)
     writeLastTab(id)

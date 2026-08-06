@@ -120,7 +120,14 @@ export interface LoginCoords { lat: number; lon: number; accuracy: number | null
 // an unbounded hang would freeze the login on "verifying". So we wrap it in our own
 // wall-clock guard that always resolves (null) after GUARD_MS regardless of the API.
 const GEO_GUARD_MS = 9000
-export function getLoginPosition(): Promise<LoginCoords | null> {
+// How long a *sign-in* is willing to wait for a fix before going ahead without one. A
+// position the browser already holds comes back immediately (see maximumAge below), but a
+// cold high-accuracy fix indoors can take many seconds — and making someone watch the
+// verifying screen for that long, to enrich a log entry only one person ever reads, is the
+// wrong trade. Past this the request goes without coords and the server falls back to the
+// city-level IP estimate, which the viewer already labels 대략.
+export const GEO_LOGIN_WAIT_MS = 2000
+export function getLoginPosition(waitMs: number = GEO_GUARD_MS): Promise<LoginCoords | null> {
   return new Promise((resolve) => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) return resolve(null)
     let settled = false
@@ -130,7 +137,7 @@ export function getLoginPosition(): Promise<LoginCoords | null> {
       clearTimeout(guard)
       resolve(v)
     }
-    const guard = setTimeout(() => done(null), GEO_GUARD_MS)
+    const guard = setTimeout(() => done(null), waitMs)
     try {
       navigator.geolocation.getCurrentPosition(
         (pos) => done({ lat: pos.coords.latitude, lon: pos.coords.longitude, accuracy: pos.coords.accuracy ?? null }),

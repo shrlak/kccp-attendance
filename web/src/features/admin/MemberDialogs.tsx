@@ -173,7 +173,7 @@ export function EditModal({
         registrationDate: card.registrationDate || null,
         pastoralVisitRequested: card.pastoralVisitRequested,
       })
-      await refreshRoster(qc)
+      refreshRoster(qc)
       toast({ title: t('admin.members.saved'), tone: 'ok' })
       onClose()
     } catch {
@@ -187,7 +187,7 @@ export function EditModal({
     setDeleting(true)
     try {
       await deleteMember(member.id)
-      await refreshRoster(qc)
+      refreshRoster(qc)
       toast({ title: t('admin.members.delete.done', { name: member.name }), tone: 'ok' })
       onClose()
     } catch {
@@ -412,7 +412,7 @@ export function AttendanceModal({
       const res = await addMemberAttendance(member.id, date)
       if (res.status === 'already') toast({ title: t('admin.members.attendance.already'), tone: 'warn' })
       else toast({ title: t('admin.members.attendance.added'), tone: 'ok' })
-      await refreshRoster(qc)
+      refreshRoster(qc)
     } catch {
       toast({ title: t('common.error'), tone: 'err' })
     } finally {
@@ -425,7 +425,7 @@ export function AttendanceModal({
     try {
       await removeAttendance(id)
       toast({ title: t('admin.members.attendance.removed'), tone: 'ok' })
-      await refreshRoster(qc)
+      refreshRoster(qc)
     } catch {
       toast({ title: t('common.error'), tone: 'err' })
     } finally {

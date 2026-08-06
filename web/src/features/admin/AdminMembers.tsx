@@ -112,7 +112,7 @@ export function AdminMembers() {
     try {
       const res = await bulkSetSubgroup([...selected], subgroup)
       toast({ title: t('admin.members.bulkMove.done', { n: res.updated }), tone: 'ok' })
-      await refreshRoster(qc)
+      refreshRoster(qc)
       exitSelect()
     } catch {
       toast({ title: t('common.error'), tone: 'err' })
@@ -343,7 +343,7 @@ function MergeModal({ members, onClose }: { members: Member[]; onClose: () => vo
     setSaving(true)
     try {
       await mergeMembers(s.fromId, s.toId)
-      await refreshRoster(qc)
+      refreshRoster(qc)
       toast({ title: t('admin.members.merge.done'), tone: 'ok' })
       onClose()
     } catch {

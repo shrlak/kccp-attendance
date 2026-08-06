@@ -34,7 +34,7 @@ export function KioskGuestDialog({ open, onClose }: { open: boolean; onClose: ()
     setBusy(true)
     try {
       const res = await guestCheckin(n, group)
-      await refreshRoster(qc)
+      refreshRoster(qc)
       toast(
         res.status === 'already'
           ? { title: t('kiosk.guest.already', { name: n }), tone: 'warn' }

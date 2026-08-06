@@ -61,7 +61,21 @@ export function broadcastAttendanceChange() {
 // The one call to make after a mutation that changes the roster or the attendance log:
 // refetch here and tell every other open device to do the same, so the 출석부, 오늘 탭
 // and 멤버별 출석기록 never drift apart.
-export async function refreshRoster(qc: QueryClient) {
+//
+// Deliberately **not** awaitable. The mutation has already returned by the time this runs,
+// so the write is safe — the refetch only reconciles the cache. Waiting for it kept every
+// dialog sitting on "저장 중" through a second full roster round trip (members + the whole
+// attendance log) before it would close. Now the dialog closes on the mutation's own
+// response and the corrected roster lands underneath it a moment later.
+export function refreshRoster(qc: QueryClient): void {
+  void refreshRosterSettled(qc)
+}
+
+// The same refresh, but resolving when the refetch has actually landed. Only for a caller
+// that is holding an optimistic UI state until the roster confirms it — the kiosk keeps a
+// tapped tile green until then, and dropping that override early would flash it back to
+// unchecked. Anything that just closes a dialog wants refreshRoster() instead.
+export function refreshRosterSettled(qc: QueryClient): Promise<void> {
   broadcastAttendanceChange()
-  await qc.invalidateQueries({ queryKey: ['roster'] })
+  return qc.invalidateQueries({ queryKey: ['roster'] })
 }
