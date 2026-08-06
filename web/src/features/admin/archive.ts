@@ -27,10 +27,11 @@ import {
 // Everything below is pure so it can be unit-tested; the XLSX.writeFile side lives in
 // ArchiveSection.tsx, exactly as with gridSheet/ExportMenu.
 //
-// Caveat worth knowing: archives are scored against the *current* roster, because that's all
-// the data there is — a member's 동산 is a single current field and reassignment rewrites the
-// denormalized log rows too, so a past term's blocks reflect today's 동산 편성, not the one
-// that term ran under. Members who registered after a period ends are left out of it entirely.
+// 동산 편성 is cleared the day a 학기 ends (the server's term rollover), so before wiping it
+// the server freezes that term's assignment into config.dongsan_history and hands it back on
+// the roster. A finished 학기's sheet is grouped by *that* snapshot when one exists; terms
+// from before the snapshots existed fall back to the member's current 동산, which is the best
+// the data allows. Members who registered after a period ends are left out of it entirely.
 
 export type PeriodKind = 'semester' | 'transition'
 
@@ -303,14 +304,31 @@ export interface ArchiveWorkbook {
   log: (string | number)[][] // the "Full Log" sheet, scoped to the archive's range
 }
 
+// The grouping for one archived period: a 학기 with a frozen 동산 편성 groups by *that*
+// (the live assignment was cleared when the term ended), any other 학기 by the member's
+// current 동산, and a gap by 부서 — the same rule the live sheet follows.
+export function archiveGroupBy(
+  period: Period,
+  unassigned: string,
+  history?: DongsanHistory | null,
+): (m: Member) => string {
+  const frozen = period.kind === 'semester' ? history?.[period.key]?.subgroups : undefined
+  if (!frozen) return periodGroupBy(period.kind, unassigned)
+  return (m: Member) => frozen[m.id] || m.subgroup || unassigned
+}
+
+// The per-term 동산 snapshots the server hands back on the roster, keyed by term key.
+export type DongsanHistory = Record<string, { endedAt?: string; subgroups: Record<string, string> }>
+
 // Everything a downloaded archive contains. Each period is scored over *its own* worship
 // Sundays — the whole set, with dates the church didn't meet (or didn't record) staying
-// blank — and grouped by 동산 for a 학기, by 부서 for a gap, exactly as the live sheet does.
+// blank — and grouped by 동산 for a 학기 (its frozen 편성 when there is one), by 부서 for a gap.
 export function archiveWorkbook(
   entry: ArchiveEntry,
   members: Member[],
   log: LogEntry[],
   lang: Lang,
+  history?: DongsanHistory | null,
 ): ArchiveWorkbook {
   const { unassigned } = sheetLabels(lang)
   const names = uniqueSheetNames(entry.periods.map((p) => sheetTitle(p, lang)))
@@ -325,7 +343,7 @@ export function archiveWorkbook(
       // The period is over, so its own end stands in for "today": nothing inside it is
       // upcoming, and every recorded Sunday scores O/X.
       p.end,
-      periodGroupBy(p.kind, unassigned),
+      archiveGroupBy(p, unassigned, history),
     ),
   }))
   const scoped = log.filter((e) => e.date >= entry.start && e.date <= entry.end)

@@ -13,6 +13,7 @@ import {
   isYearArchive,
   rangeLabel,
   type ArchiveEntry,
+  type DongsanHistory,
 } from './archive'
 import { Button } from '../../components/ui/Button'
 import { Download, Archive } from '../../components/ui/Icon'
@@ -29,6 +30,7 @@ export function ArchiveSection({
   today,
   lang,
   semesterDates,
+  dongsanHistory,
 }: {
   members: Member[]
   log: LogEntry[]
@@ -36,6 +38,8 @@ export function ArchiveSection({
   today: string
   lang: Lang
   semesterDates?: SemesterDates | null
+  // 학기 종료 시 얼려둔 동산 편성 — 그 학기 시트를 당시 동산으로 묶는 데 쓴다.
+  dongsanHistory?: DongsanHistory | null
 }) {
   const { t } = useTranslation()
   const toast = useToast()
@@ -51,7 +55,7 @@ export function ArchiveSection({
       // Same lazy SheetJS load as the 내보내기 menu — the fork that writes cell fills.
       const XLSX = await import('xlsx-js-style')
       const wb = XLSX.utils.book_new()
-      const { sheets, log: full } = archiveWorkbook(entry, members, log, lang)
+      const { sheets, log: full } = archiveWorkbook(entry, members, log, lang, dongsanHistory)
       for (const sheet of sheets) {
         const ws = XLSX.utils.aoa_to_sheet(sheet.data.aoa)
         ws['!merges'] = sheet.data.merges

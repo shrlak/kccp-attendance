@@ -22,6 +22,15 @@ Korean church (한국중앙교회 피츠버그 대학·청년부) attendance sys
 - `members` (UUID identity) ⟵ `devices.member_id` / `attendance_log.member_id`; roles in
   `member_roles` (super_admin / leader / pastor / welcoming). Leaders are scoped by group+동산
   (summer mode: KM leaders span 대학부+청년부 = 합동). Pastor is read-only.
+- **여름 모드 is derived, not a toggle**: `term.ts` `isSummerTerm(오늘, config.semester_dates)` —
+  on for exactly the 여름학기, off the day after. `config.summer_mode` is dead (never read/written);
+  the 설정 탭 shows the state, not a switch.
+- **학기 종료 롤오버** (`rolloverDongsan`, runs on the first `/api/roster` after a term ends, once
+  per term via `config.dongsan_reset_term`): freezes that term's 동산 편성 into
+  `config.dongsan_history` (`{term:{endedAt,subgroups,names,leaders}}`, last 12 terms), then clears
+  every member's/device's 동산 + `dongsan_names` + `dongsan_leaders`. `attendance_log.subgroup` is
+  left alone (it's that Sunday's record). A NULL `dongsan_reset_term` only seeds the marker — no
+  retroactive wipe. The roster returns the (scoped) history so 지난 학기 출석부 keeps its 동산 blocks.
 - **RLS is deny-all** on all tables (no anon/authenticated policies); the edge function
   (service-role) is the only data path.
 - 동산지기/부동산지기 are a **display-badge** system (`config.dongsan_leaders`), distinct from the
