@@ -68,8 +68,14 @@ Korean church (한국중앙교회 피츠버그 대학·청년부) attendance sys
   `get_edge_function` are **permission-denied** in this environment. `.github/workflows/deploy.yml`
   runs `supabase functions deploy` when the `SUPABASE_ACCESS_TOKEN` repo secret is set (it is).
   So **any `supabase/functions` change deploys on merge to `main`**. Current fn version: v14.
-- **Pages deploy `needs` the edge-function job** (atomic cutover) → if the fn deploy fails, Pages
-  is skipped and the site stays put. A `notify` job comments deploy-success on the PR.
+- **Pages deploy `needs` the edge-function job** (atomic cutover) → if the fn deploy **fails**,
+  Pages is skipped and the site stays put. But a `changes` job first diffs
+  `supabase/functions` over the push range, and the fn job only runs when it actually changed;
+  a **skipped** fn job lets Pages through, because an unchanged function is the one the
+  frontend was built against. Don't re-tighten this to `needs: success()` — three consecutive
+  runner outages ("The job was not acquired by Runner of type hosted") once held back a
+  frontend-only deploy that had no function work in it. `changes` failing still blocks Pages
+  (unknown ⇒ unsafe). A `notify` job comments deploy-success on the PR.
 - **Migrations: add a repo file in `supabase/migrations/` and merge** — since 2026-06-10 prod's
   `schema_migrations` was repaired to match the repo's date-prefix filenames 1:1, so the Supabase
   branching integration is functional again: merge to `main` auto-applies new migration files to
