@@ -103,5 +103,11 @@ route is the screen, and the admin panel's tab is remembered in `sessionStorage`
 `ArchiveSection.tsx`: the sheet rolls over to the next 학기 — or the gap between two, shown
 with the gap's own full Sunday set — the day a term ends, and every finished 학기/전환 기간,
 학년도 and calendar year is downloadable as an Excel workbook built from the log at click
-time, so clearing attendance clears the archives too). See `docs/superpowers/`
+time, so clearing attendance clears the archives too). **Status marks are the hiding rule**
+(`web/src/lib/status.ts` is the single reader): a mark with **no end date** — 졸업, 타교회 정착,
+한국 귀국, 이주 … — or any 귀국/이주/졸업 note hides the member from 출석부, 멤버 and 키오스크;
+the 멤버 탭 collects them in a collapsible **숨긴 멤버** section at the bottom (tap a card, clear
+the mark or give it an end date, and they come straight back). 키오스크 additionally hides a
+current 방학, and — outside 여름학기 — offers a **부서만 보기** segmented control (전체/대학부/
+청년부) chosen inside the kiosk, not a setting. See `docs/superpowers/`
 (gitignored; force-added curated docs) for the parity inventory, cutover plan, and runbook.

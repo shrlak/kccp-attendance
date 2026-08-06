@@ -7,9 +7,15 @@ import type { Member } from './api'
 // data written before the migration (and any older client) keeps working.
 //
 // What the marks drive:
-//  · 출석부 — a mark greys out the dates it covers; 귀국/이주 hides the member entirely
-//    while it covers the whole shown stretch (they're not part of that 예배 stretch).
-//  · 키오스크 — 귀국/이주/방학 hides the tile while the mark covers today.
+//  · 출석부 — a bounded mark greys out the dates it covers; a *hiding* mark takes the member
+//    off the sheet entirely while it covers the whole shown stretch.
+//  · 멤버 탭 — a hiding mark moves the member into the 숨긴 멤버 section at the bottom.
+//  · 키오스크 — a hiding mark (or 방학) hides the tile while it covers today.
+//
+// A mark hides when it is **open-ended** — no end date, i.e. nobody knows when (or whether)
+// they come back: 졸업, 타교회 정착, 한국 귀국, 이주 … — or when its note says they left even
+// though someone put an end date on it (귀국/이주/졸업). A bounded 방학 or 돌아옴 keeps the
+// member in place, greyed for those dates.
 //  · 통계 — 방학 excludes the member from the attendance-rate denominator.
 
 export interface StatusMark {
@@ -46,31 +52,36 @@ export function noteOn(m: MemberStatus, date: string): string | null {
   return statusMarks(m).find((mark) => coversDate(mark, date))?.note ?? null
 }
 
-// 한국 귀국 / 이주 — the member has left the community for now, as opposed to 방학 or 돌아옴
+// 한국 귀국 / 이주 / 졸업 — the member has left the community, as opposed to 방학 or 돌아옴
 // which keep them on the roster. Matched by keyword because the note is free text
-// (한국 귀국, 이주(타주), …).
+// (한국 귀국, 이주(타주), 졸업 후 취업, …).
 export function isAwayNote(note?: string | null): boolean {
   const n = note ?? ''
-  return n.includes('귀국') || n.includes('이주')
+  return n.includes('귀국') || n.includes('이주') || n.includes('졸업')
 }
 
 export function isBreakNote(note?: string | null): boolean {
   return (note ?? '').includes('방학')
 }
 
-// Is a 귀국/이주 mark in force on `date`?
-export function awayOn(m: MemberStatus, date: string): boolean {
-  return statusMarks(m).some((mark) => isAwayNote(mark.note) && coversDate(mark, date))
+// 무기한(종료일 없음) 표기이거나, 떠났다는 뜻의 표기(귀국/이주/졸업)면 숨긴다.
+export function isHidingMark(mark: StatusMark): boolean {
+  return !mark.end || isAwayNote(mark.note)
 }
 
-// Do the member's 귀국/이주 marks cover *every* date in [start, end]? Those members drop out
-// of the 출석부 entirely rather than taking up a row of grey cells. Someone who leaves midway
+// Is a hiding mark in force on `date`? (무기한 표기, 또는 귀국/이주/졸업)
+export function awayOn(m: MemberStatus, date: string): boolean {
+  return statusMarks(m).some((mark) => isHidingMark(mark) && coversDate(mark, date))
+}
+
+// Do the member's hiding marks cover *every* date in [start, end]? Those members drop out of
+// the 출석부 entirely rather than taking up a row of grey cells. Someone who leaves midway
 // through a term still appears in that term's sheet (their earlier O/X is real history, and
 // the mark greys out the tail); they disappear once a whole period falls inside their absence.
 // Back-to-back marks (귀국 then 이주) count together — the sweep below closes over them.
 export function awayForRange(m: MemberStatus, start: string, end: string): boolean {
   const spans = statusMarks(m)
-    .filter((mark) => isAwayNote(mark.note) && mark.start)
+    .filter((mark) => isHidingMark(mark) && mark.start)
     .map((mark) => ({ start: mark.start as string, end: mark.end }))
     .sort((a, b) => a.start.localeCompare(b.start))
   let covered = start
@@ -89,11 +100,11 @@ export function onBreak(m: MemberStatus, date: string): boolean {
   return statusMarks(m).some((mark) => isBreakNote(mark.note) && coversDate(mark, date))
 }
 
-// 키오스크 hides 이주 / (한국) 귀국 / 방학 while the mark covers today; other notes
-// (e.g. 돌아옴) never hide anyone.
+// 키오스크 hides anyone a hiding mark covers today, plus 방학 (they aren't at this service
+// either). A bounded 돌아옴 or another note never hides anyone.
 export function hiddenFromKiosk(m: MemberStatus, today: string): boolean {
   return statusMarks(m).some(
-    (mark) => (isAwayNote(mark.note) || isBreakNote(mark.note)) && coversDate(mark, today),
+    (mark) => (isHidingMark(mark) || isBreakNote(mark.note)) && coversDate(mark, today),
   )
 }
 

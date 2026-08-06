@@ -146,3 +146,43 @@ describe('KioskView tile check-in', () => {
     call.resolve({ status: 'ok' })
   })
 })
+
+describe('KioskView 부서만 보기 (여름학기가 아닐 때)', () => {
+  const 대학생: Member = { ...철수, id: 'u1', name: '대학생', group_name: '대학부' }
+  const 청년: Member = { ...철수, id: 'y1', name: '청년', group_name: '청년부' }
+
+  async function renderWithMembers(summerMode: boolean) {
+    const { getRoster, getConfig } = await import('../../lib/api')
+    ;(getRoster as ReturnType<typeof vi.fn>).mockResolvedValue({ role: 'welcoming', members: [대학생, 청년], log: [] })
+    ;(getConfig as ReturnType<typeof vi.fn>).mockResolvedValue({ groupColors: {}, summerMode })
+    const { KioskView } = await import('./KioskView')
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={qc}>
+        <ToastProvider><KioskView onExit={vi.fn()} /></ToastProvider>
+      </QueryClientProvider>,
+    )
+    await screen.findByRole('button', { name: '대학생' })
+  }
+
+  it('키오스크 안에서 한 부서만 골라 볼 수 있다 (기본은 전체)', async () => {
+    await renderWithMembers(false)
+    expect(screen.getByText('부서만 보기')).toBeInTheDocument()
+    // 기본값은 전체 — 두 부서가 다 보인다.
+    expect(screen.getByRole('button', { name: '대학생' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '청년' })).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: '청년부' }))
+    expect(screen.queryByRole('button', { name: '대학생' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '청년' })).toBeInTheDocument()
+
+    // 다시 전체로 돌아온다.
+    await userEvent.click(screen.getByRole('button', { name: '전체' }))
+    expect(screen.getByRole('button', { name: '대학생' })).toBeInTheDocument()
+  })
+
+  it('여름학기(합동)에는 부서 선택이 아예 뜨지 않는다', async () => {
+    await renderWithMembers(true)
+    expect(screen.queryByText('부서만 보기')).not.toBeInTheDocument()
+  })
+})

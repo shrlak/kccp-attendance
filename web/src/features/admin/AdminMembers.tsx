@@ -8,13 +8,14 @@ import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
-import { Search, ListChecks, Merge as MergeIcon, Users, AlertTriangle } from '../../components/ui/Icon'
+import { Search, ListChecks, Merge as MergeIcon, Users, AlertTriangle, EyeOff, ChevronDown } from '../../components/ui/Icon'
 import { mergeTargets, canMerge, mergeSummary, type MergeState } from './merge'
 import { groupsOf } from './filters'
 import { summerDongsanList } from './dongsan'
 import { newFamilyWeek } from './newFamily'
 import { NewFamilyWeekChip } from './NewFamilyWeekChip'
 import { easternNow } from '../../lib/checkinWindow'
+import { awayOn, noteOn } from '../../lib/status'
 import { IconKey } from './IconKey'
 import { EditModal, AttendanceModal, Field } from './MemberDialogs'
 import { resolveGroupColor, hexTint } from './groupColors'
@@ -40,6 +41,7 @@ export function AdminMembers() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [target, setTarget] = useState('')
   const [bulkBusy, setBulkBusy] = useState(false)
+  const [showHidden, setShowHidden] = useState(false)
 
   if (isLoading) return (
     <div className="fx-fade space-y-6">
@@ -59,7 +61,11 @@ export function AdminMembers() {
 
   const today = easternNow().date
   const q = search.trim().toLowerCase()
-  const members = q ? data.members.filter((m) => m.name.toLowerCase().includes(q)) : data.members
+  const matching = q ? data.members.filter((m) => m.name.toLowerCase().includes(q)) : data.members
+  // 이주 / 한국 귀국 / 졸업 표기가 오늘을 덮는 멤버는 명단에서 내리고 맨 밑 "숨긴 멤버"로
+  // 모은다 — 지워진 게 아니라 접혀 있을 뿐이라, 카드를 눌러 표기를 풀면 바로 돌아온다.
+  const members = matching.filter((m) => !awayOn(m, today))
+  const hiddenMembers = matching.filter((m) => awayOn(m, today))
   const staffMembers = q ? data.staffMembers.filter((m) => m.name.toLowerCase().includes(q)) : data.staffMembers
   // 일괄 이동 목록: 고른 멤버의 부서에 설정된 동산만 보여준다 — 대학부를 골랐으면 대학부
   // 동산, 청년부를 골랐으면 청년부 동산. 아직 아무도 안 골랐으면 양쪽을 다 보여주고,
@@ -242,6 +248,41 @@ export function AdminMembers() {
         </section>
         )
       })}
+      {hiddenMembers.length > 0 && (
+        <section className="mt-8 border-t border-separator pt-5">
+          <button
+            type="button"
+            onClick={() => setShowHidden((v) => !v)}
+            className="flex items-center gap-2 text-sm font-semibold text-muted transition-colors hover:text-text"
+          >
+            <EyeOff className="size-4" aria-hidden />
+            {t('admin.members.hidden.title')}
+            <span className="rounded-full bg-fill px-2 py-0.5 text-[11px] font-semibold tabular-nums text-muted">{hiddenMembers.length}</span>
+            <ChevronDown className={'size-4 transition-transform duration-200 ' + (showHidden ? 'rotate-180' : '')} aria-hidden />
+          </button>
+          {showHidden && (
+            <>
+              <p className="mt-2 text-xs text-muted">{t('admin.members.hidden.desc')}</p>
+              <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
+                {hiddenMembers.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => setEditing(m)}
+                    className="min-h-20 rounded-2xl border border-border bg-surface-2 p-3.5 text-left opacity-80 shadow-[var(--shadow-sm)] transition-[background-color,border-color,box-shadow,transform,opacity] duration-200 [transition-timing-function:var(--ease-out-soft)] hover:-translate-y-0.5 hover:border-primary/30 hover:opacity-100 hover:shadow-[var(--shadow)] active:translate-y-0"
+                  >
+                    <div className="break-words text-base font-semibold text-text">{m.name}</div>
+                    <div className="mt-1 text-xs text-muted">{m.group_name || '—'}</div>
+                    <span className="mt-1.5 inline-block whitespace-nowrap rounded-full bg-warning/12 px-2 py-0.5 text-[10px] font-semibold text-warning">
+                      {noteOn(m, today) ?? ''}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </section>
+      )}
       {staffMembers.length > 0 && (
         <>
           <div className="mb-3 mt-6 flex items-center gap-2 section-kicker">
