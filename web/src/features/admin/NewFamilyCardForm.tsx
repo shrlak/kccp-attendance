@@ -3,6 +3,8 @@ import {
   CARD_TITLE,
   AFFILIATION_CATEGORIES,
   BAPTISM_OPTIONS,
+  parseBaptism,
+  toggleBaptism,
   BAPTISM_CAPTIONS,
   FAITH_OPTIONS,
   formatCardDate,
@@ -88,6 +90,7 @@ export function NewFamilyCardForm({
               <LabelCell text="세례 여부" />
               <ValueCell>
                 <CheckColumn
+                  multi
                   options={BAPTISM_OPTIONS.map((o) => ({ value: o, label: o, caption: BAPTISM_CAPTIONS[o] }))}
                   selected={value.baptismStatus}
                   onSelect={(v) => onChange({ baptismStatus: v })}
@@ -228,30 +231,35 @@ function GenderChoice({ char, value, onChange }: { char: string; value: string; 
   )
 }
 
-// The card's ☐ option column — one tappable checkbox row per option, single-select
-// (tapping the checked one clears it, unless allowClear is off, e.g. O/X).
+// The card's ☐ option column — one tappable checkbox row per option. Single-select by
+// default (tapping the checked one clears it, unless allowClear is off, e.g. O/X); with
+// `multi` any number of options can be ticked at once (세례 여부) and `selected` carries
+// them as a ", "-joined string.
 function CheckColumn({
   options,
   selected,
   onSelect,
   allowClear = true,
+  multi = false,
 }: {
   options: { value: string; label: string; caption?: string }[]
   selected: string
   onSelect: (v: string) => void
   allowClear?: boolean
+  multi?: boolean
 }) {
+  const picked = multi ? parseBaptism(selected) : []
   return (
     <span className="flex flex-col gap-0.5">
       {options.map((o) => {
-        const checked = selected === o.value
+        const checked = multi ? picked.includes(o.value) : selected === o.value
         return (
           <button
             key={o.value}
             type="button"
             aria-pressed={checked}
             aria-label={o.caption ? `${o.label} ${o.caption}` : o.label}
-            onClick={() => onSelect(checked ? (allowClear ? '' : o.value) : o.value)}
+            onClick={() => onSelect(multi ? toggleBaptism(selected, o.value) : checked ? (allowClear ? '' : o.value) : o.value)}
             className="inline-flex min-h-6 items-center gap-1.5 rounded-sm text-left leading-tight hover:bg-[#f3f4f6]"
           >
             <span aria-hidden className="grid h-3.5 w-3.5 shrink-0 place-items-center border border-[#111] text-[11px] font-bold">

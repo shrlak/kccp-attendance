@@ -85,6 +85,7 @@ describe('EditModal — 새가족 등록 카드 as the form', () => {
 
     await userEvent.clear(screen.getByLabelText('전화번호'))
     await userEvent.type(screen.getByLabelText('전화번호'), '412-555-9999')
+    // 세례 여부는 복수 선택 — 이미 켜져 있던 세례에 입교가 더해진다.
     await userEvent.click(screen.getByRole('button', { name: '입교 Confirmation' }))
     await userEvent.click(screen.getByRole('button', { name: '저장' }))
 
@@ -92,7 +93,7 @@ describe('EditModal — 새가족 등록 카드 as the form', () => {
       'm1',
       expect.objectContaining({
         phone: '(412) 555-9999',
-        baptismStatus: '입교',
+        baptismStatus: '입교, 세례',
         schoolOrWork: '대학생 · Pitt 컴퓨터공학',
         pastoralVisitRequested: true,
       }),
@@ -140,6 +141,28 @@ describe('EditModal — 새가족 등록 카드 as the form', () => {
     expect(select).toHaveValue('옛동산')
     await waitFor(() => expect(select).toContainHTML('1동산'))
     expect(select).toContainHTML('옛동산')
+  })
+
+
+  it('세례 여부는 여러 개를 고를 수 있고, 다시 누르면 빠진다', async () => {
+    const { updateMember } = await import('../../lib/api')
+    ;(updateMember as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ok' })
+    renderWithProviders(<EditModal member={filled} onClose={vi.fn()} onAttendance={vi.fn()} />)
+
+    await userEvent.click(screen.getByRole('button', { name: '유아세례 Infant Baptism' }))
+    await userEvent.click(screen.getByRole('button', { name: '세례 Baptism' })) // 켜져 있던 것을 끈다
+    await userEvent.click(screen.getByRole('button', { name: '저장' }))
+    expect((updateMember as ReturnType<typeof vi.fn>).mock.calls[0][1].baptismStatus).toBe('유아세례')
+  })
+
+  it('해당없음은 다른 항목과 함께 선택되지 않는다', async () => {
+    const { updateMember } = await import('../../lib/api')
+    ;(updateMember as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ok' })
+    renderWithProviders(<EditModal member={filled} onClose={vi.fn()} onAttendance={vi.fn()} />)
+
+    await userEvent.click(screen.getByRole('button', { name: '해당없음 N/A' })) // 세례 → 해당없음
+    await userEvent.click(screen.getByRole('button', { name: '저장' }))
+    expect((updateMember as ReturnType<typeof vi.fn>).mock.calls[0][1].baptismStatus).toBe('해당없음')
   })
 
   it('상태 표기 box beneath the card: a preset adds a mark starting today', async () => {

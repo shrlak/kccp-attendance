@@ -43,6 +43,10 @@ Korean church (한국중앙교회 피츠버그 대학·청년부) attendance sys
   (service-role) is the only data path.
 - 동산지기/부동산지기 are a **display-badge** system (`config.dongsan_leaders`), distinct from the
   `leader` admin role.
+- **중복 등록은 자동 병합**: `/api/admin/kiosk-new-member` · `/api/share/new-member` find an existing
+  member with the same name + 부서 (and no conflicting phone/생년월일) and update it with the newer
+  values instead of inserting a second row — device and attendance history carry over, 등록일자 keeps
+  the earlier date so the sheet doesn't blank out past Sundays. Audited as `new-member-merge`.
 - **상태 표기 = a list per member** (`members.status_marks` `[{note,start,end}]`; the old single
   `status_note/start/end` trio is still mirrored by the server and read as a one-entry fallback).
   `web/src/lib/status.ts` is the single reader: 귀국/이주 hides the member from the **출석부**
