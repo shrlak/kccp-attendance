@@ -15,7 +15,7 @@ import { summerDongsanList } from './dongsan'
 import { newFamilyWeek } from './newFamily'
 import { NewFamilyWeekChip } from './NewFamilyWeekChip'
 import { easternNow } from '../../lib/checkinWindow'
-import { awayOn, noteOn } from '../../lib/status'
+import { noteOn } from '../../lib/status'
 import { IconKey } from './IconKey'
 import { EditModal, AttendanceModal, Field } from './MemberDialogs'
 import { resolveGroupColor, hexTint } from './groupColors'
@@ -61,12 +61,14 @@ export function AdminMembers() {
 
   const today = easternNow().date
   const q = search.trim().toLowerCase()
-  const matching = q ? data.members.filter((m) => m.name.toLowerCase().includes(q)) : data.members
-  // 이주 / 한국 귀국 / 졸업 표기가 오늘을 덮는 멤버는 명단에서 내리고 맨 밑 "숨긴 멤버"로
-  // 모은다 — 지워진 게 아니라 접혀 있을 뿐이라, 카드를 눌러 표기를 풀면 바로 돌아온다.
-  const members = matching.filter((m) => !awayOn(m, today))
-  const hiddenMembers = matching.filter((m) => awayOn(m, today))
-  const staffMembers = q ? data.staffMembers.filter((m) => m.name.toLowerCase().includes(q)) : data.staffMembers
+  const byName = (list: Member[]) => (q ? list.filter((m) => m.name.toLowerCase().includes(q)) : list)
+  // useRoster has already taken the 숨긴 멤버 out of `data.members` — they are off the roster
+  // everywhere in the app, and this tab is the one place they still surface: the 숨긴 멤버
+  // section at the bottom. 지워진 게 아니라 접혀 있을 뿐이라, 카드를 눌러 표기를 풀거나
+  // 종료일을 넣으면 바로 명단으로 돌아온다.
+  const members = byName(data.members)
+  const hiddenMembers = byName(data.hiddenMembers)
+  const staffMembers = byName(data.staffMembers)
   // 일괄 이동 목록: 고른 멤버의 부서에 설정된 동산만 보여준다 — 대학부를 골랐으면 대학부
   // 동산, 청년부를 골랐으면 청년부 동산. 아직 아무도 안 골랐으면 양쪽을 다 보여주고,
   // 두 부서를 섞어 골랐으면 두 부서의 동산이 함께 나온다. 여름 모드는 합동 한 벌뿐.

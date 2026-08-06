@@ -7,13 +7,28 @@ import { easternNow } from '../../lib/checkinWindow'
 import { addIsoDays } from '../../lib/semester'
 import { worshipSunday } from './newFamily'
 import type { Member, RosterResponse } from '../../lib/api'
+import { splitRoster, type RosterData } from './useRoster'
 
-const rosterData: { data: (RosterResponse & { staffMembers: Member[] }) | undefined; isLoading: boolean; isError: boolean } = {
+const rosterData: { data: RosterData | undefined; isLoading: boolean; isError: boolean } = {
   data: undefined,
   isLoading: false,
   isError: false,
 }
-vi.mock('./useRoster', () => ({ useRoster: () => rosterData }))
+vi.mock('./useRoster', async (orig) => ({
+  ...(await orig<typeof import('./useRoster')>()),
+  useRoster: () => rosterData,
+}))
+
+// Build the fixture through the app's own split, so 숨긴 멤버 tests exercise the real rule
+// rather than a hand-written hiddenMembers list.
+const roster = (members: Member[]): RosterData =>
+  splitRoster({
+    role: 'super_admin',
+    canBulkSubgroup: true,
+    canClearAttendance: true,
+    members,
+    log: [],
+  } as unknown as RosterResponse)
 
 import { AdminMembers } from './AdminMembers'
 
@@ -37,19 +52,12 @@ describe('AdminMembers — 새가족 등록 주차 색 구분', () => {
   it('shows the same 이번 주일 / 지난주 chips as the 새가족 tab, and the plain badge for older newcomers', () => {
     // Anchor on the 주일 the component itself computes so the cohorts hold on any weekday.
     const sunday = worshipSunday(easternNow().date)
-    rosterData.data = {
-      role: 'super_admin',
-      canBulkSubgroup: true,
-      canClearAttendance: true,
-      members: [
-        member('m1', '이번주새신자', { is_new_member: true, registration_date: sunday }),
-        member('m2', '지난주새신자', { is_new_member: true, registration_date: addIsoDays(sunday, -7) }),
-        member('m3', '오래된새신자', { is_new_member: true, registration_date: addIsoDays(sunday, -35) }),
-        member('m4', '일반멤버'),
-      ],
-      staffMembers: [],
-      log: [],
-    } as unknown as RosterResponse & { staffMembers: Member[] }
+    rosterData.data = roster([
+      member('m1', '이번주새신자', { is_new_member: true, registration_date: sunday }),
+      member('m2', '지난주새신자', { is_new_member: true, registration_date: addIsoDays(sunday, -7) }),
+      member('m3', '오래된새신자', { is_new_member: true, registration_date: addIsoDays(sunday, -35) }),
+      member('m4', '일반멤버'),
+    ])
 
     renderWithProviders(<AdminMembers />)
 
@@ -67,21 +75,14 @@ describe('AdminMembers — 숨긴 멤버', () => {
   const today = easternNow().date
 
   function renderRoster() {
-    rosterData.data = {
-      role: 'super_admin',
-      canBulkSubgroup: true,
-      canClearAttendance: true,
-      members: [
-        member('m1', '계속나오는멤버'),
-        member('m2', '귀국한멤버', { status_marks: [{ note: '한국 귀국', start: addIsoDays(today, -30), end: null }] }),
-        member('m3', '졸업한멤버', { status_marks: [{ note: '졸업', start: addIsoDays(today, -10), end: null }] }),
-        member('m4', '이주한멤버', { status_note: '이주', status_start: addIsoDays(today, -5), status_end: null }),
-        member('m5', '방학중인멤버', { status_marks: [{ note: '방학', start: addIsoDays(today, -3), end: addIsoDays(today, 20) }] }),
-        member('m6', '타교회정착멤버', { status_marks: [{ note: '타교회 정착', start: addIsoDays(today, -20), end: null }] }),
-      ],
-      staffMembers: [],
-      log: [],
-    } as unknown as RosterResponse & { staffMembers: Member[] }
+    rosterData.data = roster([
+      member('m1', '계속나오는멤버'),
+      member('m2', '귀국한멤버', { status_marks: [{ note: '한국 귀국', start: addIsoDays(today, -30), end: null }] }),
+      member('m3', '졸업한멤버', { status_marks: [{ note: '졸업', start: addIsoDays(today, -10), end: null }] }),
+      member('m4', '이주한멤버', { status_note: '이주', status_start: addIsoDays(today, -5), status_end: null }),
+      member('m5', '방학중인멤버', { status_marks: [{ note: '방학', start: addIsoDays(today, -3), end: addIsoDays(today, 20) }] }),
+      member('m6', '타교회정착멤버', { status_marks: [{ note: '타교회 정착', start: addIsoDays(today, -20), end: null }] }),
+    ])
     return renderWithProviders(<AdminMembers />)
   }
 
