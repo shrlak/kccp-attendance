@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useAdminAuth } from '../../stores/useAdminAuth'
@@ -67,6 +67,24 @@ export function AdminApp() {
   // Every tab already ships inside this chunk; Chart.js (분석) is the one thing that would
   // still have to download on a tab switch, so pull it once the panel is idle.
   useEffect(prefetchPanelExtrasOnIdle, [])
+
+  // The panel header is `sticky top-0`, so anything a tab wants to stick *under* it has to
+  // know how tall it is — and that changes with the breakpoint, the safe-area inset and the
+  // wrapped role/date line. Publish the measured height instead of hard-coding an offset
+  // that would drift the next time the header changes: `top-[var(--admin-header-h)]`.
+  const headerRef = useRef<HTMLElement>(null)
+  useEffect(() => {
+    const el = headerRef.current
+    if (!el) return
+    const publish = () => document.documentElement.style.setProperty('--admin-header-h', `${el.offsetHeight}px`)
+    publish()
+    const ro = new ResizeObserver(publish)
+    ro.observe(el)
+    return () => {
+      ro.disconnect()
+      document.documentElement.style.removeProperty('--admin-header-h')
+    }
+  }, [])
   function selectTab(id: Tab) {
     setTab(id)
     writeLastTab(id)
@@ -196,7 +214,7 @@ export function AdminApp() {
             only the two actions that are used mid-service (키오스크, 로그아웃), as icons;
             테마·언어 and 백업 move into the 더보기 sheet below. From `sm` up everything is
             back in the bar with its label. */}
-        <header className="material-bar safe-x sticky top-0 z-20 border-b py-3 pt-[calc(0.75rem+var(--safe-top))]">
+        <header ref={headerRef} className="material-bar safe-x sticky top-0 z-20 border-b py-3 pt-[calc(0.75rem+var(--safe-top))]">
           <div className="mx-auto flex max-w-[1480px] items-center justify-between gap-2 sm:gap-4">
             <span className="grid shrink-0 place-items-center lg:hidden" aria-hidden>
               <KccpMark size={26} />

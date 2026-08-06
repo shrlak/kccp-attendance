@@ -5,6 +5,7 @@ import {
   filterByName,
   splitColumns,
   kioskColumns,
+  KIOSK_COLS_DEPT,
   KIOSK_COLS,
   todayEntryFor,
   hiddenByStatus,
@@ -73,6 +74,23 @@ describe('kioskColumns', () => {
     expect(cols.depts[0].columns.flat().map((m) => m.name)).toEqual(['A', 'B'])
     expect(cols.depts[1].total).toBe(1) // C
     expect(cols.others.map((m) => m.name)).toEqual(['D'])
+  })
+
+  // 부서만 보기: 한 부서가 화면 전체를 쓰므로 8열. 나눈 개수와 화면 격자의 열 수가 같아야
+  // 한 줄을 왼쪽→오른쪽으로 읽는 순서가 가나다 순이 된다.
+  it('splits into 8 columns when a single 부서 has the whole width', () => {
+    expect(KIOSK_COLS_DEPT).toBe(8)
+    const eight = [...'가나다라마바사아자차'].map((n) => member(n, '대학부'))
+    const cols = kioskColumns(eight, KIOSK_COLS_DEPT)
+    expect(cols.depts[0].columns).toHaveLength(8)
+    // 10명 / 8열 → 앞의 두 열만 2명 (round-robin), 첫 줄은 가나다라마바사아 순으로 읽힌다.
+    expect(cols.depts[0].columns.map((c) => c.length)).toEqual([2, 2, 1, 1, 1, 1, 1, 1])
+    expect(cols.depts[0].columns.map((c) => c[0].name)).toEqual([...'가나다라마바사아'])
+    expect(cols.depts[0].total).toBe(10)
+  })
+
+  it('defaults to KIOSK_COLS when no column count is given (both 부서 side by side)', () => {
+    expect(kioskColumns(members).depts[0].columns).toHaveLength(KIOSK_COLS)
   })
 
   it('excludes visitors from every bucket', () => {

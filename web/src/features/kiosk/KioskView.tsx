@@ -12,6 +12,8 @@ import {
   attendanceCount,
   todayEntryFor,
   hiddenByStatus,
+  KIOSK_COLS,
+  KIOSK_COLS_DEPT,
   KIOSK_DEPTS,
   type KioskDept,
 } from './kiosk'
@@ -112,11 +114,15 @@ export function KioskView({ onExit }: { onExit: () => void }) {
   }, attendanceCount(log, today))
   // 무기한 상태 표기(귀국·이주·졸업 등)나 방학인 사람은 타일로 뜨지 않는다.
   const summer = !!cfg?.summerMode
-  const scoped = deptOnly && !summer ? members.filter((m) => m.group_name === deptOnly) : members
+  // 부서 하나만 보는 중인가 — 블록도 하나, 열도 그만큼 넉넉하게.
+  const deptView = !!deptOnly && !summer
+  const scoped = deptView ? members.filter((m) => m.group_name === deptOnly) : members
   const visible = filterByName(scoped.filter((m) => !hiddenByStatus(m, today)), search)
-  const cols = kioskColumns(visible)
+  // 한 부서가 화면 전체를 쓰므로 4열이 아니라 8열로 쪼갠다. 나눈 개수와 아래 격자의 열 수는
+  // 같아야 한다 — 그래야 한 줄을 왼쪽에서 오른쪽으로 읽는 순서가 가나다 순이 된다.
+  const cols = kioskColumns(visible, deptView ? KIOSK_COLS_DEPT : KIOSK_COLS)
   // 부서를 골랐으면 그 부서 블록만 남긴다 — 반대쪽 부서가 빈 칸으로 자리를 차지하지 않도록.
-  const deptBlocks = deptOnly && !summer ? cols.depts.filter((d) => d.key === deptOnly) : cols.depts
+  const deptBlocks = deptView ? cols.depts.filter((d) => d.key === deptOnly) : cols.depts
   const hasAnyResult = deptBlocks.some((d) => d.total > 0) || cols.others.length > 0
 
   // Show a result screen and arm its own dismissal. Replaces whatever is on screen, so
@@ -271,7 +277,14 @@ export function KioskView({ onExit }: { onExit: () => void }) {
                     >
                       {dept.key} <span className="text-subtle">{dept.total}</span>
                     </div>
-                    <div className="grid grid-cols-2 items-start gap-x-3 gap-y-2 min-[480px]:grid-cols-4">
+                    <div
+                      className={
+                        'grid grid-cols-2 items-start gap-x-3 gap-y-2 ' +
+                        (deptView
+                          ? 'min-[480px]:grid-cols-4 min-[900px]:grid-cols-8'
+                          : 'min-[480px]:grid-cols-4')
+                      }
+                    >
                       {dept.columns.map((part, i) => (
                         <div key={`${dept.key}-${i}`} className="flex flex-col gap-2">
                           {part.length ? (
