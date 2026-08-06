@@ -4,6 +4,7 @@ import {
   awayForRange,
   awayOn,
   coversDate,
+  hasHidingMark,
   hiddenFromKiosk,
   isAwayNote,
   noteOn,
@@ -119,5 +120,26 @@ describe('onBreak / hiddenFromKiosk', () => {
     expect(hiddenFromKiosk(member({ status_marks: [mark('돌아옴', '2026-06-07', '2026-07-12')] }), '2026-06-14')).toBe(false)
     // 종료일 없는 표기는 문구와 상관없이 숨긴다.
     expect(hiddenFromKiosk(member({ status_marks: [mark('타교회 정착', '2026-06-07')] }), '2026-06-14')).toBe(true)
+  })
+})
+
+describe('hasHidingMark (날짜를 보지 않는다)', () => {
+  it('catches a mark whose start has not arrived yet — 다음 주에 떠나는 사람', () => {
+    const leaving = member({ status_marks: [mark('이주', '2026-08-20')] })
+    expect(awayOn(leaving, '2026-08-16')).toBe(false) // 오늘은 아직 아니다
+    expect(hasHidingMark(leaving)).toBe(true) // 그래도 떠나는 사람이다
+  })
+  it('catches a 귀국/이주 whose period already ended (기간이 잘못 적힌 경우)', () => {
+    const returned = member({ status_marks: [mark('한국 귀국', '2026-06-21', '2026-06-21')] })
+    expect(awayOn(returned, '2026-08-16')).toBe(false)
+    expect(hasHidingMark(returned)).toBe(true)
+  })
+  it('leaves a bounded 방학 alone — 돌아올 날이 정해져 있다', () => {
+    expect(hasHidingMark(member({ status_marks: [mark('방학', '2026-06-07', '2026-07-05')] }))).toBe(false)
+    expect(hasHidingMark(member())).toBe(false)
+  })
+  it('catches any open-ended mark and the legacy single-column shape', () => {
+    expect(hasHidingMark(member({ status_marks: [mark('타교회 정착', '2026-05-01')] }))).toBe(true)
+    expect(hasHidingMark(member({ status_note: '이주', status_start: '2026-06-02', status_end: '2026-06-02' }))).toBe(true)
   })
 })
