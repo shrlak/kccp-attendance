@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRoster } from '../admin/useRoster'
@@ -12,6 +12,8 @@ import {
   attendanceCount,
   todayEntryFor,
   hiddenByStatus,
+  KIOSK_DEPTS,
+  type KioskDept,
 } from './kiosk'
 import { useAttendanceLive, refreshRoster } from '../../lib/live'
 import { KioskGuestDialog } from './KioskGuestDialog'
@@ -50,6 +52,23 @@ const Tile = memo(function Tile({ m, done, onTap }: { m: Member; done: boolean; 
   )
 })
 
+// 부서 필터 칩 — 키오스크 안에서만 쓰는 작은 세그먼트 버튼.
+function DeptChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={
+        'min-h-9 rounded-full px-4 py-1.5 text-sm font-semibold transition-[background-color,color,box-shadow] duration-200 [transition-timing-function:var(--ease-out-soft)] ' +
+        (active ? 'bg-surface text-primary shadow-[var(--shadow-sm)]' : 'text-muted hover:text-text')
+      }
+    >
+      {children}
+    </button>
+  )
+}
+
 // Full-screen kiosk for touchscreen attendance (Phase 3). Runs on an already-verified
 // admin device, so taps go through the hardened member-checkin endpoint. Auto-refreshes
 // the roster every 30s; cleared on exit. `onExit` returns to the admin panel.
@@ -59,6 +78,9 @@ export function KioskView({ onExit }: { onExit: () => void }) {
   const { data, isLoading } = useRoster(true)
   const { data: cfg } = useQuery({ queryKey: ['config'], queryFn: getConfig })
   const [search, setSearch] = useState('')
+  // 부서만 골라 보기 — 여름학기(합동)가 아닐 때만 뜨는, 키오스크 안에서 켜는 선택지다.
+  // 화면을 벗어나면 남지 않도록 상태로만 들고 있고, 기본값은 전체.
+  const [deptOnly, setDeptOnly] = useState<KioskDept | ''>('')
   const [overlay, setOverlay] = useState<{ tone: OverlayTone; name: string; detail?: string } | null>(null)
   const [dialog, setDialog] = useState<'guest' | 'newMember' | null>(null)
   const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -88,10 +110,14 @@ export function KioskView({ onExit }: { onExit: () => void }) {
     if (o === undefined || o === present.has(m.name)) return n
     return n + (o ? 1 : -1)
   }, attendanceCount(log, today))
-  // 이주/한국 귀국 members whose status covers today never show as tiles.
-  const visible = filterByName(members.filter((m) => !hiddenByStatus(m, today)), search)
+  // 무기한 상태 표기(귀국·이주·졸업 등)나 방학인 사람은 타일로 뜨지 않는다.
+  const summer = !!cfg?.summerMode
+  const scoped = deptOnly && !summer ? members.filter((m) => m.group_name === deptOnly) : members
+  const visible = filterByName(scoped.filter((m) => !hiddenByStatus(m, today)), search)
   const cols = kioskColumns(visible)
-  const hasAnyResult = cols.depts.some((d) => d.total > 0) || cols.others.length > 0
+  // 부서를 골랐으면 그 부서 블록만 남긴다 — 반대쪽 부서가 빈 칸으로 자리를 차지하지 않도록.
+  const deptBlocks = deptOnly && !summer ? cols.depts.filter((d) => d.key === deptOnly) : cols.depts
+  const hasAnyResult = deptBlocks.some((d) => d.total > 0) || cols.others.length > 0
 
   // Show a result screen and arm its own dismissal. Replaces whatever is on screen, so
   // the next tap never waits for the previous person's overlay to time out.
@@ -198,6 +224,17 @@ export function KioskView({ onExit }: { onExit: () => void }) {
             className="w-full rounded-2xl border border-border bg-surface py-4 pl-12 pr-4 text-lg text-text shadow-[var(--shadow-sm)] outline-none transition-[border-color,box-shadow] duration-200 [transition-timing-function:var(--ease-out-soft)] placeholder:text-subtle focus-visible:border-primary focus-visible:ring-[3.5px] focus-visible:ring-primary/18"
           />
         </div>
+        {!summer && (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold text-subtle">{t('kiosk.deptFilter')}</span>
+            <div className="segmented">
+              <DeptChip active={deptOnly === ''} onClick={() => setDeptOnly('')}>{t('admin.filter.all')}</DeptChip>
+              {KIOSK_DEPTS.map((dept) => (
+                <DeptChip key={dept} active={deptOnly === dept} onClick={() => setDeptOnly(dept)}>{dept}</DeptChip>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="mt-2 text-right text-xs font-semibold text-muted sm:hidden">{t('kiosk.count', { n: count })}</div>
       </div>
 
@@ -221,8 +258,8 @@ export function KioskView({ onExit }: { onExit: () => void }) {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {cols.depts.map((dept) => {
+            <div className={'grid grid-cols-1 gap-4' + (deptBlocks.length > 1 ? ' sm:grid-cols-2' : '')}>
+              {deptBlocks.map((dept) => {
                 const color = resolveGroupColor(cfg?.groupColors, dept.key)
                 return (
                   <div key={dept.key} className="rounded-[26px] border border-border/60 p-4" style={{ background: hexTint(color, 0.07) }}>

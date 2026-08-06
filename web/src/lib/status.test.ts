@@ -50,9 +50,11 @@ describe('coversDate / noteOn', () => {
 })
 
 describe('isAwayNote', () => {
-  it('is about 귀국 / 이주 — not 방학 or 돌아옴', () => {
+  it('is about 귀국 / 이주 / 졸업 — not 방학 or 돌아옴', () => {
     expect(isAwayNote('한국 귀국')).toBe(true)
     expect(isAwayNote('이주(타주)')).toBe(true)
+    expect(isAwayNote('졸업')).toBe(true)
+    expect(isAwayNote('졸업 후 취업')).toBe(true)
     expect(isAwayNote('방학')).toBe(false)
     expect(isAwayNote('돌아옴')).toBe(false)
     expect(isAwayNote('')).toBe(false)
@@ -89,9 +91,17 @@ describe('awayForRange (출석부에서 숨기는 조건)', () => {
     })
     expect(awayForRange(m, '2026-08-09', '2026-08-30')).toBe(true)
   })
-  it('ignores 방학 and unmarked members', () => {
-    expect(awayForRange(member({ status_marks: [mark('방학', '2026-01-01')] }), '2026-08-09', '2026-08-30')).toBe(false)
+  it('leaves a bounded 방학 in place — they are coming back', () => {
+    const summerBreak = member({ status_marks: [mark('방학', '2026-01-01', '2026-12-31')] })
+    expect(awayForRange(summerBreak, '2026-08-09', '2026-08-30')).toBe(false)
     expect(awayForRange(member(), '2026-08-09', '2026-08-30')).toBe(false)
+  })
+  it('hides any open-ended mark — 무기한이면 언제 돌아올지 모르는 사람', () => {
+    // 졸업 · 타교회 정착처럼 키워드가 아니어도 종료일이 없으면 숨긴다.
+    expect(awayForRange(member({ status_marks: [mark('타교회 정착', '2026-05-01')] }), '2026-08-09', '2026-08-30')).toBe(true)
+    expect(awayForRange(member({ status_marks: [mark('졸업', '2026-05-01')] }), '2026-08-09', '2026-08-30')).toBe(true)
+    // 종료일이 있으면(돌아올 날이 정해져 있으면) 자리를 지킨다.
+    expect(awayForRange(member({ status_marks: [mark('타교회 정착', '2026-05-01', '2026-08-16')] }), '2026-08-09', '2026-08-30')).toBe(false)
   })
 })
 
@@ -101,10 +111,13 @@ describe('onBreak / hiddenFromKiosk', () => {
     expect(onBreak(m, '2026-06-14')).toBe(true)
     expect(onBreak(m, '2026-08-09')).toBe(false)
   })
-  it('the kiosk hides 귀국·이주·방학 while a mark covers today', () => {
+  it('the kiosk hides 귀국·이주·방학과 무기한 표기를 today 기준으로', () => {
     expect(hiddenFromKiosk(m, '2026-06-14')).toBe(true) // 방학
     expect(hiddenFromKiosk(m, '2026-07-19')).toBe(false) // 사이 기간
     expect(hiddenFromKiosk(m, '2026-08-09')).toBe(true) // 한국 귀국
-    expect(hiddenFromKiosk(member({ status_marks: [mark('돌아옴', '2026-06-07')] }), '2026-06-14')).toBe(false)
+    // 기간이 정해진 돌아옴은 숨기지 않는다.
+    expect(hiddenFromKiosk(member({ status_marks: [mark('돌아옴', '2026-06-07', '2026-07-12')] }), '2026-06-14')).toBe(false)
+    // 종료일 없는 표기는 문구와 상관없이 숨긴다.
+    expect(hiddenFromKiosk(member({ status_marks: [mark('타교회 정착', '2026-06-07')] }), '2026-06-14')).toBe(true)
   })
 })

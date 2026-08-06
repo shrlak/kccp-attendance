@@ -533,9 +533,9 @@ describe('buildAttendanceModel — 한국 귀국 / 이주', () => {
     expect(c.marks[1]).toMatchObject({ kind: 'note', note: '이주' })
   })
 
-  it('leaves 방학 members in place (they are coming back)', () => {
+  it('leaves a bounded 방학 member in place (they are coming back)', () => {
     const members = [member('1', 'A'), member('3', 'C', '청년부', '건영동산')]
-    members[1].status_marks = [{ note: '방학', start: '2026-07-05', end: null }]
+    members[1].status_marks = [{ note: '방학', start: '2026-07-05', end: '2026-09-01' }]
     const model = buildAttendanceModel(members, log, dates, '2026-08-09', labels)
     expect(model.sections[0].rows.map((r) => r.member.name)).toEqual(['A', 'C'])
   })
