@@ -74,6 +74,15 @@ export function awayOn(m: MemberStatus, date: string): boolean {
   return statusMarks(m).some((mark) => isHidingMark(mark) && coversDate(mark, date))
 }
 
+// Does the member carry a "they've left" mark at all — **whatever its dates**? `awayOn`
+// only sees marks covering a given day, which two real cases slip past: a 이주 dated a week
+// from now (they are leaving, just not yet) and a 귀국 typed with an end date that has
+// already passed. Both mean the same thing for a list that is about who to start working
+// with, so the 새가족 · 새가족 교육 탭 ask this instead of the date-relative question.
+export function hasHidingMark(m: MemberStatus): boolean {
+  return statusMarks(m).some(isHidingMark)
+}
+
 // Do the member's hiding marks cover *every* date in [start, end]? Those members drop out of
 // the 출석부 entirely rather than taking up a row of grey cells. Someone who leaves midway
 // through a term still appears in that term's sheet (their earlier O/X is real history, and

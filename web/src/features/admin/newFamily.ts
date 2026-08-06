@@ -6,6 +6,7 @@ import {
   type CalendarLike,
 } from '../../lib/semester'
 import type { Filter } from './filters'
+import { hasHidingMark } from '../../lib/status'
 
 export type Season = 'spring' | 'summer' | 'fall'
 
@@ -189,11 +190,21 @@ export function filterByEduDongsan(members: Member[], f: Filter): Member[] {
   )
 }
 
+// 2026년 이전에 등록된 새가족은 목록에 올리지 않는다. 그 이전 기록은 옛 시트에서 옮겨온
+// 것이라 지금 새가족팀이 챙길 대상이 아니고, 교육을 안 끝낸 채로 남아 있으면 아래 "학기가
+// 넘어가도 계속 보인다" 규칙에 걸려 영영 목록에 붙어 있게 된다.
+const NEW_FAMILY_SINCE = '2026-01-01'
+
 // 새가족 that belong on the 새가족 · 새가족 교육 탭. This term's registrations always show,
 // as does anyone missing a registration date. Someone who registered in an *earlier* term
 // keeps showing until they finish BOTH weeks of 새가족 교육 or the 새가족 표시 comes off —
 // a newcomer mid-education doesn't stop being one just because the semester rolled over.
 // Newest registration first.
+//
+// 떠난 사람은 학기와 무관하게 빠진다. useRoster의 splitRoster는 "오늘을 덮는" 표기만 보고
+// 거르므로, 시작일이 아직 안 온 이주(다음 주에 떠남)나 이미 끝난 기간으로 잘못 적힌 귀국은
+// 그물을 빠져나간다. 새가족팀 입장에서는 둘 다 이제 시작할 대상이 아니므로, 여기서는 날짜를
+// 보지 않고 그런 표기를 하나라도 가졌는지만 본다.
 export function visibleNewFamily(
   members: Member[],
   today: string,
@@ -203,6 +214,8 @@ export function visibleNewFamily(
   return members
     .filter((m) => {
       if (!m.is_new_member) return false
+      if (hasHidingMark(m)) return false
+      if (m.registration_date && m.registration_date < NEW_FAMILY_SINCE) return false
       if (!m.registration_date) return true
       if (m.registration_date >= start && m.registration_date <= end) return true
       return isActiveNewFamily(m)
@@ -284,11 +297,16 @@ export interface MonthGroup {
   members: Member[]
 }
 
-// Every member with a registration_date, grouped by month, newest month first.
+// Members with a registration_date, grouped by month, newest month first — the 새가족 탭's
+// 월별 등록 section. It answers "when did people register", so someone who has since finished
+// 새가족 교육 stays; but the two rules that take a person off this tab apply here too, or the
+// tab would exclude them from its list and still print their name a screen further down.
 export function monthlyRegistrations(members: Member[]): MonthGroup[] {
   const byMonth = new Map<string, Member[]>()
   for (const m of members) {
     if (!m.registration_date) continue
+    if (m.registration_date < NEW_FAMILY_SINCE) continue
+    if (hasHidingMark(m)) continue
     const key = m.registration_date.slice(0, 7)
     const list = byMonth.get(key) ?? []
     list.push(m)
