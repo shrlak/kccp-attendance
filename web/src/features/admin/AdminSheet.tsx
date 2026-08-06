@@ -66,14 +66,20 @@ export function AdminSheet() {
 
   const lang: Lang = i18n.language === 'en' ? 'en' : 'ko'
   const today = easternNow().date
+  // `data.members` already has the 숨긴 멤버 taken out (useRoster), so every number and row
+  // on this screen is about who is actually on the roster now.
   const members = filterMembers(data.members, filter)
   const fLog = filterLog(data.log, filter)
   const log = [...fLog].sort((a, b) => b.ts - a.ts)
   const canBulk = data.role !== 'pastor'
+  // 아카이브만은 숨긴 멤버까지 되돌려 넣는다: 이미 끝난 학기의 출석부는 그때 실제로 있던
+  // 사람이 다 들어 있어야 하는 기록이고, 그 안에서 누구를 넣고 뺄지는 buildAttendanceModel의
+  // 기간 규칙(awayForRange)이 학기별로 판단한다.
+  const archiveMembers = filterMembers([...data.members, ...data.hiddenMembers], filter)
 
   return (
     <>
-      <StatsBar stats={computeStats(members, fLog, easternNow().date)} />
+      <StatsBar stats={computeStats(members, fLog, today)} />
       <GroupFilter members={data.members} value={filter} onChange={setFilter} />
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="segmented">
@@ -115,7 +121,7 @@ export function AdminSheet() {
       )}
       {/* Finished 학기 / 전환 기간 / 연도 출석부, downloadable — the tab's closing section. */}
       <ArchiveSection
-        members={members}
+        members={archiveMembers}
         log={fLog}
         filter={filter}
         today={today}

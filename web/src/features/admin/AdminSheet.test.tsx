@@ -18,13 +18,15 @@ function entry(name: string, subgroup: string, date: string, ts: number): LogEnt
   return { name, group: '청년부', subgroup, date, time: '10:00', ts }
 }
 
-// 두 동산. 믿음동산: A는 6/7·6/21 출석, C는 결석, D는 6/14부터 한국 귀국 상태 표기. 소망동산(B)은
+// 두 동산. 믿음동산: A는 6/7·6/21 출석, C는 결석, D는 6/14부터 기간이 정해진 방학(명단에 남되
+// 그 기간은 회색), E는 6/14부터 무기한 한국 귀국(숨긴 멤버 → 시트에서 아예 빠진다). 소망동산(B)은
 // 출석 데이터가 아예 없음 → 열 전체 빈칸(집계 전). easternNow() 기준 2026-06-21 → 열은 여름학기
 // 전체(06/07–08/02, exportSundays). 데이터 있는 주일만 O/X, 6/14(데이터 없음)·다가오는 주일은 빈칸.
 const members: Member[] = [
   member('1', 'A', '믿음동산'),
   member('3', 'C', '믿음동산'),
-  member('4', 'D', '믿음동산', { status_note: '한국 귀국', status_start: '2026-06-14' }),
+  member('4', 'D', '믿음동산', { status_marks: [{ note: '방학', start: '2026-06-14', end: '2026-08-02' }] }),
+  member('5', 'E', '믿음동산', { status_note: '한국 귀국', status_start: '2026-06-14', status_end: null }),
   member('2', 'B', '소망동산'),
 ]
 const log: LogEntry[] = [
@@ -117,22 +119,36 @@ describe('AdminSheet 출석부 (Excel-style grid)', () => {
     expect(screen.getAllByRole('button', { name: /다운로드/ }).length).toBe(2)
   })
 
-  it('renders a status mark as one grey cell spanning the covered dates (master-sheet style)', async () => {
+  it('renders a bounded status mark as one grey cell spanning the covered dates (master-sheet style)', async () => {
     const { container } = renderSheet()
     await screen.findByRole('heading', { name: '믿음동산' })
 
-    // D: X on 06/07, then 한국 귀국 from 06/14 — one grey cell merged across 06/14–08/02.
+    // D: X on 06/07, then 방학 from 06/14 — one grey cell merged across 06/14–08/02. 돌아올
+    // 날이 정해진 표기라 명단에는 그대로 남는다.
     const dRow = await waitFor(() => {
       const cell = [...container.querySelectorAll('td')].find((td) => td.textContent === 'D')
       expect(cell).toBeTruthy()
       return cell!.parentElement!
     })
     const cells = [...dRow.querySelectorAll('td')]
-    expect(cells.map((td) => td.textContent)).toEqual(['D', '0', 'X', '한국 귀국'])
+    expect(cells.map((td) => td.textContent)).toEqual(['D', '0', 'X', '방학'])
     const note = cells[3]
     expect(note.colSpan).toBe(8) // 06/14 → 08/02
     expect(note.style.background).toBe('rgb(204, 204, 204)') // #CCCCCC
     // The KEY legend now includes the grey 기타 entry.
     expect(screen.getByText('기타')).toBeInTheDocument()
+  })
+
+  // 숨긴 멤버는 출석부에도 나오지 않는다 — 종료일 없는 표기는 명단에서 빠진 사람이고,
+  // 학기 중간에 그렇게 됐더라도 화면의 출석부에는 남기지 않는다 (지난 학기 아카이브 파일은
+  // 그때 있던 사람을 그대로 담는다 — archive.test.ts).
+  it('leaves an open-ended 한국 귀국 member off the sheet entirely', async () => {
+    const { container } = renderSheet()
+    await screen.findByRole('heading', { name: '믿음동산' })
+
+    await waitFor(() => {
+      expect([...container.querySelectorAll('td')].some((td) => td.textContent === 'A')).toBe(true)
+    })
+    expect([...container.querySelectorAll('td')].some((td) => td.textContent === 'E')).toBe(false)
   })
 })
