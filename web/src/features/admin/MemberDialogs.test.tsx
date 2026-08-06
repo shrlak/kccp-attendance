@@ -142,7 +142,7 @@ describe('EditModal — 새가족 등록 카드 as the form', () => {
     expect(select).toContainHTML('옛동산')
   })
 
-  it('상태 표기 box beneath the card: the 이주/귀국 presets set the note and default the start date', async () => {
+  it('상태 표기 box beneath the card: a preset adds a mark starting today', async () => {
     const { updateMember } = await import('../../lib/api')
     ;(updateMember as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ok' })
     renderWithProviders(<EditModal member={filled} onClose={vi.fn()} onAttendance={vi.fn()} />)
@@ -152,8 +152,34 @@ describe('EditModal — 새가족 등록 카드 as the form', () => {
 
     await userEvent.click(screen.getByRole('button', { name: '저장' }))
     const payload = (updateMember as ReturnType<typeof vi.fn>).mock.calls[0][1]
-    expect(payload.statusNote).toBe('이주')
-    expect(payload.statusStart).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    expect(payload.statusMarks).toHaveLength(1)
+    expect(payload.statusMarks[0].note).toBe('이주')
+    expect(payload.statusMarks[0].start).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  })
+
+  it('멤버 한 명에게 상태 표기를 여러 개 달 수 있다 (추가 버튼)', async () => {
+    const { updateMember } = await import('../../lib/api')
+    ;(updateMember as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ok' })
+    renderWithProviders(<EditModal member={filled} onClose={vi.fn()} onAttendance={vi.fn()} />)
+
+    // 프리셋 하나 + 빈 표기 하나 → 두 칸이 생긴다.
+    await userEvent.click(screen.getByRole('button', { name: '방학' }))
+    await userEvent.click(screen.getByRole('button', { name: '상태 표기 추가' }))
+    const notes = screen.getAllByLabelText('상태 표기 (한국 귀국 · 이주 등)')
+    expect(notes).toHaveLength(2)
+    await userEvent.type(notes[1], '한국 귀국')
+
+    await userEvent.click(screen.getByRole('button', { name: '저장' }))
+    const payload = (updateMember as ReturnType<typeof vi.fn>).mock.calls[0][1]
+    expect(payload.statusMarks.map((mark: { note: string }) => mark.note)).toEqual(['방학', '한국 귀국'])
+  })
+
+  it('표기 삭제 버튼으로 한 칸만 지운다', async () => {
+    renderWithProviders(<EditModal member={filled} onClose={vi.fn()} onAttendance={vi.fn()} />)
+    await userEvent.click(screen.getByRole('button', { name: '방학' }))
+    expect(screen.getAllByLabelText('상태 표기 (한국 귀국 · 이주 등)')).toHaveLength(1)
+    await userEvent.click(screen.getByRole('button', { name: /표기 삭제/ }))
+    expect(screen.queryAllByLabelText('상태 표기 (한국 귀국 · 이주 등)')).toHaveLength(0)
   })
 })
 

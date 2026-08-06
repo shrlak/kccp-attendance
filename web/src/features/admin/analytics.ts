@@ -1,5 +1,6 @@
 import type { Member, LogEntry } from '../../lib/api'
 import { groupsOf } from './filters'
+import { onBreak } from '../../lib/status'
 
 // ── Pure, immutable aggregation helpers for the Analytics tab ──────────────
 // All functions take the already-scoped/filtered roster (members + log) and never
@@ -10,15 +11,8 @@ const distinctDates = (log: LogEntry[]): string[] => [...new Set(log.map((e) => 
 const uniqueNamesOn = (log: LogEntry[], date: string): Set<string> =>
   new Set(log.filter((e) => e.date === date).map((e) => e.name))
 
-// Whether a member's 방학 (school break) 상태 표기 covers `date`: status_start through
-// status_end, open-ended when status_end is null — the same covering rule the 출석부
-// and kiosk use for status marks.
-function isOnBreak(m: Member, date: string): boolean {
-  if (!m.status_note || !m.status_start) return false
-  if (date < m.status_start) return false
-  if (m.status_end && date > m.status_end) return false
-  return m.status_note.includes('방학')
-}
+// 방학 (school break) 표기가 `date`를 덮는지 — 멤버가 여러 표기를 가질 수 있으므로
+// lib/status.ts의 목록 규칙을 그대로 쓴다 (출석부·키오스크와 같은 판정).
 
 // Drops log rows recorded while the member was marked 방학 on that date, so a break
 // doesn't get counted toward attendance analytics until the mark is cleared. Rows with
@@ -28,7 +22,7 @@ export function excludeOnBreak(members: Member[], log: LogEntry[]): LogEntry[] {
   return log.filter((e) => {
     if (!e.memberId) return true
     const m = byId.get(e.memberId)
-    return !m || !isOnBreak(m, e.date)
+    return !m || !onBreak(m, e.date)
   })
 }
 

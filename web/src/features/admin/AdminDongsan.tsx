@@ -75,7 +75,11 @@ export function DongsanNamesEditor({
   const [saving, setSaving] = useState(false)
 
   const names = edits ?? loaded
-  const groups = Object.keys(names)
+  // 학기가 끝나면 서버가 동산 편성을 비우므로(term rollover) 이 맵이 통째로 비어서 온다.
+  // 그때도 부서별 "동산 추가" 자리를 만들어 둬야 새 학기 동산을 넣을 수 있다 — KM 부서를
+  // 항상 먼저 깔고, 그 밖의 부서가 저장돼 있으면 뒤에 붙인다.
+  const groups = [...KM_GROUPS, ...Object.keys(names).filter((g) => !KM_GROUPS.includes(g))]
+  const empty = groups.every((g) => (names[g] ?? []).length === 0)
   const combinedList = combined ?? summerDongsanList(loaded)
   const dirty = summer ? combined !== undefined : edits !== undefined
 
@@ -112,6 +116,12 @@ export function DongsanNamesEditor({
         </div>
       )}
       {desc && <p className={`text-sm text-muted ${title ? 'mb-4 mt-2' : 'mb-4'}`}>{desc}</p>}
+
+      {empty && (
+        <p className="mb-4 rounded-xl border border-dashed border-border px-3 py-2 text-xs text-muted">
+          {t('admin.settings.dongsanEmptyAfterTerm')}
+        </p>
+      )}
 
       {summer && (
         <p className="mb-4 flex w-fit items-center gap-1.5 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-xs font-semibold text-warning">

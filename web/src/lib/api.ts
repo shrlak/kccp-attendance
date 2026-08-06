@@ -187,9 +187,12 @@ export interface Member {
   is_staff?: boolean
   // 상태 표기 (master-sheet grey marks: 한국 귀국 / 이주 / 돌아옴 …). The 출석부 renders the
   // note as a grey cell spanning status_start → status_end (null = the term's last Sunday).
+  // 예전 단일 표기 — 서버가 status_marks의 현재/최신 표기를 여기에 계속 mirror 한다.
   status_note?: string
   status_start?: string | null
   status_end?: string | null
+  // 멤버당 여러 개의 상태 표기 (방학 → 한국 귀국 …). lib/status.ts가 읽는 목록.
+  status_marks?: { note: string; start: string | null; end: string | null }[]
 }
 
 export interface LogEntry {
@@ -412,9 +415,8 @@ export interface MemberEdit {
   schoolOrWork?: string
   faithDuration?: string
   pastoralVisitRequested?: boolean | null
-  statusNote?: string
-  statusStart?: string | null
-  statusEnd?: string | null
+  // 상태 표기 목록 (여러 개). 서버가 여기서 예전 단일 컬럼도 채운다.
+  statusMarks?: { note: string; start: string | null; end: string | null }[]
 }
 
 // Edit a member (scoped server-side: leaders only their 동산; pastor read-only).
