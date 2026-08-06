@@ -120,6 +120,7 @@ export function AdminSheet() {
         today={today}
         lang={lang}
         semesterDates={cfg?.semesterDates}
+        dongsanHistory={data.dongsanHistory}
       />
       {bulk && <BulkModal data={data} onClose={() => setBulk(false)} />}
       {clearing && <ClearDialog isSuper={data.role === 'super_admin'} onClose={() => setClearing(false)} />}

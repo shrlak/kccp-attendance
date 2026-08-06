@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { getConfig, getCardScanUsage, updateSettings, type SettingsPatch } from '../../lib/api'
+import { getConfig, getCardScanUsage, updateSettings } from '../../lib/api'
 import { useToast } from '../../components/ui/Toast'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
-import { Switch } from '../../components/ui/Switch'
+import { Tag } from '../../components/ui/Tag'
 import { Calendar, Sparkles, ScanLine, Settings } from '../../components/ui/Icon'
 import type { ReactNode } from 'react'
 import { DEFAULT_GROUP_COLORS, isValidHex } from './groupColors'
@@ -38,7 +38,6 @@ export function AdminSettings() {
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
   })
-  const [busyToggle, setBusyToggle] = useState<keyof SettingsPatch | null>(null)
   const [colorEdits, setColorEdits] = useState<Record<string, string> | undefined>(undefined)
   const [colorsSaving, setColorsSaving] = useState(false)
   const [semesterEdits, setSemesterEdits] = useState<SemesterDates | undefined>(undefined)
@@ -49,6 +48,9 @@ export function AdminSettings() {
   const colorsValid = GROUPS.every((g) => isValidHex(colors[g] ?? ''))
   const currentYear = Number(easternNow().date.slice(0, 4))
   const semesterDates = semesterEdits ?? cfg?.semesterDates ?? DEFAULT_SEMESTER_DATES
+  // The 여름 모드 status line describes what the server is actually doing, so it reads the
+  // saved schedule — not the unsaved edits sitting in the form above it.
+  const savedSemesterDates = cfg?.semesterDates ?? DEFAULT_SEMESTER_DATES
   const semesterDatesValid = isValidSemesterDates(semesterDates)
   const usageRemaining = scanUsage?.remaining ?? 0
   const remainingPercent = scanUsage
@@ -95,19 +97,6 @@ export function AdminSettings() {
       toast({ title: t('common.error'), tone: 'err' })
     } finally {
       setSemesterSaving(false)
-    }
-  }
-
-  async function flip(field: keyof SettingsPatch, value: boolean) {
-    setBusyToggle(field)
-    try {
-      await updateSettings({ [field]: value })
-      await qc.invalidateQueries({ queryKey: ['config'] })
-      toast({ title: t('admin.settings.saved'), tone: 'ok' })
-    } catch {
-      toast({ title: t('common.error'), tone: 'err' })
-    } finally {
-      setBusyToggle(null)
     }
   }
 
@@ -178,12 +167,17 @@ export function AdminSettings() {
           title={t('admin.settings.modes')}
         />
         <div className="inset-list">
-          <ToggleRow
+          {/* 여름 모드 is no longer a switch: it is on for exactly as long as the 여름학기
+              above runs, so it turns itself on when the term starts and off when it ends. */}
+          <StatusRow
             label={t('admin.settings.summerMode')}
-            desc={t('admin.settings.summerModeDesc')}
-            checked={!!cfg?.summerMode}
-            disabled={!cfg || busyToggle === 'summerMode'}
-            onChange={(v) => flip('summerMode', v)}
+            desc={t('admin.settings.summerModeAutoDesc', {
+              start: monthDayLabel(savedSemesterDates.summer.start),
+              end: monthDayLabel(savedSemesterDates.summer.end),
+            })}
+            on={!!cfg?.summerMode}
+            onLabel={t('admin.settings.autoOn')}
+            offLabel={t('admin.settings.autoOff')}
           />
         </div>
       </section>
@@ -279,18 +273,19 @@ function ColorField({ label, value, onChange }: { label: string; value: string; 
   )
 }
 
-function ToggleRow({
+// A mode the app decides for itself: shown with its current state instead of a switch.
+function StatusRow({
   label,
   desc,
-  checked,
-  disabled,
-  onChange,
+  on,
+  onLabel,
+  offLabel,
 }: {
   label: string
   desc: string
-  checked: boolean
-  disabled: boolean
-  onChange: (v: boolean) => void
+  on: boolean
+  onLabel: string
+  offLabel: string
 }) {
   return (
     <div className="inset-row min-h-14 justify-between gap-4 py-3">
@@ -298,7 +293,14 @@ function ToggleRow({
         <div className="text-sm font-semibold text-text">{label}</div>
         <div className="text-xs text-muted">{desc}</div>
       </div>
-      <Switch checked={checked} onChange={onChange} disabled={disabled} label={label} />
+      <Tag tone={on ? 'success' : 'muted'} className="shrink-0">
+        {on ? onLabel : offLabel}
+      </Tag>
     </div>
   )
+}
+
+// "06-07" → "06.07" — the compact form used in the 여름 모드 status line.
+function monthDayLabel(monthDay: string): string {
+  return monthDay.replace('-', '.')
 }

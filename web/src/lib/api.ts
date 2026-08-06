@@ -191,10 +191,20 @@ export interface LogEntry {
   memberRole?: string
 }
 
+// One retired term's 동산 편성, frozen by the server the day the term ended (the live
+// assignment is cleared at that point). Keyed by member id → 동산.
+export interface TermDongsan {
+  endedAt: string
+  subgroups: Record<string, string>
+}
+
 export interface RosterResponse {
   role: AdminRole
   members: Member[]
   log: LogEntry[]
+  // 학기 종료 시 얼려둔 동산 편성, 학기 키("2026-summer")별 — 지난 학기 출석부가 그 학기의
+  // 동산 블록을 유지하는 근거. Scoped to the members this admin can see.
+  dongsanHistory?: Record<string, TermDongsan>
   // True for super-admins and leaders who are NOT a 동산지기/부동산지기 — they may bulk
   // reassign members' 동산 (feature-gated client-side; enforced server-side too).
   canBulkSubgroup?: boolean
@@ -233,8 +243,9 @@ export const approveClear = () => api<{ status: string }>('POST', '/api/admin/at
 // Dismiss/reject pending clear requests (super-admin only).
 export const rejectClear = () => api<{ status: string }>('POST', '/api/admin/attendance/clear-reject')
 
+// 여름 모드 is not here: it is derived from semesterDates server-side (여름학기 기간이면 on),
+// so there is nothing to set.
 export interface SettingsPatch {
-  summerMode?: boolean
   groupColors?: Record<string, string>
   semesterDates?: SemesterDates
 }

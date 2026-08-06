@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { canViewLoginLog, resolveAdmin, scopeFilter } from "./auth.ts";
+import { isSummerTerm, lastEndedTermKey, subgroupSnapshot, trimHistory } from "./term.ts";
 import { availableCardModels, buildCardRequest, cardModelChain, parseCardResponse } from "./gemini.ts";
 // Decrypt-side of the weekly R2 backup pipeline (see scripts/backup/). age-encryption is
 // FiloSottile's own pure-JS port of `age` (no native/subprocess dependency, which Deno
@@ -53,6 +54,39 @@ function checkLocation(lat?: number | null, lng?: number | null) {
 
 type SB = ReturnType<typeof createClient>;
 async function getCfg(sb: SB) { const {data}=await sb.from("config").select("*").eq("id",1).single(); return data||{}; }
+// 여름 모드 = 오늘이 여름학기 안인가. Was an admin toggle (config.summer_mode); it is now
+// derived from the saved 학기 일정, so it switches itself on the day 여름학기 starts and off
+// the day after it ends. The old column is left in place but never read or written.
+function summerNow(cfg: any) { return isSummerTerm(localDate(),cfg?.semester_dates); }
+// 학기가 끝나면 동산을 없애고 모두를 동산에서 뺀다 — 한 학기당 정확히 한 번, 학기가 끝난
+// 다음 첫 요청에서. 지우기 전에 그 학기의 편성(+동산 이름/동산지기)을 config.dongsan_history에
+// 얼려두므로, 지난 학기 출석부는 그대로 동산별로 남는다. 출석 기록(attendance_log)의 동산
+// 표기는 그 주일의 사실이므로 건드리지 않는다.
+//
+// dongsan_reset_term이 비어 있는 첫 관측(이 기능의 배포 직후)에는 초기화하지 않고 표식만
+// 남긴다 — 배포 시점에 이미 끝나 있던 학기 때문에 학기 도중 편성이 지워지면 안 되므로.
+// 갱신된 config를 돌려주니 호출부는 그대로 이어서 쓰면 된다.
+async function rolloverDongsan(sb: SB, cfg: any) {
+  const key=lastEndedTermKey(localDate(),cfg?.semester_dates);
+  if(!key||cfg?.dongsan_reset_term===key) return cfg;
+  if(!cfg?.dongsan_reset_term){
+    await sb.from("config").update({dongsan_reset_term:key}).eq("id",1);
+    return {...cfg,dongsan_reset_term:key};
+  }
+  const {data:members}=await sb.from("members").select("id,subgroup");
+  const subgroups=subgroupSnapshot((members||[]) as {id:string;subgroup?:string|null}[]);
+  const ts=new Date().toISOString();
+  const history=trimHistory({
+    ...(cfg.dongsan_history||{}),
+    [key]:{endedAt:localDate(),subgroups,names:cfg.dongsan_names||{},leaders:cfg.dongsan_leaders||{}},
+  });
+  await sb.from("members").update({subgroup:"",updated_at:ts}).neq("subgroup","");
+  await sb.from("devices").update({subgroup:""}).neq("subgroup","");
+  const upd={dongsan_names:{},dongsan_leaders:{},dongsan_history:history,dongsan_reset_term:key,updated_at:ts};
+  await sb.from("config").update(upd).eq("id",1);
+  await addAudit(sb,"term-rollover","system",key+" 학기 종료 — 동산 편성 해제 ("+Object.keys(subgroups).length+"명)");
+  return {...cfg,...upd};
+}
 async function isAdmin(sb: SB, did: string) {
   const cfg=await getCfg(sb); const ads: any[]=cfg.admin_devices||[];
   if(!ads.length) return true;
@@ -450,7 +484,9 @@ Deno.serve(async (req: Request) => {
     if(req.method==="GET"&&p==="/api/roster") {
       const role=await resolveAdmin(sb,req);
       if(!role) return fail(401,"Not authorized");
-      const cfg=await getCfg(sb); const scope=scopeFilter(role,!!cfg.summer_mode);
+      // Every admin page load is also the clock that retires a finished 학기's 동산 편성
+      // (no-op except on the first request after a term ends).
+      const cfg=await rolloverDongsan(sb,await getCfg(sb)); const scope=scopeFilter(role,summerNow(cfg));
       let mq:any=sb.from("members").select("*").order("name",{ascending:true});
       if(!scope.all){mq=mq.in("group_name",scope.groups);if(scope.subgroup)mq=mq.eq("subgroup",scope.subgroup);}
       const {data:members}=await mq;
@@ -468,20 +504,29 @@ Deno.serve(async (req: Request) => {
       let canClearAttendance=role.role==="super_admin"||role.role==="staff";
       if(role.role==="leader"||role.role==="welcoming"){
         const {data:me}=await sb.from("members").select("name").eq("id",role.memberId).single();
-        const tag=isDongsanLeaderName((me as any)?.name||"",role.group,role.subgroup,cfg.dongsan_leaders,!!cfg.summer_mode);
+        const tag=isDongsanLeaderName((me as any)?.name||"",role.group,role.subgroup,cfg.dongsan_leaders,summerNow(cfg));
         if(role.role==="leader") canBulkSubgroup=!tag;
         canClearAttendance=!tag;
       }
-      return ok({role:role.role,canBulkSubgroup,canClearAttendance,members:members||[],log:(logs||[]).map(rowToLog)});
+      // 학기별 동산 편성 스냅샷 (지난 학기 출석부용). A scoped leader only gets the entries
+      // for members they can already see.
+      const visible=new Set(ids);
+      const dongsanHistory: Record<string,any>={};
+      for(const [term,entry] of Object.entries<any>(cfg.dongsan_history||{})){
+        const subs: Record<string,string>={};
+        for(const [mid,sub] of Object.entries<any>(entry?.subgroups||{})) if(scope.all||visible.has(mid)) subs[mid]=String(sub);
+        dongsanHistory[term]={endedAt:entry?.endedAt||"",subgroups:subs};
+      }
+      return ok({role:role.role,canBulkSubgroup,canClearAttendance,members:members||[],log:(logs||[]).map(rowToLog),dongsanHistory});
     }
 
-    // Settings (super-admin only): summer mode, group colors, semester dates.
+    // Settings (super-admin only): group colors, semester dates. 여름 모드는 더 이상 설정이
+    //아니라 학기 일정에서 계산되는 값이라 여기서 받지 않는다 (예전 탭이 보내와도 무시).
     if(req.method==="POST"&&p==="/api/admin/settings") {
       const role=await resolveAdmin(sb,req);
       if(role?.role!=="super_admin") return fail(403,"Super admin required");
-      const {summerMode,groupColors,semesterDates}=body;
+      const {groupColors,semesterDates}=body;
       const upd: any={updated_at:new Date().toISOString()};
-      if(summerMode!==undefined) upd.summer_mode=!!summerMode;
       if(groupColors!==undefined&&groupColors&&typeof groupColors==="object"){
         const HEX=/^#[0-9a-fA-F]{6}$/; const clean: Record<string,string>={};
         for(const [g,c] of Object.entries(groupColors)) if(typeof c==="string"&&HEX.test(c)) clean[g]=c;
@@ -818,7 +863,7 @@ Deno.serve(async (req: Request) => {
       const {data:m}=await sb.from("members").select("name,group_name,subgroup").eq("id",memberId).single();
       if(!m) return fail(404,"Member not found");
       if(role.role!=="super_admin"){
-        const cfg=await getCfg(sb); const scope=scopeFilter(role,!!cfg.summer_mode);
+        const cfg=await getCfg(sb); const scope=scopeFilter(role,summerNow(cfg));
         if(!scope.all){
           if(!scope.groups.includes(m.group_name)) return fail(403,"Out of scope");
           if(scope.subgroup&&m.subgroup!==scope.subgroup) return fail(403,"Out of scope");
@@ -859,7 +904,7 @@ Deno.serve(async (req: Request) => {
       const {data:to}=await sb.from("members").select("name,group_name,subgroup").eq("id",toId).single();
       if(!from||!to) return fail(404,"Member not found");
       if(role.role!=="super_admin"){
-        const cfg=await getCfg(sb); const scope=scopeFilter(role,!!cfg.summer_mode);
+        const cfg=await getCfg(sb); const scope=scopeFilter(role,summerNow(cfg));
         if(!scope.all){
           for(const mm of [from,to]){
             if(!scope.groups.includes(mm.group_name)) return fail(403,"Out of scope");
@@ -888,7 +933,7 @@ Deno.serve(async (req: Request) => {
       const {data:m}=await sb.from("members").select("name,group_name,subgroup").eq("id",memberId).single();
       if(!m) return fail(404,"Member not found");
       if(role.role!=="super_admin"){
-        const cfg=await getCfg(sb); const scope=scopeFilter(role,!!cfg.summer_mode);
+        const cfg=await getCfg(sb); const scope=scopeFilter(role,summerNow(cfg));
         if(!scope.all){
           if(!scope.groups.includes(m.group_name)) return fail(403,"Out of scope");
           if(scope.subgroup&&m.subgroup!==scope.subgroup) return fail(403,"Out of scope");
@@ -914,14 +959,14 @@ Deno.serve(async (req: Request) => {
       if(role.role!=="super_admin"&&role.role!=="staff"){
         if(role.role!=="leader") return fail(403,"Not authorized");
         const {data:me}=await sb.from("members").select("name").eq("id",role.memberId).single();
-        if(isDongsanLeaderName((me as any)?.name||"",role.group,role.subgroup,cfg.dongsan_leaders,!!cfg.summer_mode)) return fail(403,"동산지기/부동산지기는 사용할 수 없습니다");
+        if(isDongsanLeaderName((me as any)?.name||"",role.group,role.subgroup,cfg.dongsan_leaders,summerNow(cfg))) return fail(403,"동산지기/부동산지기는 사용할 수 없습니다");
       }
       const {memberIds,subgroup}=body;
       if(!Array.isArray(memberIds)||!memberIds.length) return fail(400,"memberIds required");
       const sub=(subgroup||"").trim();
       let targetIds: string[]=memberIds;
       if(role.role!=="super_admin"){
-        const scope=scopeFilter(role,!!cfg.summer_mode);
+        const scope=scopeFilter(role,summerNow(cfg));
         if(!scope.all){
           const {data:ms}=await sb.from("members").select("id,group_name,subgroup").in("id",memberIds);
           targetIds=(ms||[]).filter((m:any)=>scope.groups.includes(m.group_name)&&(!scope.subgroup||m.subgroup===scope.subgroup)).map((m:any)=>m.id);
@@ -952,7 +997,7 @@ Deno.serve(async (req: Request) => {
       if(role.role!=="leader"&&role.role!=="welcoming"&&role.role!=="staff") return fail(403,"Not authorized");
       const cfg=await getCfg(sb);
       const {data:me}=await sb.from("members").select("name").eq("id",role.memberId).single();
-      if(isDongsanLeaderName((me as any)?.name||"",role.group,role.subgroup,cfg.dongsan_leaders,!!cfg.summer_mode)) return fail(403,"동산지기/부동산지기는 사용할 수 없습니다");
+      if(isDongsanLeaderName((me as any)?.name||"",role.group,role.subgroup,cfg.dongsan_leaders,summerNow(cfg))) return fail(403,"동산지기/부동산지기는 사용할 수 없습니다");
       const pending=Array.isArray(cfg.pending_clear)?cfg.pending_clear:[];
       pending.push({requestedBy:xDev,requestedByName:(me as any)?.name||xDev,requestedAt:Date.now()});
       await sb.from("config").update({pending_clear:pending}).eq("id",1);
@@ -999,7 +1044,7 @@ Deno.serve(async (req: Request) => {
       const {data:m}=await sb.from("members").select("name,group_name,subgroup,member_role").eq("id",memberId).single();
       if(!m) return fail(404,"Member not found");
       if(role.role!=="super_admin"){
-        const cfg=await getCfg(sb); const scope=scopeFilter(role,!!cfg.summer_mode);
+        const cfg=await getCfg(sb); const scope=scopeFilter(role,summerNow(cfg));
         if(!scope.all){
           if(!scope.groups.includes(m.group_name)) return fail(403,"Out of scope");
           if(scope.subgroup&&m.subgroup!==scope.subgroup) return fail(403,"Out of scope");
@@ -1027,7 +1072,7 @@ Deno.serve(async (req: Request) => {
       const {data:m}=await sb.from("members").select("name,group_name,subgroup,member_role").eq("id",memberId).single();
       if(!m) return fail(404,"Member not found");
       if(role.role!=="super_admin"){
-        const cfg=await getCfg(sb); const scope=scopeFilter(role,!!cfg.summer_mode);
+        const cfg=await getCfg(sb); const scope=scopeFilter(role,summerNow(cfg));
         if(!scope.all){
           if(!scope.groups.includes(m.group_name)) return fail(403,"Out of scope");
           if(scope.subgroup&&m.subgroup!==scope.subgroup) return fail(403,"Out of scope");
@@ -1053,7 +1098,7 @@ Deno.serve(async (req: Request) => {
       if(!row) return fail(404,"Entry not found");
       if(role.role!=="super_admin"&&row.member_id){
         const {data:m}=await sb.from("members").select("group_name,subgroup").eq("id",row.member_id).single();
-        const cfg=await getCfg(sb); const scope=scopeFilter(role,!!cfg.summer_mode);
+        const cfg=await getCfg(sb); const scope=scopeFilter(role,summerNow(cfg));
         if(m&&!scope.all){
           if(!scope.groups.includes(m.group_name)) return fail(403,"Out of scope");
           if(scope.subgroup&&m.subgroup!==scope.subgroup) return fail(403,"Out of scope");
@@ -1076,7 +1121,7 @@ Deno.serve(async (req: Request) => {
       const {data:mem}=await sb.from("members").select("id,name,group_name,subgroup,member_role").in("id",memberIds);
       let scoped=mem||[];
       if(role.role!=="super_admin"){
-        const cfg=await getCfg(sb); const scope=scopeFilter(role,!!cfg.summer_mode);
+        const cfg=await getCfg(sb); const scope=scopeFilter(role,summerNow(cfg));
         if(!scope.all) scoped=scoped.filter((m:any)=>scope.groups.includes(m.group_name)&&(!scope.subgroup||m.subgroup===scope.subgroup));
       }
       if(!scoped.length) return ok({status:"ok",added:0});
@@ -1133,7 +1178,7 @@ Deno.serve(async (req: Request) => {
       const {data:m}=await sb.from("members").select("name,group_name,subgroup").eq("id",memberId).single();
       if(!m) return fail(404,"Member not found");
       if(role.role!=="super_admin"){
-        const cfg=await getCfg(sb); const scope=scopeFilter(role,!!cfg.summer_mode);
+        const cfg=await getCfg(sb); const scope=scopeFilter(role,summerNow(cfg));
         if(!scope.all){
           if(!scope.groups.includes(m.group_name)) return fail(403,"Out of scope");
           if(scope.subgroup&&m.subgroup!==scope.subgroup) return fail(403,"Out of scope");
@@ -1480,20 +1525,20 @@ Deno.serve(async (req: Request) => {
     if(req.method==="GET"&&p==="/api/config"){
       const cfg=await getCfg(sb);
       return ok({
-        summerMode:cfg.summer_mode||false,
+        summerMode:summerNow(cfg),
         groupColors:cfg.group_colors||{"대학부":"#E0A800","청년부":"#3B82F6"},
         semesterDates:validSemesterDates(cfg.semester_dates)?cfg.semester_dates:null,
       });
     }
 
     if(req.method==="POST"&&p==="/api/config") {
-      const {checkinDays,checkinStartMin,checkinEndMin,requireApproval,summerMode,demoMode,individualCheckinEnabled,adminDeviceId}=body;
+      const {checkinDays,checkinStartMin,checkinEndMin,requireApproval,demoMode,individualCheckinEnabled,adminDeviceId}=body;
       if(!await isAdmin(sb,adminDeviceId)) return fail(403,"Not authorized");
       const upd: any={updated_at:new Date().toISOString()};
       if(checkinDays!==undefined) upd.checkin_days=checkinDays;
       if(checkinStartMin!==undefined) upd.checkin_start_min=Number(checkinStartMin); if(checkinEndMin!==undefined) upd.checkin_end_min=Number(checkinEndMin);
       if(requireApproval!==undefined) upd.require_approval=!!requireApproval;
-      if(summerMode!==undefined) upd.summer_mode=!!summerMode;
+      // summerMode는 받지 않는다 — 여름학기 일정에서 계산된다 (summerNow).
       if(demoMode!==undefined){if(!await isSuperAdmin(sb,adminDeviceId))return fail(403,"Demo mode requires super admin");upd.demo_mode=!!demoMode;}
       if(individualCheckinEnabled!==undefined) upd.individual_checkin_enabled=!!individualCheckinEnabled;
       await sb.from("config").update(upd).eq("id",1); await addAudit(sb,"config-change",adminDeviceId,"config updated");

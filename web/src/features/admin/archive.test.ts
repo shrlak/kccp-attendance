@@ -15,6 +15,7 @@ import {
   sheetTitle,
   uniqueSheetNames,
   archiveWorkbook,
+  archiveGroupBy,
   type ArchiveEntry,
 } from './archive'
 import type { Member, LogEntry } from '../../lib/api'
@@ -259,6 +260,52 @@ describe('archiveWorkbook', () => {
     expect(aRow[3]).toBe('O') // 06/07 present
     // The remaining Sundays have no attendance at all → attendance wasn't taken → blank.
     expect(aRow.slice(4).every((c) => c === '')).toBe(true)
+  })
+})
+
+describe('archiveWorkbook with a frozen 동산 편성', () => {
+  // 학기가 끝나면 서버가 동산 편성을 비우므로 (term rollover), 지난 학기 시트는 비워지기 전에
+  // 얼려둔 스냅샷으로 묶여야 한다 — 지금 명단의 subgroup은 모두 비어 있다.
+  const members = [
+    member('1', 'A', ''),
+    member('2', 'B', ''),
+    member('3', 'C', ''),
+  ]
+  const log = [
+    entry('A', '2026-06-07', 1, ''), entry('B', '2026-06-07', 2, ''),
+    entry('C', '2026-06-14', 3, ''),
+  ]
+  const entries = archiveEntries(log, '2026-09-06', dates)
+  const summer = entries.find((e) => e.id === '2026-summer')!
+  const history = {
+    '2026-summer': { endedAt: '2026-08-09', subgroups: { '1': '건영동산', '2': '건영동산', '3': '중호동산' } },
+  }
+
+  it('groups the term by the 동산 people were in, not by their (now empty) current one', () => {
+    const wb = archiveWorkbook(summer, members, log, 'ko', history)
+    // 블록 이름은 각 동산 첫 멤버 행의 A열 (KEY 범례 행이 아니라 총계가 숫자인 행).
+    const blocks = wb.sheets[0].data.aoa.filter((r) => r[0] && typeof r[2] === 'number').map((r) => r[0])
+    expect(blocks).toEqual(['건영동산', '중호동산'])
+    expect(archiveGroupBy(summer.periods[0], '동산 미지정', history)(members[0])).toBe('건영동산')
+  })
+
+  it('falls back to 동산 미지정 for a member the snapshot never covered', () => {
+    const groupBy = archiveGroupBy(summer.periods[0], '동산 미지정', history)
+    expect(groupBy(member('9', 'Z', ''))).toBe('동산 미지정')
+    expect(groupBy(member('9', 'Z', '새동산'))).toBe('새동산') // 현재 편성이 있으면 그것
+  })
+
+  it('uses the current 동산 when no snapshot exists for that term (pre-rollover archives)', () => {
+    const assigned = [member('1', 'A', '건영동산'), member('3', 'C', '중호동산')]
+    const wb = archiveWorkbook(summer, assigned, log, 'ko')
+    // 블록 이름은 각 동산 첫 멤버 행의 A열 (KEY 범례 행이 아니라 총계가 숫자인 행).
+    const blocks = wb.sheets[0].data.aoa.filter((r) => r[0] && typeof r[2] === 'number').map((r) => r[0])
+    expect(blocks).toEqual(['건영동산', '중호동산'])
+  })
+
+  it('never applies a snapshot to a transition gap — those group by 부서', () => {
+    const gap = entries.find((e) => e.id === 'gap-2026-08-09')
+    if (gap) expect(archiveGroupBy(gap.periods[0], '동산 미지정', history)(members[0])).toBe('청년부')
   })
 })
 
