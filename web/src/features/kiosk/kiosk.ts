@@ -45,12 +45,14 @@ export function hiddenByStatus(m: Member, today: string): boolean {
   return hiddenFromKiosk(m, today)
 }
 
-// Columns per department block (대학부/청년부 each get their own 4-column grid).
+// Columns per department block. Both 부서 side by side → each gets 4; 부서만 보기 hands the
+// whole width to one 부서, so it gets 8 and twice as many names fit without scrolling.
 export const KIOSK_COLS = 4
+export const KIOSK_COLS_DEPT = 8
 
 export interface KioskColumns {
-  // One entry per department, in KIOSK_DEPTS order. `columns` is always length
-  // KIOSK_COLS; `total` is the department's member count for the header.
+  // One entry per department, in KIOSK_DEPTS order. `columns` is always length `cols`
+  // (see kioskColumns); `total` is the department's member count for the header.
   depts: { key: KioskDept; total: number; columns: Member[][] }[]
   // Non-대학부/청년부 members, rendered in a flat section below the department grids.
   others: Member[]
@@ -71,7 +73,7 @@ const byName = (a: Member, b: Member) => a.name.localeCompare(b.name)
 // Bucket non-visitor members into the department grids + the "other" overflow, each
 // bucket explicitly sorted 가나다 순 (name.localeCompare) so the kiosk grid reads
 // alphabetically regardless of the roster's incoming order.
-export function kioskColumns(members: Member[]): KioskColumns {
+export function kioskColumns(members: Member[], cols: number = KIOSK_COLS): KioskColumns {
   const visible = members.filter((m) => !isVisitor(m))
   const buckets: Record<KioskDept, Member[]> = { 대학부: [], 청년부: [] }
   const others: Member[] = []
@@ -82,7 +84,7 @@ export function kioskColumns(members: Member[]): KioskColumns {
   return {
     depts: KIOSK_DEPTS.map((key) => {
       const sorted = [...buckets[key]].sort(byName)
-      return { key, total: sorted.length, columns: splitColumns(sorted, KIOSK_COLS) }
+      return { key, total: sorted.length, columns: splitColumns(sorted, cols) }
     }),
     others: others.sort(byName),
   }

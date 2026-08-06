@@ -125,7 +125,12 @@ export function AdminMembers() {
 
   return (
     <>
-      <div className="mb-5 flex flex-wrap gap-2 border-b border-separator pb-5">
+      {/* 검색 · 동산 이동 · 병합은 명단을 한참 내려가도 계속 손이 닿아야 한다 — 아래에서
+          사람을 고르다가 이동시키려고 매번 맨 위로 되돌아가지 않도록 패널 헤더 바로 밑에
+          붙여 둔다. 카드가 이 줄 뒤로 지나가므로 배경은 불투명해야 하고, 좌우 여백만큼
+          늘려서(-mx/px) 카드가 가장자리로 비어져 나오지 않게 한다. */}
+      <div className="sticky top-[var(--admin-header-h,4.5rem)] z-10 -mx-[var(--gutter)] mb-5 bg-canvas px-[var(--gutter)] pt-1">
+      <div className="flex flex-wrap gap-2 border-b border-separator pb-5">
         <div className="relative min-w-[220px] flex-1">
           <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-subtle" aria-hidden />
           <Input
@@ -149,8 +154,9 @@ export function AdminMembers() {
           </Button>
         )}
       </div>
-      {selectMode ? (
-        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-2xl border border-primary/25 bg-primary/[0.06] px-4 py-3 shadow-[var(--shadow-sm)]">
+      {/* 선택 모드의 이동 줄도 같이 붙어 있어야 쓸모가 있다 — 아래에서 체크하고 바로 옮긴다. */}
+      {selectMode && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-primary/25 bg-primary/[0.06] px-4 py-3 shadow-[var(--shadow-sm)]">
           <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary">
             <ListChecks className="size-4" aria-hidden />
             {t('admin.members.bulkMove.selected', { n: selected.size })}
@@ -175,7 +181,9 @@ export function AdminMembers() {
             {t('admin.members.bulkMove.remove')}
           </Button>
         </div>
-      ) : (
+      )}
+      </div>
+      {!selectMode && (
         <div className="mb-4 flex items-center gap-2 section-kicker">
           <Users className="size-4 text-subtle" aria-hidden />
           {t('admin.nav.members')} · {members.length}

@@ -12,6 +12,15 @@ window.matchMedia ||= ((query: string) => ({
   dispatchEvent: () => false,
 })) as unknown as typeof window.matchMedia
 
+// jsdom has no ResizeObserver (the admin header measures itself with one so tabs can stick
+// under it). Nothing in jsdom lays out, so a no-op that never fires is the honest stub —
+// the initial measurement still runs and that is what the components read.
+globalThis.ResizeObserver ||= class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+} as unknown as typeof ResizeObserver
+
 // jsdom may lack localStorage in some environments
 if (typeof globalThis.localStorage === 'undefined') {
   const store: Record<string, string> = {}

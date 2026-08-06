@@ -116,3 +116,37 @@ describe('AdminMembers — 숨긴 멤버', () => {
     expect(await screen.findByText('상태 표기 추가')).toBeInTheDocument()
   })
 })
+
+// 검색·동산 이동·병합은 명단을 한참 내려가도 손이 닿아야 한다 — 아래에서 사람을 고르다가
+// 옮기려고 매번 맨 위로 되돌아가지 않도록 패널 헤더 밑에 붙어 있다.
+describe('AdminMembers — 상단 도구줄 고정', () => {
+  it('검색·동산 이동·병합이 헤더 밑에 붙어서 스크롤을 따라온다', () => {
+    rosterData.data = roster([member('m1', '김호연'), member('m2', '이하늘')])
+    const { container } = renderWithProviders(<AdminMembers />)
+
+    const bar = container.querySelector('.sticky')
+    expect(bar).toBeTruthy()
+    // 헤더 높이만큼 내려 붙는다 (AdminApp이 --admin-header-h로 실측값을 publish한다).
+    expect(bar!.className).toContain('top-[var(--admin-header-h,4.5rem)]')
+    // 카드가 이 줄 뒤로 지나가므로 배경이 비치면 안 된다.
+    expect(bar!.className).toContain('bg-canvas')
+    // 세 컨트롤이 모두 그 안에 들어 있어야 같이 따라온다.
+    expect(bar!.querySelector('input[placeholder]')).toBeTruthy()
+    expect([...bar!.querySelectorAll('button')].map((b) => b.textContent)).toEqual(
+      expect.arrayContaining([expect.stringContaining('동산 이동'), expect.stringContaining('병합')]),
+    )
+  })
+
+  it('동산 이동을 켜면 이동 줄도 같은 고정 영역 안으로 들어온다', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event')
+    rosterData.data = roster([member('m1', '김호연'), member('m2', '이하늘')])
+    const { container } = renderWithProviders(<AdminMembers />)
+
+    await userEvent.click(screen.getByRole('button', { name: /동산 이동/ }))
+    const bar = container.querySelector('.sticky')!
+    expect(bar.textContent).toContain('선택')
+    expect([...bar.querySelectorAll('button')].map((b) => b.textContent)).toEqual(
+      expect.arrayContaining([expect.stringContaining('이 동산으로'), expect.stringContaining('동산에서 빼기')]),
+    )
+  })
+})
