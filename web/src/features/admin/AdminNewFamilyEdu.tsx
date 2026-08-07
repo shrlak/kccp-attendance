@@ -52,7 +52,14 @@ export function AdminNewFamilyEdu() {
   const qc = useQueryClient()
   const { data, isLoading, isError } = useRoster(true)
   const { data: cfg } = useQuery({ queryKey: ['config'], queryFn: getConfig })
-  const { data: eduDongsanNames } = useQuery({ queryKey: ['newMemberDongsanNames'], queryFn: getNewMemberDongsanNames })
+  // 이름 목록 읽기·쓰기 둘 다 서버에서 super_admin 전용이다. 다른 역할로 물으면 403이
+  // 돌아오고 데이터는 영영 안 온다 — 그래서 아래 설정 버튼도 super_admin에게만 보인다.
+  const isSuper = data?.role === 'super_admin'
+  const { data: eduDongsanNames } = useQuery({
+    queryKey: ['newMemberDongsanNames'],
+    queryFn: getNewMemberDongsanNames,
+    enabled: isSuper,
+  })
   const [filter, setFilter] = useState<Filter>(NO_FILTER)
   const [eduFilter, setEduFilter] = useState<EduFilter>('all')
   const [editing, setEditing] = useState<Member | null>(null)
@@ -91,13 +98,17 @@ export function AdminNewFamilyEdu() {
   return (
     <>
       {/* 새가족 교육 동산 이름 설정 — top-right, opens in a dialog instead of an inline
-          section so the tab stays focused on the roster. */}
-      <div className="mb-3 flex justify-end">
-        <Button variant="secondary" size="sm" onClick={() => setDongsanNamesOpen(true)}>
-          <Settings className="size-4" aria-hidden />
-          {t('admin.settings.newMemberDongsanNames')}
-        </Button>
-      </div>
+          section so the tab stays focused on the roster. super_admin에게만 보인다: 서버가
+          읽기·쓰기 모두 super_admin으로 막고 있어서, 다른 역할에게는 눌러도 아무 일이
+          일어나지 않는 죽은 버튼이었다. */}
+      {isSuper && (
+        <div className="mb-3 flex justify-end">
+          <Button variant="secondary" size="sm" onClick={() => setDongsanNamesOpen(true)}>
+            <Settings className="size-4" aria-hidden />
+            {t('admin.settings.newMemberDongsanNames')}
+          </Button>
+        </div>
+      )}
 
       {/* 부서 + 새가족 교육 동산 필터 (일반 동산이 아니라 새가족 교육 동산으로 거른다). */}
       <EduDongsanFilter members={data.members} value={filter} onChange={setFilter} />
@@ -143,10 +154,13 @@ export function AdminNewFamilyEdu() {
         </ul>
       )}
 
-      {dongsanNamesOpen && eduDongsanNames && (
+      {/* 목록이 아직 안 왔더라도 다이얼로그는 연다. `&& eduDongsanNames`로 묶어 두면 요청이
+          느리거나 실패한 동안 버튼이 반응 없는 것처럼 보인다 — 에디터는 빈 맵을 받아도
+          부서별 입력 줄을 스스로 만들어 준다. */}
+      {dongsanNamesOpen && (
         <Dialog open onOpenChange={(o) => !o && setDongsanNamesOpen(false)} title={t('admin.settings.newMemberDongsanNames')}>
           <DongsanNamesEditor
-            loaded={eduDongsanNames}
+            loaded={eduDongsanNames ?? {}}
             summer={summerMode}
             desc={t('admin.settings.newMemberDongsanNamesDesc')}
             onSave={async (next) => {
