@@ -39,6 +39,15 @@ Korean church (한국중앙교회 피츠버그 대학·청년부) attendance sys
   every member's/device's 동산 + `dongsan_names` + `dongsan_leaders`. `attendance_log.subgroup` is
   left alone (it's that Sunday's record). A NULL `dongsan_reset_term` only seeds the marker — no
   retroactive wipe. The roster returns the (scoped) history so 지난 학기 출석부 keeps its 동산 blocks.
+- **A finished 학기 is frozen, roster and 동산 both** (`archive.ts`). Where a term has a snapshot
+  it is that term's *only* 동산 source (`archiveGroupBy` no longer falls back to `m.subgroup`) —
+  someone the snapshot skips was 동산 미지정 back then, so a later reassignment can't add a block
+  to a finished sheet, and re-downloading a term always yields the same workbook. Each period
+  also gets its own roster (`periodRoster`): attendance inside the period or a place in that
+  term's snapshot proves membership, otherwise `registration_date` — or, when that's blank, the
+  member's **first check-in ever** (`firstSeenByName`) — must fall on or before the period's end.
+  So a later joiner starts at the term they actually joined, and a 학년도/역년 workbook applies
+  all of this per term sheet. The Full Log's 합계 is scored over the union of those rosters.
 - **RLS is deny-all** on all tables (no anon/authenticated policies); the edge function
   (service-role) is the only data path.
 - 동산지기/부동산지기 are a **display-badge** system (`config.dongsan_leaders`), distinct from the

@@ -16,7 +16,10 @@ import {
   uniqueSheetNames,
   archiveWorkbook,
   archiveGroupBy,
+  firstSeenByName,
+  periodRoster,
   type ArchiveEntry,
+  type Period,
 } from './archive'
 import type { Member, LogEntry } from '../../lib/api'
 import type { SemesterDates } from '../../lib/semester'
@@ -292,7 +295,19 @@ describe('archiveWorkbook with a frozen 동산 편성', () => {
   it('falls back to 동산 미지정 for a member the snapshot never covered', () => {
     const groupBy = archiveGroupBy(summer.periods[0], '동산 미지정', history)
     expect(groupBy(member('9', 'Z', ''))).toBe('동산 미지정')
-    expect(groupBy(member('9', 'Z', '새동산'))).toBe('새동산') // 현재 편성이 있으면 그것
+    // 지금 편성이 있어도 그 학기 스냅샷이 기준 — 나중에 들어간 동산이 끝난 학기 시트에
+    // 블록으로 끼어들면 안 된다.
+    expect(groupBy(member('9', 'Z', '새동산'))).toBe('동산 미지정')
+  })
+
+  it("keeps a finished term's blocks stable when someone is reassigned later", () => {
+    const before = archiveWorkbook(summer, members, log, 'ko', history)
+    // A가 이번 학기에 새 동산으로 옮겨져도 지난 여름학기 시트는 그대로여야 한다.
+    const reassigned = [member('1', 'A', '새동산'), members[1], members[2]]
+    const after = archiveWorkbook(summer, reassigned, log, 'ko', history)
+    expect(after.sheets[0].data.aoa).toEqual(before.sheets[0].data.aoa)
+    const blocks = after.sheets[0].data.aoa.filter((r) => r[0] && typeof r[2] === 'number').map((r) => r[0])
+    expect(blocks).toEqual(['건영동산', '중호동산'])
   })
 
   it('uses the current 동산 when no snapshot exists for that term (pre-rollover archives)', () => {
@@ -306,6 +321,81 @@ describe('archiveWorkbook with a frozen 동산 편성', () => {
   it('never applies a snapshot to a transition gap — those group by 부서', () => {
     const gap = entries.find((e) => e.id === 'gap-2026-08-09')
     if (gap) expect(archiveGroupBy(gap.periods[0], '동산 미지정', history)(members[0])).toBe('청년부')
+  })
+})
+
+describe('firstSeenByName', () => {
+  it('takes the earliest date per name, whatever order the log arrives in', () => {
+    const seen = firstSeenByName([entry('A', '2026-09-13', 2), entry('A', '2026-06-07'), entry('B', '2026-08-16', 3)])
+    expect(seen.get('A')).toBe('2026-06-07')
+    expect(seen.get('B')).toBe('2026-08-16')
+    expect(seen.get('Z')).toBeUndefined()
+  })
+})
+
+describe('기간별 명단 (periodRoster)', () => {
+  const summer: Period = {
+    kind: 'semester', key: '2026-summer', start: '2026-06-07', end: '2026-08-08', year: 2026, season: 'summer',
+  }
+  const fall: Period = {
+    kind: 'semester', key: '2026-fall', start: '2026-09-06', end: '2026-12-13', year: 2026, season: 'fall',
+  }
+  const log = [entry('A', '2026-06-07'), entry('A', '2026-09-13', 2), entry('C', '2026-09-13', 3)]
+  const roster = [
+    member('1', 'A', ''), // 등록일 없음, 여름부터 출석
+    member('2', 'B', '', { registration_date: '2026-10-04' }), // 가을에 등록
+    member('3', 'C', ''), // 등록일 없음, 첫 출석이 가을
+    member('4', 'D', ''), // 등록일도 출석 기록도 없음
+    member('5', 'E', '', { registration_date: '2026-01-15' }), // 봄 등록, 출석은 없음
+  ]
+
+  it('leaves out anyone who joined after the term ended', () => {
+    expect(periodRoster(roster, summer, log).map((m) => m.name)).toEqual(['A', 'E'])
+  })
+
+  it('picks them up in the next term instead', () => {
+    expect(periodRoster(roster, fall, log).map((m) => m.name)).toEqual(['A', 'B', 'C', 'E'])
+  })
+
+  it("keeps a member the term's 동산 snapshot covers, even with no 등록일 or 출석", () => {
+    const history = { '2026-summer': { endedAt: '2026-08-09', subgroups: { '4': '건영동산' } } }
+    expect(periodRoster(roster, summer, log, history).map((m) => m.name)).toEqual(['A', 'D', 'E'])
+  })
+
+  it('never lets a snapshot vouch for someone during a transition gap', () => {
+    const gap: Period = { kind: 'transition', key: 'gap-2026-08-09', start: '2026-08-09', end: '2026-09-05', year: 2026 }
+    const history = { '2026-summer': { endedAt: '2026-08-09', subgroups: { '4': '건영동산' } } }
+    expect(periodRoster(roster, gap, log, history).map((m) => m.name)).toEqual(['A', 'E'])
+  })
+})
+
+describe('연도 워크북은 학기별 동산·명단을 그대로 유지한다', () => {
+  // A는 여름 건영동산 → 가을 중호동산으로 옮겼고, B는 가을에 등록했다.
+  const members = [member('1', 'A', ''), member('2', 'B', '', { registration_date: '2026-09-20' })]
+  const log = [entry('A', '2026-06-07', 1, ''), entry('A', '2026-09-13', 2, ''), entry('B', '2026-09-20', 3, '')]
+  const history = {
+    '2026-summer': { endedAt: '2026-08-09', subgroups: { '1': '건영동산' } },
+    '2026-fall': { endedAt: '2026-12-14', subgroups: { '1': '중호동산', '2': '새가족동산' } },
+  }
+  const year = archiveEntries(log, '2027-01-01', dates).find((e) => e.id === 'cy-2026')!
+  const wb = archiveWorkbook(year, members, log, 'ko', history)
+  const sheet = (name: string) => wb.sheets.find((s) => s.name === name)!.data.aoa
+
+  it('groups each sheet by the 동산 that term actually ran with', () => {
+    const blocks = (name: string) =>
+      sheet(name).filter((r) => r[0] && typeof r[2] === 'number').map((r) => r[0])
+    expect(blocks('2026 여름학기')).toEqual(['건영동산'])
+    expect(blocks('2026 가을학기')).toEqual(['중호동산', '새가족동산'])
+  })
+
+  it('starts a later registrant at the term they joined, not the ones before it', () => {
+    expect(sheet('2026 여름학기').map((r) => r[1])).not.toContain('B')
+    expect(sheet('2026 가을학기').map((r) => r[1])).toContain('B')
+    expect(sheet('2026 여름학기').map((r) => r[1])).toContain('A')
+  })
+
+  it('scores the Full Log 합계 over the archive’s own people', () => {
+    expect(wb.log.find((r) => r[0] === 'B')![5]).toBe(1)
   })
 })
 
