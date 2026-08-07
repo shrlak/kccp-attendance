@@ -29,9 +29,15 @@ import {
 //
 // 동산 편성 is cleared the day a 학기 ends (the server's term rollover), so before wiping it
 // the server freezes that term's assignment into config.dongsan_history and hands it back on
-// the roster. A finished 학기's sheet is grouped by *that* snapshot when one exists; terms
-// from before the snapshots existed fall back to the member's current 동산, which is the best
-// the data allows. Members who registered after a period ends are left out of it entirely.
+// the roster. A finished 학기's sheet is grouped by *that* snapshot when one exists — the
+// snapshot is that term's whole truth, so today's 편성 never leaks back into a finished sheet;
+// terms from before the snapshots existed fall back to the member's current 동산, which is the
+// best the data allows. A 학년도/역년 workbook is just several of those sheets, so each term
+// inside it keeps its own 동산 블록.
+//
+// Each period also carries its own roster (periodRoster): a finished stretch is a record of
+// who was actually there, so someone who joined afterwards is left out of it and picks up in
+// the next 학기 — or the next year's workbook — instead.
 
 export type PeriodKind = 'semester' | 'transition'
 
@@ -306,6 +312,12 @@ export interface ArchiveWorkbook {
 // The grouping for one archived period: a 학기 with a frozen 동산 편성 groups by *that*
 // (the live assignment was cleared when the term ended), any other 학기 by the member's
 // current 동산, and a gap by 부서 — the same rule the live sheet follows.
+//
+// When a snapshot exists it is the term's *only* source of 동산: someone it doesn't cover was
+// unassigned back then, so they land under 동산 미지정 rather than under whatever 동산 they
+// were put in during a later term. Otherwise a finished 학기 would sprout blocks that did not
+// exist while it ran, and re-downloading the same term after a reassignment would hand back a
+// different sheet.
 export function archiveGroupBy(
   period: Period,
   unassigned: string,
@@ -313,15 +325,77 @@ export function archiveGroupBy(
 ): (m: Member) => string {
   const frozen = period.kind === 'semester' ? history?.[period.key]?.subgroups : undefined
   if (!frozen) return periodGroupBy(period.kind, unassigned)
-  return (m: Member) => frozen[m.id] || m.subgroup || unassigned
+  return (m: Member) => frozen[m.id] || unassigned
 }
 
 // The per-term 동산 snapshots the server hands back on the roster, keyed by term key.
 export type DongsanHistory = Record<string, { endedAt?: string; subgroups: Record<string, string> }>
 
-// Everything a downloaded archive contains. Each period is scored over *its own* worship
-// Sundays — the whole set, with dates the church didn't meet (or didn't record) staying
-// blank — and grouped by 동산 for a 학기 (its frozen 편성 when there is one), by 부서 for a gap.
+// ── 기간별 명단 (period rosters) ──────────────────────────────────────────────
+
+// name → the earliest date that name appears in the log. The archive uses it as a stand-in
+// 등록일 for the members whose registration_date was never filled in: someone whose very
+// first check-in lands after a period ended was not part of that period.
+export function firstSeenByName(log: LogEntry[]): Map<string, string> {
+  const out = new Map<string, string>()
+  for (const e of log) {
+    const seen = out.get(e.name)
+    if (!seen || e.date < seen) out.set(e.name, e.date)
+  }
+  return out
+}
+
+// What periodRoster needs to judge one period, built once per workbook.
+export interface PeriodRosterIndex {
+  attended: Set<string> // names with at least one check-in inside the period
+  frozen?: Record<string, string> // that 학기's 동산 snapshot, when there is one
+  firstSeen: Map<string, string> // name → first check-in ever (the 등록일 stand-in)
+}
+
+// Was this member part of `period`? A finished stretch's sheet should hold the people who
+// were actually in it, and nobody else:
+//  · 그 기간에 출석했거나 그 학기 동산 스냅샷에 이름이 있으면 — 있었다는 증거 — 무조건 포함.
+//  · 등록일이 있으면 기간이 끝나기 전에 등록한 사람만. 그 뒤에 등록한 사람은 이 기간이 아니라
+//    다음 학기(또는 다음 연도 워크북)에서 처음 나온다.
+//  · 등록일이 없으면 첫 출석일이 그 기준을 대신하고, 출석 기록조차 없으면 지난 기간에서 뺀다 —
+//    지금 명단에만 있는 사람이 몇 해 전 학기 시트에 끼어들지 않도록.
+export function memberInPeriod(m: Member, period: Period, index: PeriodRosterIndex): boolean {
+  if (index.attended.has(m.name)) return true
+  if (index.frozen?.[m.id]) return true
+  const joined = m.registration_date || index.firstSeen.get(m.name)
+  return !!joined && joined <= period.end
+}
+
+// One period's roster, in roster order. `log` is the whole log, not the period's slice — the
+// dates outside the period are what tell us when someone first showed up.
+export function periodRoster(
+  members: Member[],
+  period: Period,
+  log: LogEntry[],
+  history?: DongsanHistory | null,
+  firstSeen: Map<string, string> = firstSeenByName(log),
+): Member[] {
+  const attended = new Set<string>()
+  for (const e of log) if (e.date >= period.start && e.date <= period.end) attended.add(e.name)
+  const frozen = period.kind === 'semester' ? history?.[period.key]?.subgroups : undefined
+  return members.filter((m) => memberInPeriod(m, period, { attended, frozen, firstSeen }))
+}
+
+// The people a whole archive covers: the union of its periods' rosters, in roster order. The
+// Full Log sheet scores its 합계 column over exactly these, so a year workbook's totals agree
+// with the term sheets above it. Falls back to the full roster if an archive somehow carries
+// no periods, so the log never comes out with every total zeroed.
+function archiveRoster(members: Member[], rosters: Member[][]): Member[] {
+  if (rosters.length === 0) return members
+  const ids = new Set<string>()
+  for (const roster of rosters) for (const m of roster) ids.add(m.id)
+  return members.filter((m) => ids.has(m.id))
+}
+
+// Everything a downloaded archive contains. Each period carries its own roster (the people
+// who were in it) and is scored over *its own* worship Sundays — the whole set, with dates
+// the church didn't meet (or didn't record) staying blank — and grouped by 동산 for a 학기
+// (its frozen 편성 when there is one), by 부서 for a gap.
 export function archiveWorkbook(
   entry: ArchiveEntry,
   members: Member[],
@@ -331,11 +405,13 @@ export function archiveWorkbook(
 ): ArchiveWorkbook {
   const { unassigned } = sheetLabels(lang)
   const names = uniqueSheetNames(entry.periods.map((p) => sheetTitle(p, lang)))
+  // Computed once over the whole log, then shared by every period of the workbook.
+  const firstSeen = firstSeenByName(log)
+  const rosters = entry.periods.map((p) => periodRoster(members, p, log, history, firstSeen))
   const sheets = entry.periods.map((p, i) => ({
     name: names[i],
     data: attendanceSheet(
-      // Someone who registered after the period ended was never part of it.
-      members.filter((m) => !m.registration_date || m.registration_date <= p.end),
+      rosters[i],
       log.filter((e) => e.date >= p.start && e.date <= p.end),
       lang,
       sundaysBetween(p.start, p.end),
@@ -346,5 +422,5 @@ export function archiveWorkbook(
     ),
   }))
   const scoped = log.filter((e) => e.date >= entry.start && e.date <= entry.end)
-  return { sheets, log: logRows(members, scoped, lang) }
+  return { sheets, log: logRows(archiveRoster(members, rosters), scoped, lang) }
 }
