@@ -1,12 +1,16 @@
 import type { LogEntry } from '../../lib/api'
+import { groupsOfPartition, type Partition } from '../../lib/partition'
 
 // ── Today's printable check-in sheet (pure model) ────────────────────────────
 // A numbered roll sheet for a single 부서: 60 slots laid out in 4 columns of 15.
 // Members who checked in today drop into the slots in the order they checked in.
 // The DOM/canvas rendering + image download live in todaySheetImage.ts.
 
-// The two KM departments that each get their own sheet page.
-export const TODAY_SHEET_GROUPS = ['대학부', '청년부'] as const
+// The departments that each get their own sheet page — 대학부/청년부 for the KM panel,
+// 장년부 alone for the 장년부 panel. Callers pass the logged-in 부.
+export function todaySheetGroups(partition: Partition = 'youth'): string[] {
+  return groupsOfPartition(partition)
+}
 
 export const TODAY_SHEET_SLOTS = 60
 export const TODAY_SHEET_COLUMNS = 4

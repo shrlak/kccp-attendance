@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { configCalendar, getConfig, getCardScanUsage, updateSettings } from '../../lib/api'
+import { configCalendar, getCardScanUsage, updateSettings } from '../../lib/api'
 import { useToast } from '../../components/ui/Toast'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
@@ -17,8 +17,8 @@ import {
   isValidSchedule,
   type SemesterSchedule,
 } from '../../lib/semester'
-
-const GROUPS = ['대학부', '청년부'] as const
+import { useAppConfig, usePartition } from '../../lib/useAppConfig'
+import { groupsOfPartition, summerAppliesTo } from '../../lib/partition'
 
 // Super-admin settings: semester dates and app-wide mode toggles.
 // (동산 names + 동산지기/부동산지기 live in their own 동산 tab now.)
@@ -26,7 +26,11 @@ export function AdminSettings() {
   const { t } = useTranslation()
   const toast = useToast()
   const qc = useQueryClient()
-  const { data: cfg } = useQuery({ queryKey: ['config'], queryFn: getConfig })
+  const { data: cfg } = useAppConfig()
+  // 색을 편집할 부서 목록은 로그인한 부의 것. 저장할 때 서버도 같은 기준으로 걸러서,
+  // 장년부에서 저장해도 대학부/청년부 색은 그대로 남는다.
+  const partition = usePartition()
+  const groups = groupsOfPartition(partition)
   const { data: scanUsage, isFetching: scanUsageRefreshing } = useQuery({
     queryKey: ['cardScanUsage'],
     queryFn: getCardScanUsage,
@@ -46,7 +50,7 @@ export function AdminSettings() {
 
   const colors = colorEdits ?? cfg?.groupColors ?? DEFAULT_GROUP_COLORS
   const colorsDirty = colorEdits !== undefined
-  const colorsValid = GROUPS.every((g) => isValidHex(colors[g] ?? ''))
+  const colorsValid = groups.every((g) => isValidHex(colors[g] ?? ''))
   const today = easternNow().date
   // The 2년치 window an admin edits: the saved schedule's current + upcoming terms, topped up
   // from the recurring template when the server hasn't stored a schedule yet. Finished terms
@@ -158,6 +162,8 @@ export function AdminSettings() {
         </Button>
       </section>
 
+      {/* 여름 합동은 대학부·청년부를 한 덩어리로 묶는 장치라 장년부에는 없다 — 상태 줄도 뺀다. */}
+      {summerAppliesTo(partition) && (
       <section>
         <SectionHeader
           icon={<Settings size={18} strokeWidth={2} aria-hidden />}
@@ -179,6 +185,7 @@ export function AdminSettings() {
           />
         </div>
       </section>
+      )}
 
       <section>
         <SectionHeader
@@ -188,7 +195,7 @@ export function AdminSettings() {
           desc={t('admin.settings.groupColorsDesc')}
         />
         <div className="mb-3 inset-list">
-          {GROUPS.map((g) => (
+          {groups.map((g) => (
             <ColorField key={g} label={g} value={colors[g] ?? DEFAULT_GROUP_COLORS[g]} onChange={(hex) => setColor(g, hex)} />
           ))}
         </div>

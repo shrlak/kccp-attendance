@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  getConfig,
   getDongsanNames,
   getDongsanLeaders,
   setDongsanLeader,
@@ -14,23 +13,26 @@ import { Button } from '../../components/ui/Button'
 import { Select } from '../../components/ui/Select'
 import { Medal, Shield, AlertTriangle, Save } from '../../components/ui/Icon'
 import { leaderEntry, summerDongsanList, membersInDongsan, withLeader, setSubLeaderAt } from './dongsan'
+import { useAppConfig, usePartition } from '../../lib/useAppConfig'
+import { groupsOfPartition, summerAppliesTo } from '../../lib/partition'
 
 const SUMMER_KEY = '합동'
-const KM_GROUPS = ['대학부', '청년부']
 
 // Settings-tab editor: assign the 동산지기 + 부동산지기 for each 동산 (super-admin only).
 // In summer mode the 동산 list collapses to a single combined ("합동") set spanning both
 // KM departments, matching the legacy renderDongsanLeadersEditor() behaviour.
 export function DongsanLeadersEditor() {
   const { t } = useTranslation()
-  const { data: cfg } = useQuery({ queryKey: ['config'], queryFn: getConfig })
+  const { data: cfg } = useAppConfig()
   const { data: names } = useQuery({ queryKey: ['dongsanNames'], queryFn: getDongsanNames })
   const { data: leaders } = useQuery({ queryKey: ['dongsanLeaders'], queryFn: getDongsanLeaders })
   const { data: roster } = useRoster(true)
   // Local edits keyed by `${group}__${subgroup}`, overlaid on the loaded map.
   const [edits, setEdits] = useState<Record<string, DongsanLeaderEntry>>({})
 
-  const summer = !!cfg?.summerMode
+  const partition = usePartition()
+  const ownGroups = useMemo(() => groupsOfPartition(partition), [partition])
+  const summer = !!cfg?.summerMode && summerAppliesTo(partition)
 
   // 부서마다 자기 줄을 갖는다 — 대학부 동산과 청년부 동산이 한 줄에 섞이지 않도록
   // 섹션으로 나눠 렌더한다. 여름 모드에서는 합동 한 덩어리가 유일한 섹션이다.
@@ -46,7 +48,7 @@ export function DongsanLeadersEditor() {
         })),
       }]
     }
-    return KM_GROUPS.concat(Object.keys(names).filter((g) => !KM_GROUPS.includes(g)))
+    return ownGroups.concat(Object.keys(names).filter((g) => !ownGroups.includes(g)))
       .map((group) => ({
         group,
         blocks: (names[group] ?? []).map((subgroup) => ({
@@ -56,7 +58,7 @@ export function DongsanLeadersEditor() {
         })),
       }))
       .filter((section) => section.blocks.length > 0)
-  }, [names, roster, summer])
+  }, [names, roster, summer, ownGroups])
 
   if (!names || !leaders || !roster) return <p className="text-sm text-muted">{t('common.loading')}</p>
 

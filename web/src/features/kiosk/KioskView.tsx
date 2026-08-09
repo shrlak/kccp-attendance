@@ -1,9 +1,9 @@
 import { memo, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { useRoster } from '../admin/useRoster'
 import { easternNow } from '../../lib/checkinWindow'
-import { memberCheckin, removeAttendance, getConfig, type Member } from '../../lib/api'
+import { memberCheckin, removeAttendance, type Member } from '../../lib/api'
 import { resolveGroupColor, hexTint } from '../admin/groupColors'
 import {
   kioskColumns,
@@ -14,7 +14,7 @@ import {
   hiddenByStatus,
   KIOSK_COLS,
   KIOSK_COLS_DEPT,
-  KIOSK_DEPTS,
+  kioskDepts,
   type KioskDept,
 } from './kiosk'
 import { useAttendanceLive, refreshRosterSettled } from '../../lib/live'
@@ -26,6 +26,7 @@ import {
   Users, DoorOpen, UserPlus, Sparkles,
 } from '../../components/ui/Icon'
 import { KccpMark } from '../checkin/KccpMark'
+import { useAppConfig, usePartition } from '../../lib/useAppConfig'
 
 const TILE = 'border-border bg-surface text-text shadow-[var(--shadow-sm)] hover:border-primary/40 hover:bg-surface-alt'
 const DONE_TILE = 'border-primary bg-primary text-white shadow-[0_6px_18px_color-mix(in_srgb,var(--primary)_30%,transparent)]'
@@ -78,7 +79,8 @@ export function KioskView({ onExit }: { onExit: () => void }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const { data, isLoading } = useRoster(true)
-  const { data: cfg } = useQuery({ queryKey: ['config'], queryFn: getConfig })
+  const { data: cfg } = useAppConfig()
+  const partition = usePartition()
   const [search, setSearch] = useState('')
   // 부서만 골라 보기 — 여름학기(합동)가 아닐 때만 뜨는, 키오스크 안에서 켜는 선택지다.
   // 화면을 벗어나면 남지 않도록 상태로만 들고 있고, 기본값은 전체.
@@ -114,13 +116,15 @@ export function KioskView({ onExit }: { onExit: () => void }) {
   }, attendanceCount(log, today))
   // 무기한 상태 표기(귀국·이주·졸업 등)나 방학인 사람은 타일로 뜨지 않는다.
   const summer = !!cfg?.summerMode
+  // 이 부의 부서들. 장년부는 하나뿐이라 부서만 보기 칩이 뜨지 않는다 — 고를 게 없으므로.
+  const depts = kioskDepts(partition)
   // 부서 하나만 보는 중인가 — 블록도 하나, 열도 그만큼 넉넉하게.
   const deptView = !!deptOnly && !summer
   const scoped = deptView ? members.filter((m) => m.group_name === deptOnly) : members
   const visible = filterByName(scoped.filter((m) => !hiddenByStatus(m, today)), search)
   // 한 부서가 화면 전체를 쓰므로 4열이 아니라 8열로 쪼갠다. 나눈 개수와 아래 격자의 열 수는
   // 같아야 한다 — 그래야 한 줄을 왼쪽에서 오른쪽으로 읽는 순서가 가나다 순이 된다.
-  const cols = kioskColumns(visible, deptView ? KIOSK_COLS_DEPT : KIOSK_COLS)
+  const cols = kioskColumns(visible, deptView ? KIOSK_COLS_DEPT : KIOSK_COLS, partition)
   // 부서를 골랐으면 그 부서 블록만 남긴다 — 반대쪽 부서가 빈 칸으로 자리를 차지하지 않도록.
   const deptBlocks = deptView ? cols.depts.filter((d) => d.key === deptOnly) : cols.depts
   const hasAnyResult = deptBlocks.some((d) => d.total > 0) || cols.others.length > 0
@@ -230,12 +234,12 @@ export function KioskView({ onExit }: { onExit: () => void }) {
             className="w-full rounded-2xl border border-border bg-surface py-4 pl-12 pr-4 text-lg text-text shadow-[var(--shadow-sm)] outline-none transition-[border-color,box-shadow] duration-200 [transition-timing-function:var(--ease-out-soft)] placeholder:text-subtle focus-visible:border-primary focus-visible:ring-[3.5px] focus-visible:ring-primary/18"
           />
         </div>
-        {!summer && (
+        {!summer && depts.length > 1 && (
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <span className="text-xs font-semibold text-subtle">{t('kiosk.deptFilter')}</span>
             <div className="segmented">
               <DeptChip active={deptOnly === ''} onClick={() => setDeptOnly('')}>{t('admin.filter.all')}</DeptChip>
-              {KIOSK_DEPTS.map((dept) => (
+              {depts.map((dept) => (
                 <DeptChip key={dept} active={deptOnly === dept} onClick={() => setDeptOnly(dept)}>{dept}</DeptChip>
               ))}
             </div>

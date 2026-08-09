@@ -1,4 +1,5 @@
 import { getDeviceId } from './device'
+import type { Partition } from './partition'
 import { DEFAULT_SEMESTER_DATES, type SemesterDates, type SemesterSchedule, type TermCalendar } from './semester'
 
 const API_BASE =
@@ -59,10 +60,10 @@ export async function api<T = unknown>(
 // Phase-0 response shapes (from the attendance-api edge function)
 export interface AppConfig {
   summerMode: boolean
-  // 대학부/청년부 accent colors (hex, e.g. "#E0A800") — drives the 오늘 tab's name icons,
-  // the kiosk's per-부서 tile backgrounds, and the 멤버 tab's per-부서 card backgrounds.
-  // Keyed by group name; falls back to DEFAULT_GROUP_COLORS (./features/admin/groupColors)
-  // for any group not present.
+  // 부서 accent colors (hex, e.g. "#E0A800") — drives the 오늘 tab's name icons, the kiosk's
+  // per-부서 tile backgrounds, and the 멤버 tab's per-부서 card backgrounds. Keyed by group
+  // name; falls back to DEFAULT_GROUP_COLORS (./features/admin/groupColors) for any group
+  // not present.
   groupColors: Record<string, string>
   // The recurring MM-DD template — the pattern every year falls back to. Optional until the
   // semester-dates migration is applied and a super-admin saves a schedule; consumers retain
@@ -74,7 +75,25 @@ export interface AppConfig {
   semesterSchedule?: SemesterSchedule | null
 }
 
-export const getConfig = () => api<AppConfig>('GET', '/api/config')
+// /api/config is unauthenticated (the landing page reads it too), so instead of resolving
+// an admin there — one more round trip on a query every tab makes — it returns BOTH 부's
+// settings and the client picks. Nothing here is personal data: term dates and hex colors.
+// Read it through useAppConfig(), never directly, so the pick happens in exactly one place.
+export interface AppConfigResponse extends AppConfig {
+  adult?: AppConfig
+}
+
+export const getConfig = () => api<AppConfigResponse>('GET', '/api/config')
+
+// The 부's own settings out of that response. 장년부 keeps its own term schedule, 동산 색
+// and (always-off) 여름 모드 — see supabase/migrations/20260806_adult_ministry_partition.sql.
+export function configFor(cfg: AppConfigResponse | undefined, partition: Partition): AppConfig | undefined {
+  if (!cfg) return undefined
+  if (partition !== 'adult') return cfg
+  // An older cached response (or an edge function not yet redeployed) has no adult block;
+  // fall back to an empty one rather than showing 대학·청년부's schedule under 장년부.
+  return cfg.adult ?? { summerMode: false, groupColors: {}, semesterDates: null, semesterSchedule: [] }
+}
 
 // The term calendar to hand to any date helper: the saved schedule over the recurring
 // template. One call site instead of remembering to pass both. Undefined when the church has
@@ -98,6 +117,12 @@ export interface AdminIdentity {
   group: string
   subgroup: string
   ministry: string
+  // 대학·청년부('youth') 또는 장년부('adult'). Decided by the server from the password (or
+  // the signed-in member's grant) and never sent by the client. Everything the panel shows
+  // is already filtered to it server-side; the web reads it to pick the right 부서 lists,
+  // the right settings block, and to drop the 새가족 교육 tab in 장년부.
+  // Absent on a response from an edge function older than the 장년부 rollout → 'youth'.
+  partition?: Partition
   // True only for the designated login-log viewer (김호연), signed in attributably —
   // linked device or Google email, never a bare shared password. Server-decided
   // (auth.ts canViewLoginLog); gates the login-history section in the Admins tab.
@@ -224,6 +249,8 @@ export interface TermDongsan {
 
 export interface RosterResponse {
   role: AdminRole
+  // The 부 this roster was scoped to — the same value /api/admin/verify returned.
+  partition?: Partition
   members: Member[]
   log: LogEntry[]
   // 학기 종료 시 얼려둔 동산 편성, 학기 키("2026-summer")별 — 지난 학기 출석부가 그 학기의

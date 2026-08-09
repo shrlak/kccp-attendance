@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { useRoster } from './useRoster'
 import {
   buildAttendanceModel,
@@ -16,7 +16,7 @@ import {
   NOTE_FILL,
   type Lang,
 } from './exports'
-import { addBulkAttendance, clearAttendance, configCalendar, getConfig, type LogEntry, type Member, type RosterResponse } from '../../lib/api'
+import { addBulkAttendance, clearAttendance, configCalendar, type LogEntry, type Member, type RosterResponse } from '../../lib/api'
 import type { CalendarLike } from '../../lib/semester'
 import { easternNow } from '../../lib/checkinWindow'
 import { checkinCandidates } from './today'
@@ -37,6 +37,7 @@ import { Tag } from '../../components/ui/Tag'
 import { useToast } from '../../components/ui/Toast'
 import { Plus, Trash2, AlertTriangle, Search, Calendar, ClipboardList, Check } from '../../components/ui/Icon'
 import { refreshRoster } from '../../lib/live'
+import { useAppConfig } from '../../lib/useAppConfig'
 
 // Attendance spreadsheet: the Excel-style 출석부 grid (an on-screen replica of the exported
 // "Attendance" sheet — color-coded 동산 blocks, O/X cells, 예배 총 출석 + 총 출석 rows) or a
@@ -48,7 +49,7 @@ export function AdminSheet() {
   const [clearing, setClearing] = useState(false)
   const [filter, setFilter] = useState<Filter>(NO_FILTER)
   const { data, isLoading, isError } = useRoster(true)
-  const { data: cfg } = useQuery({ queryKey: ['config'], queryFn: getConfig })
+  const { data: cfg } = useAppConfig()
 
   if (isLoading) return (
     <div className="fx-fade space-y-3">

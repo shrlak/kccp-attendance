@@ -1,5 +1,6 @@
 import type { Member } from '../../lib/api'
 import { formatPhoneNumber } from '../../lib/phone'
+import { ADULT_GROUP, type Partition } from '../../lib/partition'
 
 // ── 새가족 등록 카드 — pure model of the paper card ─────────────────────────────
 // The single source of truth for the paper registration card's layout/vocabulary:
@@ -32,7 +33,10 @@ export function joinAffiliation(category: string, detail: string): string {
 // 부서 derived from the card's 소속 category — the kiosk 새가족 등록 has no 부서 picker:
 // 대학생 → 대학부, everything else (대학원생/직장인/Other) → 청년부. Admins can correct it
 // later in the Members tab, the only place 부서 is edited.
-export function groupForAffiliation(category: string): '대학부' | '청년부' {
+//
+// 장년부에는 고를 부서가 하나뿐이라 추론할 것이 없다 — 그 부에서는 언제나 장년부다.
+export function groupForAffiliation(category: string, partition: Partition = 'youth'): string {
+  if (partition === 'adult') return ADULT_GROUP
   return category.trim() === '대학생' ? '대학부' : '청년부'
 }
 

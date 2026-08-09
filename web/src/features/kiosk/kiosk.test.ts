@@ -99,6 +99,21 @@ describe('kioskColumns', () => {
     expect(all.find((m) => m.name === 'V')).toBeUndefined()
   })
 
+  // 장년부 키오스크는 블록이 하나다. 명단은 서버가 이미 장년부만 내려주므로, 여기서 확인할
+  // 것은 대학부/청년부 블록이 빈 칸으로 남지 않는다는 것 — 그리고 어쩌다 다른 부서 사람이
+  // 섞여 들어와도 장년부 격자에는 들어가지 않고 아래 "그 외"로 빠진다는 것.
+  it('장년부 kiosk draws one 부서 block, not the 대학부/청년부 pair', () => {
+    const adults = [member('갑', '장년부'), member('을', '장년부'), member('X', '청년부')]
+    const cols = kioskColumns(adults, KIOSK_COLS, 'adult')
+    expect(cols.depts.map((d) => d.key)).toEqual(['장년부'])
+    expect(cols.depts[0].columns.flat().map((m) => m.name)).toEqual(['갑', '을'])
+    expect(cols.others.map((m) => m.name)).toEqual(['X'])
+  })
+
+  it('defaults to the 대학·청년부 blocks when no 부 is given', () => {
+    expect(kioskColumns(members).depts.map((d) => d.key)).toEqual(['대학부', '청년부'])
+  })
+
   it('sorts each 부서 bucket 가나다 순 regardless of roster order', () => {
     const unordered = [member('다영', '대학부'), member('가영', '대학부'), member('나영', '대학부')]
     const cols = kioskColumns(unordered)

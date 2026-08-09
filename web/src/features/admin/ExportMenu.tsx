@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useQuery } from '@tanstack/react-query'
 import type { Member, LogEntry } from '../../lib/api'
-import { configCalendar, getConfig } from '../../lib/api'
+import { configCalendar } from '../../lib/api'
 import { easternNow } from '../../lib/checkinWindow'
 import type { Filter } from './filters'
 import {
@@ -18,6 +17,7 @@ import { Button } from '../../components/ui/Button'
 import { Download, ChevronRight } from '../../components/ui/Icon'
 import { useToast } from '../../components/ui/Toast'
 import { prefetchExcel } from '../../app/prefetch'
+import { useAppConfig } from '../../lib/useAppConfig'
 
 // Export control for the Sheet tab. Offers Excel (.xlsx), KakaoTalk clipboard summary,
 // and a printable HTML report — all built client-side from the already-scoped roster.
@@ -28,7 +28,7 @@ export function ExportMenu({ members, log, filter }: { members: Member[]; log: L
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   // Semester dates (for the Excel + report headers) — read-only, cached by react-query.
-  const { data: cfg } = useQuery({ queryKey: ['config'], queryFn: getConfig })
+  const { data: cfg } = useAppConfig()
 
   const lang: Lang = i18n.language === 'en' ? 'en' : 'ko'
   const today = easternNow().date

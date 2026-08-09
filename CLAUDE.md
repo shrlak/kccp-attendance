@@ -1,24 +1,43 @@
 # KCCP Attendance — project memory
 
-Korean church (한국중앙교회 피츠버그 대학·청년부) attendance system. The active app is a
-**React + Vite + TS** SPA in `web/`; the legacy single-file `index.html` was removed at cutover
-(recoverable from git history). **Production is live** at https://shrlak.github.io/kccp-attendance/.
+Korean church (한국중앙교회 피츠버그) attendance system, serving **two departments out of one
+app**: 대학·청년부 and 장년부. The active app is a **React + Vite + TS** SPA in `web/`; the legacy
+single-file `index.html` was removed at cutover (recoverable from git history). **Production is
+live** at https://shrlak.github.io/kccp-attendance/.
 
 ## Stack & layout
 - `web/` — React + Vite + TypeScript, Tailwind v4 (`@theme` in `web/src/index.css`), Zustand,
   TanStack Query, react-i18next (ko/en in `web/src/i18n/*.json`), React Router, Vitest + RTL.
   Fonts: Jua (display) + Gowun Dodum (body) — rounded/cute Korean.
 - `supabase/functions/attendance-api/index.ts` — single Deno edge function (the API gateway,
-  uses the **service-role key** → bypasses RLS). `auth.ts` has `verifyAdmin`/`scopeFilter`.
+  uses the **service-role key** → bypasses RLS). `auth.ts` has `verifyAdmin`/`scopeFilter`/
+  `inScope` and owns the 부(partition) model. `web/src/lib/partition.ts` is its client mirror —
+  keep the two in step, or the UI will offer 부서 the server then rejects.
 - `supabase/migrations/` — schema. Prod project ref: `loovulhchmmwagtvjnhc`.
 
 ## Auth / data model (post-cutover)
+- **부(部) = the partition, and it is the top-level rule.** 대학·청년부 (`'youth'`) and 장년부
+  (`'adult'`) share one database and one screen but **never see each other's people**. The
+  partition is derived from the 부서: `group_name === '장년부'` is adult, everything else —
+  including the blank 부서 that guests and legacy rows carry — is youth. Every admin carries one
+  (`Role.partition`), and `auth.ts` `scopeFilter()` is the single place a role becomes rows:
+  a 대학·청년부 super gets `{all:true, exclude:['장년부']}`, a 장년부 admin gets
+  `{all:false, groups:['장년부']}`. Because `all` no longer means "the whole table", **no caller
+  may skip the scope check for super_admin** — every per-row guard goes through `inScope()`
+  (or `inScopeGroup()`, the 부서-only twin used for write *destinations* like "register a 새가족
+  into this 부서", which must not demand a 동산 the leader hasn't assigned yet). Queries go
+  through `scopeQuery()`; note it spells the exclusion as "NULL **or** not 장년부", because
+  PostgREST's `neq` silently drops NULL rows.
 - **Admin auth = a shared team password (works from ANY device)**: `kccpadmin` →
   `super_admin` panel, `kccpleaders` → `leader` dashboard, `kccpwelcome` → `welcoming`
-  dashboard (in `auth.ts` `SUPER_PASSWORD` / `LEADER_PASSWORD` / `WELCOMING_PASSWORD`, or env
-  overrides; `passwordRole()` maps password→role). All are all-roster break-glass logins; a
-  password typed on a personal device that's linked to a roled member keeps that member's
-  scope instead. No email/Supabase Auth.
+  dashboard, **`kccpadult` → the 장년부 panel** (`super_admin` inside the adult partition — that
+  department runs itself end to end, so it gets settings/동산/관리자 for its own people and
+  nothing else). In `auth.ts` `SUPER_PASSWORD` / `LEADER_PASSWORD` / `WELCOMING_PASSWORD` /
+  `ADULT_PASSWORD`, or env overrides; `passwordGrant()` maps password→{role, partition}. All are
+  break-glass logins covering their own 부's roster; a password typed on a personal device linked
+  to a roled member keeps that member's scope instead — **but only when the grant is in the same
+  partition as the password**, so the 장년부 password on a 청년부 리더's phone falls back to
+  break-glass rather than handing over the 청년부 scope. No email/Supabase Auth.
 - `members` (UUID identity) ⟵ `devices.member_id` / `attendance_log.member_id`; roles in
   `member_roles` (super_admin / leader / pastor / welcoming). Leaders are scoped by group+동산
   (summer mode: KM leaders span 대학부+청년부 = 합동). Pastor is read-only.
@@ -48,8 +67,21 @@ Korean church (한국중앙교회 피츠버그 대학·청년부) attendance sys
   member's **first check-in ever** (`firstSeenByName`) — must fall on or before the period's end.
   So a later joiner starts at the term they actually joined, and a 학년도/역년 workbook applies
   all of this per term sheet. The Full Log's 합계 is scored over the union of those rosters.
+- **설정도 부서별로 갈려 있다** (`20260806` migration): 장년부의 학기 일정·동산 이름·새가족 교육
+  동산 이름·동산지기·임원·부서 색·대기 중인 초기화 요청·자동 백업 청구권은 전부 `_adult` 접미사가
+  붙은 별도 config 칸에 들어간다. 엣지 함수는 `ck(partition, base)` / `cfgVal(cfg, partition,
+  base)`로만 읽고 쓴다 — **접미사를 한 군데라도 빼먹으면 두 부서가 같은 칸을 덮어쓴다.**
+  `audit_log.partition`도 같은 이유로 있다 (관리자 탭은 자기 부의 기록만 보여준다; 값이 없는
+  예전 행은 대학·청년부로 친다). `/api/config`는 무인증 경로라 두 부의 블록을 함께 내려주고
+  (`{...youth, adult:{...}}`), 웹은 `useAppConfig()`에서 한 번만 고른다 — 화면 코드는 예전처럼
+  `cfg?.summerMode` / `configCalendar(cfg)`를 쓰면 자기 부의 값을 보게 된다.
+- **여름 합동은 대학·청년부만의 장치**라 장년부에는 존재하지 않는다 (`summerNow(cfg,'adult')`은
+  언제나 false, `scopeFilter`도 장년부는 합동으로 승격하지 않는다). 학기 종료 롤오버도 부서별로
+  따로 돌며, 편성을 비울 때 자기 부 멤버/기기만 건드린다.
 - **RLS is deny-all** on all tables (no anon/authenticated policies); the edge function
-  (service-role) is the only data path.
+  (service-role) is the only data path. 예전 단일 파일 클라이언트용으로 남아 있는 무인증 경로
+  (`/api/export/*`, `/api/report/html`, `/api/backup` …)는 전부 `youthOnly()`로 묶어 두었다 —
+  지금 앱은 쓰지 않지만, 장년부 명단이 그리로 새어 나가서는 안 되므로.
 - 동산지기/부동산지기 are a **display-badge** system (`config.dongsan_leaders`), distinct from the
   `leader` admin role.
 - **중복 등록은 자동 병합**: `/api/admin/kiosk-new-member` · `/api/share/new-member` find an existing
@@ -73,6 +105,17 @@ Korean church (한국중앙교회 피츠버그 대학·청년부) attendance sys
   city estimate when GPS wasn't granted; the viewer shows a 정확/대략 (precise/approx) badge.
 
 ## Deploy / ops — IMPORTANT gotchas
+- **백업은 두 줄기**, 부서마다 따로 돈다 (`PARTITION` 환경변수 / `backup.yml`의 `partition`
+  입력 + matrix). `youth` → `backups/` 는 예전 그대로 **데이터베이스 전체** 덤프이자 재해복구선.
+  `adult` → `backups/adult/` 는 **장년부 사람들의 명단과 출석만** 담는다 (전체 덤프를 일회용
+  검증 DB에 올린 뒤 `scripts/backup/partition-adult.sql`로 깎아내고 다시 덤프 → 다시 올려
+  왕복 검증). 각 부서에서 데이터가 바뀔 때만 자기 줄기가 깨어나고 (`config.last_auto_backup_at`
+  / `_adult` 청구권), 주간 크론은 입력을 실을 수 없으므로 matrix로 둘 다 돈다. 패널은 자기
+  접두사만 보고 자기 것만 복원한다 — 장년부 복원은 `ADULT_PARTITION_TABLES`
+  (attendance_log · member_roles · devices · members)의 장년부 행만 지우고 되돌린 뒤
+  attendance_log 시퀀스를 밀어 준다 (전체 복원과 달리 `RESTART IDENTITY`를 쓸 수 없으므로).
+  장년부 줄기에 `config`가 없는 것은 의도적이다: 한 행을 두 부서가 나눠 쓰므로 장년부 몫만
+  떼어 복원할 방법이 없고, 설정은 전체 스냅숏이 이미 담고 있다.
 - **Edge function deploys via CI**, not MCP: `mcp__Supabase__deploy_edge_function` and
   `get_edge_function` are **permission-denied** in this environment. `.github/workflows/deploy.yml`
   runs `supabase functions deploy` when the `SUPABASE_ACCESS_TOKEN` repo secret is set (it is).
@@ -133,6 +176,14 @@ Korean church (한국중앙교회 피츠버그 대학·청년부) attendance sys
   rewrite them. Do not put the model id in commits/PRs/code.
 
 ## Status
+**장년부 also runs on this system** (`kccpadult`): the same panel, scoped to its own 부 — 오늘 ·
+출석부 · 멤버 · 통계 · 새가족 · 방문자 · 관리자 · 동산 · 설정 · 키오스크, all of it. **새가족 교육
+is deliberately absent** there (it tracks 대학·청년부's two-week course). Its kiosk draws one 부서
+block instead of two and drops the 부서만 보기 chips (nothing to choose between); its 새가족 카드
+files everyone under 장년부 instead of guessing 대학부/청년부 from 소속; its 설정 탭 has no 여름
+모드 row. The panel header names the 부 on every screen, because that label is the only visible
+difference between the two.
+
 Full Phase 1–4 parity + production cutover complete. Shipped: branded landing, KCCP logo
 (light/dark), 동산 admin tab (summer-combined names), bulk 동산 assign/unassign, clear-all
 attendance with super-approval, analytics layout, logout→home (a **reload stays put**: the

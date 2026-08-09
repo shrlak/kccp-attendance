@@ -14,6 +14,8 @@ vi.mock('../../lib/api', () => ({
   setAdminToken: vi.fn(),
   getRoster: vi.fn().mockResolvedValue({ role: 'welcoming', members: [], log: [] }),
   getConfig: vi.fn().mockResolvedValue({ groupColors: {} }),
+  // useAppConfig picks the logged-in 부's block out of the /api/config response.
+  configFor: (cfg: unknown) => cfg,
   memberCheckin: vi.fn(),
   removeAttendance: vi.fn(),
   guestCheckin: vi.fn(),

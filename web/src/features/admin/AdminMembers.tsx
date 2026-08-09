@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRoster } from './useRoster'
-import { mergeMembers, bulkSetSubgroup, getConfig, getDongsanNames, type Member } from '../../lib/api'
+import { mergeMembers, bulkSetSubgroup, getDongsanNames, type Member } from '../../lib/api'
 import { Dialog } from '../../components/ui/Dialog'
 import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
@@ -20,6 +20,7 @@ import { IconKey } from './IconKey'
 import { EditModal, AttendanceModal, Field } from './MemberDialogs'
 import { resolveGroupColor, hexTint } from './groupColors'
 import { refreshRoster } from '../../lib/live'
+import { useAppConfig } from '../../lib/useAppConfig'
 
 // Members management: searchable card grid; tap a card to edit (scoped + read-only
 // enforced server-side). Renaming, group/동산 changes (= transfer), role, new-member,
@@ -29,7 +30,7 @@ export function AdminMembers() {
   const qc = useQueryClient()
   const toast = useToast()
   const { data, isLoading, isError } = useRoster(true)
-  const { data: cfg } = useQuery({ queryKey: ['config'], queryFn: getConfig })
+  const { data: cfg } = useAppConfig()
   // 일괄 이동의 동산 목록은 설정된 동산 이름에서 온다 — 학기가 바뀌어 아무도 동산에
   // 속해 있지 않을 때도 새 학기 동산으로 여러 명을 한 번에 넣을 수 있어야 하므로.
   const { data: dongsanNames } = useQuery({ queryKey: ['dongsanNames'], queryFn: getDongsanNames })

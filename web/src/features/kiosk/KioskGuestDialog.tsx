@@ -8,22 +8,27 @@ import { Check } from '../../components/ui/Icon'
 import { useToast } from '../../components/ui/Toast'
 import { guestCheckin } from '../../lib/api'
 import { refreshRoster } from '../../lib/live'
+import { groupsOfPartition } from '../../lib/partition'
+import { usePartition } from '../../lib/useAppConfig'
 
 // The 부서 a visitor is attending — puts them on that group's 오늘 sheet / 출석부 이미지.
-const GUEST_GROUPS = ['대학부', '청년부'] as const
+// Only this 부's departments are offered; the server rejects anything else anyway.
 
 // 방문자 (guest) check-in from the kiosk: name + 부서 → hardened guest endpoint.
 export function KioskGuestDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const toast = useToast()
+  const partition = usePartition()
+  const guestGroups = groupsOfPartition(partition)
   const [name, setName] = useState('')
-  const [group, setGroup] = useState('')
+  // 고를 부서가 하나뿐이면(장년부) 미리 골라 둔다 — 버튼 하나를 굳이 누르게 하지 않는다.
+  const [group, setGroup] = useState(guestGroups.length === 1 ? guestGroups[0] : '')
   const [busy, setBusy] = useState(false)
 
   function close() {
     setName('')
-    setGroup('')
+    setGroup(guestGroups.length === 1 ? guestGroups[0] : '')
     setBusy(false)
     onClose()
   }
@@ -65,8 +70,8 @@ export function KioskGuestDialog({ open, onClose }: { open: boolean; onClose: ()
         />
         <div>
           <span className="field-label">{t('kiosk.guest.group')}</span>
-          <div className="grid grid-cols-2 gap-2.5">
-            {GUEST_GROUPS.map((g) => {
+          <div className={'grid gap-2.5 ' + (guestGroups.length > 1 ? 'grid-cols-2' : 'grid-cols-1')}>
+            {guestGroups.map((g) => {
               const active = group === g
               return (
                 <button

@@ -1,12 +1,19 @@
-// ── 대학부/청년부 accent colors ────────────────────────────────────────────────
+import { ADULT_GROUP } from '../../lib/partition'
+
+// ── 부서 accent colors ─────────────────────────────────────────────────────────
 // One super-admin-configurable hex color per 부서 (config.group_colors, via
 // AppConfig.groupColors), driving the 오늘 tab's name icons, the kiosk's per-부서 tile
 // backgrounds, the 멤버 tab's per-부서 card backgrounds, and the 통계 tab's 부서별 비교
 // bars — see AdminSettings.tsx for the editor. Falls back to the original hardcoded palette
 // (matching the still-fixed accents in todaySheetImage.ts's exported JPG sheet) for any
-// group without a saved color.
+// group without a saved color. Each 부 stores its own map, so the 장년부 default lives here
+// beside the 대학·청년부 ones — one lookup table, whichever panel is open.
 
-export const DEFAULT_GROUP_COLORS: Record<string, string> = { 대학부: '#E0A800', 청년부: '#3B82F6' }
+export const DEFAULT_GROUP_COLORS: Record<string, string> = {
+  대학부: '#E0A800',
+  청년부: '#3B82F6',
+  [ADULT_GROUP]: '#10B981',
+}
 
 const NEUTRAL = '#6b7280'
 

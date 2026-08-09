@@ -8,6 +8,13 @@ left by the former multi-generation retention policy.
 
 Unknown objects are never deleted. AWS credentials and R2_ENDPOINT/R2_BUCKET come from
 `.github/workflows/backup.yml`.
+
+Runs once per 부(department) stream, selected by PARTITION (see run-backup.sh):
+  youth -> backups/         (the whole-database snapshot)
+  adult -> backups/adult/   (장년부 people + attendance only)
+Each stream only ever looks at — and only ever deletes within — its own prefix. Note that
+the 장년부 objects live *under* backups/, so the youth listing has to skip anything with a
+further "/" in it, or verifying one stream would see the other's files.
 """
 import json
 import os
@@ -16,15 +23,21 @@ import subprocess
 
 BUCKET = os.environ["R2_BUCKET"]
 ENDPOINT = os.environ["R2_ENDPOINT"]
-PREFIX = "backups/"
+PARTITION = os.environ.get("PARTITION", "youth")
+if PARTITION not in ("youth", "adult"):
+    raise SystemExit(f"::error::Unknown PARTITION {PARTITION!r} (expected youth or adult)")
+PREFIX = "backups/adult/" if PARTITION == "adult" else "backups/"
 CURRENT_KEYS = {
-    "backups/current.sql.age",
-    "backups/current.sql.age.sha256",
-    "backups/current.schema.tar.gz.age",
-    "backups/current.schema.tar.gz.age.sha256",
+    PREFIX + name
+    for name in (
+        "current.sql.age",
+        "current.sql.age.sha256",
+        "current.schema.tar.gz.age",
+        "current.schema.tar.gz.age.sha256",
+    )
 }
 LEGACY_KEY_RE = re.compile(
-    r"^backups/backup-\d{4}-\d{2}-\d{2}\."
+    re.escape(PREFIX) + r"backup-\d{4}-\d{2}-\d{2}\."
     r"(?:sql\.age|schema\.tar\.gz\.age)(?:\.sha256)?$"
 )
 WARN_THRESHOLD_GB = 8.0
@@ -42,7 +55,13 @@ def aws_json(*args):
 
 def list_objects():
     response = aws_json("s3api", "list-objects-v2", "--bucket", BUCKET, "--prefix", PREFIX)
-    return {obj["Key"]: obj for obj in response.get("Contents", [])}
+    # Objects directly under this stream's prefix — never the other stream's, which sits in
+    # a sub-"directory" of it (backups/adult/... is also matched by the prefix backups/).
+    return {
+        obj["Key"]: obj
+        for obj in response.get("Contents", [])
+        if "/" not in obj["Key"][len(PREFIX):]
+    }
 
 
 def main():
@@ -61,19 +80,20 @@ def main():
         )
 
     current_size = sum(int(objects[key].get("Size", 0)) for key in CURRENT_KEYS)
-    print(f"Current backup verified: {current_size:,} B across {len(CURRENT_KEYS)} objects.")
+    print(f"Current {PARTITION} backup verified: {current_size:,} B "
+          f"across {len(CURRENT_KEYS)} objects under {PREFIX}.")
     print(f"Removed {len(legacy_keys)} legacy dated backup object(s).")
 
     step_summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if step_summary:
         with open(step_summary, "a", encoding="utf-8") as summary:
-            summary.write("## Current backup\n\n")
+            summary.write(f"## Current backup — {PARTITION} ({PREFIX})\n\n")
             summary.write(f"**Size: {current_size / 1e6:.2f} MB**  \n")
             summary.write("Storage mode: overwrite previous backup  \n")
             summary.write(f"Legacy objects removed: {len(legacy_keys)}\n")
 
     if current_size / 1e9 > WARN_THRESHOLD_GB:
-        print(f"::warning::Current R2 backup is {current_size / 1e9:.2f} GB, over the "
+        print(f"::warning::Current {PARTITION} R2 backup is {current_size / 1e9:.2f} GB, over the "
               f"{WARN_THRESHOLD_GB} GB watch threshold.")
 
 

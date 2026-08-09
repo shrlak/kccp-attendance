@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useQuery } from '@tanstack/react-query'
 import { useRoster } from './useRoster'
 import { easternNow } from '../../lib/checkinWindow'
 import { filterMembers, NO_FILTER, type Filter } from './filters'
@@ -10,7 +9,7 @@ import { copyNewFamilyCards, saveNewFamilyCards } from './newFamilyCardImage'
 import { newFamilySheets, NEW_FAMILY_HEADER } from './exports'
 import { toggleId } from './bulk'
 import { GroupFilter } from './GroupFilter'
-import { configCalendar, getConfig, type Member } from '../../lib/api'
+import { configCalendar, type Member } from '../../lib/api'
 import { Dialog } from '../../components/ui/Dialog'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
@@ -20,6 +19,7 @@ import { ScanLine, Download, Search, HandHeart, Heart, Calendar, GraduationCap, 
 import { prefetchExcel } from '../../app/prefetch'
 import { EditModal, AttendanceModal } from './MemberDialogs'
 import { CardScanDialog } from './CardScanDialog'
+import { useAppConfig } from '../../lib/useAppConfig'
 
 // 새가족 (new-family) tab: registration tracking — current-semester new members grouped
 // by 등록일, a monthly-registrations roll-up, card-photo registration, and export.
@@ -28,7 +28,7 @@ import { CardScanDialog } from './CardScanDialog'
 export function AdminNewFamily() {
   const { t } = useTranslation()
   const { data, isLoading, isError } = useRoster(true)
-  const { data: cfg } = useQuery({ queryKey: ['config'], queryFn: getConfig })
+  const { data: cfg } = useAppConfig()
   const [filter, setFilter] = useState<Filter>(NO_FILTER)
   const [editing, setEditing] = useState<Member | null>(null)
   const [attendanceFor, setAttendanceFor] = useState<Member | null>(null)

@@ -9,6 +9,7 @@ import { kioskNewMember, type NewMemberFields } from '../../lib/api'
 import { easternNow } from '../../lib/checkinWindow'
 import { NewFamilyCardForm } from '../admin/NewFamilyCardForm'
 import { blankCardForm, groupForAffiliation, joinAffiliation, type CardFormValue } from '../admin/newFamilyCard'
+import { usePartition } from '../../lib/useAppConfig'
 import { refreshRoster } from '../../lib/live'
 
 // 새가족 (new-family) registration from the kiosk: a blank paper 새가족 등록 카드 to
@@ -21,6 +22,7 @@ export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose
   const { t } = useTranslation()
   const qc = useQueryClient()
   const toast = useToast()
+  const partition = usePartition()
   // Fresh blank card per open, 등록일 = today (Eastern) — computed per open so the
   // kiosk doesn't stamp a stale date if it stays up across midnight.
   const [card, setCard] = useState<CardFormValue>(() => blankCardForm(easternNow().date))
@@ -49,7 +51,7 @@ export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose
       const payload: NewMemberFields = {
         name: card.name.trim(),
         // 부서 from the 소속 checkbox: 대학생 → 대학부, 대학원생/직장인/Other → 청년부.
-        group: groupForAffiliation(card.affiliationCategory),
+        group: groupForAffiliation(card.affiliationCategory, partition),
         // 동산 is assigned by an admin in the Members tab, never at the kiosk.
         subgroup: '',
         gender: card.gender,

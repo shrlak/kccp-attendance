@@ -97,6 +97,10 @@ export function AdminApp() {
     signOut()
     navigate('/')
   }
+  // 로그인한 부(대학·청년부 / 장년부). 명단·출석·설정은 이미 서버에서 이 부의 것만 내려오고,
+  // 여기서는 화면에 남는 두 가지를 정한다: 어떤 탭을 보여줄지와 헤더에 어느 부인지 적을지.
+  const partition = identity?.partition ?? 'youth'
+  const isAdultPanel = partition === 'adult'
   const isSuper = identity?.role === 'super_admin'
   // A password-only (break-glass) login on an unroled device resolves to the 'staff'
   // role — surfaced as a plain badge in the header so it's clear this is a limited login.
@@ -119,12 +123,16 @@ export function AdminApp() {
       setBackupBusy(false)
     }
   }
+  // 어느 부의 패널인지는 늘 눈에 보여야 한다 — 두 부서가 같은 화면을 쓰고, 로그인한 부 밖의
+  // 사람은 애초에 보이지 않으므로, 헤더의 이 한 줄이 "지금 누구의 명단을 보고 있는가"에 대한
+  // 유일한 표시다.
+  const ministryLabel = t(`admin.ministry.${partition}`)
   // A scoped (roled-device) leader shows their 부서·동산; a break-glass leader/welcoming
-  // password login has no group/동산 and sees the whole roster, so it shows "All".
+  // password login has no group/동산 and sees its whole 부, so it shows the 부's name.
   const scopeLabel =
     identity && identity.role === 'leader' && identity.group
       ? [identity.group, identity.subgroup].filter(Boolean).join(' · ')
-      : t('admin.scopeAll')
+      : ministryLabel
   const roleLabel = identity && !isStaff ? t(`admin.roles.${identity.role}`) : t('admin.roles.staff')
   const roleScope = `${roleLabel} · ${scopeLabel}`
   const dateLabel = new Intl.DateTimeFormat(lang === 'ko' ? 'ko-KR' : 'en-US', {
@@ -142,7 +150,8 @@ export function AdminApp() {
     { id: 'members', icon: Users, show: true },
     { id: 'analytics', icon: BarChart3, show: true },
     { id: 'newfamily', icon: UserPlus, show: true },
-    { id: 'newfamilyEdu', icon: GraduationCap, show: true },
+    // 새가족 교육은 대학·청년부의 2주 과정을 따라가는 탭이라 장년부 패널에는 두지 않는다.
+    { id: 'newfamilyEdu', icon: GraduationCap, show: !isAdultPanel },
     { id: 'visitors', icon: DoorOpen, show: true },
     { id: 'admins', icon: Shield, show: isSuper },
     { id: 'dongsan', icon: Sprout, show: isSuper },
@@ -187,7 +196,7 @@ export function AdminApp() {
           </span>
           <div className={'whitespace-nowrap transition-opacity duration-150 ' + (navOpen ? 'opacity-100' : 'opacity-0')}>
             <div className="text-sm font-semibold tracking-tight text-text">KCCP</div>
-            <div className="mt-0.5 text-[10px] font-medium text-muted">{t('admin.workspace')}</div>
+            <div className="mt-0.5 text-[10px] font-medium text-muted">{ministryLabel}</div>
           </div>
         </div>
 
@@ -255,7 +264,7 @@ export function AdminApp() {
             {activeTab === 'members' && <AdminMembers />}
             {activeTab === 'analytics' && <AdminAnalytics />}
             {activeTab === 'newfamily' && <AdminNewFamily />}
-            {activeTab === 'newfamilyEdu' && <AdminNewFamilyEdu />}
+            {activeTab === 'newfamilyEdu' && !isAdultPanel && <AdminNewFamilyEdu />}
             {activeTab === 'visitors' && <AdminVisitors />}
             {activeTab === 'admins' && isSuper && <AdminAdmins />}
             {activeTab === 'dongsan' && isSuper && <AdminDongsan />}

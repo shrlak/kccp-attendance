@@ -1,10 +1,17 @@
 import type { Member, LogEntry } from '../../lib/api'
+import { groupsOfPartition, type Partition } from '../../lib/partition'
 import { hiddenFromKiosk } from '../../lib/status'
 
-// The two 부서 (departments) shown as paired multi-column blocks in the kiosk grid;
-// everything else falls into a separate "other" section below.
+// The 부서 (departments) shown as multi-column blocks in the kiosk grid; everything else
+// falls into a separate "other" section below. 대학·청년부 has two (side by side);
+// 장년부 has one, which then gets the whole width.
 export const KIOSK_DEPTS = ['대학부', '청년부'] as const
-export type KioskDept = (typeof KIOSK_DEPTS)[number]
+export type KioskDept = string
+
+// The blocks this 부's kiosk draws, in order.
+export function kioskDepts(partition: Partition = 'youth'): string[] {
+  return groupsOfPartition(partition)
+}
 
 // Members anyone-but-visitors: visitors/specials never appear as a tappable tile
 // (they're guest-checked-in instead) and are excluded from the attendance count.
@@ -51,10 +58,10 @@ export const KIOSK_COLS = 4
 export const KIOSK_COLS_DEPT = 8
 
 export interface KioskColumns {
-  // One entry per department, in KIOSK_DEPTS order. `columns` is always length `cols`
-  // (see kioskColumns); `total` is the department's member count for the header.
+  // One entry per department, in this 부's kioskDepts() order. `columns` is always length
+  // `cols` (see kioskColumns); `total` is the department's member count for the header.
   depts: { key: KioskDept; total: number; columns: Member[][] }[]
-  // Non-대학부/청년부 members, rendered in a flat section below the department grids.
+  // Members outside this 부's departments, in a flat section below the department grids.
   others: Member[]
 }
 
@@ -73,16 +80,22 @@ const byName = (a: Member, b: Member) => a.name.localeCompare(b.name)
 // Bucket non-visitor members into the department grids + the "other" overflow, each
 // bucket explicitly sorted 가나다 순 (name.localeCompare) so the kiosk grid reads
 // alphabetically regardless of the roster's incoming order.
-export function kioskColumns(members: Member[], cols: number = KIOSK_COLS): KioskColumns {
+export function kioskColumns(
+  members: Member[],
+  cols: number = KIOSK_COLS,
+  partition: Partition = 'youth',
+): KioskColumns {
+  const depts = kioskDepts(partition)
   const visible = members.filter((m) => !isVisitor(m))
-  const buckets: Record<KioskDept, Member[]> = { 대학부: [], 청년부: [] }
+  const buckets: Record<string, Member[]> = {}
+  for (const d of depts) buckets[d] = []
   const others: Member[] = []
   for (const m of visible) {
-    if (m.group_name === '대학부' || m.group_name === '청년부') buckets[m.group_name].push(m)
+    if (buckets[m.group_name]) buckets[m.group_name].push(m)
     else others.push(m)
   }
   return {
-    depts: KIOSK_DEPTS.map((key) => {
+    depts: depts.map((key) => {
       const sorted = [...buckets[key]].sort(byName)
       return { key, total: sorted.length, columns: splitColumns(sorted, cols) }
     }),

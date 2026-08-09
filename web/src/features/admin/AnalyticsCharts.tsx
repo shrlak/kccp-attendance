@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useQuery } from '@tanstack/react-query'
 import type { Chart as ChartType, ChartConfiguration, Plugin } from 'chart.js'
 import { useTheme } from '../../stores/useTheme'
 import { shortDate } from './sheet'
 import { trendSeries, groupSeries } from './analytics'
-import { getConfig, type Member, type LogEntry } from '../../lib/api'
+import { type Member, type LogEntry } from '../../lib/api'
 import { resolveGroupColor } from './groupColors'
 import { Activity, BarChart3 } from '../../components/ui/Icon'
+import { useAppConfig } from '../../lib/useAppConfig'
 
 // Inline plugin that prints each datapoint's value just above its dot on the trend
 // line. `tick` is the theme-aware label color already resolved for the axes.
@@ -75,7 +75,7 @@ function ChartCanvas({ build }: { build: (tick: string, grid: string) => ChartCo
 // 4.1 + 4.2 — trend line + (when more than one 부서 is in scope) the grouped bar chart.
 export function AnalyticsCharts({ members, log }: { members: Member[]; log: LogEntry[] }) {
   const { t } = useTranslation()
-  const { data: cfg } = useQuery({ queryKey: ['config'], queryFn: getConfig })
+  const { data: cfg } = useAppConfig()
   const trend = useMemo(() => trendSeries(log), [log])
   const groups = useMemo(() => groupSeries(members, log), [members, log])
   const showGroups = groups.groups.length > 1 && groups.dates.length > 0

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { api, getLoginPosition, GEO_LOGIN_WAIT_MS } from './api'
+import { api, configFor, getLoginPosition, GEO_LOGIN_WAIT_MS } from './api'
 import { getDeviceId } from './device'
 
 beforeEach(() => {
@@ -98,5 +98,47 @@ describe('getLoginPosition', () => {
   it('still returns a fix that lands inside the deadline', async () => {
     setGeo({ getCurrentPosition: (ok: (p: unknown) => void) => ok({ coords: { latitude: 40.44, longitude: -79.99, accuracy: 8 } }) })
     expect(await getLoginPosition(GEO_LOGIN_WAIT_MS)).toEqual({ lat: 40.44, lon: -79.99, accuracy: 8 })
+  })
+})
+
+// /api/config는 무인증 경로라 두 부의 설정을 한꺼번에 내려주고, 고르는 일은 클라이언트가 한다
+// (useAppConfig). 잘못 고르면 장년부 화면이 대학·청년부 학기 일정으로 출석부를 그리게 된다.
+describe('configFor — 로그인한 부의 설정을 고른다', () => {
+  const cfg = {
+    summerMode: true,
+    groupColors: { 대학부: '#E0A800' },
+    semesterDates: null,
+    semesterSchedule: [{ year: 2026, season: 'fall', start: '2026-08-24', end: '2026-12-13' }],
+    adult: {
+      summerMode: false,
+      groupColors: { 장년부: '#10B981' },
+      semesterDates: null,
+      semesterSchedule: [{ year: 2026, season: 'fall', start: '2026-09-07', end: '2026-12-20' }],
+    },
+  } as never
+
+  it('대학·청년부는 최상위 블록을 그대로 쓴다', () => {
+    expect(configFor(cfg, 'youth')?.groupColors).toEqual({ 대학부: '#E0A800' })
+    expect(configFor(cfg, 'youth')?.summerMode).toBe(true)
+  })
+
+  it('장년부는 adult 블록 — 다른 부의 학기 일정이 새어 들어오지 않는다', () => {
+    const adult = configFor(cfg, 'adult')
+    expect(adult?.groupColors).toEqual({ 장년부: '#10B981' })
+    expect(adult?.semesterSchedule?.[0].start).toBe('2026-09-07')
+    expect(adult?.summerMode).toBe(false)
+  })
+
+  // 엣지 함수를 아직 새로 배포하지 않았거나 캐시된 예전 응답이면 adult 블록이 없다. 그럴 때
+  // 대학·청년부 설정으로 되돌아가면 장년부 출석부가 남의 학기로 그려진다 — 빈 값이 낫다.
+  it('adult 블록이 없으면 대학·청년부 설정으로 떨어지지 않고 빈 설정을 준다', () => {
+    const old = { summerMode: true, groupColors: { 대학부: '#E0A800' } } as never
+    expect(configFor(old, 'adult')).toEqual({
+      summerMode: false, groupColors: {}, semesterDates: null, semesterSchedule: [],
+    })
+  })
+
+  it('설정을 아직 못 받았으면 undefined', () => {
+    expect(configFor(undefined, 'adult')).toBeUndefined()
   })
 })

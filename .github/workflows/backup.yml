@@ -3,10 +3,17 @@ name: Weekly Encrypted Backup
 on:
   schedule:
     # Sundays at 17:00 in Pittsburgh. The IANA timezone keeps this at 5 PM across
-    # Eastern daylight-saving and standard-time transitions.
+    # Eastern daylight-saving and standard-time transitions. A scheduled run can't carry
+    # inputs, so it backs up BOTH 부 streams (see the matrix below).
     - cron: '0 17 * * 0'
       timezone: "America/New_York"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      partition:
+        description: 'Which 부 to back up'
+        type: choice
+        default: youth
+        options: [youth, adult]
 
 permissions:
   contents: read
@@ -14,7 +21,8 @@ permissions:
 # Auto-backup dispatches (edge fn fires one per cooldown window after data changes)
 # and the weekly cron must never interleave: current.* in R2 is overwritten in place,
 # so concurrent runs could mix files from two dumps. Queue instead of cancelling —
-# every dispatched run still completes, just serially.
+# every dispatched run still completes, just serially. The two 부 streams write to
+# different prefixes but read the same production database, so they share one queue.
 concurrency:
   group: db-backup
   cancel-in-progress: false
@@ -23,6 +31,16 @@ jobs:
   backup:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    # 대학·청년부(backups/, 전체 스냅숏)와 장년부(backups/adult/, 장년부 데이터만)는 서로
+    # 다른 백업 줄기다. 각 부서에서 데이터가 바뀌면 엣지 함수가 자기 부서 것만 깨우고
+    # (workflow_dispatch + partition 입력), 주간 크론은 입력을 실을 수 없으므로 둘 다 돈다.
+    strategy:
+      fail-fast: false
+      matrix:
+        partition: >-
+          ${{ github.event_name == 'schedule'
+               && fromJSON('["youth","adult"]')
+               || fromJSON(format('["{0}"]', inputs.partition || 'youth')) }}
     permissions:
       contents: read
       issues: write
@@ -57,6 +75,7 @@ jobs:
       AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
       AWS_DEFAULT_REGION: auto
+      PARTITION: ${{ matrix.partition }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -98,7 +117,7 @@ jobs:
           fi
           echo "Database authentication succeeded as backup_reader."
 
-      - name: Run backup
+      - name: Run backup (${{ matrix.partition }})
         run: bash scripts/backup/run-backup.sh
 
       - name: Verify current backup and remove legacy dated copies
@@ -111,7 +130,8 @@ jobs:
           script: |
             const { owner, repo } = context.repo
             const runUrl = `https://github.com/${owner}/${repo}/actions/runs/${context.runId}`
-            const body = `The scheduled backup run failed.\n\n${runUrl}\n\nCheck the job log for which step failed (secret check, dump, verify-restore, encrypt, or upload) and re-run manually (workflow_dispatch) once fixed.`
+            const partition = process.env.PARTITION || 'youth'
+            const body = `The ${partition} backup run failed.\n\n${runUrl}\n\nCheck the job log for which step failed (secret check, dump, verify-restore, encrypt, or upload) and re-run manually (workflow_dispatch, partition: ${partition}) once fixed.`
             const { data: existing } = await github.rest.issues.listForRepo({ owner, repo, state: 'open', labels: 'backup-failure' })
             if (existing.length > 0) {
               await github.rest.issues.createComment({ owner, repo, issue_number: existing[0].number, body })

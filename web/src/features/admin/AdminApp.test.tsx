@@ -102,7 +102,7 @@ describe('AdminApp ministry navigation', () => {
       expect(screen.queryByRole('button', { name })).toBeNull()
     }
     // Header shows the 운영진 role label.
-    expect(screen.getAllByText(/운영진 · 전체/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/운영진 · 대학·청년부/).length).toBeGreaterThan(0)
   })
 
   it('break-glass super password lands on the full panel (super-only tabs visible)', () => {
@@ -131,7 +131,7 @@ describe('AdminApp ministry navigation', () => {
       expect(screen.queryByRole('button', { name })).toBeNull()
     }
     // Role label + "전체" scope (a group-less break-glass leader sees everyone).
-    expect(screen.getAllByText(/리더 · 전체/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/리더 · 대학·청년부/).length).toBeGreaterThan(0)
   })
 
   it('break-glass welcoming password lands on the 새가족팀 dashboard', () => {
@@ -147,7 +147,32 @@ describe('AdminApp ministry navigation', () => {
     for (const name of ['관리자', '동산', '설정']) {
       expect(screen.queryByRole('button', { name })).toBeNull()
     }
-    expect(screen.getAllByText(/새가족팀 · 전체/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/새가족팀 · 대학·청년부/).length).toBeGreaterThan(0)
+  })
+
+  // 장년부 비밀번호로 들어오면 같은 패널이되 장년부의 것이다: 헤더가 어느 부인지 말해 주고,
+  // 새가족 교육 탭은 없다 (대학·청년부의 2주 과정을 따라가는 탭이라서). 명단 자체가 장년부만
+  // 담겨 오는 것은 서버가 보장한다 — 여기서 검사하는 것은 화면이 그 사실을 반영하는가다.
+  it('the 장년부 password opens the 장년부 panel — labelled as such, without 새가족 교육', () => {
+    useAdminAuth.setState({
+      status: 'authed',
+      identity: { role: 'super_admin', group: '', subgroup: '', ministry: '', partition: 'adult' },
+    })
+    renderApp()
+    const rail = screen.getByRole('navigation', { name: '관리자 페이지' })
+    for (const name of ['오늘', '출석부', '멤버', '통계', '새가족', '방문자', '관리자', '동산', '설정']) {
+      expect(within(rail).getByRole('button', { name })).toBeInTheDocument()
+    }
+    expect(within(rail).queryByRole('button', { name: '새가족 교육' })).toBeNull()
+    expect(screen.getAllByText(/장년부/).length).toBeGreaterThan(0)
+  })
+
+  // 반대로 대학·청년부 패널에는 새가족 교육이 그대로 있어야 한다 — 위 테스트가 탭을 통째로
+  // 없애 버리는 회귀를 잡아내도록.
+  it('keeps 새가족 교육 in the 대학·청년부 panel', () => {
+    renderApp()
+    const rail = screen.getByRole('navigation', { name: '관리자 페이지' })
+    expect(within(rail).getByRole('button', { name: '새가족 교육' })).toBeInTheDocument()
   })
 })
 
