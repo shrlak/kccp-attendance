@@ -3,17 +3,36 @@
 // Two auth paths, tried in order by resolveAdmin():
 //   1. Google JWT (Bearer token): email → members.email → member_roles → role/scope.
 //   2. Break-glass: a shared team password alone — works on ANY device, registered or not.
-//      There are three passwords, each landing on a different dashboard:
+//      There are four passwords, each landing on a different dashboard:
 //        • SUPER_PASSWORD      → "super_admin" role (full panel: settings, admins, backup…)
 //        • LEADER_PASSWORD     → "leader"      role (리더 dashboard)
 //        • WELCOMING_PASSWORD  → "welcoming"   role (새가족팀 dashboard)
+//        • ADULT_PASSWORD      → "super_admin" role in the **장년부 partition** (see below)
 //      A device that happens to be linked to a roled member keeps that member's scope;
-//      otherwise the login gets the password's break-glass role. All three see the whole
-//      roster (a shared password can't pin to one 동산); only SUPER_PASSWORD grants the
-//      super_admin powers (settings, admin management, 동산지기/임원, backup).
+//      otherwise the login gets the password's break-glass role. The three 대학·청년부
+//      passwords see that ministry's whole roster (a shared password can't pin to one
+//      동산); only SUPER_PASSWORD grants the super_admin powers (settings, admin
+//      management, 동산지기/임원, backup).
 // Public check-in stays anonymous and PII-free.
 //
-// Wired into index.ts (imports resolveAdmin + scopeFilter) and unit-tested (auth.test.ts).
+// ── PARTITIONS (부) ──────────────────────────────────────────────────────────────────
+// The app serves two departments and they must never see each other's people:
+// 대학·청년부 ("youth") and 장년부 ("adult"). **The boundary is the Postgres schema.**
+// 대학·청년부 lives in `public`, 장년부 in `adult` (migration 20260807) — separate tables,
+// separate sequences, separate backups. Reading `public.members` with no filter at all
+// returns zero 장년부 people, because they are not in that table.
+//
+// Every admin carries the partition their credentials belong to (`Role.partition`), and
+// `dbOf(sb, partition)` is the single place that turns it into a database handle. Get that
+// right and the rest follows: a query can't reach across departments even if someone
+// forgets a WHERE clause.
+//
+// scopeFilter()/inScope() still exist and still matter — they carry the 동산/셀 scoping a
+// 리더 needs *within* their own department, and they double as belt-and-braces on the 부서
+// (`{all:true, exclude:['장년부']}` for a youth super). But the schema is the real wall.
+//
+// Wired into index.ts (imports resolveAdmin + dbOf + scopeFilter + inScope) and unit-tested
+// (auth.test.ts).
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
@@ -21,27 +40,65 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 //  SHARED TEAM PASSWORDS — change these lines to rotate them (or set the matching env
 //  vars to override without editing code). Each grants admin access from ANY device and
 //  lands on its own dashboard, so treat them as secrets and rotate if leaked:
-//    • SUPER_PASSWORD     → the full super-admin panel
-//    • LEADER_PASSWORD    → the 리더(leader) dashboard
-//    • WELCOMING_PASSWORD → the 새가족팀(welcoming) dashboard
+//    • SUPER_PASSWORD     → the full super-admin panel (대학·청년부)
+//    • LEADER_PASSWORD    → the 리더(leader) dashboard (대학·청년부)
+//    • WELCOMING_PASSWORD → the 새가족팀(welcoming) dashboard (대학·청년부)
+//    • ADULT_PASSWORD     → the 장년부 panel: the same admin surface, but every query is
+//                           pinned to the 장년부 partition, so it never shows — and can
+//                           never touch — a 대학부/청년부 member (and vice versa).
 export const SUPER_PASSWORD = Deno.env.get("SUPER_PASSWORD") ?? "kccpadmin";
 export const LEADER_PASSWORD = Deno.env.get("LEADER_PASSWORD") ?? "kccpleaders";
 export const WELCOMING_PASSWORD =
   Deno.env.get("WELCOMING_PASSWORD") ?? Deno.env.get("MASTER_PASSWORD") ?? "kccpwelcome";
+export const ADULT_PASSWORD = Deno.env.get("ADULT_PASSWORD") ?? "kccpadults";
 // Backwards-compat alias for the legacy single break-glass credential (now the welcoming
 // password). Kept so older references / env overrides keep working.
 export const MASTER_PASSWORD = WELCOMING_PASSWORD;
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Map a typed password to the break-glass role it grants, or null if it matches none.
-// Checked super → leader → welcoming so the higher-privilege match wins if two passwords
-// are (mis)configured identically.
-export function passwordRole(password: string): "super_admin" | "leader" | "welcoming" | null {
+// The 부서 that makes up the 장년부 partition. Everything else is the youth partition.
+export const ADULT_GROUP = "장년부";
+// 장년부의 표가 사는 스키마. 대학·청년부는 기본 스키마(public)를 그대로 쓴다.
+export const ADULT_SCHEMA = "adult";
+export type Partition = "youth" | "adult";
+
+// Which partition a 부서 belongs to. The empty/unknown 부서 (guests, legacy rows, staff
+// with no 부서) stays with 대학·청년부, which is where those rows have always shown up.
+export function partitionOfGroup(group: string | null | undefined): Partition {
+  return (group || "") === ADULT_GROUP ? "adult" : "youth";
+}
+
+// **The one place a 부 becomes a database handle.** Everything the two departments own —
+// 사람·기기·출석·권한·설정·감사기록 — is reached through this, so a query is scoped to a
+// department by construction rather than by remembering a filter.
+//
+// A stored admin grant no longer needs a 부서 to say which 부 it belongs to: it belongs to
+// the schema it was found in.
+// deno-lint-ignore no-explicit-any
+export function dbOf(sb: any, partition: Partition): any {
+  return partition === "adult" ? sb.schema(ADULT_SCHEMA) : sb;
+}
+
+// Map a typed password to the break-glass grant it confers, or null if it matches none.
+// Checked super → leader → welcoming → adult so the higher-privilege match wins if two
+// passwords are (mis)configured identically.
+export function passwordGrant(
+  password: string,
+): { role: "super_admin" | "leader" | "welcoming"; partition: Partition } | null {
   if (!password) return null;
-  if (password === SUPER_PASSWORD) return "super_admin";
-  if (password === LEADER_PASSWORD) return "leader";
-  if (password === WELCOMING_PASSWORD) return "welcoming";
+  if (password === SUPER_PASSWORD) return { role: "super_admin", partition: "youth" };
+  if (password === LEADER_PASSWORD) return { role: "leader", partition: "youth" };
+  if (password === WELCOMING_PASSWORD) return { role: "welcoming", partition: "youth" };
+  // 장년부 runs its own department end to end, so its shared password is a super_admin —
+  // inside the 장년부 partition only. scopeFilter pins it to 장년부 regardless of role.
+  if (password === ADULT_PASSWORD) return { role: "super_admin", partition: "adult" };
   return null;
+}
+
+// The role a password grants, ignoring its partition. Kept as the narrow helper older
+// call sites (and tests) use; passwordGrant is the full answer.
+export function passwordRole(password: string): "super_admin" | "leader" | "welcoming" | null {
+  return passwordGrant(password)?.role ?? null;
 }
 
 // Roles. "staff" is a legacy combined 리더+새가족팀 break-glass role (no longer minted by the
@@ -55,9 +112,16 @@ export interface Role {
   group: string;
   subgroup: string;
   ministry: string;
+  // 대학·청년부 or 장년부. Every row this admin may read or write lives in this partition;
+  // see scopeFilter/inScope. Derived, never sent by the client.
+  partition: Partition;
 }
 
-export type Scope = { all: true } | { all: false; groups: string[]; subgroup: string };
+// What an admin may see. `all` is "the whole partition", which is not the whole table:
+// `exclude` lists the 부서 that belong to the OTHER partition and must be filtered out.
+export type Scope =
+  | { all: true; exclude: string[] }
+  | { all: false; groups: string[]; subgroup: string };
 
 // Any device id that is NOT a ROSTER-## seed stub is a real personal device. Admin
 // roles may only ever attach to personal devices — never to ROSTER placeholders.
@@ -65,19 +129,36 @@ export function isPersonalDevice(deviceId: string): boolean {
   return !!deviceId && !deviceId.startsWith("ROSTER-");
 }
 
-// Mirror of the legacy browser ACL: super/pastor see everything; a leader or 새가족팀
-// (welcoming) member is scoped to their 부서 + 동산. A "합동" group spans BOTH 대학부·
-// 청년부 in EVERY season (the shared 임원 account); in summer mode a 대학부/청년부 scope
-// is likewise promoted to 합동 — so during 여름동산 a 새가족팀원 sees both 부서, while in
-// 봄/가을동산 a 대학부 새가족팀원 sees only 대학부 and a 청년부 새가족팀원 only 청년부.
-// The subgroup always pins to their 동산.
+// Mirror of the legacy browser ACL, now partition-first:
+//
+// • 장년부 admins are pinned to 장년부 — always, whatever their role. A 장년부 리더 is
+//   additionally pinned to their 동산; every other 장년부 role sees the whole 장년부
+//   roster. 여름 합동 never applies here (that is a 대학·청년부 arrangement).
+// • 대학·청년부 super/pastor/staff see everything in their partition, i.e. everything
+//   EXCEPT 장년부 — which is why `all` carries an `exclude` list instead of meaning
+//   "no filter at all".
+// • A 대학·청년부 leader or 새가족팀(welcoming) member is scoped to their 부서 + 동산.
+//   A "합동" group spans BOTH 대학부·청년부 in EVERY season (the shared 임원 account); in
+//   summer mode a 대학부/청년부 scope is likewise promoted to 합동 — so during 여름동산 a
+//   새가족팀원 sees both 부서, while in 봄/가을동산 a 대학부 새가족팀원 sees only 대학부
+//   and a 청년부 새가족팀원 only 청년부. The subgroup always pins to their 동산.
 export function scopeFilter(role: Role, summerMode: boolean): Scope {
-  // super/pastor see everything; staff (legacy break-glass) also sees the whole roster.
-  if (role.role === "super_admin" || role.role === "pastor" || role.role === "staff") return { all: true };
+  if (role.partition === "adult") {
+    // A 장년부 리더 with a stored 동산 keeps that 동산; the shared 장년부 password (and
+    // every other 장년부 role) sees the whole 장년부 roster.
+    const subgroup = role.role === "leader" ? role.subgroup : "";
+    return { all: false, groups: [ADULT_GROUP], subgroup };
+  }
+  // super/pastor see their whole partition; staff (legacy break-glass) too.
+  if (role.role === "super_admin" || role.role === "pastor" || role.role === "staff") {
+    return { all: true, exclude: [ADULT_GROUP] };
+  }
   // Password-only (break-glass) leader/welcoming logins have no linked member (memberId="")
-  // to scope to, so they see the whole roster — a shared team password can't pin to one
-  // person's 부서/동산. Real roled leaders/welcoming members always carry a memberId.
-  if ((role.role === "leader" || role.role === "welcoming") && !role.memberId) return { all: true };
+  // to scope to, so they see the whole 대학·청년부 roster — a shared team password can't pin
+  // to one person's 부서/동산. Real roled leaders/welcoming members always carry a memberId.
+  if ((role.role === "leader" || role.role === "welcoming") && !role.memberId) {
+    return { all: true, exclude: [ADULT_GROUP] };
+  }
   if (role.role === "leader" || role.role === "welcoming") {
     const combined = role.group === "합동" ||
       (summerMode && (role.group === "대학부" || role.group === "청년부"));
@@ -86,6 +167,26 @@ export function scopeFilter(role: Role, summerMode: boolean): Scope {
   }
   // any other scoped role
   return { all: false, groups: [role.group].filter(Boolean), subgroup: role.subgroup };
+}
+
+// Is this 부서/동산 inside the scope? THE membership test — every per-row authorization
+// check in index.ts goes through here, super admins included, because `all` no longer
+// means "everything in the table" (it excludes the other partition).
+export function inScope(scope: Scope, group: string | null | undefined, subgroup?: string | null): boolean {
+  if (!inScopeGroup(scope, group)) return false;
+  if (!scope.all && scope.subgroup && (subgroup || "") !== scope.subgroup) return false;
+  return true;
+}
+
+// The 부서 half of the test on its own — "may this admin file someone under this 부서?".
+// Used where the thing being checked is a DESTINATION rather than an existing row: the 부서
+// a member is being moved to, a 새가족 is being registered into, a 방문자 is tagged with.
+// Deliberately ignores the 동산: a 동산-scoped 리더 registering a 새가족 in their own 부서
+// hasn't picked a 동산 yet (it's assigned later), and requiring one would reject the save.
+export function inScopeGroup(scope: Scope, group: string | null | undefined): boolean {
+  const g = group || "";
+  if (scope.all) return !scope.exclude.includes(g);
+  return scope.groups.includes(g);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -106,21 +207,26 @@ export function canViewLoginLog(role: Role | null): boolean {
 
 type SB = ReturnType<typeof createClient>;
 
-// Verify an admin via a shared team password. Either break-glass password grants access
+// Verify an admin via a shared team password. Any of the four passwords grants access
 // from ANY device — no registration required and the device id is irrelevant (so staff can
 // sign in from a phone, a borrowed laptop, a fresh browser, etc.). If the device happens to
 // be a personal one linked to a member who holds a scoped role, that member's scope is
 // preserved; otherwise the login gets the role the password maps to (SUPER_PASSWORD →
-// "super_admin", LEADER_PASSWORD → "leader", WELCOMING_PASSWORD → "welcoming"), all with
-// full-roster visibility. Returns null only when the password matches none of the three.
+// "super_admin", LEADER_PASSWORD → "leader", WELCOMING_PASSWORD → "welcoming",
+// ADULT_PASSWORD → "super_admin" in the 장년부 partition). Returns null only when the
+// password matches none of them.
 export async function verifyAdmin(sb: SB, deviceId: string, password: string): Promise<Role | null> {
-  const bgRole = passwordRole(password);
-  if (!bgRole) return null;
+  const grant = passwordGrant(password);
+  if (!grant) return null;
   if (isPersonalDevice(deviceId)) {
-    const { data: dev } = await sb.from("devices").select("member_id").eq("id", deviceId).single();
+    // Look only in the schema the typed password belongs to. That is what keeps a device's
+    // stored grant from crossing departments: the 장년부 password on a 청년부 리더's phone
+    // searches `adult.devices`, doesn't find them, and falls through to break-glass.
+    const db = dbOf(sb, grant.partition);
+    const { data: dev } = await db.from("devices").select("member_id").eq("id", deviceId).single();
     const memberId = (dev as { member_id?: string } | null)?.member_id;
     if (memberId) {
-      const { data: r } = await sb.from("member_roles").select("*").eq("member_id", memberId).single();
+      const { data: r } = await db.from("member_roles").select("*").eq("member_id", memberId).single();
       if (r) {
         const row = r as { role: AdminRole; group_name?: string; subgroup?: string; ministry?: string };
         return {
@@ -129,36 +235,43 @@ export async function verifyAdmin(sb: SB, deviceId: string, password: string): P
           group: row.group_name || "",
           subgroup: row.subgroup || "",
           ministry: row.ministry || "",
+          partition: grant.partition,
         };
       }
     }
   }
   // Break-glass: correct team password on a device with no linked admin role → the role the
-  // password maps to ("super_admin", "leader", or "welcoming"), all-roster. memberId is
-  // empty (no member to attribute) — safe because every role.memberId lookup downstream is
-  // gated behind a leader/welcoming/staff role check (super_admin paths key off role.role
-  // and audit via the device id), and super_admin / empty-memberId leader/welcoming are all
-  // all-access in scopeFilter so scope checks never filter them.
-  return { memberId: "", role: bgRole, group: "", subgroup: "", ministry: "" };
+  // password maps to, scoped to that password's partition. memberId is empty (no member to
+  // attribute) — safe because every role.memberId lookup downstream is gated behind a
+  // leader/welcoming/staff role check (super_admin paths key off role.role and audit via
+  // the device id), and scopeFilter still pins the login to its own partition.
+  return { memberId: "", role: grant.role, group: "", subgroup: "", ministry: "", partition: grant.partition };
 }
 
-// Verify via Supabase JWT (Google sign-in path). Resolves email → member → role.
+// Verify via Supabase JWT (Google sign-in path). Resolves email → member → role. Both
+// departments are searched, 대학·청년부 first; **whichever schema the member turns up in is
+// the 부 they get** — there is no other way to belong to one.
 export async function verifyAdminJwt(sb: SB, jwt: string): Promise<Role | null> {
   const { data: { user } } = await sb.auth.getUser(jwt);
   if (!user?.email) return null;
-  const { data: member } = await sb.from("members").select("id").ilike("email", user.email).single();
-  const memberId = (member as { id?: string } | null)?.id;
-  if (!memberId) return null;
-  const { data: r } = await sb.from("member_roles").select("*").eq("member_id", memberId).single();
-  if (!r) return null;
-  const row = r as { role: AdminRole; group_name?: string; subgroup?: string; ministry?: string };
-  return {
-    memberId,
-    role: row.role,
-    group: row.group_name || "",
-    subgroup: row.subgroup || "",
-    ministry: row.ministry || "",
-  };
+  for (const partition of ["youth", "adult"] as const) {
+    const db = dbOf(sb, partition);
+    const { data: member } = await db.from("members").select("id").ilike("email", user.email).single();
+    const memberId = (member as { id?: string } | null)?.id;
+    if (!memberId) continue;
+    const { data: r } = await db.from("member_roles").select("*").eq("member_id", memberId).single();
+    if (!r) continue;
+    const row = r as { role: AdminRole; group_name?: string; subgroup?: string; ministry?: string };
+    return {
+      memberId,
+      role: row.role,
+      group: row.group_name || "",
+      subgroup: row.subgroup || "",
+      ministry: row.ministry || "",
+      partition,
+    };
+  }
+  return null;
 }
 
 // Unified resolver: try Google JWT first (Authorization: Bearer), fall back to

@@ -1,8 +1,6 @@
 import { useState, type ReactNode } from 'react'
-import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  getConfig,
   getDongsanNames,
   getNewMemberDongsanNames,
   updateMember,
@@ -27,13 +25,21 @@ import { NewFamilyCardForm } from './NewFamilyCardForm'
 import { cardFormFromMember, joinAffiliation, type CardFormValue } from './newFamilyCard'
 import { copyNewFamilyCards, saveNewFamilyCards } from './newFamilyCardImage'
 import { refreshRoster } from '../../lib/live'
+import { useAppConfig, usePartition, usePartitionT } from '../../lib/useAppConfig'
+import { groupsOfPartition, type Partition } from '../../lib/partition'
 
 // 상태 표기 quick presets — canonical note values the 출석부 renders as grey spans.
 // 방학 additionally hides the member from the kiosk and excludes their attendance from
 // analytics while it's active (see kiosk.ts hiddenByStatus / analytics.ts excludeOnBreak).
 const STATUS_PRESETS = ['이주', '한국 귀국', '졸업', '방학']
 
-const GROUPS = ['대학부', '청년부', 'EM', 'Adult Ministry']
+// 부서 선택 후보 — 로그인한 부의 것만. 대학·청년부에는 예전부터 쓰이던 EM/Adult Ministry
+// 항목이 남아 있고, 장년부는 장년부 하나뿐이다.
+const EXTRA_YOUTH_GROUPS = ['EM', 'Adult Ministry']
+function groupOptions(partition: Partition): string[] {
+  const own = groupsOfPartition(partition)
+  return partition === 'adult' ? own : [...own, ...EXTRA_YOUTH_GROUPS]
+}
 const MEMBER_ROLES = ['', 'visitor', 'pastor', 'elder', 'deacon', 'mentor']
 
 // A labelled form field wrapper, shared by the member dialogs (and the merge dialog).
@@ -61,11 +67,12 @@ export function EditModal({
   // server still enforces scope + read-only regardless of this flag.
   allowDelete?: boolean
 }) {
-  const { t } = useTranslation()
+  const t = usePartitionT()
   const qc = useQueryClient()
   const toast = useToast()
   // Configured 동산 names feed the 동산 dropdown (combined list in summer mode).
-  const { data: cfg } = useQuery({ queryKey: ['config'], queryFn: getConfig })
+  const { data: cfg } = useAppConfig()
+  const partition = usePartition()
   const { data: dongsanNames } = useQuery({ queryKey: ['dongsanNames'], queryFn: getDongsanNames })
   // 새가족 교육 동산: a separate, education-only 동산 list (config › 동산 tab has its own
   // editor for this) — distinct from the member's eventual regular 동산 above.
@@ -296,7 +303,7 @@ export function EditModal({
         <div className="mt-1 border-t border-separator pt-4 section-kicker">{t('admin.members.sectionBasic')}</div>
         <Field label={t('admin.members.group')}>
           <Select value={f.group ?? ''} onChange={(e) => set('group', e.target.value)}>
-            {GROUPS.map((g) => (
+            {groupOptions(partition).map((g) => (
               <option key={g} value={g}>
                 {g}
               </option>
@@ -313,7 +320,9 @@ export function EditModal({
             ))}
           </Select>
         </Field>
-        {f.isNewMember && (
+        {/* 새가족 교육 동산은 대학·청년부의 2주 교육 과정에 딸린 칸이다 — 장년부 패널에는
+            그 탭 자체가 없으므로 이 칸도 두지 않는다. */}
+        {f.isNewMember && partition !== 'adult' && (
           <Field label={t('admin.members.eduDongsan')}>
             <Select value={currentEduDongsan} onChange={(e) => set('newMemberDongsan', e.target.value)}>
               <option value="">—</option>
@@ -394,7 +403,7 @@ export function AttendanceModal({
   readOnly: boolean
   onClose: () => void
 }) {
-  const { t } = useTranslation()
+  const t = usePartitionT()
   const qc = useQueryClient()
   const toast = useToast()
   const [date, setDate] = useState(easternNow().date)

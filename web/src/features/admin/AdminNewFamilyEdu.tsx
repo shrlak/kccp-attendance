@@ -20,7 +20,6 @@ import { summerDongsanList } from './dongsan'
 import { Pill } from './GroupFilter'
 import { DongsanNamesEditor } from './AdminDongsan'
 import { configCalendar,
-  getConfig,
   getNewMemberDongsanNames,
   updateNewMemberDongsanNames,
   updateMember,
@@ -34,6 +33,7 @@ import { useToast } from '../../components/ui/Toast'
 import { Settings, GraduationCap, AlertTriangle, Check } from '../../components/ui/Icon'
 import { EditModal, AttendanceModal } from './MemberDialogs'
 import { refreshRoster } from '../../lib/live'
+import { useAppConfig, usePartition } from '../../lib/useAppConfig'
 
 const EDU_FILTERS: { key: EduFilter; labelKey: string }[] = [
   { key: 'week1', labelKey: 'admin.newfamily.eduFilter.week1' },
@@ -51,7 +51,8 @@ export function AdminNewFamilyEdu() {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const { data, isLoading, isError } = useRoster(true)
-  const { data: cfg } = useQuery({ queryKey: ['config'], queryFn: getConfig })
+  const { data: cfg } = useAppConfig()
+  const partition = usePartition()
   // 이름 목록 읽기·쓰기 둘 다 서버에서 super_admin 전용이다. 다른 역할로 물으면 403이
   // 돌아오고 데이터는 영영 안 온다 — 그래서 아래 설정 버튼도 super_admin에게만 보인다.
   const isSuper = data?.role === 'super_admin'
@@ -162,6 +163,7 @@ export function AdminNewFamilyEdu() {
           <DongsanNamesEditor
             loaded={eduDongsanNames ?? {}}
             summer={summerMode}
+            partition={partition}
             desc={t('admin.settings.newMemberDongsanNamesDesc')}
             onSave={async (next) => {
               await updateNewMemberDongsanNames(next)

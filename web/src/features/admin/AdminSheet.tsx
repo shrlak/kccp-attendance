@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { useRoster } from './useRoster'
 import {
   buildAttendanceModel,
@@ -16,7 +16,7 @@ import {
   NOTE_FILL,
   type Lang,
 } from './exports'
-import { addBulkAttendance, clearAttendance, configCalendar, getConfig, type LogEntry, type Member, type RosterResponse } from '../../lib/api'
+import { addBulkAttendance, clearAttendance, configCalendar, type LogEntry, type Member, type RosterResponse } from '../../lib/api'
 import type { CalendarLike } from '../../lib/semester'
 import { easternNow } from '../../lib/checkinWindow'
 import { checkinCandidates } from './today'
@@ -24,6 +24,7 @@ import { memberIdsPresentOn, toggleId } from './bulk'
 import { filterMembers, filterLog, NO_FILTER, type Filter } from './filters'
 import { orderByDongsanRole } from './dongsan'
 import { useDongsanRole } from './useDongsanRole'
+import { useUnitTerms } from '../../lib/useAppConfig'
 import { computeStats } from './stats'
 import { GroupFilter } from './GroupFilter'
 import { ExportMenu } from './ExportMenu'
@@ -37,6 +38,7 @@ import { Tag } from '../../components/ui/Tag'
 import { useToast } from '../../components/ui/Toast'
 import { Plus, Trash2, AlertTriangle, Search, Calendar, ClipboardList, Check } from '../../components/ui/Icon'
 import { refreshRoster } from '../../lib/live'
+import { useAppConfig } from '../../lib/useAppConfig'
 
 // Attendance spreadsheet: the Excel-style 출석부 grid (an on-screen replica of the exported
 // "Attendance" sheet — color-coded 동산 blocks, O/X cells, 예배 총 출석 + 총 출석 rows) or a
@@ -48,7 +50,7 @@ export function AdminSheet() {
   const [clearing, setClearing] = useState(false)
   const [filter, setFilter] = useState<Filter>(NO_FILTER)
   const { data, isLoading, isError } = useRoster(true)
-  const { data: cfg } = useQuery({ queryKey: ['config'], queryFn: getConfig })
+  const { data: cfg } = useAppConfig()
 
   if (isLoading) return (
     <div className="fx-fade space-y-3">
@@ -329,12 +331,15 @@ function GridView({
   semesterDates?: CalendarLike
 }) {
   const roleOf = useDongsanRole()
+  // 하위 단위를 뭐라 부르는지는 부서마다 다르다 — 대학·청년부는 동산·동산지기·부동산지기,
+  // 장년부는 셀·셀장·부셀장 (lib/partition.ts unitTerms). 범례와 미지정 블록의 제목이 그것.
+  const U = useUnitTerms(lang)
   const L =
     lang === 'ko'
-      ? { name: '이름', memberTotal: '예배 총 출석', total: '총 출석', key: 'KEY', present: '출석', absent: '결석', etc: '기타', leaderKey: '동산지기', subleaderKey: '부동산지기', unassigned: '동산 미지정', newFamily: '새가족', empty: '출석 기록이 없습니다' }
-      : { name: 'Name', memberTotal: 'Worship Total', total: 'Total', key: 'KEY', present: 'Present', absent: 'Absent', etc: 'Other', leaderKey: 'Dongsan leader', subleaderKey: 'Assistant leader', unassigned: 'Unassigned', newFamily: 'New family', empty: 'No attendance records' }
+      ? { name: '이름', memberTotal: '예배 총 출석', total: '총 출석', key: 'KEY', present: '출석', absent: '결석', etc: '기타', leaderKey: U.leader, subleaderKey: U.subLeader, unassigned: U.unassigned, newFamily: '새가족', empty: '출석 기록이 없습니다' }
+      : { name: 'Name', memberTotal: 'Worship Total', total: 'Total', key: 'KEY', present: 'Present', absent: 'Absent', etc: 'Other', leaderKey: U.leader, subleaderKey: U.subLeader, unassigned: U.unassigned, newFamily: 'New family', empty: 'No attendance records' }
 
-  // 동산지기/부동산지기 float to the top of their own 동산 block (roster order otherwise).
+  // 동산지기/부동산지기(셀장/부셀장) float to the top of their own block (roster order otherwise).
   const ordered = orderByDongsanRole(members, roleOf)
   const model = buildAttendanceModel(
     ordered,

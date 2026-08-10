@@ -1,4 +1,5 @@
 import type { Member, LogEntry } from '../../lib/api'
+import { ADULT_GROUP } from '../../lib/partition'
 
 // group ('') = all groups; subgroup ('') = all 동산 within the chosen group.
 export interface Filter {
@@ -8,8 +9,10 @@ export interface Filter {
 
 export const NO_FILTER: Filter = { group: '', subgroup: '' }
 
-// Preferred department order; anything else falls to the end, alphabetically.
-const GROUP_ORDER = ['대학부', '청년부', 'EM', 'Adult Ministry']
+// Preferred department order; anything else falls to the end, alphabetically. Both 부's
+// 부서 are listed — a roster only ever contains one 부's people (the server scopes it), so
+// this is just a stable ordering, not a claim that they appear together.
+const GROUP_ORDER = ['대학부', '청년부', ADULT_GROUP, 'EM', 'Adult Ministry']
 const groupRank = (g: string) => {
   const i = GROUP_ORDER.indexOf(g)
   return i === -1 ? GROUP_ORDER.length : i

@@ -44,6 +44,7 @@ import {
 import { useToast } from '../../components/ui/Toast'
 import type { ReactNode } from 'react'
 import { refreshRoster, refreshRosterSettled } from '../../lib/live'
+import { usePartition, usePartitionT } from '../../lib/useAppConfig'
 
 const ROLES: AdminRole[] = ['super_admin', 'leader', 'pastor', 'welcoming']
 
@@ -100,9 +101,13 @@ function fileToBase64(file: File): Promise<string> {
 // Admins tab (super-admin): the admin roster with add/remove, the audit + login logs,
 // the clear-attendance request queue, and backups.
 export function AdminAdmins() {
-  const { t, i18n } = useTranslation()
+  const t = usePartitionT()
+  const { i18n } = useTranslation()
   const qc = useQueryClient()
   const toast = useToast()
+  // 백업은 부서별 줄기다 — 대학·청년부는 데이터베이스 전체 스냅숏, 장년부는 장년부 데이터만.
+  // 목록·다운로드·복원은 서버가 이미 자기 접두사만 보여주므로, 여기서는 설명 문구만 맞춘다.
+  const partition = usePartition()
   const { data: rolesData, isLoading: rolesLoading } = useQuery({ queryKey: ['adminRoles'], queryFn: getAdminRoles })
   const { data: clearPending } = useQuery({ queryKey: ['clearPending'], queryFn: getClearPending })
   const [clearBusy, setClearBusy] = useState(false)
@@ -392,7 +397,9 @@ export function AdminAdmins() {
           </span>
         )}
       </div>
-      <p className="mb-3 text-xs text-muted">{t('admin.dbBackupCurrentDesc')}</p>
+      <p className="mb-3 text-xs text-muted">
+        {t(partition === 'adult' ? 'admin.dbBackupCurrentDescAdult' : 'admin.dbBackupCurrentDesc')}
+      </p>
 
       {dbBackupsData?.storage && (
         <div className="mb-3 rounded-lg border border-border bg-surface p-3">
@@ -490,7 +497,7 @@ export function AdminAdmins() {
 }
 
 function AddAdminModal({ onClose }: { onClose: () => void }) {
-  const { t } = useTranslation()
+  const t = usePartitionT()
   const qc = useQueryClient()
   const toast = useToast()
   const { data } = useRoster(true)
@@ -596,7 +603,10 @@ function AddAdminModal({ onClose }: { onClose: () => void }) {
 // never stored anywhere, client or server) and the literal word RESTORE must be typed to
 // enable the button, on top of this already only being reachable via its own confirm step.
 function RestoreDbDialog({ target, onClose }: { target: DbRestoreTarget; onClose: () => void }) {
-  const { t } = useTranslation()
+  // 장년부 복원은 장년부 행만 되돌린다 (엣지 함수의 ADULT_PARTITION_TABLES) — 경고 문구가
+  // "전부 대체됩니다"라고 말하면 사실과 다르다.
+  const partition = usePartition()
+  const t = usePartitionT()
   const qc = useQueryClient()
   const toast = useToast()
   const [privateKey, setPrivateKey] = useState('')
@@ -640,7 +650,7 @@ function RestoreDbDialog({ target, onClose }: { target: DbRestoreTarget; onClose
     <Dialog open onOpenChange={(o) => !o && !busy && onClose()} title={t('admin.admins.dbBackup.restoreTitle')}>
       <div className="flex flex-col gap-3">
         <div className="rounded-lg border border-danger/40 bg-danger/5 p-3 text-xs text-danger">
-          {t('admin.admins.dbBackup.restoreWarning')}
+          {t(partition === 'adult' ? 'admin.dbBackupRestoreWarningAdult' : 'admin.admins.dbBackup.restoreWarning')}
         </div>
         <p className="text-xs text-muted">
           {target.source === 'online'

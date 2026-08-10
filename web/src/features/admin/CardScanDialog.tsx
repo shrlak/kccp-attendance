@@ -19,6 +19,7 @@ import {
 import { easternNow } from '../../lib/checkinWindow'
 import { NewFamilyCardForm } from './NewFamilyCardForm'
 import { blankCardForm, groupForAffiliation, joinAffiliation, type CardFormValue } from './newFamilyCard'
+import { usePartition } from '../../lib/useAppConfig'
 import { normalizeExtractedCards } from './cardExtraction'
 import { fileToCardImage } from './cardPhoto'
 import { refreshRoster, broadcastAttendanceChange } from '../../lib/live'
@@ -55,6 +56,9 @@ export function CardScanDialog({
   const { t } = useTranslation()
   const qc = useQueryClient()
   const toast = useToast()
+  // 어느 부에 등록할지 — 카드에서 읽은 소속으로 부서를 정하는 건 대학·청년부 쪽 규칙이고,
+  // 장년부에서는 언제나 장년부다. 공개 카드 링크(publicMode)는 로그인이 없으니 대학·청년부.
+  const partition = usePartition()
   // Refetch on open, every two seconds while the dialog is visible, and after each API
   // request below. This is the same server-side counter that enforces the daily limit.
   // Separate cache keys so a signed-in admin who also opens the share link doesn't have
@@ -207,7 +211,7 @@ export function CardScanDialog({
       const payload: NewMemberFields = {
         name: card.name.trim(),
         // Same mapping as the kiosk 새가족 등록: 부서 from 소속, 동산 assigned later.
-        group: groupForAffiliation(card.affiliationCategory),
+        group: groupForAffiliation(card.affiliationCategory, partition),
         subgroup: '',
         gender: card.gender,
         phone: card.phone.trim(),

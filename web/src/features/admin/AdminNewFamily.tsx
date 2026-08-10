@@ -1,16 +1,16 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useQuery } from '@tanstack/react-query'
 import { useRoster } from './useRoster'
 import { easternNow } from '../../lib/checkinWindow'
 import { filterMembers, NO_FILTER, type Filter } from './filters'
 import { semesterKey, newFamilyBySemester, monthlyRegistrations, newFamilyWeek } from './newFamily'
 import { NewFamilyWeekChip } from './NewFamilyWeekChip'
 import { copyNewFamilyCards, saveNewFamilyCards } from './newFamilyCardImage'
-import { newFamilySheets, NEW_FAMILY_HEADER } from './exports'
+import { newFamilySheets, newFamilyHeader } from './exports'
 import { toggleId } from './bulk'
 import { GroupFilter } from './GroupFilter'
-import { configCalendar, getConfig, type Member } from '../../lib/api'
+import { configCalendar, type Member } from '../../lib/api'
+import type { Partition } from '../../lib/partition'
 import { Dialog } from '../../components/ui/Dialog'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
@@ -20,6 +20,7 @@ import { ScanLine, Download, Search, HandHeart, Heart, Calendar, GraduationCap, 
 import { prefetchExcel } from '../../app/prefetch'
 import { EditModal, AttendanceModal } from './MemberDialogs'
 import { CardScanDialog } from './CardScanDialog'
+import { useAppConfig, usePartition } from '../../lib/useAppConfig'
 
 // 새가족 (new-family) tab: registration tracking — current-semester new members grouped
 // by 등록일, a monthly-registrations roll-up, card-photo registration, and export.
@@ -28,7 +29,7 @@ import { CardScanDialog } from './CardScanDialog'
 export function AdminNewFamily() {
   const { t } = useTranslation()
   const { data, isLoading, isError } = useRoster(true)
-  const { data: cfg } = useQuery({ queryKey: ['config'], queryFn: getConfig })
+  const { data: cfg } = useAppConfig()
   const [filter, setFilter] = useState<Filter>(NO_FILTER)
   const [editing, setEditing] = useState<Member | null>(null)
   const [attendanceFor, setAttendanceFor] = useState<Member | null>(null)
@@ -212,7 +213,7 @@ export function AdminNewFamily() {
 // 새가족 정보를 회사의 레거시 로스터 스프레드시트와 같은 모양(부서별 탭, 파란 헤더, 12개
 // 열)으로 내보낸다. XLSX.writeFile이 유일한 DOM 부수효과 — 행/시트 구성은 순수 함수
 // (newFamilySheets, ./exports)에 있다.
-async function exportNewFamilyExcel(members: Member[], today: string): Promise<void> {
+async function exportNewFamilyExcel(members: Member[], today: string, partition: Partition): Promise<void> {
   const XLSX = await import('xlsx-js-style')
   const wb = XLSX.utils.book_new()
   const headerStyle = {
@@ -222,9 +223,9 @@ async function exportNewFamilyExcel(members: Member[], today: string): Promise<v
   }
   // 이름 / 등록일 / 성별 / 생년월일 / 전화번호 / 이메일 / 학교·직장 / 세례 / 주소·동네 / 동산 참여 / 목사님 심방 / 노트
   const colWidths = [14, 11, 7, 11, 14, 26, 22, 11, 16, 11, 11, 22].map((wch) => ({ wch }))
-  for (const { name, aoa } of newFamilySheets(members)) {
+  for (const { name, aoa } of newFamilySheets(members, partition)) {
     const ws = XLSX.utils.aoa_to_sheet(aoa)
-    for (let c = 0; c < NEW_FAMILY_HEADER.length; c++) {
+    for (let c = 0; c < newFamilyHeader(partition).length; c++) {
       const addr = XLSX.utils.encode_cell({ r: 0, c })
       if (ws[addr]) ws[addr].s = headerStyle
     }
@@ -248,6 +249,8 @@ async function exportNewFamilyExcel(members: Member[], today: string): Promise<v
 function ExportModal({ members, today, onClose }: { members: Member[]; today: string; onClose: () => void }) {
   const { t } = useTranslation()
   const toast = useToast()
+  // 새가족 시트의 '동산 참여' 칸은 장년부에서 '셀 참여'가 된다.
+  const partition = usePartition()
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Set<string>>(
     () => new Set(members.filter((m) => m.registration_date === today).map((m) => m.id)),
@@ -290,7 +293,7 @@ function ExportModal({ members, today, onClose }: { members: Member[]; today: st
     if (!list.length) return
     setBusy('excel')
     try {
-      await exportNewFamilyExcel(list, today)
+      await exportNewFamilyExcel(list, today, partition)
       toast({ title: t('admin.newfamily.export.excelDone'), tone: 'ok' })
     } catch {
       toast({ title: t('admin.newfamily.export.excelFailed'), tone: 'err' })

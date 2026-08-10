@@ -1,6 +1,6 @@
 import {
   TODAY_SHEET_COLUMNS,
-  TODAY_SHEET_GROUPS,
+  todaySheetGroups,
   TODAY_SHEET_ROWS,
   todayGroupRoster,
   todaySheetFilename,
@@ -10,6 +10,7 @@ import {
 } from './todaySheet'
 import { formatHeaderDate } from './exports'
 import type { LogEntry } from '../../lib/api'
+import type { Partition } from '../../lib/partition'
 
 // ── Today's check-in sheet → JPG download + clipboard (Korean) ───────────────
 // The DOM side of the sheet export: render a 부서's numbered roll sheet onto a
@@ -262,16 +263,18 @@ export async function copyCanvasToClipboard(canvas: HTMLCanvasElement): Promise<
   }
 }
 
-// Render the 대학부 + 청년부 sheets for `today`. `newMemberNames` holds the 새가족 who
-// registered on that very day — only they get the ✝️ icon. Shared by the copy/save
-// actions below so there's one render pass regardless of which (or both) the operator picks.
+// Render one sheet per 부서 of the logged-in 부 (대학부 + 청년부, or 장년부 alone) for
+// `today`. `newMemberNames` holds the 새가족 who registered on that very day — only they get
+// the ✝️ icon. Shared by the copy/save actions below so there's one render pass regardless
+// of which (or both) the operator picks.
 async function buildTodaySheetCanvases(
   log: LogEntry[],
   today: string,
   newMemberNames: ReadonlySet<string>,
+  partition: Partition,
 ): Promise<HTMLCanvasElement[]> {
   await ensureSheetFonts()
-  return TODAY_SHEET_GROUPS.map((group) =>
+  return todaySheetGroups(partition).map((group) =>
     renderTodaySheet(group, todayGroupRoster(log, today, group, newMemberNames), today),
   )
 }
@@ -281,19 +284,26 @@ export async function copyTodaySheets(
   log: LogEntry[],
   today: string,
   newMemberNames: ReadonlySet<string>,
+  partition: Partition = 'youth',
 ): Promise<{ copied: boolean }> {
-  const canvases = await buildTodaySheetCanvases(log, today, newMemberNames)
+  const canvases = await buildTodaySheetCanvases(log, today, newMemberNames, partition)
   const copied = await copyCanvasToClipboard(combineVertical(canvases, 80))
   return { copied }
 }
 
 // Download each 부서's sheet as its own JPG.
-export async function saveTodaySheets(log: LogEntry[], today: string, newMemberNames: ReadonlySet<string>): Promise<void> {
-  const canvases = await buildTodaySheetCanvases(log, today, newMemberNames)
-  for (let i = 0; i < TODAY_SHEET_GROUPS.length; i++) {
+export async function saveTodaySheets(
+  log: LogEntry[],
+  today: string,
+  newMemberNames: ReadonlySet<string>,
+  partition: Partition = 'youth',
+): Promise<void> {
+  const groups = todaySheetGroups(partition)
+  const canvases = await buildTodaySheetCanvases(log, today, newMemberNames, partition)
+  for (let i = 0; i < groups.length; i++) {
     const blob = await canvasToBlob(canvases[i], 'image/jpeg', 0.95)
-    if (blob) downloadBlob(blob, todaySheetFilename(TODAY_SHEET_GROUPS[i], today, 'jpg'))
+    if (blob) downloadBlob(blob, todaySheetFilename(groups[i], today, 'jpg'))
     // A short gap so the browser accepts the second (back-to-back) download.
-    if (i < TODAY_SHEET_GROUPS.length - 1) await new Promise((resolve) => setTimeout(resolve, 250))
+    if (i < groups.length - 1) await new Promise((resolve) => setTimeout(resolve, 250))
   }
 }

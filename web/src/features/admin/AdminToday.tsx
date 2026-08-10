@@ -1,6 +1,5 @@
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useQuery } from '@tanstack/react-query'
 import { useRoster } from './useRoster'
 import { easternNow } from '../../lib/checkinWindow'
 import { todaysCheckins, weeklyComparison } from './today'
@@ -10,7 +9,7 @@ import { filterMembers, filterLog, NO_FILTER, type Filter } from './filters'
 import { leaderDashboard } from './stats'
 import { GroupFilter } from './GroupFilter'
 import { IconKey } from './IconKey'
-import { getConfig, type Member } from '../../lib/api'
+import { type Member } from '../../lib/api'
 import { resolveGroupColor, hexTint } from './groupColors'
 import { copyTodaySheets, saveTodaySheets } from './todaySheetImage'
 import { Button } from '../../components/ui/Button'
@@ -18,6 +17,7 @@ import { Card } from '../../components/ui/Card'
 import { useToast } from '../../components/ui/Toast'
 import { RefreshCw, CalendarCheck, Clock, TrendingUp, TrendingDown, Minus, Copy, Download, Users } from '../../components/ui/Icon'
 import { EditModal, AttendanceModal } from './MemberDialogs'
+import { useAppConfig, usePartition } from '../../lib/useAppConfig'
 
 // Today's live check-in list (scoped) + stats bar, 부서/동산 filter, weekly comparison,
 // and a 동산 leader dashboard.
@@ -25,7 +25,8 @@ export function AdminToday() {
   const { t } = useTranslation()
   const toast = useToast()
   const { data, isLoading, isError, isFetching, refetch } = useRoster(true)
-  const { data: cfg } = useQuery({ queryKey: ['config'], queryFn: getConfig })
+  const { data: cfg } = useAppConfig()
+  const partition = usePartition()
   const [exporting, setExporting] = useState<'copy' | 'save' | null>(null)
   const [filter, setFilter] = useState<Filter>(NO_FILTER)
   const [editingMember, setEditingMember] = useState<Member | null>(null)
@@ -51,14 +52,14 @@ export function AdminToday() {
   // earlier weeks appear unmarked (the 새가족 · 멤버 tabs still track them by 등록일).
   const newMemberNames = new Set(registeredOnDate(data.members, today).map((m) => m.name))
 
-  // Copy or save the 대학부/청년부 sheets as JPGs — separate actions since only the
-  // clipboard copy is usually needed. Built from the full visible roster so both 부서
-  // pages populate regardless of the active filter.
+  // Copy or save this 부's sheets as JPGs (대학부 + 청년부, or 장년부 alone) — separate
+  // actions since only the clipboard copy is usually needed. Built from the full visible
+  // roster so every 부서 page populates regardless of the active filter.
   async function handleCopy() {
     if (!data) return
     setExporting('copy')
     try {
-      const { copied } = await copyTodaySheets(data.log, today, newMemberNames)
+      const { copied } = await copyTodaySheets(data.log, today, newMemberNames, partition)
       toast({ title: t(copied ? 'admin.mergedCopy.sheetsDone' : 'admin.mergedCopy.failed'), tone: copied ? 'ok' : 'err' })
     } catch {
       toast({ title: t('admin.today.export.saveFailed'), tone: 'err' })
@@ -71,7 +72,7 @@ export function AdminToday() {
     if (!data) return
     setExporting('save')
     try {
-      await saveTodaySheets(data.log, today, newMemberNames)
+      await saveTodaySheets(data.log, today, newMemberNames, partition)
       toast({ title: t('admin.today.export.saveDone'), tone: 'ok' })
     } catch {
       toast({ title: t('admin.today.export.saveFailed'), tone: 'err' })

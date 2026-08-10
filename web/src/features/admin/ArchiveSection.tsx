@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { usePartition } from '../../lib/useAppConfig'
 import type { Member, LogEntry } from '../../lib/api'
 import type { CalendarLike } from '../../lib/semester'
 import type { Filter } from './filters'
@@ -43,6 +44,7 @@ export function ArchiveSection({
   dongsanHistory?: DongsanHistory | null
 }) {
   const { t } = useTranslation()
+  const partition = usePartition()
   const toast = useToast()
   const [busy, setBusy] = useState<string | null>(null)
 
@@ -56,7 +58,7 @@ export function ArchiveSection({
       // Same lazy SheetJS load as the 내보내기 menu — the fork that writes cell fills.
       const XLSX = await import('xlsx-js-style')
       const wb = XLSX.utils.book_new()
-      const { sheets, log: full } = archiveWorkbook(entry, members, log, lang, dongsanHistory)
+      const { sheets, log: full } = archiveWorkbook(entry, members, log, lang, dongsanHistory, partition)
       for (const sheet of sheets) {
         const ws = XLSX.utils.aoa_to_sheet(sheet.data.aoa)
         ws['!merges'] = sheet.data.merges

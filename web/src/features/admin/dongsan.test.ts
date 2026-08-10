@@ -9,6 +9,7 @@ import {
   leaderEntry,
   summerDongsanList,
   membersInDongsan,
+  leaderOptions,
   withLeader,
   setSubLeaderAt,
 } from './dongsan'
@@ -207,5 +208,22 @@ describe('membersInDongsan', () => {
 
   it('returns [] for an empty 동산', () => {
     expect(membersInDongsan(members, '청년부', '윤서동산')).toEqual([])
+  })
+})
+
+describe('leaderOptions', () => {
+  it('keeps a 지기 who is not in the 동산 selectable', () => {
+    // 장년부 이관에서 실제로 나온 경우: 셀 명단은 마나도인데 셀장 표에는 고렌 셀장.
+    expect(leaderOptions(['박한영', '한애국'], { leader: '송교철', subLeaders: [] }))
+      .toEqual(['박한영', '한애국', '송교철'])
+  })
+
+  it('does not duplicate a 지기 who is already in the 동산', () => {
+    expect(leaderOptions(['박한영'], { leader: '박한영', subLeaders: ['박한영'] }))
+      .toEqual(['박한영'])
+  })
+
+  it('is just the member list when no 지기 is set', () => {
+    expect(leaderOptions(['가', '나'], { leader: '', subLeaders: [] })).toEqual(['가', '나'])
   })
 })

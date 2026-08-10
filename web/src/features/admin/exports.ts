@@ -4,6 +4,7 @@ import { buildGrid } from './sheet'
 import { semesterBounds, semesterKey, semesterSundays, transitionBounds, transitionSundays, isActiveNewFamily } from './newFamily'
 import { splitAffiliation } from './newFamilyCard'
 import { awayForRange, noteOn } from '../../lib/status'
+import { unitTerms, type Partition } from '../../lib/partition'
 
 // ── Pure export helpers ──────────────────────────────────────────────────────
 // Everything here is side-effect free so it can be unit-tested. The thin DOM bits
@@ -321,6 +322,7 @@ export function gridSheet(
   lang: Lang,
   today: string,
   semesterDates?: CalendarLike,
+  partition: Partition = 'youth',
 ): SheetData {
   return attendanceSheet(
     members,
@@ -328,15 +330,19 @@ export function gridSheet(
     lang,
     exportSundays(today, semesterDates),
     today,
-    attendanceGroupBy(today, semesterDates, sheetLabels(lang).unassigned),
+    attendanceGroupBy(today, semesterDates, sheetLabels(lang, partition).unassigned),
+    partition,
   )
 }
 
 // The Attendance sheet's own labels, shared by gridSheet and the archive workbooks.
-export function sheetLabels(lang: Lang) {
+// `unassigned` names the block of people with no 동산/셀 yet, so it follows the 부's
+// vocabulary (lib/partition.ts unitTerms) — everything else reads the same either way.
+export function sheetLabels(lang: Lang, partition: Partition = 'youth') {
+  const { unassigned } = unitTerms(partition, lang)
   return lang === 'ko'
-    ? { name: '이름', memberTotal: '예배 총 출석', total: '총 출석', key: 'KEY', present: '출석', absent: '결석', etc: '기타', unassigned: '동산 미지정', newFamily: '새가족' }
-    : { name: 'Name', memberTotal: 'Worship Total', total: 'Total', key: 'KEY', present: 'Present', absent: 'Absent', etc: 'Other', unassigned: 'Unassigned', newFamily: 'New family' }
+    ? { name: '이름', memberTotal: '예배 총 출석', total: '총 출석', key: 'KEY', present: '출석', absent: '결석', etc: '기타', unassigned, newFamily: '새가족' }
+    : { name: 'Name', memberTotal: 'Worship Total', total: 'Total', key: 'KEY', present: 'Present', absent: 'Absent', etc: 'Other', unassigned, newFamily: 'New family' }
 }
 
 // gridSheet's body over an explicit date list and grouping — the form the archive exports
@@ -350,8 +356,9 @@ export function attendanceSheet(
   dates: string[],
   today: string,
   groupBy?: (m: Member) => string,
+  partition: Partition = 'youth',
 ): SheetData {
-  const L = sheetLabels(lang)
+  const L = sheetLabels(lang, partition)
 
   const model = buildAttendanceModel(
     members,
@@ -417,12 +424,13 @@ export function attendanceSheet(
 }
 
 // Sheet 2 — "Full Log" as an array-of-rows (header first), newest first. Columns:
-// Name, Group, 동산, Date, Time, Total, Notes.
-export function logRows(members: Member[], log: LogEntry[], lang: Lang): (string | number)[][] {
+// Name, Group, 동산/셀, Date, Time, Total, Notes.
+export function logRows(members: Member[], log: LogEntry[], lang: Lang, partition: Partition = 'youth'): (string | number)[][] {
+  const { unit } = unitTerms(partition, lang)
   const head =
     lang === 'ko'
-      ? ['이름', '부서', '동산', '날짜', '시간', '합계', '비고']
-      : ['Name', 'Group', '동산', 'Date', 'Time', 'Total', 'Notes']
+      ? ['이름', '부서', unit, '날짜', '시간', '합계', '비고']
+      : ['Name', 'Group', unit, 'Date', 'Time', 'Total', 'Notes']
 
   // Per-member total = distinct attendance dates (matches the grid Total column).
   const totals = new Map<string, number>()
@@ -441,10 +449,13 @@ export function logRows(members: Member[], log: LogEntry[], lang: Lang): (string
 // AdminNewFamily.tsx (as with gridSheet/logRows above); this stays pure so it's
 // unit-testable.
 
-export const NEW_FAMILY_HEADER = [
-  '이름', '등록일', '성별', '생년월일', '전화번호', '이메일',
-  '학교/직장, 학과', '세례', '주소/동네', '동산 참여', '목사님 심방', '노트',
-]
+// 새가족 시트의 머리줄. '동산 참여' 칸만 부서에 따라 '셀 참여'가 된다.
+export function newFamilyHeader(partition: Partition = 'youth'): string[] {
+  return [
+    '이름', '등록일', '성별', '생년월일', '전화번호', '이메일',
+    '학교/직장, 학과', '세례', '주소/동네', `${unitTerms(partition, 'ko').unit} 참여`, '목사님 심방', '노트',
+  ]
+}
 
 // ISO "YYYY-MM-DD" -> a local Date (matches how SheetJS serializes date cells) so the
 // exported 등록일/생년월일 columns are real Excel dates, not text. '' when blank/unparseable.
@@ -477,7 +488,7 @@ export function newFamilyRow(m: Member): (string | number | Date)[] {
 // Split into one sheet per 부서 (group_name), matching the legacy roster's 청년부/대학부
 // tabs — only groups actually present in `members` get a sheet, in first-seen order. A
 // blank/missing group_name falls back to a placeholder name (Excel rejects blank sheet names).
-export function newFamilySheets(members: Member[]): { name: string; aoa: (string | number | Date)[][] }[] {
+export function newFamilySheets(members: Member[], partition: Partition = 'youth'): { name: string; aoa: (string | number | Date)[][] }[] {
   const order: string[] = []
   const byGroup = new Map<string, Member[]>()
   for (const m of members) {
@@ -492,7 +503,7 @@ export function newFamilySheets(members: Member[]): { name: string; aoa: (string
   }
   return order.map((name) => ({
     name,
-    aoa: [NEW_FAMILY_HEADER, ...byGroup.get(name)!.map(newFamilyRow)],
+    aoa: [newFamilyHeader(partition), ...byGroup.get(name)!.map(newFamilyRow)],
   }))
 }
 
@@ -581,6 +592,8 @@ export interface ReportOpts {
   today: string
   lang: Lang
   semesterDates?: CalendarLike
+  // 로그인한 부 — 동산/셀 어휘를 고른다. 없으면 대학·청년부.
+  partition?: Partition
 }
 
 function escapeHtml(s: string): string {
@@ -598,10 +611,11 @@ function escapeHtml(s: string): string {
 // sheet. Self-contained (inline CSS), client-rendered; opens the print / Save-as-PDF dialog on load.
 export function reportHtml(members: Member[], log: LogEntry[], opts: ReportOpts): string {
   const { lang } = opts
+  const { unassigned: reportUnassigned } = unitTerms(opts.partition ?? 'youth', lang)
   const L =
     lang === 'ko'
-      ? { title: 'KCCP 출석부', name: '이름', memberTotal: '예배 총 출석', total: '총 출석', key: 'KEY', present: '출석', absent: '결석', etc: '기타', unassigned: '동산 미지정', newFamily: '새가족', save: 'PDF로 저장', empty: '출석 기록이 없습니다' }
-      : { title: 'KCCP Attendance', name: 'Name', memberTotal: 'Worship Total', total: 'Total', key: 'KEY', present: 'Present', absent: 'Absent', etc: 'Other', unassigned: 'Unassigned', newFamily: 'New family', save: 'Save as PDF', empty: 'No attendance records' }
+      ? { title: 'KCCP 출석부', name: '이름', memberTotal: '예배 총 출석', total: '총 출석', key: 'KEY', present: '출석', absent: '결석', etc: '기타', unassigned: reportUnassigned, newFamily: '새가족', save: 'PDF로 저장', empty: '출석 기록이 없습니다' }
+      : { title: 'KCCP Attendance', name: 'Name', memberTotal: 'Worship Total', total: 'Total', key: 'KEY', present: 'Present', absent: 'Absent', etc: 'Other', unassigned: reportUnassigned, newFamily: 'New family', save: 'Save as PDF', empty: 'No attendance records' }
 
   const model = buildAttendanceModel(
     members,

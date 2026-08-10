@@ -1,26 +1,26 @@
 import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { getConfig, getDongsanNames, updateDongsanNames, type DongsanNames } from '../../lib/api'
+import { getDongsanNames, updateDongsanNames, type DongsanNames } from '../../lib/api'
 import { useToast } from '../../components/ui/Toast'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { Sprout, Trash2, Plus, AlertTriangle, Save } from '../../components/ui/Icon'
 import { renameAt, addDongsan, removeAt, cleanNames, summerDongsanList } from './dongsan'
 import { DongsanLeadersEditor } from './DongsanLeaders'
-
-const KM_GROUPS = ['대학부', '청년부']
+import { useAppConfig, usePartition, usePartitionT } from '../../lib/useAppConfig'
+import { groupsOfPartition, summerAppliesTo, type Partition } from '../../lib/partition'
 
 // 동산 admin tab (super-admin only): edit 동산 names + 동산지기/부동산지기. In summer mode the
 // names editor collapses to ONE combined set of 동산 (no 대학부/청년부 split) which is written
 // to both KM departments, matching how summer mode merges them everywhere else. (The separate
 // 새가족 교육 동산 names live on the 새가족 교육 tab, next to the education tracking they configure.)
 export function AdminDongsan() {
-  const { t } = useTranslation()
+  const t = usePartitionT()
   const qc = useQueryClient()
-  const { data: cfg } = useQuery({ queryKey: ['config'], queryFn: getConfig })
+  const { data: cfg } = useAppConfig()
   const { data: loaded } = useQuery({ queryKey: ['dongsanNames'], queryFn: getDongsanNames })
-  const summer = !!cfg?.summerMode
+  const partition = usePartition()
+  const summer = !!cfg?.summerMode && summerAppliesTo(partition)
 
   if (!loaded) return <p className="text-sm text-muted">{t('common.loading')}</p>
 
@@ -35,6 +35,7 @@ export function AdminDongsan() {
           <DongsanNamesEditor
             loaded={loaded}
             summer={summer}
+            partition={partition}
             title={t('admin.settings.dongsanNames')}
             desc={t('admin.settings.dongsanNamesDesc')}
             onSave={async (next) => {
@@ -58,17 +59,20 @@ export function AdminDongsan() {
 export function DongsanNamesEditor({
   loaded,
   summer,
+  partition,
   title,
   desc,
   onSave,
 }: {
   loaded: DongsanNames
   summer: boolean
+  // 어느 부의 편집기인가 — 저장돼 있는 이름이 하나도 없어도 이 부의 부서 줄은 깔아 둔다.
+  partition: Partition
   title?: string
   desc?: string
   onSave: (next: DongsanNames) => Promise<void>
 }) {
-  const { t } = useTranslation()
+  const t = usePartitionT()
   const toast = useToast()
   const [edits, setEdits] = useState<DongsanNames | undefined>(undefined) // per-group (semester)
   const [combined, setCombined] = useState<string[] | undefined>(undefined) // single list (summer)
@@ -76,9 +80,10 @@ export function DongsanNamesEditor({
 
   const names = edits ?? loaded
   // 학기가 끝나면 서버가 동산 편성을 비우므로(term rollover) 이 맵이 통째로 비어서 온다.
-  // 그때도 부서별 "동산 추가" 자리를 만들어 둬야 새 학기 동산을 넣을 수 있다 — KM 부서를
+  // 그때도 부서별 "동산 추가" 자리를 만들어 둬야 새 학기 동산을 넣을 수 있다 — 이 부의 부서를
   // 항상 먼저 깔고, 그 밖의 부서가 저장돼 있으면 뒤에 붙인다.
-  const groups = [...KM_GROUPS, ...Object.keys(names).filter((g) => !KM_GROUPS.includes(g))]
+  const ownGroups = groupsOfPartition(partition)
+  const groups = [...ownGroups, ...Object.keys(names).filter((g) => !ownGroups.includes(g))]
   const empty = groups.every((g) => (names[g] ?? []).length === 0)
   const combinedList = combined ?? summerDongsanList(loaded)
   const dirty = summer ? combined !== undefined : edits !== undefined
@@ -90,7 +95,7 @@ export function DongsanNamesEditor({
       if (summer) {
         const clean = combinedList.map((n) => n.trim()).filter((n) => n.length > 0)
         next = { ...loaded }
-        for (const g of KM_GROUPS) next[g] = clean
+        for (const g of ownGroups) next[g] = clean
       } else {
         next = cleanNames(names)
       }
@@ -137,7 +142,7 @@ export function DongsanNamesEditor({
               <Input
                 value={name}
                 placeholder={t('admin.settings.dongsanPlaceholder')}
-                aria-label={`동산 ${idx + 1}`}
+                aria-label={`${t('admin.settings.dongsanPlaceholder')} ${idx + 1}`}
                 className="min-w-0 flex-1"
                 onChange={(e) =>
                   setCombined(combinedList.map((n, i) => (i === idx ? e.target.value : n)))

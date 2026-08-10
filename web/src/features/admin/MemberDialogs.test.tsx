@@ -13,6 +13,8 @@ vi.mock('../../lib/api', () => ({
   addMemberAttendance: vi.fn(),
   removeAttendance: vi.fn(),
   getConfig: vi.fn().mockResolvedValue({ summerMode: false }),
+  // useAppConfig picks the logged-in 부's block out of the /api/config response.
+  configFor: (cfg: unknown) => cfg,
   getDongsanNames: vi.fn().mockResolvedValue({ 대학부: ['1동산', '2동산'], 청년부: ['해동산'] }),
   getNewMemberDongsanNames: vi.fn().mockResolvedValue({ 대학부: ['교육동산A'], 청년부: ['교육동산B'] }),
 }))

@@ -1,4 +1,5 @@
 import type { Member, LogEntry } from '../../lib/api'
+import type { Partition } from '../../lib/partition'
 import {
   addIsoDays,
   calendarOf,
@@ -402,8 +403,9 @@ export function archiveWorkbook(
   log: LogEntry[],
   lang: Lang,
   history?: DongsanHistory | null,
+  partition: Partition = 'youth',
 ): ArchiveWorkbook {
-  const { unassigned } = sheetLabels(lang)
+  const { unassigned } = sheetLabels(lang, partition)
   const names = uniqueSheetNames(entry.periods.map((p) => sheetTitle(p, lang)))
   // Computed once over the whole log, then shared by every period of the workbook.
   const firstSeen = firstSeenByName(log)
@@ -419,8 +421,9 @@ export function archiveWorkbook(
       // upcoming, and every recorded Sunday scores O/X.
       p.end,
       archiveGroupBy(p, unassigned, history),
+      partition,
     ),
   }))
   const scoped = log.filter((e) => e.date >= entry.start && e.date <= entry.end)
-  return { sheets, log: logRows(archiveRoster(members, rosters), scoped, lang) }
+  return { sheets, log: logRows(archiveRoster(members, rosters), scoped, lang, partition) }
 }
