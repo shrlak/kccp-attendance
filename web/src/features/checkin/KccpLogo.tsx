@@ -4,6 +4,10 @@ import { KccpMark } from './KccpMark'
 // A compact church wordmark for operational screens. The official mark stays intact,
 // while the typography is intentionally quieter than the attendance content around it.
 // `stacked` centers the mark above the wordmark for hero placements.
+//
+// 부서 이름은 걸지 않는다. 랜딩은 두 부가 함께 여는 문이라 (대학·청년부도 장년부도 여기서
+// 시작한다) 어느 한쪽의 이름을 내걸면 나머지 한쪽에게 남의 집 문패가 된다. 부는 로그인
+// 뒤에야 정해지고, 그때부터는 관리자 패널 머리글이 매 화면에서 그것을 말해 준다.
 export function KccpLogo({
   size = 52,
   className = '',
@@ -32,9 +36,6 @@ export function KccpLogo({
         <div className="mt-2 font-display text-lg font-bold leading-tight tracking-tight text-text short:mt-1.5 short:text-base">
           피츠버그 한인중앙교회
         </div>
-        <div className="mt-3 inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-sm font-semibold text-primary short:mt-2">
-          대학 · 청년부
-        </div>
       </div>
     )
   }
@@ -51,9 +52,6 @@ export function KccpLogo({
         </div>
         <div className="mt-1 font-display text-sm font-bold leading-tight tracking-tight text-text">
           피츠버그 한인중앙교회
-        </div>
-        <div className="mt-0.5 text-xs font-semibold text-primary">
-          대학 · 청년부
         </div>
       </div>
     </div>

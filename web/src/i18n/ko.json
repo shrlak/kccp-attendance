@@ -8,9 +8,6 @@
   "access": {
     "adminEyebrow": "관리자 업무 공간",
     "kioskEyebrow": "현장 출석 모드",
-    "sideTitle": "기록을 넘어, 공동체를 돌보는 출석 관리",
-    "sideText": "리더와 새가족팀이 같은 기록을 보고 다음 돌봄을 놓치지 않도록 돕습니다.",
-    "secure": "승인된 운영진만 접근할 수 있습니다",
     "backHome": "출석 안내 화면으로 돌아가기"
   },
   "kiosk": {

@@ -2,9 +2,14 @@ import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ThemeLangToggle } from '../ui/ThemeLangToggle'
-import { Lock } from '../ui/Icon'
 import { KccpMark } from '../../features/checkin/KccpMark'
 
+// 두 잠금 화면(관리자 로그인 · 키오스크)이 함께 쓰는 껍데기 — 가운데 카드 하나.
+//
+// 예전에는 왼쪽 절반이 브랜드 패널이었는데, 거기 적힌 것이 대학·청년부의 말이었다
+// ("COLLEGE · YOUNG ADULT", 사역 소개 문구). 이제 장년부도 같은 문으로 들어오므로
+// 어느 한 부의 이름을 내걸 수 없고, 부를 지운 패널은 로고와 여백만 남는다. 그래서 패널을
+// 통째로 걷어내고 카드를 화면 가운데 놓는다 — 문 앞에서 필요한 것은 들어가는 길뿐이다.
 export function AccessShell({
   eyebrow,
   title,
@@ -19,39 +24,12 @@ export function AccessShell({
   const { t } = useTranslation()
 
   return (
-    <main className="grid min-h-dvh bg-canvas lg:grid-cols-[minmax(340px,0.78fr)_1.22fr]">
-      <section className="relative hidden min-h-dvh flex-col justify-between overflow-hidden border-r border-border bg-surface-alt px-12 py-11 text-text lg:flex">
-        {/* Soft ambient accents for depth behind the brand copy. */}
-        <div aria-hidden className="pointer-events-none absolute inset-0">
-          <div className="absolute -right-24 -top-24 h-80 w-80 rounded-full bg-primary/10 blur-3xl" />
-          <div className="absolute -bottom-28 -left-20 h-72 w-72 rounded-full bg-gold/10 blur-3xl" />
-        </div>
-
-        <Link to="/" className="relative inline-flex w-fit items-center gap-3">
-          <KccpMark size={40} />
-          <div>
-            <div className="text-sm font-bold leading-none tracking-tight">KCCP</div>
-            <div className="mt-1 text-[10px] font-semibold tracking-wide text-muted">COLLEGE · YOUNG ADULT</div>
-          </div>
-        </Link>
-
-        <div className="relative max-w-sm">
-          <div className="inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
-            KCCP Ministry Operations
-          </div>
-          <p className="mt-5 font-display text-3xl font-bold leading-[1.28] tracking-[-0.025em]">
-            {t('access.sideTitle')}
-          </p>
-          <p className="mt-5 max-w-xs text-sm leading-6 text-muted">{t('access.sideText')}</p>
-        </div>
-
-        <div className="relative flex items-center gap-2.5 border-t border-border pt-5 text-xs font-medium text-muted">
-          <span className="grid size-6 place-items-center rounded-full bg-success/15 text-success">
-            <Lock className="size-3" strokeWidth={2.25} aria-hidden />
-          </span>
-          {t('access.secure')}
-        </div>
-      </section>
+    <main className="relative grid min-h-dvh bg-canvas">
+      {/* Soft ambient accents for depth behind the card. */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -top-32 left-1/2 h-[30rem] w-[30rem] -translate-x-1/2 rounded-full bg-primary/[0.07] blur-3xl" />
+        <div className="absolute -bottom-40 right-[-6rem] h-80 w-80 rounded-full bg-gold/[0.06] blur-3xl" />
+      </div>
 
       {/* py-20 alone leaves the card taller than a phone in landscape, where the whole
           viewport is ~370 px — the top of the form would sit above the fold with nothing
@@ -63,9 +41,9 @@ export function AccessShell({
         </div>
 
         <div className="fx-rise w-full max-w-[420px]">
-          <Link to="/" className="mb-10 inline-flex items-center gap-2.5 short:mb-6 lg:hidden">
+          <Link to="/" className="mb-10 inline-flex items-center gap-2.5 short:mb-6">
             <KccpMark size={32} />
-            <span className="text-sm font-bold tracking-tight text-text">KCCP 대학 · 청년부</span>
+            <span className="text-sm font-bold tracking-tight text-text">KCCP</span>
           </Link>
 
           <div className="surface-panel p-7 shadow-[var(--shadow-lg)] sm:p-8">

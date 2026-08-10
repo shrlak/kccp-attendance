@@ -42,7 +42,6 @@ function groupOptions(partition: Partition): string[] {
   const own = groupsOfPartition(partition)
   return partition === 'adult' ? own : [...own, ...EXTRA_YOUTH_GROUPS]
 }
-const MEMBER_ROLES = ['', 'visitor', 'pastor', 'elder', 'deacon', 'mentor']
 
 // A labelled form field wrapper, shared by the member dialogs (and the merge dialog).
 export function Field({ label, children, className = '' }: { label: string; children: ReactNode; className?: string }) {
@@ -89,7 +88,6 @@ export function EditModal({
   const [f, setF] = useState<MemberEdit>({
     group: member.group_name,
     subgroup: member.subgroup,
-    memberRole: member.member_role,
     isNewMember: member.is_new_member,
     notes: member.notes,
     statusMarks: statusMarks(member),
@@ -367,15 +365,6 @@ export function EditModal({
             </Select>
           </Field>
         )}
-        <Field label={t('admin.members.memberRole')}>
-          <Select value={f.memberRole ?? ''} onChange={(e) => set('memberRole', e.target.value)}>
-            {MEMBER_ROLES.map((r) => (
-              <option key={r} value={r}>
-                {r || '—'}
-              </option>
-            ))}
-          </Select>
-        </Field>
         <Field label={t('admin.members.notes')}>
           <textarea
             value={f.notes ?? ''}

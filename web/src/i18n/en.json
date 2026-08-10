@@ -8,9 +8,6 @@
   "access": {
     "adminEyebrow": "Admin workspace",
     "kioskEyebrow": "On-site attendance mode",
-    "sideTitle": "Attendance records built for community care",
-    "sideText": "Leaders and the welcome team share one clear record, so the next follow-up is not missed.",
-    "secure": "Access is limited to approved ministry staff",
     "backHome": "Return to attendance information"
   },
   "kiosk": {
