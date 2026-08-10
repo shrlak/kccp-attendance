@@ -993,7 +993,17 @@ Deno.serve(async (req: Request) => {
       const role=await auth();
       if(!canViewLoginLog(role)) return fail(403,"Not available");
       const limit=Math.min(parseInt(url.searchParams.get("limit")||"100")||100,500);
-      const {data:log}=await sb.from("login_log").select("*").order("ts",{ascending:false}).limit(limit);
+      // **이 부의 로그인만 보인다.** 표는 공용이지만 목록은 부를 넘지 않는다: 대학·청년부
+      // 비밀번호로 들어온 로그인은 대학·청년부 패널에서만, 장년부 비밀번호로 들어온 것은
+      // 장년부 패널에서만. 두 부를 다 보는 사람은 부를 건너가서 저쪽 목록을 본다 — 화면을
+      // 바꿔야 보인다는 것 자체가 "지금 무엇을 보고 있는가"를 분명하게 만든다.
+      //
+      // partition이 NULL인 줄은 **양쪽에 남긴다.** 부가 기록되기 전의 공용 비밀번호 로그인
+      // 이라 어느 부였는지 되살릴 수 없고(20260814), 한쪽에 몰아넣으면 있지도 않은 사실을
+      // 주장하는 것이 된다. 한쪽에서 지우면 그 기록은 어디에서도 볼 수 없게 된다.
+      const {data:log}=await sb.from("login_log").select("*")
+        .or(`partition.eq.${role!.partition},partition.is.null`)
+        .order("ts",{ascending:false}).limit(limit);
       const rows=log||[];
       const geo=await geoForIps(sb,rows.map((e:any)=>e.ip||""));
       const gpsRows=rows.filter((e:any)=>typeof e.gps_lat==="number"&&typeof e.gps_lon==="number");
