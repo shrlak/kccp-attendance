@@ -22,6 +22,7 @@ import {
   sortAdminRoles,
   auditDetail,
   loginLocationDisplay,
+  groupLoginsByPartition,
   roleNeedsScope,
   formatBytes,
   backupTotalSize,
@@ -336,53 +337,71 @@ export function AdminAdmins() {
           ) : (loginData?.log.length ?? 0) === 0 ? (
             <p className="text-sm text-muted">{t('admin.admins.noLogins')}</p>
           ) : (
-            <ul className="fx-rise inset-list text-xs">
-              {loginData!.log.map((e, i) => (
-                <li key={`${e.ts}-${i}`} className="px-4 py-2.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="flex items-center gap-1.5 font-semibold text-text">
-                      {e.memberName || t('admin.admins.sharedLogin')}
-                      <Tag tone={roleTone(e.role)}>{t(`admin.roles.${e.role}`)}</Tag>
+            // 부서가 묶음의 제목이다. 한 사람이 두 부를 오갈 수 있게 된 뒤로 "누가"와 "어느
+            // 부로"는 서로 다른 사실이 되었고, 이 목록에서는 뒤엣것이 먼저 보여야 한다.
+            <div className="fx-rise grid gap-4">
+              {groupLoginsByPartition(loginData!.log).map((group) => (
+                <section key={group.partition || 'unknown'}>
+                  <div className="mb-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 px-1 text-xs">
+                    <span className="font-semibold text-text">
+                      {group.partition
+                        ? t(`admin.ministry.${group.partition}`)
+                        : t('admin.admins.noPartition')}
                     </span>
-                    <span className="tabular-nums text-subtle">{new Date(e.ts).toLocaleString()}</span>
+                    <span className="tabular-nums text-subtle">
+                      {t('admin.admins.loginCount', { n: group.entries.length })}
+                    </span>
                   </div>
-                  <div className="mt-0.5 font-mono text-muted">
-                    {e.ip || '—'}
-                    <span className="text-subtle"> · {t(`admin.admins.method.${e.method}`)}</span>
-                  </div>
-                  {(() => {
-                    const loc = loginLocationDisplay(e)
-                    if (!loc.text && loc.lat == null) return null
-                    return (
-                      <div className="mt-1 text-muted">
-                        <span
-                          className={`mr-1.5 inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                            loc.precise ? 'bg-primary/15 text-primary' : 'bg-fill text-subtle'
-                          }`}
-                        >
-                          <MapPin size={10} strokeWidth={2.25} aria-hidden />
-                          {loc.precise ? t('admin.admins.gpsPrecise') : t('admin.admins.gpsApprox')}
-                        </span>
-                        {loc.text}
-                        {loc.precise && loc.accuracy != null && (
-                          <span className="text-subtle"> · ±{Math.round(loc.accuracy)}m</span>
-                        )}
-                        {loc.lat != null && loc.lon != null && (
-                          <a
-                            href={`https://www.google.com/maps?q=${loc.lat},${loc.lon}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="ml-1.5 font-semibold text-primary underline"
-                          >
-                            {t('admin.admins.map')}
-                          </a>
-                        )}
-                      </div>
-                    )
-                  })()}
-                </li>
+                  <ul className="inset-list text-xs">
+                    {group.entries.map((e, i) => (
+                      <li key={`${e.ts}-${i}`} className="px-4 py-2.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="flex items-center gap-1.5 font-semibold text-text">
+                            {e.memberName || t('admin.admins.sharedLogin')}
+                            <Tag tone={roleTone(e.role)}>{t(`admin.roles.${e.role}`)}</Tag>
+                          </span>
+                          <span className="tabular-nums text-subtle">{new Date(e.ts).toLocaleString()}</span>
+                        </div>
+                        <div className="mt-0.5 font-mono text-muted">
+                          {e.ip || '—'}
+                          <span className="text-subtle"> · {t(`admin.admins.method.${e.method}`)}</span>
+                        </div>
+                        {(() => {
+                          const loc = loginLocationDisplay(e)
+                          if (!loc.text && loc.lat == null) return null
+                          return (
+                            <div className="mt-1 text-muted">
+                              <span
+                                className={`mr-1.5 inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                  loc.precise ? 'bg-primary/15 text-primary' : 'bg-fill text-subtle'
+                                }`}
+                              >
+                                <MapPin size={10} strokeWidth={2.25} aria-hidden />
+                                {loc.precise ? t('admin.admins.gpsPrecise') : t('admin.admins.gpsApprox')}
+                              </span>
+                              {loc.text}
+                              {loc.precise && loc.accuracy != null && (
+                                <span className="text-subtle"> · ±{Math.round(loc.accuracy)}m</span>
+                              )}
+                              {loc.lat != null && loc.lon != null && (
+                                <a
+                                  href={`https://www.google.com/maps?q=${loc.lat},${loc.lon}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="ml-1.5 font-semibold text-primary underline"
+                                >
+                                  {t('admin.admins.map')}
+                                </a>
+                              )}
+                            </div>
+                          )
+                        })()}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
               ))}
-            </ul>
+            </div>
           )}
         </>
       )}
