@@ -600,6 +600,23 @@ export interface NewMemberFields {
   // Admin card-scan path: create the member + device but skip today's attendance row
   // (e.g. entering a stack of paper cards later in the week). Kiosk never sends this.
   skipCheckin?: boolean
+  // 로그인 없이 도는 공유 링크가 "어느 부의 링크인지" 말하는 값. 로그인 경로에서는 서버가
+  // 신원에서 부를 알아내므로 보내지 않는다.
+  partition?: 'youth' | 'adult'
+  // 장년부 카드가 묻는 것들 — 그 부의 등록에서만 쓰인다 (adult.members에만 있는 칸들).
+  nameEn?: string
+  phoneHome?: string
+  email?: string
+  address?: string
+  city?: string
+  state?: string
+  zipCode?: string
+  attendReason?: string
+  registrationChoice?: string
+  visitDate?: string | null
+  memberNo?: string
+  birthDateRaw?: string
+  family?: { nameKo: string; nameEn: string; relation: string; birthDate: string; gender: string; baptism: string }[]
 }
 
 // 새가족 (new-family) registration from the kiosk: creates a member with
