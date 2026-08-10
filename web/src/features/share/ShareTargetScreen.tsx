@@ -7,6 +7,7 @@ import { Button } from '../../components/ui/Button'
 import { ThemeLangToggle } from '../../components/ui/ThemeLangToggle'
 import { ScanLine, ImagePlus } from '../../components/ui/Icon'
 import { readSharedCards, clearSharedCards } from '../../lib/sharedCards'
+import { ADULT_GROUP, type Partition } from '../../lib/partition'
 
 // ── /share — 새가족 카드 사진 등록, 로그인 없이 ────────────────────────────────
 // Deliberately unauthenticated. Registering a paper 새가족 card is a job for whoever is
@@ -22,7 +23,7 @@ import { readSharedCards, clearSharedCards } from '../../lib/sharedCards'
 //   2. share.html on the home screen, or this URL directly — one tap to the picker. That
 //      path works everywhere, and is what iPhones use, since iOS doesn't implement Web
 //      Share Target.
-export function ShareTargetScreen() {
+export function ShareTargetScreen({ partition = 'youth' }: { partition?: Partition } = {}) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   // null while the hand-off is being read out of the Cache API.
@@ -97,17 +98,24 @@ export function ShareTargetScreen() {
         </Link>
       </section>
 
+      {partition === 'adult' && (
+        <p className="mb-4 inline-flex w-fit items-center rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+          {ADULT_GROUP}
+        </p>
+      )}
+
       {scanning && (
         <CardScanDialog
           open
           publicMode
+          forcePartition={partition}
           initialFiles={shared ?? undefined}
           // Closing returns to this screen rather than the admin panel — whoever opened
           // the share link may well have no panel to go back to.
           onClose={() => {
             setPickerOpen(false)
             setShared([])
-            navigate('/share', { replace: true })
+            navigate(partition === 'adult' ? '/share/adult' : '/share', { replace: true })
           }}
         />
       )}

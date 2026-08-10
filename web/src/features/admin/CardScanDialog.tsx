@@ -18,9 +18,13 @@ import {
 } from '../../lib/api'
 import { easternNow } from '../../lib/checkinWindow'
 import { NewFamilyCardForm } from './NewFamilyCardForm'
+import { AdultCardForm } from './AdultCardForm'
+import { blankAdultCard, type AdultCardValue } from './adultCard'
+import { adultPayload } from './adultRegistration'
+import type { Partition } from '../../lib/partition'
 import { blankCardForm, groupForAffiliation, joinAffiliation, type CardFormValue } from './newFamilyCard'
 import { usePartition } from '../../lib/useAppConfig'
-import { normalizeExtractedCards } from './cardExtraction'
+import { normalizeScannedCards, type ScannedCard } from './cardExtraction'
 import { fileToCardImage } from './cardPhoto'
 import { refreshRoster, broadcastAttendanceChange } from '../../lib/live'
 
@@ -47,18 +51,24 @@ export function CardScanDialog({
   onClose,
   initialFiles,
   publicMode = false,
+  forcePartition,
 }: {
   open: boolean
   onClose: () => void
   initialFiles?: File[]
   publicMode?: boolean
+  // 장년부 링크: 로그인이 없으므로 화면이 어느 부의 것인지 직접 들고 온다.
+  forcePartition?: Partition
 }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const toast = useToast()
   // 어느 부에 등록할지 — 카드에서 읽은 소속으로 부서를 정하는 건 대학·청년부 쪽 규칙이고,
   // 장년부에서는 언제나 장년부다. 공개 카드 링크(publicMode)는 로그인이 없으니 대학·청년부.
-  const partition = usePartition()
+  const signedInPartition = usePartition()
+  const partition = forcePartition ?? signedInPartition
+  // 장년부에서 들어온 사진은 장년부 카드만 읽는다 (서버도 같은 판단을 한다).
+  const onlyAdult = partition === 'adult' ? ('adult' as const) : undefined
   // Refetch on open, every two seconds while the dialog is visible, and after each API
   // request below. This is the same server-side counter that enforces the daily limit.
   // Separate cache keys so a signed-in admin who also opens the share link doesn't have
@@ -82,15 +92,21 @@ export function CardScanDialog({
   const [queue, setQueue] = useState<File[]>(() => initialFiles ?? [])
   const [index, setIndex] = useState(0)
   // Every card recognized in photo `index`, and which of them is being reviewed.
-  const [cards, setCards] = useState<CardFormValue[]>(() => [blankCardForm(easternNow().date)])
+  // 사진 한 장에 두 종이가 섞여 있을 수 있다 — 각 카드가 자기 종류를 들고 다닌다.
+  const [cards, setCards] = useState<ScannedCard[]>(() => [{ kind: 'youth', youth: blankCardForm(easternNow().date) }])
   const [cardIndex, setCardIndex] = useState(0)
   const [model, setModel] = useState('')
   const [checkinToday, setCheckinToday] = useState(true)
   const [busy, setBusy] = useState(false)
 
-  const card = cards[cardIndex] ?? blankCardForm(easternNow().date)
+  const scanned: ScannedCard = cards[cardIndex] ?? { kind: 'youth', youth: blankCardForm(easternNow().date) }
+  const isAdultCard = scanned.kind === 'adult'
+  const card = scanned.kind === 'youth' ? scanned.youth : blankCardForm(easternNow().date)
+  const adultCard = scanned.kind === 'adult' ? scanned.adult : blankAdultCard(easternNow().date)
   const patchCard = (patch: Partial<CardFormValue>) =>
-    setCards((cur) => cur.map((c, i) => (i === cardIndex ? { ...c, ...patch } : c)))
+    setCards((cur) => cur.map((c, i) => (i === cardIndex && c.kind === 'youth' ? { kind: 'youth', youth: { ...c.youth, ...patch } } : c)))
+  const patchAdultCard = (patch: Partial<AdultCardValue>) =>
+    setCards((cur) => cur.map((c, i) => (i === cardIndex && c.kind === 'adult' ? { kind: 'adult', adult: { ...c.adult, ...patch } } : c)))
 
   // "사진 2 / 5" position tag — only meaningful for a multi-photo batch.
   const photoTag = (list: File[], i: number) =>
@@ -102,7 +118,7 @@ export function CardScanDialog({
     setPhase('pick')
     setQueue([])
     setIndex(0)
-    setCards([blankCardForm(easternNow().date)])
+    setCards([{ kind: 'youth', youth: blankCardForm(easternNow().date) }])
     setCardIndex(0)
     setModel('')
     setCheckinToday(true)
@@ -159,7 +175,7 @@ export function CardScanDialog({
       const res = await (publicMode ? extractCardViaShare : extractCard)(image.base64, image.mediaType)
       // Older deployed function versions answer with a single `card`; both shapes
       // normalize to a list, so one photo of several cards yields several forms.
-      const found = normalizeExtractedCards(res.cards ?? res.card, easternNow().date)
+      const found = normalizeScannedCards(res.cards ?? res.card, easternNow().date, onlyAdult)
       setCards(found)
       setCardIndex(0)
       setModel(res.model || '')
@@ -197,18 +213,24 @@ export function CardScanDialog({
   }
 
   async function submit() {
-    if (!card.name.trim()) {
+    if (!(isAdultCard ? adultCard.name : card.name).trim()) {
       toast({ title: t('kiosk.newMember.nameRequired'), tone: 'warn' })
       return
     }
     // 소속 decides the 부서, so an unticked card can't be filed anywhere.
-    if (!card.affiliationCategory) {
+    // 장년부 카드에는 그 물음이 없다 — 고를 부서가 하나뿐이므로.
+    if (!isAdultCard && !card.affiliationCategory) {
       toast({ title: t('kiosk.newMember.affiliationRequired'), tone: 'warn' })
       return
     }
     setBusy(true)
     try {
-      const payload: NewMemberFields = {
+      const payload: NewMemberFields = isAdultCard ? {
+        ...adultPayload(adultCard),
+        skipCheckin: !checkinToday,
+        // 로그인 없이 도는 링크는 서버가 신원에서 부를 알아낼 수 없으므로 직접 말해 준다.
+        ...(publicMode ? { partition: 'adult' as const } : {}),
+      } : {
         name: card.name.trim(),
         // Same mapping as the kiosk 새가족 등록: 부서 from 소속, 동산 assigned later.
         group: groupForAffiliation(card.affiliationCategory, partition),
@@ -321,7 +343,11 @@ export function CardScanDialog({
               inside it just makes the card replica a cramped window; let it run full
               height there and cap it only on the centered desktop modal. */}
           <div className="flex flex-col gap-4 sm:max-h-[60vh] sm:overflow-y-auto sm:pr-1">
-            <NewFamilyCardForm value={card} onChange={patchCard} />
+            {isAdultCard ? (
+              <AdultCardForm value={adultCard} onChange={patchAdultCard} />
+            ) : (
+              <NewFamilyCardForm value={card} onChange={patchCard} />
+            )}
           </div>
           <div className="mt-4 inset-list">
             <label className="inset-row min-h-12 cursor-pointer justify-between gap-3">
