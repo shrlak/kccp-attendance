@@ -38,7 +38,8 @@ import { Tag } from '../../components/ui/Tag'
 import { useToast } from '../../components/ui/Toast'
 import { Plus, Trash2, AlertTriangle, Search, Calendar, ClipboardList, Check } from '../../components/ui/Icon'
 import { refreshRoster } from '../../lib/live'
-import { useAppConfig } from '../../lib/useAppConfig'
+import { useAppConfig, usePartition } from '../../lib/useAppConfig'
+import { showsAttendanceLog } from '../../lib/partition'
 
 // Attendance spreadsheet: the Excel-style 출석부 grid (an on-screen replica of the exported
 // "Attendance" sheet — color-coded 동산 blocks, O/X cells, 예배 총 출석 + 총 출석 rows) or a
@@ -51,6 +52,11 @@ export function AdminSheet() {
   const [filter, setFilter] = useState<Filter>(NO_FILTER)
   const { data, isLoading, isError } = useRoster(true)
   const { data: cfg } = useAppConfig()
+  const partition = usePartition()
+  // 장년부는 표 하나로만 본다 — 기록(시간순) 화면이 없다.
+  const hasLog = showsAttendanceLog(partition)
+  // 기록 화면이 없는 부에서는 view가 'log'로 남아 있어도 표를 그린다.
+  const showLog = hasLog && view === 'log'
 
   if (isLoading) return (
     <div className="fx-fade space-y-3">
@@ -84,14 +90,18 @@ export function AdminSheet() {
       <StatsBar stats={computeStats(members, fLog, today)} />
       <GroupFilter members={data.members} value={filter} onChange={setFilter} />
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="segmented">
-          <Toggle active={view === 'grid'} onClick={() => setView('grid')}>
-            {t('admin.sheet.grid')}
-          </Toggle>
-          <Toggle active={view === 'log'} onClick={() => setView('log')}>
-            {t('admin.sheet.log')}
-          </Toggle>
-        </div>
+        {hasLog ? (
+          <div className="segmented">
+            <Toggle active={view === 'grid'} onClick={() => setView('grid')}>
+              {t('admin.sheet.grid')}
+            </Toggle>
+            <Toggle active={view === 'log'} onClick={() => setView('log')}>
+              {t('admin.sheet.log')}
+            </Toggle>
+          </div>
+        ) : (
+          <div />
+        )}
         <div className="flex flex-wrap gap-2">
           <ExportMenu members={members} log={fLog} filter={filter} />
           {canBulk && (
@@ -108,8 +118,8 @@ export function AdminSheet() {
           )}
         </div>
       </div>
-      {view === 'log' && <IconKey items={['firstVisit']} />}
-      {view === 'grid' ? (
+      {showLog && <IconKey items={['firstVisit']} />}
+      {!showLog ? (
         <GridView
           members={members}
           log={fLog}
@@ -331,6 +341,7 @@ function GridView({
   semesterDates?: CalendarLike
 }) {
   const roleOf = useDongsanRole()
+  const partition = usePartition()
   // 하위 단위를 뭐라 부르는지는 부서마다 다르다 — 대학·청년부는 동산·동산지기·부동산지기,
   // 장년부는 셀·셀장·부셀장 (lib/partition.ts unitTerms). 범례와 미지정 블록의 제목이 그것.
   const U = useUnitTerms(lang)
@@ -347,7 +358,7 @@ function GridView({
     exportSundays(today, semesterDates),
     today,
     { unassigned: L.unassigned, newFamily: L.newFamily },
-    attendanceGroupBy(today, semesterDates, L.unassigned),
+    attendanceGroupBy(today, semesterDates, L.unassigned, partition),
   )
   const pink = cssColor(HEADER_TOTAL_FILL)
   const grey = cssColor(NOTE_FILL)

@@ -545,3 +545,19 @@ describe('buildAttendanceModel — 한국 귀국 / 이주', () => {
     expect(model.sections[0].rows.map((r) => r.member.name)).toEqual(['A', 'C'])
   })
 })
+
+describe('attendanceGroupBy — 장년부에는 학기 사이가 없다', () => {
+  const m = (subgroup: string) => ({ id: '1', name: '가', group_name: '장년부', subgroup } as Member)
+
+  it('groups 장년부 by 셀 even on a date no 학기 covers', () => {
+    // 대학·청년부라면 이 날짜는 전환 기간이라 부서로 묶인다. 장년부는 부서가 하나뿐이라
+    // 그게 곧 "표 하나에 322명"이었다 — 학기가 없는 부는 언제나 셀로 나눈다.
+    const custom = { fall: { start: '08-15', end: '12-31' }, spring: { start: '01-01', end: '05-09' }, summer: { start: '06-01', end: '07-31' } }
+    expect(attendanceGroupBy('2026-08-02', custom, '셀 미지정', 'adult')(m('남아공'))).toBe('남아공')
+    expect(attendanceGroupBy('2026-08-02', custom, '셀 미지정', 'youth')(m('남아공'))).toBe('장년부')
+  })
+
+  it('still falls back to the 미지정 block for a member with no 셀', () => {
+    expect(attendanceGroupBy('2026-08-02', undefined, '셀 미지정', 'adult')(m(''))).toBe('셀 미지정')
+  })
+})

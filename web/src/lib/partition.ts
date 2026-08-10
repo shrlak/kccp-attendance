@@ -77,3 +77,22 @@ export function unitTerms(partition: Partition, lang: 'ko' | 'en' = 'ko'): UnitT
 export function subgroupsResetEachTerm(partition: Partition): boolean {
   return partition === 'youth'
 }
+
+// 부셀장은 한 명이다. 대학·청년부의 동산은 부동산지기를 둘까지 두지만 (한 동산이 크고, 학기마다
+// 새로 짜므로 나눠 맡는다), 장년부의 셀은 셀장 한 명 · 부셀장 한 명으로 고정이다.
+export function subLeaderSlots(partition: Partition): number {
+  return partition === 'adult' ? 1 : 2
+}
+
+// 봄·여름·가을학기로 한 해를 나누는가. 대학·청년부는 학사 일정을 따라가지만 장년부에는 학기가
+// 없다 — 한 해를 상반기(1–6월)·하반기(7–12월) 둘로만 나눈다. 이 값이 갈라 놓는 것은
+// 기간의 경계뿐 아니라 **설정 탭의 학기 일정 편집기가 뜨는지**, 그리고 출석부가 학기 사이의
+// '전환 기간'이라는 상태를 갖는지까지다 — 장년부에는 학기가 없으니 그 사이도 없다.
+export function usesSemesters(partition: Partition): boolean {
+  return partition === 'youth'
+}
+
+// 출석부의 표/기록 전환. 장년부는 표 하나로만 본다.
+export function showsAttendanceLog(partition: Partition): boolean {
+  return partition === 'youth'
+}

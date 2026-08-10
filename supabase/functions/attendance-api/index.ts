@@ -187,6 +187,10 @@ function mergedMemberFields(existing: any, body: any, subgroup: string, today: s
   upd.registration_date=existing.registration_date&&existing.registration_date<reg?existing.registration_date:reg;
   return upd;
 }
+// 한 동산/셀에 둘 수 있는 부지기 수. 대학·청년부의 동산은 커서 부동산지기 둘이 나눠 맡지만,
+// 장년부의 셀은 셀장 한 명·부셀장 한 명으로 고정이다. 웹의 짝은 partition.ts subLeaderSlots().
+const SUB_LEADER_SLOTS: Record<Partition, number> = { youth: 2, adult: 1 };
+
 
 // 학기가 끝나면 동산을 없애고 모두를 동산에서 뺀다 — 한 학기당 정확히 한 번, 학기가 끝난
 // 다음 첫 요청에서. 지우기 전에 그 학기의 편성(+동산 이름/동산지기)을 config.dongsan_history에
@@ -884,7 +888,10 @@ Deno.serve(async (req: Request) => {
       // 자기 부의 부서(또는 여름 합동 키)에만 쓸 수 있다.
       if(partitionOfGroup(group)!==role.partition) return fail(403,"Out of scope");
       const cfg=await getCfg(sb,actingPartition); const ldrs=cfg?.dongsan_leaders||{}; if(!ldrs[group]) ldrs[group]={};
-      ldrs[group][subgroup]={leader:leader||"",subLeaders:Array.isArray(subLeaders)?subLeaders:[]};
+      // 부지기 수는 부마다 다르다: 대학·청년부 동산은 부동산지기 둘, 장년부 셀은 부셀장 하나.
+      // 화면도 그만큼만 그리지만 (web lib/partition.ts subLeaderSlots), 경계는 여기서 지킨다.
+      const subs=Array.isArray(subLeaders)?subLeaders.filter((n:any)=>typeof n==="string"&&n):[];
+      ldrs[group][subgroup]={leader:leader||"",subLeaders:subs.slice(0,SUB_LEADER_SLOTS[role.partition])};
       await adb.from("config").update({dongsan_leaders:ldrs,updated_at:new Date().toISOString()}).eq("id",1);
       await addAudit(adb,"config-change",xDev,"동산지기 수정: "+group+" "+subgroup,role.partition);
       return ok({status:"ok"});

@@ -4,7 +4,7 @@ import { buildGrid } from './sheet'
 import { semesterBounds, semesterKey, semesterSundays, transitionBounds, transitionSundays, isActiveNewFamily } from './newFamily'
 import { splitAffiliation } from './newFamilyCard'
 import { awayForRange, noteOn } from '../../lib/status'
-import { unitTerms, type Partition } from '../../lib/partition'
+import { unitTerms, usesSemesters, type Partition } from '../../lib/partition'
 
 // ── Pure export helpers ──────────────────────────────────────────────────────
 // Everything here is side-effect free so it can be unit-tested. The thin DOM bits
@@ -255,12 +255,18 @@ export function periodGroupBy(
 }
 
 // periodGroupBy for the period containing `today` (no configured 학기 covers it → transition).
+//
+// 장년부에는 학기가 없으니 **학기 사이라는 상태도 없다** — 전환 기간에는 부서로 묶느라 셀 구분이
+// 통째로 사라졌고, 부서가 하나뿐인 장년부에서는 그게 곧 "전체가 한 덩어리"였다. 그 부는 언제나
+// 셀로 나눈다.
 export function attendanceGroupBy(
   today: string,
   semesterDates: CalendarLike,
   unassigned: string,
+  partition: Partition = 'youth',
 ): (m: Member) => string {
-  return periodGroupBy(transitionBounds(today, semesterDates) ? 'transition' : 'semester', unassigned)
+  const transition = usesSemesters(partition) && !!transitionBounds(today, semesterDates)
+  return periodGroupBy(transition ? 'transition' : 'semester', unassigned)
 }
 
 // Human label for the semester containing `today`, e.g. "2026 여름 학기" / "Summer 2026" —
@@ -330,7 +336,7 @@ export function gridSheet(
     lang,
     exportSundays(today, semesterDates),
     today,
-    attendanceGroupBy(today, semesterDates, sheetLabels(lang, partition).unassigned),
+    attendanceGroupBy(today, semesterDates, sheetLabels(lang, partition).unassigned, partition),
     partition,
   )
 }
@@ -623,7 +629,7 @@ export function reportHtml(members: Member[], log: LogEntry[], opts: ReportOpts)
     exportSundays(opts.today, opts.semesterDates),
     opts.today,
     { unassigned: L.unassigned, newFamily: L.newFamily },
-    attendanceGroupBy(opts.today, opts.semesterDates, L.unassigned),
+    attendanceGroupBy(opts.today, opts.semesterDates, L.unassigned, opts.partition ?? 'youth'),
   )
   const pink = cssColor(HEADER_TOTAL_FILL)
 

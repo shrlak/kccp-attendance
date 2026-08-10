@@ -4,8 +4,11 @@ import {
   YOUTH_GROUPS,
   groupsOfPartition,
   partitionOfGroup,
+  showsAttendanceLog,
+  subLeaderSlots,
   subgroupsResetEachTerm,
   summerAppliesTo,
+  usesSemesters,
   unitTerms,
 } from './partition'
 
@@ -73,5 +76,22 @@ describe('subgroupsResetEachTerm', () => {
   it('동산은 학기마다 초기화, 셀은 고정', () => {
     expect(subgroupsResetEachTerm('youth')).toBe(true)
     expect(subgroupsResetEachTerm('adult')).toBe(false)
+  })
+})
+
+describe('부마다 다른 규칙', () => {
+  it('부셀장은 한 명, 부동산지기는 둘', () => {
+    expect(subLeaderSlots('adult')).toBe(1)
+    expect(subLeaderSlots('youth')).toBe(2)
+  })
+
+  it('학기는 대학·청년부만 쓴다 — 장년부는 상·하반기로만 나뉜다', () => {
+    expect(usesSemesters('adult')).toBe(false)
+    expect(usesSemesters('youth')).toBe(true)
+  })
+
+  it('출석부의 기록 화면은 대학·청년부에만 있다', () => {
+    expect(showsAttendanceLog('adult')).toBe(false)
+    expect(showsAttendanceLog('youth')).toBe(true)
   })
 })

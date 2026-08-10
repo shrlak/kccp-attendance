@@ -13,7 +13,7 @@ import { Select } from '../../components/ui/Select'
 import { Medal, Shield, AlertTriangle, Save } from '../../components/ui/Icon'
 import { leaderEntry, summerDongsanList, membersInDongsan, leaderOptions, withLeader, setSubLeaderAt } from './dongsan'
 import { useAppConfig, usePartition, usePartitionT } from '../../lib/useAppConfig'
-import { groupsOfPartition, summerAppliesTo } from '../../lib/partition'
+import { groupsOfPartition, subLeaderSlots, summerAppliesTo } from '../../lib/partition'
 
 const SUMMER_KEY = '합동'
 
@@ -123,10 +123,6 @@ export function DongsanLeadersEditor() {
   )
 }
 
-// Two 부동산지기 dropdown slots per 동산 (extra slots appear only for legacy data that
-// already stored more than two).
-const SUB_LEADER_SLOTS = 2
-
 function LeaderBlock({
   header,
   members,
@@ -151,7 +147,11 @@ function LeaderBlock({
   const t = usePartitionT()
   const toast = useToast()
   const qc = useQueryClient()
+  const partition = usePartition()
   const [saving, setSaving] = useState(false)
+  // 부지기 칸 수는 부마다 다르다 — 대학·청년부 동산은 부동산지기 둘, 장년부 셀은 부셀장 하나.
+  // 예전 데이터가 더 많이 들고 있으면 그만큼 칸을 열어 준다 (지우지 않고 보여 준 뒤 고치도록).
+  const slots = Math.max(subLeaderSlots(partition), entry.subLeaders.length)
   // 그 동산의 사람들 + 이미 지기로 적혀 있는 바깥 사람 (leaderOptions 주석 참고).
   const options = useMemo(() => leaderOptions(members, entry), [members, entry])
 
@@ -200,7 +200,7 @@ function LeaderBlock({
             {t('admin.settings.subLeaders')}
           </span>
           <div className="mb-3 flex flex-col gap-2">
-            {Array.from({ length: Math.max(SUB_LEADER_SLOTS, entry.subLeaders.length) }, (_, i) => (
+            {Array.from({ length: slots }, (_, i) => (
               <Select
                 key={i}
                 value={entry.subLeaders[i] ?? ''}
