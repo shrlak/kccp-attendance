@@ -9,9 +9,8 @@ import {
 import { useRoster } from './useRoster'
 import { useToast } from '../../components/ui/Toast'
 import { Button } from '../../components/ui/Button'
-import { Select } from '../../components/ui/Select'
-import { Medal, Shield, AlertTriangle, Save } from '../../components/ui/Icon'
-import { leaderEntry, summerDongsanList, membersInDongsan, leaderOptions, withLeader, setSubLeaderAt } from './dongsan'
+import { Medal, Shield, AlertTriangle, Save, Search, X } from '../../components/ui/Icon'
+import { leaderEntry, summerDongsanList, membersInDongsan, leaderOptions, pickerHits, withLeader, setSubLeaderAt } from './dongsan'
 import { useAppConfig, usePartition, usePartitionT } from '../../lib/useAppConfig'
 import { groupsOfPartition, subLeaderSlots, summerAppliesTo } from '../../lib/partition'
 
@@ -59,6 +58,13 @@ export function DongsanLeadersEditor() {
       .filter((section) => section.blocks.length > 0)
   }, [names, roster, summer, ownGroups])
 
+  // 검색은 이 셀 밖까지 닿아야 한다 — 명단과 편성표가 어긋난 셀이 실제로 있다 (셀 명단은
+  // 마나도인데 편성표에는 고렌 셀장). 그래서 부 전체 이름을 함께 넘긴다.
+  const allNames = useMemo(
+    () => Array.from(new Set((roster?.members ?? []).map((m) => m.name))).sort((a, b) => a.localeCompare(b)),
+    [roster],
+  )
+
   if (!names || !leaders || !roster) return <p className="text-sm text-muted">{t('common.loading')}</p>
 
   return (
@@ -99,6 +105,7 @@ export function DongsanLeadersEditor() {
                     key={key}
                     header={group === SUMMER_KEY ? subgroup : subgroup}
                     members={members}
+                    allNames={allNames}
                     entry={entry}
                     dirty={key in edits}
                     onLeader={(name) => setEdits((e) => ({ ...e, [key]: withLeader(entry, name) }))}
@@ -126,6 +133,7 @@ export function DongsanLeadersEditor() {
 function LeaderBlock({
   header,
   members,
+  allNames,
   entry,
   dirty,
   group,
@@ -136,6 +144,7 @@ function LeaderBlock({
 }: {
   header: string
   members: string[]
+  allNames: string[]
   entry: DongsanLeaderEntry
   dirty: boolean
   group: string
@@ -185,14 +194,13 @@ function LeaderBlock({
               <Medal size={12} strokeWidth={2} className="text-gold" aria-hidden />
               {t('admin.settings.leader')}
             </span>
-            <Select value={entry.leader} onChange={(e) => onLeader(e.target.value)}>
-              <option value="">{t('admin.settings.noLeader')}</option>
-              {options.map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </Select>
+            <NamePicker
+              value={entry.leader}
+              onChange={onLeader}
+              inCell={options}
+              allNames={allNames}
+              placeholder={t('admin.settings.noLeader')}
+            />
           </label>
 
           <span className="field-label flex items-center gap-1">
@@ -201,19 +209,15 @@ function LeaderBlock({
           </span>
           <div className="mb-3 flex flex-col gap-2">
             {Array.from({ length: slots }, (_, i) => (
-              <Select
+              <NamePicker
                 key={i}
                 value={entry.subLeaders[i] ?? ''}
-                aria-label={`${t('admin.settings.subLeaders')} ${i + 1}`}
-                onChange={(e) => onSub(i, e.target.value)}
-              >
-                <option value="">{t('admin.settings.noLeader')}</option>
-                {options.map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </Select>
+                onChange={(name) => onSub(i, name)}
+                inCell={options}
+                allNames={allNames}
+                placeholder={t('admin.settings.noLeader')}
+                label={`${t('admin.settings.subLeaders')} ${i + 1}`}
+              />
             ))}
           </div>
 
@@ -224,5 +228,116 @@ function LeaderBlock({
         </>
       )}
     </div>
+  )
+}
+
+// 이름 고르기 — 목록이 길어지면 눈으로 훑는 것보다 치는 편이 빠르다. 장년부는 한 셀이
+// 스무 명 가까이 되고 부 전체로는 삼백 명에 가깝다.
+//
+// 두 묶음으로 나눠 보여 준다: **이 셀 사람들**이 먼저고, 검색어를 치면 그 아래로 부의
+// 나머지가 따라온다. 셀장은 대개 그 셀 사람이지만 언제나 그런 것은 아니라서 (명단과
+// 편성표가 어긋난 셀이 실제로 있다), 기본은 좁게 두되 길은 열어 둔다.
+function NamePicker({
+  value,
+  onChange,
+  inCell,
+  allNames,
+  placeholder,
+  label,
+}: {
+  value: string
+  onChange: (name: string) => void
+  inCell: string[]
+  allNames: string[]
+  placeholder: string
+  label?: string
+}) {
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  const q = query.trim()
+  const { cell: cellHits, outside: outsideHits } = pickerHits(q, inCell, allNames)
+
+  function pick(name: string) {
+    onChange(name)
+    setQuery('')
+    setOpen(false)
+  }
+
+  return (
+    <div className="relative">
+      <div className="relative">
+        <Search size={14} strokeWidth={2} aria-hidden className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-subtle" />
+        <input
+          value={open ? query : value}
+          placeholder={value || placeholder}
+          aria-label={label}
+          onFocus={() => { setQuery(''); setOpen(true) }}
+          onBlur={() => window.setTimeout(() => setOpen(false), 120)}
+          onChange={(e) => setQuery(e.target.value)}
+          className="min-h-11 w-full rounded-xl border border-border bg-surface py-2 pl-9 pr-8 text-sm text-text outline-none transition-[border-color,box-shadow] duration-200 [transition-timing-function:var(--ease-out-soft)] hover:border-primary/30 focus-visible:border-primary focus-visible:ring-[3.5px] focus-visible:ring-primary/18"
+        />
+        {value && !open && (
+          <button
+            type="button"
+            onClick={() => onChange('')}
+            aria-label={placeholder}
+            className="absolute right-2 top-1/2 grid size-6 -translate-y-1/2 place-items-center rounded-full text-subtle hover:bg-fill hover:text-text"
+          >
+            <X size={13} strokeWidth={2.25} aria-hidden />
+          </button>
+        )}
+      </div>
+
+      {open && (
+        <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-xl border border-border bg-surface p-1 shadow-[var(--shadow-lg)]">
+          <li>
+            <Option label={placeholder} muted onPick={() => pick('')} />
+          </li>
+          {cellHits.map((n) => (
+            <li key={n}>
+              <Option label={n} active={n === value} onPick={() => pick(n)} />
+            </li>
+          ))}
+          {outsideHits.length > 0 && (
+            <li className="px-2.5 pb-1 pt-2 text-[11px] font-semibold text-subtle">다른 셀</li>
+          )}
+          {outsideHits.map((n) => (
+            <li key={n}>
+              <Option label={n} active={n === value} onPick={() => pick(n)} />
+            </li>
+          ))}
+          {cellHits.length === 0 && outsideHits.length === 0 && (
+            <li className="px-2.5 py-2 text-xs text-muted">{q ? '찾는 이름이 없습니다' : '—'}</li>
+          )}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+function Option({
+  label,
+  active = false,
+  muted = false,
+  onPick,
+}: {
+  label: string
+  active?: boolean
+  muted?: boolean
+  onPick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      // onBlur가 먼저 닫아 버리면 클릭이 사라진다 — 마우스를 누르는 순간 고른다.
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={onPick}
+      className={
+        'block w-full truncate rounded-lg px-2.5 py-2 text-left text-sm transition-colors ' +
+        (active ? 'bg-primary/10 font-semibold text-primary' : muted ? 'text-muted hover:bg-fill' : 'text-text hover:bg-fill')
+      }
+    >
+      {label}
+    </button>
   )
 }
