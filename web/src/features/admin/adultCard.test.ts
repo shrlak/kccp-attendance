@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { FAMILY_ROWS, adultCardFromMember, blankAdultCard, packFamily } from './adultCard'
+import { FAMILY_ROWS, adultCardFromMember, blankAdultCard, isoDateOrNull, packFamily } from './adultCard'
 import type { Member } from '../../lib/api'
 
 const member = (extra: Partial<Member> = {}): Member =>
@@ -26,7 +26,7 @@ describe('장년부 카드 씨앗', () => {
 
   it('저장된 동행가족을 읽고 모자란 줄만 채운다', () => {
     const card = adultCardFromMember(
-      member({ family: [{ nameKo: '유은', nameEn: '', relation: '자녀', birthDate: '', gender: '' }] }),
+      member({ family: [{ nameKo: '유은', nameEn: '', relation: '자녀', birthDate: '', gender: '', baptism: '' }] }),
     )
     expect(card.family).toHaveLength(FAMILY_ROWS)
     expect(card.family[0].nameKo).toBe('유은')
@@ -34,7 +34,7 @@ describe('장년부 카드 씨앗', () => {
   })
 
   it('다섯 줄보다 많이 적혀 있으면 지우지 않는다', () => {
-    const six = Array.from({ length: 6 }, (_, i) => ({ nameKo: `아이${i}`, nameEn: '', relation: '자녀', birthDate: '', gender: '' }))
+    const six = Array.from({ length: 6 }, (_, i) => ({ nameKo: `아이${i}`, nameEn: '', relation: '자녀', birthDate: '', gender: '', baptism: '' }))
     expect(adultCardFromMember(member({ family: six })).family).toHaveLength(6)
   })
 
@@ -44,10 +44,10 @@ describe('장년부 카드 씨앗', () => {
 
   it('저장 직전 packFamily가 이름 없는 빈 줄만 걷어낸다', () => {
     const rows = [
-      { nameKo: '유은', nameEn: '', relation: '자녀', birthDate: '', gender: '' },
-      { nameKo: '', nameEn: 'Grace', relation: '', birthDate: '', gender: '' },
-      { nameKo: '', nameEn: '', relation: '자녀', birthDate: '', gender: '' },
-      { nameKo: '', nameEn: '', relation: '', birthDate: '', gender: '' },
+      { nameKo: '유은', nameEn: '', relation: '자녀', birthDate: '', gender: '', baptism: '' },
+      { nameKo: '', nameEn: 'Grace', relation: '', birthDate: '', gender: '', baptism: '세례' },
+      { nameKo: '', nameEn: '', relation: '자녀', birthDate: '', gender: '', baptism: '' },
+      { nameKo: '', nameEn: '', relation: '', birthDate: '', gender: '', baptism: '' },
     ]
     expect(packFamily(rows).map((r) => r.nameKo || r.nameEn)).toEqual(['유은', 'Grace'])
   })
@@ -57,5 +57,18 @@ describe('장년부 카드 씨앗', () => {
     expect(card.nameEn).toBe('')
     expect(card.address).toBe('')
     expect(card.family).toHaveLength(FAMILY_ROWS)
+  })
+})
+
+describe('덜 찬 생년월일', () => {
+  it('년만 적힌 카드는 날짜로 저장하지 않는다', () => {
+    // 실제 카드에 "2006"만 적혀 오는 경우가 있다. birth_date는 날짜 칸이라 담을 수 없다.
+    expect(isoDateOrNull('2006--')).toBeNull()
+    expect(isoDateOrNull('2006-10-')).toBeNull()
+    expect(isoDateOrNull('')).toBeNull()
+  })
+
+  it('세 칸이 다 차면 날짜가 된다', () => {
+    expect(isoDateOrNull('2006-10-24')).toBe('2006-10-24')
   })
 })

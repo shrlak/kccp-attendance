@@ -124,7 +124,7 @@ function summerNow(cfg: any, part: Partition="youth") {
 }
 // 장년부 새교우 방문·등록 카드가 가진 칸들 (마이그레이션 20260808). adult.members에만
 // 있는 컬럼이라 멤버 수정에서 **장년부 요청일 때만** 매핑한다. 웹의 짝은 adultCard.ts.
-const ADULT_CARD_COLS: Record<string,string>={nameEn:"name_en",phoneHome:"phone_home",address:"address",city:"city",state:"state",zipCode:"zip_code",attendReason:"attend_reason",registrationChoice:"registration_choice",visitDate:"visit_date",memberNo:"member_no"};
+const ADULT_CARD_COLS: Record<string,string>={nameEn:"name_en",phoneHome:"phone_home",email:"email",address:"address",city:"city",state:"state",zipCode:"zip_code",attendReason:"attend_reason",registrationChoice:"registration_choice",visitDate:"visit_date",memberNo:"member_no"};
 
 // 봄·여름·가을학기로 한 해를 나누는 부. 장년부는 상반기·하반기 둘로만 나뉘고 그 경계가
 // 고정이라, 학기 일정도 학기 종료 롤오버도 없다. 웹의 짝은 partition.ts usesSemesters().
@@ -1200,7 +1200,7 @@ Deno.serve(async (req: Request) => {
           upd.family=body.family.map((r:any)=>({
             nameKo:String(r?.nameKo??""), nameEn:String(r?.nameEn??""),
             relation:String(r?.relation??""), birthDate:String(r?.birthDate??""),
-            gender:String(r?.gender??""),
+            gender:String(r?.gender??""), baptism:String(r?.baptism??""),
           }));
         }
       }

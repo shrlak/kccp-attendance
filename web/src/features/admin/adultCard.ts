@@ -16,21 +16,33 @@
 import type { Member } from '../../lib/api'
 import { formatPhoneNumber } from '../../lib/phone'
 
-export const ADULT_CARD_TITLE = '< KCCP 장년부 - 새교우 방문 · 등록 카드 >'
+// 종이에 인쇄된 문구 그대로. 카드 replica는 이 말들을 바꾸지 않는다 — 손에 든 종이와
+// 화면이 한 글자라도 다르면, 받아 적는 사람이 어느 칸인지 헷갈린다.
+export const ADULT_CARD_KICKER = '새교우 방문, 등록 카드'
+export const ADULT_CARD_TITLE = '주님의 이름으로 환영 합니다!'
+export const ADULT_CARD_WELCOME = [
+  '오늘 예배 참석 하심을 그리스도의 이름으로 환영 합니다.',
+  '저희 교회가 예수 안에서 필요한 도움을 드릴 수 있도록 다음 사항을 기재하여 주시면 감사하겠습니다.',
+]
+export const ADULT_CARD_ADDRESS_NOTE = [
+  '등록을 원하시면 주소 작성 부탁드립니다.',
+  'Please fill out the address if you would like to register.',
+]
+export const ADULT_CARD_FOOTER = ['피츠버그 한인중앙교회', 'Korean Central Church of Pittsburgh']
 
 // 참석동기 — 카드의 네모 넷. 값은 영문 키로 저장하고(서버·DB가 읽는 값), 화면에는 한글을 쓴다.
 export const ATTEND_REASONS = [
-  { key: 'moved', label: '이사' },
-  { key: 'visiting', label: '방문' },
-  { key: 'training', label: '연수' },
-  { key: 'study', label: '유학' },
+  { key: 'moved', label: '이사', en: 'Moved' },
+  { key: 'visiting', label: '방문', en: 'Visiting' },
+  { key: 'training', label: '연수', en: 'Training' },
+  { key: 'study', label: '유학', en: 'Study' },
 ] as const
 
 // 교회등록 여부 — 카드 아래쪽의 세 갈래.
 export const REGISTRATION_CHOICES = [
-  { key: 'register', label: '등록을 원합니다' },
-  { key: 'later', label: '나중에 결정하겠습니다' },
-  { key: 'pastor', label: '목사님 연락 · 상담을 원합니다' },
+  { key: 'register', label: '등록을 원합니다', en: 'I would like to register' },
+  { key: 'later', label: '나중에 결정 하겠습니다', en: 'I will decide to register later' },
+  { key: 'pastor', label: '목사의 연락/상담 원함', en: 'I would like the Pastor to contact or counsel me' },
 ] as const
 
 // 동행가족은 종이에 다섯 줄이다. 빈 줄도 그려야 카드처럼 보이므로 항상 이 수만큼 렌더한다.
@@ -42,6 +54,7 @@ export interface AdultFamilyMember {
   relation: string
   birthDate: string // ISO or ''
   gender: string // '남' | '여' | ''
+  baptism: string // 종이의 마지막 열 — 동행가족도 세례여부를 적는다
 }
 
 export interface AdultCardValue {
@@ -53,6 +66,7 @@ export interface AdultCardValue {
   birthDate: string // ISO or ''
   phone: string // 휴대폰
   phoneHome: string // 집 · 기타
+  email: string // 카드의 *이메일 칸 (카톡 번호를 적는 사람도 있어 자유 입력이다)
   address: string
   city: string
   state: string
@@ -66,7 +80,7 @@ export interface AdultCardValue {
 }
 
 export function blankFamilyMember(): AdultFamilyMember {
-  return { nameKo: '', nameEn: '', relation: '', birthDate: '', gender: '' }
+  return { nameKo: '', nameEn: '', relation: '', birthDate: '', gender: '', baptism: '' }
 }
 
 // 저장된 값이 다섯 줄보다 적으면 빈 줄로 채우고, 많으면(예전 데이터) 그대로 둔다 — 카드는
@@ -87,6 +101,7 @@ function readFamily(value: unknown): AdultFamilyMember[] {
       relation: row.relation ?? '',
       birthDate: row.birthDate ?? '',
       gender: row.gender ?? '',
+      baptism: row.baptism ?? '',
     }
   })
 }
@@ -101,6 +116,7 @@ export function adultCardFromMember(m: Member): AdultCardValue {
     birthDate: m.birth_date || '',
     phone: formatPhoneNumber(m.phone || ''),
     phoneHome: formatPhoneNumber(m.phone_home || ''),
+    email: m.email || '',
     address: m.address || '',
     city: m.city || '',
     state: m.state || '',
@@ -124,6 +140,7 @@ export function blankAdultCard(visitDate: string): AdultCardValue {
     birthDate: '',
     phone: '',
     phoneHome: '',
+    email: '',
     address: '',
     city: '',
     state: '',
@@ -141,4 +158,10 @@ export function blankAdultCard(visitDate: string): AdultCardValue {
 // 이름이 하나도 없는 줄만 버린다 (관계만 적힌 줄은 아직 쓰는 중일 수 있다).
 export function packFamily(list: AdultFamilyMember[]): AdultFamilyMember[] {
   return list.filter((row) => row.nameKo.trim() !== '' || row.nameEn.trim() !== '')
+}
+
+// 종이의 생년월일은 년/월/일 세 칸이라 셋이 다 차야 날짜가 된다 (DB의 birth_date는 날짜다).
+// "2006만 적힌 카드"처럼 덜 찬 값은 날짜로 보내지 않는다.
+export function isoDateOrNull(value: string): string | null {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null
 }

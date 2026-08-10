@@ -225,6 +225,9 @@ export interface Member {
   status_end?: string | null
   // 멤버당 여러 개의 상태 표기 (방학 → 한국 귀국 …). lib/status.ts가 읽는 목록.
   status_marks?: { note: string; start: string | null; end: string | null }[]
+  // 구글 로그인 신원 (두 스키마 공통). email_alt는 같은 사람의 두 번째 계정 — 20260811.
+  email?: string
+  email_alt?: string
   // 장년부 새교우 방문·등록 카드의 칸들 (마이그레이션 20260808 — adult.members에만 있다).
   // 대학·청년부 멤버에는 언제나 undefined다.
   name_en?: string
@@ -237,7 +240,7 @@ export interface Member {
   registration_choice?: string
   visit_date?: string | null
   member_no?: string
-  family?: { nameKo: string; nameEn: string; relation: string; birthDate: string; gender: string }[]
+  family?: { nameKo: string; nameEn: string; relation: string; birthDate: string; gender: string; baptism: string }[]
   household_id?: string | null
 }
 
@@ -477,7 +480,10 @@ export interface MemberEdit {
   registrationChoice?: string
   visitDate?: string | null
   memberNo?: string
-  family?: { nameKo: string; nameEn: string; relation: string; birthDate: string; gender: string }[]
+  // 카드의 *이메일 칸. members.email이 곧 구글 로그인 신원이기도 하지만, 로그인은 역할
+  // 행(member_roles)이 따로 있어야 성립하므로 여기 적는 것만으로는 아무 권한도 생기지 않는다.
+  email?: string
+  family?: { nameKo: string; nameEn: string; relation: string; birthDate: string; gender: string; baptism: string }[]
 }
 
 // Edit a member (scoped server-side: leaders only their 동산; pastor read-only).

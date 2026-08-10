@@ -23,7 +23,7 @@ import { easternNow } from '../../lib/checkinWindow'
 import { statusMarks, type StatusMark } from '../../lib/status'
 import { NewFamilyCardForm } from './NewFamilyCardForm'
 import { AdultCardForm } from './AdultCardForm'
-import { adultCardFromMember, packFamily, type AdultCardValue } from './adultCard'
+import { adultCardFromMember, isoDateOrNull, packFamily, type AdultCardValue } from './adultCard'
 import { cardFormFromMember, joinAffiliation, type CardFormValue } from './newFamilyCard'
 import { copyNewFamilyCards, saveNewFamilyCards } from './newFamilyCardImage'
 import { refreshRoster } from '../../lib/live'
@@ -177,8 +177,9 @@ export function EditModal({
         name: adultCard.name,
         nameEn: adultCard.nameEn,
         gender: adultCard.gender,
-        birthDate: adultCard.birthDate || null,
+        birthDate: isoDateOrNull(adultCard.birthDate),
         phone: adultCard.phone,
+        email: adultCard.email,
         phoneHome: adultCard.phoneHome,
         address: adultCard.address,
         city: adultCard.city,
@@ -188,8 +189,8 @@ export function EditModal({
         schoolOrWork: adultCard.schoolOrWork,
         baptismStatus: adultCard.baptismStatus,
         registrationChoice: adultCard.registrationChoice,
-        registrationDate: adultCard.registrationDate || null,
-        visitDate: adultCard.visitDate || null,
+        registrationDate: isoDateOrNull(adultCard.registrationDate),
+        visitDate: isoDateOrNull(adultCard.visitDate),
         memberNo: adultCard.memberNo,
         // 종이의 빈 줄은 보내지 않는다.
         family: packFamily(adultCard.family),
