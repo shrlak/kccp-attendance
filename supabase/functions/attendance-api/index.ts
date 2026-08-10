@@ -1632,10 +1632,17 @@ Deno.serve(async (req: Request) => {
     // Audit logs only size/type, never the extracted PII.
     if(req.method==="POST"&&(p==="/api/admin/extract-card"||p==="/api/share/extract-card")) {
       const viaExtractShare=p==="/api/share/extract-card";
+      // 어느 종이를 기대하는가. 장년부 패널·장년부 링크에서 들어온 사진은 장년부 카드만
+      // 읽는다 (그 링크가 그 부의 것이므로). 대학·청년부 쪽은 두 종류를 다 읽고, 각 카드가
+      // cardType으로 자기가 어느 종이인지 말한다.
+      let expectAdult=false;
       if(!viaExtractShare) {
         const role=await auth();
         if(!role) return fail(401,"Not authorized");
         if(role.role==="pastor") return fail(403,"Read-only");
+        expectAdult=role.partition==="adult";
+      } else {
+        expectAdult=body.partition==="adult";
       }
       const image=typeof body.image==="string"?body.image:"";
       const mediaType=["image/jpeg","image/png","image/webp"].includes(body.mediaType)?body.mediaType:"image/jpeg";
@@ -1652,14 +1659,14 @@ Deno.serve(async (req: Request) => {
       // Record the attempt before calling out so every consumed try is reflected in the
       // live usage counter, even when every model in the chain errors. One row per
       // request (not per model), so the fallbacks don't eat the daily allowance.
-      const usageRecorded=await addAudit(ndb,"extract-card",xDev,mediaType+" | "+Math.round(image.length*3/4/1024)+"KB | api-call"+(viaExtractShare?" | share-link":""));
+      const usageRecorded=await addAudit(adb,"extract-card",xDev,mediaType+" | "+Math.round(image.length*3/4/1024)+"KB | api-call"+(viaExtractShare?" | share-link":""));
       if(!usageRecorded) return fail(500,"Could not record card API usage — retry");
       let cards:Record<string,unknown>[]|null=null,used=chain[0],lastError="",rateLimited=false;
       // Capped so a long chain can't outlive the client's 60s budget (4 × 20s worst case).
       for(const model of chain.slice(0,CARD_MODEL_ATTEMPTS)) {
         used=model;
         try {
-          const rq=buildCardRequest(model,image,mediaType,keys[model.provider]);
+          const rq=buildCardRequest(model,image,mediaType,keys[model.provider],expectAdult?"adult":undefined);
           const gr=await fetch(rq.url,{method:"POST",headers:rq.headers,body:JSON.stringify(rq.body),signal:AbortSignal.timeout(CARD_MODEL_TIMEOUT_MS)});
           if(!gr.ok) {
             const detail=await gr.text().catch(()=>"");

@@ -4,7 +4,11 @@ import {
   normalizePhone,
   normalizeExtractedCard,
   normalizeExtractedCards,
+  extractedCardKind,
+  normalizeExtractedAdultCard,
+  normalizeScannedCards,
 } from './cardExtraction'
+import { FAMILY_ROWS } from './adultCard'
 import { blankCardForm } from './newFamilyCard'
 
 const TODAY = '2026-07-06'
@@ -159,5 +163,59 @@ describe('normalizeExtractedCards', () => {
     expect(normalizeExtractedCards([{}, { name: '  ' }], TODAY)).toEqual([blankCardForm(TODAY)])
     expect(normalizeExtractedCards(null, TODAY)).toEqual([blankCardForm(TODAY)])
     expect(normalizeExtractedCards(undefined, TODAY)).toEqual([blankCardForm(TODAY)])
+  })
+})
+
+describe('장년부 카드 판독', () => {
+  const raw = {
+    cardType: 'adult',
+    name: '박시내',
+    nameEn: 'Emma Park',
+    gender: '여',
+    birthDate: '2006',
+    phone: '410-343-9653',
+    email: '카톡 번호: 410-999-5704',
+    registrationChoice: 'later',
+    family: [{ nameKo: '', nameEn: '', relation: '', birthDate: null, gender: null, baptism: null }],
+  }
+
+  it('cardType이 어느 종이인지 말한다', () => {
+    expect(extractedCardKind(raw)).toBe('adult')
+    expect(extractedCardKind({ cardType: 'youth', nameEn: 'x' })).toBe('youth')
+  })
+
+  it('cardType이 없으면 장년부에만 있는 칸으로 알아본다', () => {
+    expect(extractedCardKind({ name: '가', address: '1 Main St' })).toBe('adult')
+    expect(extractedCardKind({ name: '가', kakaoId: 'abc' })).toBe('youth')
+  })
+
+  it('년만 적힌 생년월일을 버리지 않는다', () => {
+    expect(normalizeExtractedAdultCard(raw, '2026-08-10').birthDate).toBe('2006')
+  })
+
+  it('이름 없는 동행가족 줄은 종이의 빈 칸이라 담지 않는다', () => {
+    const card = normalizeExtractedAdultCard(raw, '2026-08-10')
+    expect(card.family.filter((f) => f.nameKo || f.nameEn)).toHaveLength(0)
+    expect(card.family).toHaveLength(FAMILY_ROWS)
+  })
+
+  it('장년부 링크에서는 청년부 카드가 와도 장년부로 읽는다', () => {
+    const cards = normalizeScannedCards([{ cardType: 'youth', name: '가' }], '2026-08-10', 'adult')
+    expect(cards).toHaveLength(1)
+    expect(cards[0].kind).toBe('adult')
+  })
+
+  it('대학·청년부 링크에서는 두 종이가 섞여 와도 각자로 읽는다', () => {
+    const cards = normalizeScannedCards(
+      [{ cardType: 'youth', name: '가', kakaoId: 'k' }, raw],
+      '2026-08-10',
+    )
+    expect(cards.map((c) => c.kind)).toEqual(['youth', 'adult'])
+  })
+
+  it('아무것도 못 읽어도 빈 카드 한 장은 준다', () => {
+    expect(normalizeScannedCards([], '2026-08-10', 'adult')).toEqual([
+      { kind: 'adult', adult: expect.objectContaining({ name: '' }) },
+    ])
   })
 })
