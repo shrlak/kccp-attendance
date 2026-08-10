@@ -5,6 +5,13 @@ import {
   blankCardForm,
   type CardFormValue,
 } from './newFamilyCard'
+import {
+  ATTEND_REASONS,
+  FAMILY_ROWS,
+  REGISTRATION_CHOICES,
+  blankAdultCard,
+  type AdultCardValue,
+} from './adultCard'
 import { formatPhoneNumber } from '../../lib/phone'
 
 // ── 카드 사진 인식 결과 정규화 ─────────────────────────────────────────────────
@@ -103,4 +110,105 @@ export function normalizeExtractedCards(raw: unknown, today: string): CardFormVa
   const list = Array.isArray(raw) ? raw : raw && typeof raw === 'object' ? [raw] : []
   const cards = list.map((r) => normalizeExtractedCard(r, today)).filter(hasContent)
   return cards.length > 0 ? cards : [blankCardForm(today)]
+}
+
+// ── 장년부 카드 ──────────────────────────────────────────────────────────────────
+// 판독 결과는 두 종이를 한 배열에 섞어 올 수 있다 (대학·청년부 링크는 둘 다 읽는다).
+// 어느 종이인지는 카드가 스스로 말한다 — cardType. 그 값이 없으면 장년부에만 있는 칸이
+// 하나라도 채워졌는지로 판단한다 (예전 모델이나 스키마를 무시한 응답을 위한 대비).
+export function extractedCardKind(raw: unknown): 'youth' | 'adult' {
+  if (!raw || typeof raw !== 'object') return 'youth'
+  const r = raw as Record<string, unknown>
+  if (r.cardType === 'adult') return 'adult'
+  if (r.cardType === 'youth') return 'youth'
+  const adultOnly = [r.nameEn, r.phoneHome, r.address, r.city, r.state, r.zipCode, r.attendReason, r.registrationChoice, r.memberNo]
+  if (adultOnly.some((v) => typeof v === 'string' && v.trim() !== '')) return 'adult'
+  return Array.isArray(r.family) && r.family.length > 0 ? 'adult' : 'youth'
+}
+
+// 장년부 카드의 생년월일은 년만 적혀 오는 일이 잦다 ("2006"). 날짜로 만들 수 없는 값을
+// 버리지 않고 적힌 그대로 둔다 — 카드가 세 칸이므로 화면에서 년 칸에 그대로 들어간다.
+function adultBirth(v: unknown): string {
+  const raw = str(v).trim()
+  if (!raw) return ''
+  const iso = normalizeCardDate(raw, 'birth')
+  if (iso) return iso
+  const year = raw.match(/(19|20)\d{2}/)
+  return year ? year[0] : ''
+}
+
+function adultFamily(v: unknown): AdultCardValue['family'] {
+  const rows = Array.isArray(v) ? v : []
+  const out = rows.map((raw) => {
+    const r = (raw ?? {}) as Record<string, unknown>
+    return {
+      nameKo: str(r.nameKo),
+      nameEn: str(r.nameEn),
+      relation: str(r.relation),
+      birthDate: adultBirth(r.birthDate),
+      gender: str(r.gender),
+      baptism: str(r.baptism),
+    }
+  })
+  // 이름이 하나도 없는 줄은 종이의 빈 칸이다.
+  return out.filter((row) => row.nameKo || row.nameEn)
+}
+
+export function normalizeExtractedAdultCard(raw: unknown, today: string): AdultCardValue {
+  const base = blankAdultCard(today)
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return base
+  const r = raw as Record<string, unknown>
+  const family = adultFamily(r.family)
+  return {
+    ...base,
+    name: str(r.name),
+    nameEn: str(r.nameEn),
+    gender: clampEnum(r.gender, GENDER_OPTIONS),
+    birthDate: adultBirth(r.birthDate),
+    phone: normalizePhone(r.phone),
+    phoneHome: normalizePhone(r.phoneHome),
+    email: str(r.email),
+    address: str(r.address),
+    city: str(r.city),
+    state: str(r.state),
+    zipCode: str(r.zipCode),
+    attendReason: clampEnum(r.attendReason, ATTEND_REASONS.map((x) => x.key)),
+    schoolOrWork: str(r.schoolOrWork),
+    baptismStatus: str(r.baptismStatus),
+    registrationChoice: clampEnum(r.registrationChoice, REGISTRATION_CHOICES.map((x) => x.key)),
+    visitDate: normalizeCardDate(r.visitDate, 'registration'),
+    memberNo: str(r.memberNo),
+    // 읽어 온 줄을 먼저 놓고, 종이처럼 다섯 줄이 되도록 빈 줄로 채운다.
+    family: [...family, ...base.family].slice(0, Math.max(FAMILY_ROWS, family.length)),
+  }
+}
+
+function hasAdultContent(c: AdultCardValue): boolean {
+  return Boolean(
+    c.name || c.nameEn || c.phone || c.phoneHome || c.email || c.address || c.city ||
+      c.birthDate || c.attendReason || c.registrationChoice || c.memberNo || c.baptismStatus,
+  ) || c.family.some((f) => f.nameKo || f.nameEn)
+}
+
+// 사진 한 장에서 나온 카드들 — 두 종이가 섞여 있을 수 있다.
+export type ScannedCard =
+  | { kind: 'youth'; youth: CardFormValue }
+  | { kind: 'adult'; adult: AdultCardValue }
+
+export function normalizeScannedCards(raw: unknown, today: string, only?: 'adult'): ScannedCard[] {
+  const list = Array.isArray(raw) ? raw : raw && typeof raw === 'object' ? [raw] : []
+  const out: ScannedCard[] = []
+  for (const r of list) {
+    const kind = only === 'adult' ? 'adult' : extractedCardKind(r)
+    if (kind === 'adult') {
+      const adult = normalizeExtractedAdultCard(r, today)
+      if (hasAdultContent(adult)) out.push({ kind: 'adult', adult })
+    } else {
+      const youth = normalizeExtractedCard(r, today)
+      if (hasContent(youth)) out.push({ kind: 'youth', youth })
+    }
+  }
+  // 아무것도 읽지 못했어도 빈 카드 한 장은 준다 — 손으로 채워 넣을 수 있도록.
+  if (out.length > 0) return out
+  return [only === 'adult' ? { kind: 'adult', adult: blankAdultCard(today) } : { kind: 'youth', youth: blankCardForm(today) }]
 }

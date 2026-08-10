@@ -8,6 +8,9 @@ import { useToast } from '../../components/ui/Toast'
 import { kioskNewMember, type NewMemberFields } from '../../lib/api'
 import { easternNow } from '../../lib/checkinWindow'
 import { NewFamilyCardForm } from '../admin/NewFamilyCardForm'
+import { AdultCardForm } from '../admin/AdultCardForm'
+import { blankAdultCard, type AdultCardValue } from '../admin/adultCard'
+import { adultPayload } from '../admin/adultRegistration'
 import { blankCardForm, groupForAffiliation, joinAffiliation, type CardFormValue } from '../admin/newFamilyCard'
 import { usePartition } from '../../lib/useAppConfig'
 import { refreshRoster } from '../../lib/live'
@@ -26,29 +29,36 @@ export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose
   // Fresh blank card per open, 등록일 = today (Eastern) — computed per open so the
   // kiosk doesn't stamp a stale date if it stays up across midnight.
   const [card, setCard] = useState<CardFormValue>(() => blankCardForm(easternNow().date))
+  // 장년부는 종이가 다르다 — 키오스크에서도 그 부의 카드를 그대로 내민다.
+  const isAdult = partition === 'adult'
+  const [adultCard, setAdultCard] = useState<AdultCardValue>(() => blankAdultCard(easternNow().date))
   const [busy, setBusy] = useState(false)
 
   const patchCard = (patch: Partial<CardFormValue>) => setCard((cur) => ({ ...cur, ...patch }))
+  const patchAdultCard = (patch: Partial<AdultCardValue>) => setAdultCard((cur) => ({ ...cur, ...patch }))
 
   function close() {
     setCard(blankCardForm(easternNow().date))
+    setAdultCard(blankAdultCard(easternNow().date))
     setBusy(false)
     onClose()
   }
 
   async function submit() {
-    if (!card.name.trim()) {
+    const name = (isAdult ? adultCard.name : card.name).trim()
+    if (!name) {
       toast({ title: t('kiosk.newMember.nameRequired'), tone: 'warn' })
       return
     }
     // 소속 decides the 부서 now, so an unticked card can't be filed anywhere.
-    if (!card.affiliationCategory) {
+    // 장년부에는 고를 부서가 하나뿐이라 그 물음 자체가 없다.
+    if (!isAdult && !card.affiliationCategory) {
       toast({ title: t('kiosk.newMember.affiliationRequired'), tone: 'warn' })
       return
     }
     setBusy(true)
     try {
-      const payload: NewMemberFields = {
+      const payload: NewMemberFields = isAdult ? adultPayload(adultCard) : {
         name: card.name.trim(),
         // 부서 from the 소속 checkbox: 대학생 → 대학부, 대학원생/직장인/Other → 청년부.
         group: groupForAffiliation(card.affiliationCategory, partition),
@@ -85,7 +95,11 @@ export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose
       {/* max-h is a safety valve for short/small screens; on the kiosk tablet the whole
           card fits without scrolling. */}
       <div className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto pr-1">
-        <NewFamilyCardForm value={card} onChange={patchCard} regDateFixed />
+        {isAdult ? (
+          <AdultCardForm value={adultCard} onChange={patchAdultCard} />
+        ) : (
+          <NewFamilyCardForm value={card} onChange={patchCard} regDateFixed />
+        )}
       </div>
       <Button onClick={() => void submit()} disabled={busy} className="mt-5 w-full">
         <Sparkles className="size-4" strokeWidth={2} aria-hidden />

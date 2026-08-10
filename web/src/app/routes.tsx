@@ -50,6 +50,16 @@ export function AppRoutes() {
             </Suspense>
           }
         />
+        {/* 장년부용 카드 등록 링크. 부마다 종이가 다르고 담기는 표도 다르므로 문을 따로 둔다 —
+            이 링크로 들어온 사진은 장년부 카드로만 읽고 장년부 명단에만 들어간다. */}
+        <Route
+          path="/share/adult"
+          element={
+            <Suspense fallback={<RouteSplash />}>
+              <ShareTargetScreen partition="adult" />
+            </Suspense>
+          }
+        />
         <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>

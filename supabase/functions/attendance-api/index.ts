@@ -122,6 +122,20 @@ function summerNow(cfg: any, part: Partition="youth") {
   if(part==="adult") return false;
   return isSummerTerm(localDate(),cfg?.semester_dates,cfg?.semester_schedule);
 }
+// 등록 경로가 받는 장년부 카드 칸들 — 멤버 수정의 ADULT_CARD_COLS와 같은 이름들이다.
+// 대학·청년부 표에는 없는 컬럼이라, 그 부의 등록에는 절대 얹지 않는다.
+function adultCardFields(body: any): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for(const [k,col] of Object.entries(ADULT_CARD_COLS)){
+    if(body[k]!==undefined) out[col]=(col==="visit_date")?(body[k]||null):body[k];
+  }
+  if(Array.isArray(body.family)) out.family=body.family.map((r:any)=>({
+    nameKo:String(r?.nameKo??""), nameEn:String(r?.nameEn??""), relation:String(r?.relation??""),
+    birthDate:String(r?.birthDate??""), gender:String(r?.gender??""), baptism:String(r?.baptism??""),
+  }));
+  return out;
+}
+
 // 장년부 새교우 방문·등록 카드가 가진 칸들 (마이그레이션 20260808). adult.members에만
 // 있는 컬럼이라 멤버 수정에서 **장년부 요청일 때만** 매핑한다. 웹의 짝은 adultCard.ts.
 const ADULT_CARD_COLS: Record<string,string>={nameEn:"name_en",phoneHome:"phone_home",email:"email",birthDateRaw:"birth_date_raw",address:"address",city:"city",state:"state",zipCode:"zip_code",attendReason:"attend_reason",registrationChoice:"registration_choice",visitDate:"visit_date",memberNo:"member_no"};
@@ -1554,25 +1568,35 @@ Deno.serve(async (req: Request) => {
         newMemberPart=role.partition;
         // 자기 부의 부서로만 새 사람을 등록할 수 있다. (동산은 나중에 배정하므로 보지 않는다.)
         if(!inScopeGroup(scopeFilter(role,summerNow(await getCfg(sb,actingPartition),newMemberPart)),group)) return fail(403,"Out of scope");
-      } else if(partitionOfGroup(group)!=="youth") {
-        // 로그인 없이 도는 새가족 카드 링크는 대학·청년부 전용이다.
-        return fail(403,"Out of scope");
+      } else {
+        // 로그인 없이 도는 새가족 카드 링크는 **부마다 따로**다. 링크가 어느 부의 것인지
+        // 몸통이 말하고(partition), 그 말과 부서가 서로 맞을 때만 받는다 — 장년부 링크로
+        // 대학부 사람을 넣거나 그 반대가 되지 않도록.
+        const asked=body.partition==="adult"?"adult":"youth";
+        if(partitionOfGroup(group)!==asked) return fail(403,"Out of scope");
+        newMemberPart=asked;
       }
+      // 로그인 경로에서는 auth()가 이미 adb를 그 부로 맞춰 두었지만, 공유 링크는 신원을
+      // 풀지 않으므로 여기서 직접 손잡이를 고른다.
+      const ndb=viaShare?dbOf(sb,newMemberPart):adb;
       const subgroup=(body.subgroup||"").trim();
       const today=localDate(),time=localTime();
       // 이미 같은 사람이 등록돼 있으면 행을 하나 더 만들지 않고 그 멤버에 최신 정보를 덮어쓴다
       // (출석 기록·기기가 그대로 이어진다).
-      const dup=await findDuplicateMember(adb,name,group,body);
+      const dup=await findDuplicateMember(ndb,name,group,body);
       let memberId: string|null=null, merged=false;
       if(dup){
-        await adb.from("members").update(mergedMemberFields(dup,body,subgroup,today)).eq("id",dup.id);
+        await ndb.from("members").update(mergedMemberFields(dup,body,subgroup,today)).eq("id",dup.id);
         memberId=dup.id; merged=true;
       } else {
-        const {data:created}=await adb.from("members").insert({
+        const {data:created}=await ndb.from("members").insert({
           name,group_name:group,subgroup,is_new_member:true,
           gender:body.gender||"",phone:body.phone||"",kakao_id:body.kakaoId||"",
           birth_date:body.birthDate||null,baptism_status:body.baptismStatus||"해당없음",
           school_or_work:body.schoolOrWork||"",faith_duration:body.faithDuration||"",
+          // 장년부 카드는 묻는 것이 다르다 (이름 영문·집 전화·주소·참석동기·동행가족 …).
+          // 그 칸들은 adult.members에만 있으므로 그 부일 때만 얹는다.
+          ...(newMemberPart==="adult"?adultCardFields(body):{}),
           // 등록일자 defaults to the date the member is added but the operator may set it
           // explicitly (e.g. back-fill someone who joined earlier). Attendance percentages
           // count from this date.
@@ -1582,22 +1606,22 @@ Deno.serve(async (req: Request) => {
       }
       if(!memberId) return fail(500,"Could not create member");
       // 기기: 병합이면 이미 연결된 기기를 재사용하고, 없을 때만 새로 만든다.
-      const {data:existingDev}=merged?await adb.from("devices").select("id").eq("member_id",memberId).limit(1):{data:null};
+      const {data:existingDev}=merged?await ndb.from("devices").select("id").eq("member_id",memberId).limit(1):{data:null};
       const newId=(existingDev as {id?:string}[]|null)?.[0]?.id||("NEW-"+Date.now());
       if(!(existingDev as unknown[]|null)?.length){
-        await adb.from("devices").insert({id:newId,name,group_name:group,subgroup,member_id:memberId,is_new_member:true});
+        await ndb.from("devices").insert({id:newId,name,group_name:group,subgroup,member_id:memberId,is_new_member:true});
       } else {
-        await adb.from("devices").update({name,group_name:group,subgroup}).eq("id",newId);
+        await ndb.from("devices").update({name,group_name:group,subgroup}).eq("id",newId);
       }
       // skipCheckin (admin card-scan path): create the member + device but don't record
       // today's attendance — e.g. entering a stack of paper cards later in the week.
       // The kiosk never sends the flag, so its check-them-in-now behavior is unchanged.
       // 병합된 사람이 오늘 이미 출석했다면 줄을 하나 더 남기지 않는다.
-      const already=merged?(await adb.from("attendance_log").select("id").eq("member_id",memberId).eq("date",today).limit(1)).data:null;
+      const already=merged?(await ndb.from("attendance_log").select("id").eq("member_id",memberId).eq("date",today).limit(1)).data:null;
       if(!body.skipCheckin&&!(already as unknown[]|null)?.length){
-        await adb.from("attendance_log").insert({device_id:newId,member_id:memberId,name,group_name:group,subgroup,date:today,time_str:time,ts:Date.now(),is_manual:true,admin_added:false,first_visit:!merged});
+        await ndb.from("attendance_log").insert({device_id:newId,member_id:memberId,name,group_name:group,subgroup,date:today,time_str:time,ts:Date.now(),is_manual:true,admin_added:false,first_visit:!merged});
       }
-      await addAudit(adb,merged?"new-member-merge":"new-member-register",xDev,name+" | "+group+(merged?" | 중복 등록 → 기존 멤버에 병합":"")+(body.skipCheckin?" | no-checkin":"")+(viaShare?" | share-link":""),newMemberPart);
+      await addAudit(ndb,merged?"new-member-merge":"new-member-register",xDev,name+" | "+group+(merged?" | 중복 등록 → 기존 멤버에 병합":"")+(body.skipCheckin?" | no-checkin":"")+(viaShare?" | share-link":""),newMemberPart);
       return ok({status:"ok",memberId,time,merged});
     }
 
@@ -1608,10 +1632,17 @@ Deno.serve(async (req: Request) => {
     // Audit logs only size/type, never the extracted PII.
     if(req.method==="POST"&&(p==="/api/admin/extract-card"||p==="/api/share/extract-card")) {
       const viaExtractShare=p==="/api/share/extract-card";
+      // 어느 종이를 기대하는가. 장년부 패널·장년부 링크에서 들어온 사진은 장년부 카드만
+      // 읽는다 (그 링크가 그 부의 것이므로). 대학·청년부 쪽은 두 종류를 다 읽고, 각 카드가
+      // cardType으로 자기가 어느 종이인지 말한다.
+      let expectAdult=false;
       if(!viaExtractShare) {
         const role=await auth();
         if(!role) return fail(401,"Not authorized");
         if(role.role==="pastor") return fail(403,"Read-only");
+        expectAdult=role.partition==="adult";
+      } else {
+        expectAdult=body.partition==="adult";
       }
       const image=typeof body.image==="string"?body.image:"";
       const mediaType=["image/jpeg","image/png","image/webp"].includes(body.mediaType)?body.mediaType:"image/jpeg";
@@ -1635,7 +1666,7 @@ Deno.serve(async (req: Request) => {
       for(const model of chain.slice(0,CARD_MODEL_ATTEMPTS)) {
         used=model;
         try {
-          const rq=buildCardRequest(model,image,mediaType,keys[model.provider]);
+          const rq=buildCardRequest(model,image,mediaType,keys[model.provider],expectAdult?"adult":undefined);
           const gr=await fetch(rq.url,{method:"POST",headers:rq.headers,body:JSON.stringify(rq.body),signal:AbortSignal.timeout(CARD_MODEL_TIMEOUT_MS)});
           if(!gr.ok) {
             const detail=await gr.text().catch(()=>"");
