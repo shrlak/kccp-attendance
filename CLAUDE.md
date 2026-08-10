@@ -130,7 +130,11 @@ live** at https://shrlak.github.io/kccp-attendance/.
   street address at read time via Nominatim, cached in `gps_geo`. Falls back to the ip_geo
   city estimate when GPS wasn't granted; the viewer shows a 정확/대략 (precise/approx) badge.
   **두 부 모두에서 보인다** — login_log는 부서를 가리지 않는 공용 표라 어느 패널에서 보든 같은
-  목록이고, 아래의 부 건너가기를 해도 memberId는 그대로라 권한이 따라간다.
+  목록이고, 아래의 부 건너가기를 해도 memberId는 그대로라 권한이 따라간다. 목록은 **주소별로
+  갈라서** 보여준다 (`admins.ts` `groupLoginsByLocation`): 이 기록을 여는 이유가 대개 장소이기
+  때문. 정확(GPS 주소)과 대략(IP 도시 추정)은 **서로 다른 묶음**이다 — 합치면 정확한 주소가
+  도시로 뭉개지거나 도시 추정이 실제 주소처럼 읽힌다. 위치가 안 풀린 것들은 '위치 없음' 하나로
+  맨 아래. 정확도(±m)만은 로그인마다 다르므로 묶음 제목이 아니라 그 줄에 남는다.
 - **한 계정만 두 부를 다 본다** (`auth.ts` `CROSS_PARTITION_EMAILS`, 기본 `spencerkim1235@
   gmail.com` = 김호연, env override 가능). 보통 부는 고르는 것이 아니라 **이메일이 어느 스키마의
   members에서 나오느냐**로 정해지는데(그 길 하나뿐이다), 이 이메일만은 로그인 뒤 어느 부의

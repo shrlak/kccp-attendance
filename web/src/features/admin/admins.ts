@@ -45,6 +45,59 @@ export function loginLocationDisplay(e: Pick<LoginLogEntry, 'location' | 'gps'>)
   return { text: formatLoginLocation(e.location), lat: e.location?.lat ?? null, lon: e.location?.lon ?? null, accuracy: null, precise: false }
 }
 
+// ── 로그인 기록을 주소별로 가른다 ─────────────────────────────────────────────────────
+//
+// 한 줄로 쭉 이어진 목록에서는 "이 주소에서 몇 번 들어왔나"를 눈으로 세야 한다. 그런데 이
+// 기록을 보는 이유는 대개 **장소**다 — 낯선 곳에서 들어온 로그인이 있는가. 그래서 주소를
+// 묶음의 제목으로 올리고, 그 아래에 그 주소에서 있었던 로그인을 시간순으로 둔다.
+//
+// 정확(GPS 주소)과 대략(IP 도시 추정)은 **따로 묶는다.** 같은 도시라도 "5000 Fifth Ave"와
+// "Pittsburgh, Pennsylvania, US"는 다른 주장이다 — 하나로 합치면 정확한 주소가 도시 하나로
+// 뭉개지거나, 도시 추정이 실제 주소인 것처럼 읽힌다.
+export interface LoginLocationGroup {
+  /** 묶음의 정체성 — 정확/대략 + 주소 문자열. React key로도 쓴다. */
+  key: string
+  /** 화면에 걸리는 주소. 아무것도 풀리지 않은 로그인들의 묶음에서는 ''. */
+  text: string
+  precise: boolean
+  lat: number | null
+  lon: number | null
+  /** 이 주소에서 있었던 로그인 — 새 것부터. */
+  entries: LoginLogEntry[]
+  /** 이 주소에서 가장 최근 로그인 시각 — 묶음끼리의 순서를 정한다. */
+  latestTs: number
+}
+
+export function groupLoginsByLocation(entries: LoginLogEntry[]): LoginLocationGroup[] {
+  const groups = new Map<string, LoginLocationGroup>()
+  for (const e of entries) {
+    const loc = loginLocationDisplay(e)
+    // 좌표만 있고 주소가 아직 안 풀린 것들은 좌표 문자열이 곧 이름이라 자연히 갈린다.
+    // 아무것도 없는 것들(사설 IP 등)은 '위치 없음' 하나로 모인다.
+    const key = loc.text ? `${loc.precise ? 'gps' : 'ip'}:${loc.text}` : 'none'
+    const found = groups.get(key)
+    if (found) {
+      found.entries.push(e)
+      if (e.ts > found.latestTs) found.latestTs = e.ts
+      continue
+    }
+    groups.set(key, {
+      key,
+      text: loc.text,
+      precise: loc.text ? loc.precise : false,
+      lat: loc.lat,
+      lon: loc.lon,
+      entries: [e],
+      latestTs: e.ts,
+    })
+  }
+  // 최근에 쓰인 주소가 위로. 위치 없는 묶음은 언제나 맨 아래 — 볼 것이 없는 묶음이다.
+  return [...groups.values()].sort((a, b) => {
+    if (!a.text !== !b.text) return a.text ? -1 : 1
+    return b.latestTs - a.latestTs
+  })
+}
+
 // Flatten an audit entry's details (string, {info}, or arbitrary object) to one line.
 export function auditDetail(details: unknown): string {
   if (details == null) return ''

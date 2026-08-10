@@ -4,6 +4,7 @@ import {
   auditDetail,
   formatLoginLocation,
   loginLocationDisplay,
+  groupLoginsByLocation,
   roleNeedsScope,
   formatBytes,
   backupTotalSize,
@@ -11,7 +12,7 @@ import {
   storagePercent,
   formatStoragePercent,
 } from './admins'
-import type { AdminRoleRow, DbBackupEntry } from '../../lib/api'
+import type { AdminRoleRow, DbBackupEntry, LoginLogEntry } from '../../lib/api'
 
 const row = (name: string, role: AdminRoleRow['role']): AdminRoleRow => ({
   memberId: name, name, role, group: '', subgroup: '', ministry: '',
@@ -131,5 +132,67 @@ describe('loginLocationDisplay', () => {
     const d = loginLocationDisplay({ location: null, gps: null })
     expect(d.text).toBe('')
     expect(d.lat).toBeNull()
+  })
+})
+
+describe('groupLoginsByLocation', () => {
+  const ipLoc = { city: 'Pittsburgh', region: 'Pennsylvania', country: 'United States', lat: 40.44, lon: -79.99, org: 'Comcast' }
+  const entry = (extra: Partial<LoginLogEntry> = {}): LoginLogEntry => ({
+    ts: 1_000, role: 'super_admin', memberName: '김호연', deviceId: 'DEV-1', ip: '1.2.3.4',
+    method: 'google', location: null, gps: null, ...extra,
+  })
+  const home = { lat: 40.4502, lon: -79.9348, accuracy: 12, address: '123 Main St, Pittsburgh, PA' }
+  const office = { lat: 40.4433, lon: -79.9436, accuracy: 20, address: '5000 Forbes Ave, Pittsburgh, PA' }
+
+  it('한 주소의 로그인은 한 묶음으로 모인다', () => {
+    const groups = groupLoginsByLocation([
+      entry({ ts: 3, gps: home }),
+      entry({ ts: 2, gps: office }),
+      entry({ ts: 1, gps: home }),
+    ])
+    expect(groups).toHaveLength(2)
+    expect(groups[0].text).toBe('123 Main St, Pittsburgh, PA')
+    expect(groups[0].entries.map((e) => e.ts)).toEqual([3, 1])
+    expect(groups[1].entries.map((e) => e.ts)).toEqual([2])
+  })
+
+  it('가장 최근에 쓰인 주소가 위로 온다', () => {
+    const groups = groupLoginsByLocation([
+      entry({ ts: 5, gps: office }),
+      entry({ ts: 9, gps: home }),
+    ])
+    expect(groups.map((g) => g.text)).toEqual(['123 Main St, Pittsburgh, PA', '5000 Forbes Ave, Pittsburgh, PA'])
+    expect(groups[0].latestTs).toBe(9)
+  })
+
+  it('정확한 주소와 도시 추정은 섞이지 않는다 — 다른 주장이다', () => {
+    const groups = groupLoginsByLocation([
+      entry({ ts: 2, gps: home, location: ipLoc }),
+      entry({ ts: 1, gps: null, location: ipLoc }),
+    ])
+    expect(groups).toHaveLength(2)
+    expect(groups.map((g) => g.precise)).toEqual([true, false])
+    expect(groups[1].text).toBe('Pittsburgh, Pennsylvania, United States')
+  })
+
+  it('위치가 풀리지 않은 로그인은 한 묶음으로 모여 맨 아래에 남는다', () => {
+    const groups = groupLoginsByLocation([
+      entry({ ts: 9, gps: null, location: null }),   // 제일 최근이지만
+      entry({ ts: 1, gps: home }),
+    ])
+    expect(groups.map((g) => g.text)).toEqual(['123 Main St, Pittsburgh, PA', ''])
+    expect(groups[1].entries).toHaveLength(1)
+    expect(groups[1].precise).toBe(false)
+  })
+
+  it('묶음마다 지도 링크에 쓸 좌표를 들고 있다', () => {
+    const [group] = groupLoginsByLocation([entry({ ts: 1, gps: home })])
+    expect(group.lat).toBe(40.4502)
+    expect(group.lon).toBe(-79.9348)
+    expect(group.entries).toHaveLength(1)
+  })
+
+  it('빈 목록은 빈 결과다', () => {
+    expect(groupLoginsByLocation([])).toEqual([])
   })
 })
