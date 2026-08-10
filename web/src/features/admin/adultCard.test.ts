@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { FAMILY_ROWS, adultCardFromMember, blankAdultCard, isoDateOrNull, packFamily } from './adultCard'
+import { FAMILY_ROWS, adultCardFromMember, birthRaw, blankAdultCard, isoDateOrNull, packFamily } from './adultCard'
 import type { Member } from '../../lib/api'
 
 const member = (extra: Partial<Member> = {}): Member =>
@@ -60,8 +60,8 @@ describe('장년부 카드 씨앗', () => {
   })
 })
 
-describe('덜 찬 생년월일', () => {
-  it('년만 적힌 카드는 날짜로 저장하지 않는다', () => {
+describe('덜 찬 생년월일 — 년만 적어도 남는다', () => {
+  it('덜 찬 값은 날짜가 아니다', () => {
     // 실제 카드에 "2006"만 적혀 오는 경우가 있다. birth_date는 날짜 칸이라 담을 수 없다.
     expect(isoDateOrNull('2006--')).toBeNull()
     expect(isoDateOrNull('2006-10-')).toBeNull()
@@ -70,5 +70,21 @@ describe('덜 찬 생년월일', () => {
 
   it('세 칸이 다 차면 날짜가 된다', () => {
     expect(isoDateOrNull('2006-10-24')).toBe('2006-10-24')
+  })
+
+  it('덜 찬 값은 적힌 그대로 남는다 — 1월 1일로 채우지 않는다', () => {
+    expect(birthRaw('2006--')).toBe('2006')
+    expect(birthRaw('2006-10-')).toBe('2006-10')
+    expect(birthRaw('2006--24')).toBe('2006') // 중간이 비면 거기서 끊는다
+    expect(birthRaw('')).toBe('')
+  })
+
+  it('완전한 날짜일 때는 원문 칸을 비운다 — 두 칸이 어긋날 자리를 만들지 않는다', () => {
+    expect(birthRaw('2006-10-24')).toBe('')
+  })
+
+  it('년만 저장된 멤버를 다시 열면 그 년이 칸에 돌아온다', () => {
+    const card = adultCardFromMember(member({ birth_date: null, birth_date_raw: '2006' }))
+    expect(card.birthDate).toBe('2006')
   })
 })

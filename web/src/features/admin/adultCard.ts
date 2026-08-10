@@ -113,7 +113,7 @@ export function adultCardFromMember(m: Member): AdultCardValue {
     name: m.name || '',
     nameEn: m.name_en || '',
     gender: m.gender || '',
-    birthDate: m.birth_date || '',
+    birthDate: m.birth_date || m.birth_date_raw || '',
     phone: formatPhoneNumber(m.phone || ''),
     phoneHome: formatPhoneNumber(m.phone_home || ''),
     email: m.email || '',
@@ -161,7 +161,21 @@ export function packFamily(list: AdultFamilyMember[]): AdultFamilyMember[] {
 }
 
 // 종이의 생년월일은 년/월/일 세 칸이라 셋이 다 차야 날짜가 된다 (DB의 birth_date는 날짜다).
-// "2006만 적힌 카드"처럼 덜 찬 값은 날짜로 보내지 않는다.
 export function isoDateOrNull(value: string): string | null {
   return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null
+}
+
+// 날짜가 되지 못한 값은 **적힌 그대로** 남긴다 ("2006", "2006-10") — 20260812의
+// birth_date_raw. 1월 1일로 채워 넣지 않는 이유: 있지도 않은 생일이 생기고, 나중에 보는
+// 사람이 적힌 값인지 우리가 지어낸 값인지 알 수 없게 된다.
+// 완전한 날짜일 때는 비운다 — 같은 값을 두 칸에 두면 둘이 어긋날 자리가 생긴다.
+export function birthRaw(value: string): string {
+  if (isoDateOrNull(value)) return ''
+  const parts = value.split('-')
+  const kept: string[] = []
+  for (const part of parts) {
+    if (!part) break // 중간이 비면 거기서 끊는다 — "2006--24"는 "2006"이다
+    kept.push(part)
+  }
+  return kept.join('-')
 }

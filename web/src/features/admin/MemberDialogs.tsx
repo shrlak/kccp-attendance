@@ -23,7 +23,7 @@ import { easternNow } from '../../lib/checkinWindow'
 import { statusMarks, type StatusMark } from '../../lib/status'
 import { NewFamilyCardForm } from './NewFamilyCardForm'
 import { AdultCardForm } from './AdultCardForm'
-import { adultCardFromMember, isoDateOrNull, packFamily, type AdultCardValue } from './adultCard'
+import { adultCardFromMember, birthRaw, isoDateOrNull, packFamily, type AdultCardValue } from './adultCard'
 import { cardFormFromMember, joinAffiliation, type CardFormValue } from './newFamilyCard'
 import { copyNewFamilyCards, saveNewFamilyCards } from './newFamilyCardImage'
 import { refreshRoster } from '../../lib/live'
@@ -178,6 +178,8 @@ export function EditModal({
         nameEn: adultCard.nameEn,
         gender: adultCard.gender,
         birthDate: isoDateOrNull(adultCard.birthDate),
+        // 년만 적힌 카드도 남는다 (adultCard.ts birthRaw).
+        birthDateRaw: birthRaw(adultCard.birthDate),
         phone: adultCard.phone,
         email: adultCard.email,
         phoneHome: adultCard.phoneHome,

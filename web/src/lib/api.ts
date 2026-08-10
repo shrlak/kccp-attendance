@@ -236,6 +236,7 @@ export interface Member {
   city?: string
   state?: string
   zip_code?: string
+  birth_date_raw?: string
   attend_reason?: string
   registration_choice?: string
   visit_date?: string | null
@@ -476,6 +477,7 @@ export interface MemberEdit {
   city?: string
   state?: string
   zipCode?: string
+  birthDateRaw?: string
   attendReason?: string
   registrationChoice?: string
   visitDate?: string | null
