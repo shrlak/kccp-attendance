@@ -122,9 +122,15 @@ function summerNow(cfg: any, part: Partition="youth") {
   if(part==="adult") return false;
   return isSummerTerm(localDate(),cfg?.semester_dates,cfg?.semester_schedule);
 }
+// 봄·여름·가을학기로 한 해를 나누는 부. 장년부는 상반기·하반기 둘로만 나뉘고 그 경계가
+// 고정이라, 학기 일정도 학기 종료 롤오버도 없다. 웹의 짝은 partition.ts usesSemesters().
+const USES_SEMESTERS: Partition[]=["youth"];
 // 2년치 학기 일정을 굴린다: 끝난 학기는 편집 목록에서 빠지고(보관은 유지) 맨 뒤에 다음 학기가
 // 붙는다. 바뀐 게 없으면 쓰지 않으므로 매 요청에 불러도 안전하다. 부서마다 자기 일정을 쓴다.
 async function maybeRollSchedule(sb: SB, cfg: any, part: Partition="youth") {
+  // 장년부에는 학기 일정이라는 것이 없다 — 한 해가 상반기(1–6월)·하반기(7–12월)로 고정이고
+  // 설정 탭에 편집기도 뜨지 않는다. 굴릴 목록이 없으니 매 요청마다 손대지 않는다.
+  if(!USES_SEMESTERS.includes(part)) return cfg;
   const dates=cfg?.semester_dates, schedule=cfg?.semester_schedule;
   const rolled=rollSchedule(localDate(),dates,schedule);
   if(sameSchedule(rolled,scheduleOf(schedule))) return cfg;
@@ -210,6 +216,9 @@ const SUB_LEADER_SLOTS: Record<Partition, number> = { youth: 2, adult: 1 };
 // 이름·셀장·멤버 배정은 그대로 둔다. 이 한 줄이 CELL_PARTITIONS다.
 const RESETS_SUBGROUPS_EACH_TERM: Partition[]=["youth"];
 async function rolloverDongsan(sb: SB, cfg: any, part: Partition="youth") {
+  // 학기가 없는 부에는 학기 종료도 없다. 장년부의 셀은 이름도 소속도 고정이라 비울 것이
+  // 없고(RESETS_SUBGROUPS_EACH_TERM), 얼려 둘 편성도 늘 같으니 스냅숏도 뜨지 않는다.
+  if(!USES_SEMESTERS.includes(part)) return cfg;
   const pdb=db(sb,part);
   const key=lastEndedTermKey(localDate(),cfg?.semester_dates);
   const marker="dongsan_reset_term";

@@ -355,7 +355,7 @@ function GridView({
   const model = buildAttendanceModel(
     ordered,
     log,
-    exportSundays(today, semesterDates),
+    exportSundays(today, semesterDates, partition),
     today,
     { unassigned: L.unassigned, newFamily: L.newFamily },
     attendanceGroupBy(today, semesterDates, L.unassigned, partition),
@@ -368,7 +368,7 @@ function GridView({
   return (
     <div>
       <p className="mb-3 text-sm text-muted">
-        {semesterLabel(today, lang, semesterDates)} · {filterLabel(filter.group, filter.subgroup, lang)}
+        {semesterLabel(today, lang, semesterDates, partition)} · {filterLabel(filter.group, filter.subgroup, lang)}
       </p>
       {/* Legend text uses theme tokens so it stays readable in dark mode; only the
           swatches keep the sheet's hardcoded paper palette. */}

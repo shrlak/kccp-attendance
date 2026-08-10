@@ -5,10 +5,13 @@ import {
   termRange,
   type CalendarLike,
 } from '../../lib/semester'
+import { ADULT_HALF_DATES, seasonsOf, type Partition, type Season } from '../../lib/partition'
 import type { Filter } from './filters'
 import { hasHidingMark } from '../../lib/status'
 
-export type Season = 'spring' | 'summer' | 'fall'
+// Season의 주인은 lib/partition.ts다 (부마다 한 해를 몇 토막으로 나누는지가 거기 있으므로).
+// 여기서는 이름만 이어 준다 — 이 모듈에서 Season을 가져다 쓰던 곳들이 그대로 돌도록.
+export type { Season }
 
 export interface SemesterBounds {
   year: number
@@ -22,20 +25,45 @@ export interface SemesterBounds {
 // (see lib/semester.ts termRange). During a configured break between terms, the most
 // recently started term remains the label, but membership/date columns are still clamped to
 // its explicit end.
-export function semesterBounds(dateStr: string, semesterDates?: CalendarLike): SemesterBounds {
+//
+// 장년부에는 학기가 없다: 한 해가 상반기(1–6월)·하반기(7–12월) 둘로만 나뉘고, 그 경계는
+// 저장된 학기 일정이 아니라 고정값이다 (partition.ts ADULT_HALF_DATES). 그래서 이 부에는
+// 학기 사이의 빈틈이 없고 — 두 토막이 한 해를 빈 곳 없이 덮는다 — transitionBounds도
+// 언제나 null이다.
+export function semesterBounds(
+  dateStr: string,
+  semesterDates?: CalendarLike,
+  partition: Partition = 'youth',
+): SemesterBounds {
   const year = Number(dateStr.slice(0, 4))
-  const cal = calendarOf(semesterDates)
-  const spring = { year, season: 'spring' as const, ...termRange(year, 'spring', cal) }
-  const summer = { year, season: 'summer' as const, ...termRange(year, 'summer', cal) }
-  const fall = { year, season: 'fall' as const, ...termRange(year, 'fall', cal) }
-  if (dateStr >= fall.start) return fall
-  if (dateStr >= summer.start) return summer
-  return spring
+  const ranges = seasonsOf(partition).map((season) => ({
+    year,
+    season,
+    ...termRangeFor(year, season, semesterDates, partition),
+  }))
+  // 달력 순서로 놓고 뒤에서부터 — 시작일이 이 날짜를 넘지 않는 마지막 토막이 그 날의 토막이다.
+  for (let i = ranges.length - 1; i > 0; i--) if (dateStr >= ranges[i].start) return ranges[i]
+  return ranges[0]
+}
+
+// 한 토막의 경계. 대학·청년부는 저장된 학기 일정(2년치 목록 + 반복 템플릿)에서, 장년부는
+// 고정된 상·하반기 값에서 온다.
+export function termRangeFor(
+  year: number,
+  season: Season,
+  semesterDates: CalendarLike,
+  partition: Partition = 'youth',
+): { start: string; end: string } {
+  if (partition === 'adult') {
+    const half = ADULT_HALF_DATES[season === 'fall' ? 'fall' : 'spring']
+    return { start: `${year}-${half.start}`, end: `${year}-${half.end}` }
+  }
+  return termRange(year, season, calendarOf(semesterDates))
 }
 
 // Semester key like "2026-spring" for the term containing `dateStr`.
-export function semesterKey(dateStr: string, semesterDates?: CalendarLike): string {
-  const { year, season } = semesterBounds(dateStr, semesterDates)
+export function semesterKey(dateStr: string, semesterDates?: CalendarLike, partition: Partition = 'youth'): string {
+  const { year, season } = semesterBounds(dateStr, semesterDates, partition)
   return `${year}-${season}`
 }
 
@@ -70,8 +98,9 @@ export function semesterSundays(
   today: string,
   through: string = today,
   semesterDates?: CalendarLike,
+  partition: Partition = 'youth',
 ): string[] {
-  const { start, end } = semesterBounds(today, semesterDates)
+  const { start, end } = semesterBounds(today, semesterDates, partition)
   return sundaysInRange(start, end, through)
 }
 
@@ -91,7 +120,13 @@ export interface TransitionBounds {
 // configured term, including the default boundaries (spring/summer/fall run back-to-back,
 // so they never leave a gap) — this only ever fires once an admin saves term dates that
 // leave a break between them.
-export function transitionBounds(dateStr: string, semesterDates?: CalendarLike): TransitionBounds | null {
+export function transitionBounds(
+  dateStr: string,
+  semesterDates?: CalendarLike,
+  partition: Partition = 'youth',
+): TransitionBounds | null {
+  // 장년부에는 학기가 없으니 학기 사이도 없다 — 상반기와 하반기가 한 해를 빈 곳 없이 덮는다.
+  if (partition === 'adult') return null
   const year = Number(dateStr.slice(0, 4))
   const cal = calendarOf(semesterDates)
   const { start: springStart, end: springEnd } = termRange(year, 'spring', cal)
@@ -263,11 +298,12 @@ export function newFamilyBySemester(
   members: Member[],
   today: string,
   semesterDates?: CalendarLike,
+  partition: Partition = 'youth',
 ): SemesterGroup[] {
-  const currentKey = semesterKey(today, semesterDates)
+  const currentKey = semesterKey(today, semesterDates, partition)
   const byKey = new Map<string, Member[]>()
   for (const m of visibleNewFamily(members, today, semesterDates)) {
-    const key = m.registration_date ? semesterKey(m.registration_date, semesterDates) : currentKey
+    const key = m.registration_date ? semesterKey(m.registration_date, semesterDates, partition) : currentKey
     const list = byKey.get(key) ?? []
     list.push(m)
     byKey.set(key, list)
@@ -276,7 +312,7 @@ export function newFamilyBySemester(
     .map(([key, list]) => {
       // Bounds of the term itself, not of today — read them off any of its members.
       const anchor = list.find((m) => m.registration_date)?.registration_date ?? today
-      const { year, season, start } = semesterBounds(anchor, semesterDates)
+      const { year, season, start } = semesterBounds(anchor, semesterDates, partition)
       return { key, year, season, start, current: key === currentKey, total: list.length, dates: groupByDate(list) }
     })
     // Current term pinned first (a mistyped future 등록일 must not outrank it), then the

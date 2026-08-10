@@ -407,3 +407,29 @@ describe('archive entry shape', () => {
     expect(shape.sundays).toBe(1)
   })
 })
+
+describe('장년부의 한 해 — 상반기·하반기, 전환 기간 없음', () => {
+  it('periodsInYear가 두 토막으로 한 해를 빈 곳 없이 덮는다', () => {
+    const ps = periodsInYear(2026, undefined, 'adult')
+    expect(ps.map((p) => [p.kind, p.start, p.end])).toEqual([
+      ['semester', '2026-01-01', '2026-06-30'],
+      ['semester', '2026-07-01', '2026-12-31'],
+    ])
+  })
+
+  it('저장된 학기 일정을 무시한다 — 장년부의 경계는 고정이다', () => {
+    const custom = { fall: { start: '08-15', end: '12-31' }, spring: { start: '01-01', end: '05-09' }, summer: { start: '06-01', end: '07-31' } }
+    expect(periodsInYear(2026, custom, 'adult').map((p) => p.start)).toEqual(['2026-01-01', '2026-07-01'])
+  })
+
+  it('아카이브에 학년도가 없다 — 상·하반기와 역년만', () => {
+    const log = [
+      { id: 1, name: '가', date: '2026-03-01', ts: 0 },
+      { id: 2, name: '가', date: '2026-09-06', ts: 0 },
+    ] as unknown as LogEntry[]
+    const kinds = archiveEntries(log, '2027-02-01', undefined, 'adult').map((e) => e.kind)
+    expect(kinds).not.toContain('academicYear')
+    expect(kinds).toContain('calendarYear')
+    expect(kinds.filter((k) => k === 'semester')).toHaveLength(2)
+  })
+})

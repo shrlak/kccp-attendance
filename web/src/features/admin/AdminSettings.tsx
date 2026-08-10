@@ -18,7 +18,7 @@ import {
   type SemesterSchedule,
 } from '../../lib/semester'
 import { useAppConfig, usePartition } from '../../lib/useAppConfig'
-import { groupsOfPartition, summerAppliesTo } from '../../lib/partition'
+import { groupsOfPartition, summerAppliesTo, usesSemesters } from '../../lib/partition'
 
 // Super-admin settings: semester dates and app-wide mode toggles.
 // (동산 names + 동산지기/부동산지기 live in their own 동산 tab now.)
@@ -109,6 +109,9 @@ export function AdminSettings() {
 
   return (
     <div className="fx-rise flex w-full flex-col gap-9">
+      {/* 학기 일정은 학사 일정을 따르는 부에만 있다. 장년부의 한 해는 상반기(1–6월)·하반기
+          (7–12월)로 고정이라 편집할 값이 없다 — 편집기 자체를 내린다. */}
+      {usesSemesters(partition) && (
       <section>
         <SectionHeader
           icon={<Calendar size={18} strokeWidth={2} aria-hidden />}
@@ -161,6 +164,7 @@ export function AdminSettings() {
           {semesterSaving ? t('common.loading') : t('admin.settings.save')}
         </Button>
       </section>
+      )}
 
       {/* 여름 합동은 대학부·청년부를 한 덩어리로 묶는 장치라 장년부에는 없다 — 상태 줄도 뺀다. */}
       {summerAppliesTo(partition) && (

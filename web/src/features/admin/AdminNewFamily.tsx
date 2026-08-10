@@ -10,7 +10,7 @@ import { newFamilySheets, newFamilyHeader } from './exports'
 import { toggleId } from './bulk'
 import { GroupFilter } from './GroupFilter'
 import { configCalendar, type Member } from '../../lib/api'
-import type { Partition } from '../../lib/partition'
+import { seasonName, usesSemesters, type Partition, type Season } from '../../lib/partition'
 import { Dialog } from '../../components/ui/Dialog'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
@@ -27,9 +27,10 @@ import { useAppConfig, usePartition } from '../../lib/useAppConfig'
 // Education tracking (1·2주차, 새가족 교육 동산) lives on the dedicated 새가족 교육 tab.
 // Visible to every admin.
 export function AdminNewFamily() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { data, isLoading, isError } = useRoster(true)
   const { data: cfg } = useAppConfig()
+  const partition = usePartition()
   const [filter, setFilter] = useState<Filter>(NO_FILTER)
   const [editing, setEditing] = useState<Member | null>(null)
   const [attendanceFor, setAttendanceFor] = useState<Member | null>(null)
@@ -49,10 +50,15 @@ export function AdminNewFamily() {
   )
   if (!data) return null
 
+  const lang = i18n.language === 'en' ? 'en' : 'ko'
+  // 토막 이름: 대학·청년부는 예전 그대로 번역 키("2026 여름학기"), 장년부는 학기가 없으므로
+  // 상반기/하반기 (partition.ts seasonName).
+  const termName = (season: Season) =>
+    usesSemesters(partition) ? t(`admin.newfamily.season.${season}`) : seasonName(season, partition, lang)
   const today = easternNow().date
   const scopedMembers = filterMembers(data.members, filter)
   // 학기별 섹션: 이번 학기 + 아직 새가족 교육이 끝나지 않아 넘어온 이전 학기들.
-  const semesters = newFamilyBySemester(scopedMembers, today, configCalendar(cfg))
+  const semesters = newFamilyBySemester(scopedMembers, today, configCalendar(cfg), partition)
   const allNewFamily = semesters.flatMap((s) => s.dates.flatMap((g) => g.members))
   const total = allNewFamily.length
   const carriedOver = semesters.filter((s) => !s.current).reduce((n, s) => n + s.total, 0)
@@ -60,8 +66,8 @@ export function AdminNewFamily() {
   // 이번 주일 등록 vs 지난주 등록 — the two cohorts the 새가족팀 works with on a Sunday.
   const thisWeekCount = allNewFamily.filter((m) => newFamilyWeek(m.registration_date, today) === 'thisWeek').length
   const lastWeekCount = allNewFamily.filter((m) => newFamilyWeek(m.registration_date, today) === 'lastWeek').length
-  const [, season] = semesterKey(today, configCalendar(cfg)).split('-')
-  const year = semesterKey(today, configCalendar(cfg)).split('-')[0]
+  const [, season] = semesterKey(today, configCalendar(cfg), partition).split('-')
+  const year = semesterKey(today, configCalendar(cfg), partition).split('-')[0]
   const readOnly = data.role === 'pastor'
 
   return (
@@ -71,7 +77,7 @@ export function AdminNewFamily() {
       <div className="mb-1.5 flex flex-wrap items-center gap-2">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
           <Heart className="size-3.5" aria-hidden />
-          {year} {t(`admin.newfamily.season.${season}`)}
+          {year} {termName(season as Season)}
         </span>
         <span className="section-kicker">
           {t('admin.newfamily.title')} · {total}
@@ -114,14 +120,14 @@ export function AdminNewFamily() {
           {semesters.map((s) => (
             // 학기 이름을 붙인 랜드마크 — 이번 학기 섹션은 머리글이 없으므로 (위쪽 학기
             // 칩이 대신한다) 스크린리더에는 이 이름표가 유일한 구분점이다.
-            <section key={s.key} aria-label={`${s.year} ${t(`admin.newfamily.season.${s.season}`)}`}>
+            <section key={s.key} aria-label={`${s.year} ${termName(s.season)}`}>
               {/* 이번 학기는 위쪽 학기 칩이 이미 이름표 역할을 하므로 머리글 없이 그대로 —
                   넘어온 이전 학기만 학기 이름을 달고 따로 묶인다. */}
               {!s.current && (
                 <div className="mb-3 flex flex-wrap items-center gap-2 border-b-2 border-separator pb-2">
                   <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-muted">
                     <GraduationCap className="size-4 text-subtle" aria-hidden />
-                    {s.year} {t(`admin.newfamily.season.${s.season}`)}
+                    {s.year} {termName(s.season)}
                   </span>
                   <span className="rounded-full bg-fill px-2 py-0.5 text-[11px] font-semibold tabular-nums text-muted">{s.total}</span>
                   <Tag tone="warning" className="text-[10px]">{t('admin.newfamily.eduIncomplete')}</Tag>
