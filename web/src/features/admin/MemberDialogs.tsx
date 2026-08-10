@@ -22,6 +22,8 @@ import { memberHistory, hasEntryOn } from './attendance'
 import { easternNow } from '../../lib/checkinWindow'
 import { statusMarks, type StatusMark } from '../../lib/status'
 import { NewFamilyCardForm } from './NewFamilyCardForm'
+import { AdultCardForm } from './AdultCardForm'
+import { adultCardFromMember, packFamily, type AdultCardValue } from './adultCard'
 import { cardFormFromMember, joinAffiliation, type CardFormValue } from './newFamilyCard'
 import { copyNewFamilyCards, saveNewFamilyCards } from './newFamilyCardImage'
 import { refreshRoster } from '../../lib/live'
@@ -80,6 +82,10 @@ export function EditModal({
   // The card carries everything printed on the 새가족 등록 카드; `f` keeps the
   // system-only fields (부서/동산/역할/메모/새가족 flag/상태 표기).
   const [card, setCard] = useState<CardFormValue>(() => cardFormFromMember(member))
+  // 장년부는 종이가 다르다 — 자기 카드 모델을 따로 든다 (adultCard.ts). 부는 로그인으로
+  // 정해지므로 한 다이얼로그가 두 카드를 동시에 그리는 일은 없다.
+  const [adultCard, setAdultCard] = useState<AdultCardValue>(() => adultCardFromMember(member))
+  const isAdult = partition === 'adult'
   const [f, setF] = useState<MemberEdit>({
     group: member.group_name,
     subgroup: member.subgroup,
@@ -113,11 +119,13 @@ export function EditModal({
   const currentEduDongsan = f.newMemberDongsan ?? ''
   if (currentEduDongsan && !eduDongsanOptions.includes(currentEduDongsan)) eduDongsanOptions.push(currentEduDongsan)
   const patchCard = (patch: Partial<CardFormValue>) => setCard((cur) => ({ ...cur, ...patch }))
+  const patchAdultCard = (patch: Partial<AdultCardValue>) => setAdultCard((cur) => ({ ...cur, ...patch }))
 
   // "등록일 제거": clears the 등록일 AND the 새가족 flag, so saving drops the member
   // from the 새가족 list (the list keeps flagged members even without a date).
   function removeRegistration() {
-    patchCard({ registrationDate: '' })
+    if (isAdult) patchAdultCard({ registrationDate: '' })
+    else patchCard({ registrationDate: '' })
     set('isNewMember', false)
   }
 
@@ -166,7 +174,28 @@ export function EditModal({
   async function save() {
     setSaving(true)
     try {
-      await updateMember(member.id, {
+      await updateMember(member.id, isAdult ? {
+        ...f,
+        name: adultCard.name,
+        nameEn: adultCard.nameEn,
+        gender: adultCard.gender,
+        birthDate: adultCard.birthDate || null,
+        phone: adultCard.phone,
+        phoneHome: adultCard.phoneHome,
+        address: adultCard.address,
+        city: adultCard.city,
+        state: adultCard.state,
+        zipCode: adultCard.zipCode,
+        attendReason: adultCard.attendReason,
+        schoolOrWork: adultCard.schoolOrWork,
+        baptismStatus: adultCard.baptismStatus,
+        registrationChoice: adultCard.registrationChoice,
+        registrationDate: adultCard.registrationDate || null,
+        visitDate: adultCard.visitDate || null,
+        memberNo: adultCard.memberNo,
+        // 종이의 빈 줄은 보내지 않는다.
+        family: packFamily(adultCard.family),
+      } : {
         ...f,
         name: card.name,
         gender: card.gender,
@@ -229,8 +258,12 @@ export function EditModal({
             </button>
           </div>
         </div>
-        <NewFamilyCardForm value={card} onChange={patchCard} />
-        {(card.registrationDate || f.isNewMember) && (
+        {isAdult ? (
+          <AdultCardForm value={adultCard} onChange={patchAdultCard} />
+        ) : (
+          <NewFamilyCardForm value={card} onChange={patchCard} />
+        )}
+        {((isAdult ? adultCard.registrationDate : card.registrationDate) || f.isNewMember) && (
           <button
             type="button"
             onClick={removeRegistration}

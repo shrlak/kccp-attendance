@@ -225,6 +225,20 @@ export interface Member {
   status_end?: string | null
   // 멤버당 여러 개의 상태 표기 (방학 → 한국 귀국 …). lib/status.ts가 읽는 목록.
   status_marks?: { note: string; start: string | null; end: string | null }[]
+  // 장년부 새교우 방문·등록 카드의 칸들 (마이그레이션 20260808 — adult.members에만 있다).
+  // 대학·청년부 멤버에는 언제나 undefined다.
+  name_en?: string
+  phone_home?: string
+  address?: string
+  city?: string
+  state?: string
+  zip_code?: string
+  attend_reason?: string
+  registration_choice?: string
+  visit_date?: string | null
+  member_no?: string
+  family?: { nameKo: string; nameEn: string; relation: string; birthDate: string; gender: string }[]
+  household_id?: string | null
 }
 
 export interface LogEntry {
@@ -451,6 +465,19 @@ export interface MemberEdit {
   pastoralVisitRequested?: boolean | null
   // 상태 표기 목록 (여러 개). 서버가 여기서 예전 단일 컬럼도 채운다.
   statusMarks?: { note: string; start: string | null; end: string | null }[]
+  // 장년부 카드의 칸들 — 서버는 장년부 요청에서만 이 이름들을 받는다 (대학·청년부 표에는
+  // 그런 컬럼이 없다). index.ts ADULT_CARD_COLS.
+  nameEn?: string
+  phoneHome?: string
+  address?: string
+  city?: string
+  state?: string
+  zipCode?: string
+  attendReason?: string
+  registrationChoice?: string
+  visitDate?: string | null
+  memberNo?: string
+  family?: { nameKo: string; nameEn: string; relation: string; birthDate: string; gender: string }[]
 }
 
 // Edit a member (scoped server-side: leaders only their 동산; pastor read-only).

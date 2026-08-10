@@ -122,6 +122,10 @@ function summerNow(cfg: any, part: Partition="youth") {
   if(part==="adult") return false;
   return isSummerTerm(localDate(),cfg?.semester_dates,cfg?.semester_schedule);
 }
+// 장년부 새교우 방문·등록 카드가 가진 칸들 (마이그레이션 20260808). adult.members에만
+// 있는 컬럼이라 멤버 수정에서 **장년부 요청일 때만** 매핑한다. 웹의 짝은 adultCard.ts.
+const ADULT_CARD_COLS: Record<string,string>={nameEn:"name_en",phoneHome:"phone_home",address:"address",city:"city",state:"state",zipCode:"zip_code",attendReason:"attend_reason",registrationChoice:"registration_choice",visitDate:"visit_date",memberNo:"member_no"};
+
 // 봄·여름·가을학기로 한 해를 나누는 부. 장년부는 상반기·하반기 둘로만 나뉘고 그 경계가
 // 고정이라, 학기 일정도 학기 종료 롤오버도 없다. 웹의 짝은 partition.ts usesSemesters().
 const USES_SEMESTERS: Partition[]=["youth"];
@@ -1181,9 +1185,25 @@ Deno.serve(async (req: Request) => {
       // 부서를 옮기는 것도 자기 부 안에서만 (장년부 사람을 청년부로 넘길 수 없다).
       if(body.group!==undefined&&!inScopeGroup(editScope,body.group)) return fail(403,"Out of scope");
       const COLS: Record<string,string>={name:"name",group:"group_name",subgroup:"subgroup",notes:"notes",memberRole:"member_role",gender:"gender",phone:"phone",birthDate:"birth_date",baptismStatus:"baptism_status",schoolOrWork:"school_or_work",faithDuration:"faith_duration",registrationDate:"registration_date",pastoralVisitRequested:"pastoral_visit_requested",isNewMember:"is_new_member",newMemberEduWeek1:"new_member_edu_week1",newMemberEduWeek2:"new_member_edu_week2",newMemberDongsan:"new_member_dongsan",kakaoId:"kakao_id",statusNote:"status_note",statusStart:"status_start",statusEnd:"status_end"};
-      const DATE_COLS=new Set(["birth_date","registration_date","status_start","status_end"]);
+      const DATE_COLS=new Set(["birth_date","registration_date","status_start","status_end","visit_date"]);
       const upd: any={updated_at:new Date().toISOString()};
       for(const [k,col] of Object.entries(COLS)){ if(body[k]!==undefined) upd[col]=DATE_COLS.has(col)?(body[k]||null):body[k]; }
+      // 장년부 새교우 카드의 칸들 — **그 부에서만** 받는다. 이 컬럼들은 adult.members에만
+      // 있으므로(20260808), 대학·청년부 요청에서 같은 이름이 와도 조용히 버린다. 넣으면
+      // public.members에 없는 컬럼이라 업데이트 전체가 실패한다.
+      if(role.partition==="adult"){
+        for(const [k,col] of Object.entries(ADULT_CARD_COLS)){
+          if(body[k]!==undefined) upd[col]=DATE_COLS.has(col)?(body[k]||null):body[k];
+        }
+        if(body.family!==undefined){
+          if(!Array.isArray(body.family)) return fail(400,"family must be a list");
+          upd.family=body.family.map((r:any)=>({
+            nameKo:String(r?.nameKo??""), nameEn:String(r?.nameEn??""),
+            relation:String(r?.relation??""), birthDate:String(r?.birthDate??""),
+            gender:String(r?.gender??""),
+          }));
+        }
+      }
       // 상태 표기 목록 — 목록을 저장하고, 예전 단일 컬럼에는 현재(또는 최신) 표기를 남긴다.
       if(body.statusMarks!==undefined){
         const marks=cleanStatusMarks(body.statusMarks);
