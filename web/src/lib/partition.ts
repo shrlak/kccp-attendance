@@ -15,6 +15,26 @@ export type Partition = 'youth' | 'adult'
 
 export const ADULT_GROUP = '장년부'
 
+// ── 두 부를 다 맡는 계정이 고른 부 ────────────────────────────────────────────────────
+//
+// 보통 부는 고르는 것이 아니라 서버가 신원에서 읽어 내는 것이다. 예외가 하나 있어서(auth.ts
+// CROSS_PARTITION_EMAILS) 그 사람의 선택을 탭 단위로 기억한다 — 새로고침해도 보던 부에 그대로
+// 있고, 로그아웃하면 지워져 다음 로그인은 다시 고르는 데서 시작한다.
+//
+// 키와 읽기를 여기 둔 이유: 이 값을 두 곳이 봐야 한다. 요청 헤더를 붙이는 api 계층과, 어느
+// 화면을 그릴지 정하는 인증 스토어. 둘 중 하나가 다른 하나를 불러 오게 하면 로드 순서에 기대게
+// 되므로, 각자 여기서 읽는다.
+export const ADMIN_PARTITION_KEY = 'kccp-admin-partition'
+
+export function readStoredPartition(): Partition | null {
+  try {
+    const v = sessionStorage.getItem(ADMIN_PARTITION_KEY)
+    return v === 'adult' || v === 'youth' ? v : null
+  } catch {
+    return null
+  }
+}
+
 // 대학·청년부의 두 부서. 여름학기에는 합동으로 묶이지만 부서 자체는 그대로다.
 export const YOUTH_GROUPS = ['대학부', '청년부'] as const
 

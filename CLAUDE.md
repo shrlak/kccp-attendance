@@ -129,6 +129,25 @@ live** at https://shrlak.github.io/kccp-attendance/.
   once, null if denied) → stored on login_log (`20260726` migration) → reverse-geocoded to a
   street address at read time via Nominatim, cached in `gps_geo`. Falls back to the ip_geo
   city estimate when GPS wasn't granted; the viewer shows a 정확/대략 (precise/approx) badge.
+  **두 부 모두에서 보인다** — login_log는 부서를 가리지 않는 공용 표라 어느 패널에서 보든 같은
+  목록이고, 아래의 부 건너가기를 해도 memberId는 그대로라 권한이 따라간다.
+- **한 계정만 두 부를 다 본다** (`auth.ts` `CROSS_PARTITION_EMAILS`, 기본 `spencerkim1235@
+  gmail.com` = 김호연, env override 가능). 보통 부는 고르는 것이 아니라 **이메일이 어느 스키마의
+  members에서 나오느냐**로 정해지는데(그 길 하나뿐이다), 이 이메일만은 로그인 뒤 어느 부의
+  패널로 들어갈지 **고른다** — `PartitionChoice` 화면, 그 뒤로는 헤더의 전환 버튼(건너갈 쪽의
+  이름이 적혀 있다)으로 오간다. 장년부 members에 행을 하나 더 만들어 주는 방법은 쓰지 않았다:
+  그러면 명단·출석부·통계·백업이 전부 교인이 아닌 사람을 한 명 세게 된다.
+  - 고른 값은 `X-Partition` 헤더로 매 요청 실려 나간다. **요청이지 권한이 아니다** —
+    `resolveAdmin`이 그대로 `verifyAdminJwt`에 넘기고, 거기서 `canCrossPartitions(email)`인
+    로그인에만 적용된다. 비밀번호 경로는 아예 읽지 않는다 (비밀번호가 이미 부를 뜻한다).
+  - 건너간 쪽에는 그 사람의 members 행이 없다. 그래서 그 부의 `super_admin`이 되되 **부서·동산은
+    비우고** 간다 (저쪽 부의 자리 이름이라 여기서는 뜻이 없고, 남기면 scopeFilter가 있지도 않은
+    동산으로 명단을 좁힌다). `memberId`는 그대로 들고 가고 새 필드 `Role.memberPartition`이 그
+    행이 **실제로 사는** 스키마를 가리킨다 — 로그인 기록의 이름을 거기서 찾는다.
+  - 웹 쪽: `lib/partition.ts`의 `ADMIN_PARTITION_KEY`/`readStoredPartition()`을 **api 계층과
+    인증 스토어가 각자 읽는다** (한쪽이 다른 쪽 로드를 기다리면 첫 요청의 헤더와 첫 렌더가
+    엇갈린다). 부를 바꾸면 `queryClient.clear()` + 스냅숏 폐기가 먼저다 — 화면에 남은 명단은
+    전부 저쪽 부의 것이다. 로그아웃하면 선택도 지워져 다음 로그인은 다시 고르는 데서 시작한다.
 
 ## Deploy / ops — IMPORTANT gotchas
 - **백업은 두 줄기**, 스키마 단위로 완전히 갈린다 (`PARTITION` 환경변수 / `backup.yml`의

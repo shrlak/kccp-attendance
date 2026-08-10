@@ -1,8 +1,9 @@
 import { create } from 'zustand'
-import { adminVerify, adminVerifyGoogle, getLoginPosition, GEO_LOGIN_WAIT_MS, setAdminPassword, setAdminToken, type AdminIdentity } from '../lib/api'
+import { adminVerify, adminVerifyGoogle, getLoginPosition, GEO_LOGIN_WAIT_MS, setAdminPassword, setAdminPartition, setAdminToken, type AdminIdentity } from '../lib/api'
 import { supabase } from '../lib/supabase'
 import { queryClient } from '../lib/queryClient'
 import { clearPersistedQueries } from '../lib/queryPersist'
+import { readStoredPartition, type Partition } from '../lib/partition'
 
 const PW_KEY = 'kccp-admin-pw'
 // Where the Google OAuth callback should land. Set before the redirect (the kiosk gate
@@ -68,12 +69,18 @@ interface AdminAuthState {
   verify: (password: string, captureLocation?: boolean) => Promise<boolean>
   signInWithGoogle: (returnTo?: '/kiosk') => Promise<void>
   signOut: () => void
+  // 두 부를 다 맡는 계정이 부를 고르거나 건너간다 (identity.canChoosePartition).
+  chosenPartition: Partition | null
+  choosePartition: (partition: Partition) => Promise<void>
 }
 
 export const useAdminAuth = create<AdminAuthState>((set) => ({
   status: hasRestorableSession() ? 'verifying' : 'idle',
   identity: null,
   method: null,
+  // api 계층도 같은 값을 같은 자리에서 읽는다 (lib/partition) — 첫 요청의 헤더와 첫 렌더가
+  // 같은 부를 보게 하려면 둘 중 하나가 다른 하나를 기다려선 안 된다.
+  chosenPartition: readStoredPartition(),
 
   // Break-glass: device + master password (unchanged).
   verify: async (password, captureLocation = true) => {
@@ -115,9 +122,31 @@ export const useAdminAuth = create<AdminAuthState>((set) => ({
     // Page redirects away — control does not return here.
   },
 
+  // 부를 고른다 / 건너간다. 고른 값은 다음 요청부터 X-Partition으로 실려 나가고, 서버가
+  // 그 이메일이 고를 수 있는 사람인지 확인한 뒤에만 따른다.
+  //
+  // 캐시를 먼저 비우는 것이 핵심이다: 화면에 남아 있는 명단·출석·설정은 전부 **저쪽 부의
+  // 것**이라, 비우지 않으면 새 부의 패널이 이전 부의 사람들로 한 번 그려진다. 그리고 신원을
+  // 다시 받아야(identity.partition) 탭 구성과 부 이름이 새 부의 것이 된다.
+  choosePartition: async (partition) => {
+    if (useAdminAuth.getState().chosenPartition === partition) return
+    setAdminPartition(partition)
+    set({ chosenPartition: partition, status: 'verifying' })
+    clearPersistedQueries()
+    queryClient.clear()
+    try {
+      // 부를 바꾸는 것은 로그인이 아니다 — 위치를 다시 물어보지 않는다.
+      const identity = await adminVerifyGoogle(null)
+      set({ status: 'authed', identity })
+    } catch {
+      set({ status: 'authed' })
+    }
+  },
+
   signOut: () => {
     setAdminPassword(null)
     setAdminToken(null)
+    setAdminPartition(null)
     writePw(null)
     clearActivity()
     // The roster snapshot kept for fast reloads (lib/queryPersist) belongs to whoever
@@ -126,7 +155,7 @@ export const useAdminAuth = create<AdminAuthState>((set) => ({
     clearPersistedQueries()
     queryClient.clear()
     void supabase.auth.signOut()
-    set({ status: 'idle', identity: null, method: null })
+    set({ status: 'idle', identity: null, method: null, chosenPartition: null })
   },
 }))
 

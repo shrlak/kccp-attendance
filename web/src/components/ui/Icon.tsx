@@ -13,5 +13,5 @@ export {
   Pencil, Trash2, Download, Upload, Filter, LogOut, Camera, QrCode, Eye, EyeOff, Lock, Unlock,
   User, UserCheck, UserX, Phone, Mail, Calendar, TrendingUp, TrendingDown, Sparkles, Info,
   ArrowLeft, ArrowRight, ArrowUpRight, Copy, Save, ListChecks, PieChart, Activity, Bell,
-  Cake, Heart, Church, HandHeart, Merge, ScanLine, ImagePlus, Archive,
+  Cake, Heart, Church, HandHeart, Merge, ScanLine, ImagePlus, Archive, ArrowLeftRight,
 } from 'lucide-react'

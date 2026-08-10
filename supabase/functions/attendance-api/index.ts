@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { ADULT_GROUP, ADULT_SCHEMA, canViewLoginLog, dbOf, inScope, inScopeGroup, partitionOfGroup, resolveAdmin, scopeFilter, type Partition, type Role, type Scope } from "./auth.ts";
+import { ADULT_GROUP, ADULT_SCHEMA, canChoosePartition, canViewLoginLog, dbOf, inScope, inScopeGroup, partitionOfGroup, resolveAdmin, scopeFilter, type Partition, type Role, type Scope } from "./auth.ts";
 import { DEFAULT_SEMESTER_DATES, isSummerTerm, lastEndedTermKey, mergeSchedule, rollSchedule, sameSchedule, scheduleOf, scheduleToDates, subgroupSnapshot, trimHistory, validSchedule } from "./term.ts";
 import { availableCardModels, buildCardRequest, cardModelChain, parseCardResponse } from "./gemini.ts";
 // Decrypt-side of the weekly R2 backup pipeline (see scripts/backup/). age-encryption is
@@ -20,7 +20,7 @@ import { getSignedUrl } from "npm:@aws-sdk/s3-request-presigner@3.1090.0";
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type,X-Device-Id,X-Admin-Password,X-Geo-Lat,X-Geo-Lon,X-Geo-Acc,Authorization,apikey",
+  "Access-Control-Allow-Headers": "Content-Type,X-Device-Id,X-Admin-Password,X-Geo-Lat,X-Geo-Lon,X-Geo-Acc,X-Partition,Authorization,apikey",
 };
 function localDate() { return new Date().toLocaleDateString("en-CA",{timeZone:"America/New_York"}); }
 function localTime() { return new Date().toLocaleTimeString("en-US",{timeZone:"America/New_York",hour:"2-digit",minute:"2-digit",second:"2-digit"}); }
@@ -529,7 +529,7 @@ function clientIp(req: Request): string {
 // identical repeat (same role+member+device+ip+method) within an hour is collapsed into
 // the original entry instead of flooding the log. Best-effort: a logging failure must
 // never block the login itself.
-async function addLoginLog(sb: SB, req: Request, role: {role:string;memberId:string;partition:Partition}) {
+async function addLoginLog(sb: SB, req: Request, role: {role:string;memberId:string;partition:Partition;memberPartition?:Partition}) {
   try {
     const ip=clientIp(req);
     const deviceId=req.headers.get("x-device-id")||req.headers.get("X-Device-Id")||"";
@@ -537,8 +537,9 @@ async function addLoginLog(sb: SB, req: Request, role: {role:string;memberId:str
     let memberName="";
     if(role.memberId){
       // login_log 자체는 부서를 가리지 않는 시스템 기록(공용 표)이지만, 이름은 그 사람이
-      // 실제로 사는 스키마에서 찾아야 한다.
-      const {data:m}=await db(sb,role.partition).from("members").select("name").eq("id",role.memberId).single();
+      // 실제로 사는 스키마에서 찾아야 한다 — 지금 **일하고 있는** 부가 아니라(두 부를 오가는
+      // 사람은 그 둘이 다르다), 자기 members 행이 있는 부에서.
+      const {data:m}=await db(sb,role.memberPartition??role.partition).from("members").select("name").eq("id",role.memberId).single();
       memberName=(m as {name?:string}|null)?.name||"";
     }
     // Precise device-GPS coordinates, sent by the web app only when the admin allowed the
@@ -725,7 +726,9 @@ Deno.serve(async (req: Request) => {
       await addLoginLog(sb,req,role);
       // partition tells the web app which department's panel to render — it drives every
       // 부서 list, the 새가족 교육 tab's visibility, and which config block it reads.
-      return ok({role:role.role,group:role.group,subgroup:role.subgroup,ministry:role.ministry,partition:role.partition,canViewLoginLog:canViewLoginLog(role)});
+      // canChoosePartition: 이 로그인은 두 부를 다 볼 수 있다 → 패널이 "어느 부로" 화면을
+      // 띄우고, 고른 값을 X-Partition으로 실어 보낸다.
+      return ok({role:role.role,group:role.group,subgroup:role.subgroup,ministry:role.ministry,partition:role.partition,canViewLoginLog:canViewLoginLog(role),canChoosePartition:canChoosePartition(role)});
     }
 
     // Scoped roster (replaces the world-readable /api/data for staff): super/pastor → their

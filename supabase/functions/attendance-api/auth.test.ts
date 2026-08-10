@@ -16,6 +16,11 @@ import {
   passwordGrant,
   passwordRole,
   canViewLoginLog,
+  canChoosePartition,
+  canCrossPartitions,
+  readPartition,
+  verifyAdminJwt,
+  CROSS_PARTITION_EMAILS,
   LOGIN_LOG_VIEWER_MEMBER_ID,
   SUPER_PASSWORD,
   LEADER_PASSWORD,
@@ -28,6 +33,9 @@ import {
 const leader: Role = {
   memberId: "m", role: "leader", group: "청년부", subgroup: "건영동산", ministry: "KM", partition: "youth",
 };
+// 두 부를 다 맡는 계정의 이메일 — 기본값 하나뿐이지만, 목록에서 읽어 와 환경변수로 바꿔도
+// 테스트가 따라가게 한다.
+const CROSS_EMAIL = [...CROSS_PARTITION_EMAILS][0];
 // 대학·청년부 "everything" is everything except the other partition.
 const YOUTH_ALL: Scope = { all: true, exclude: [ADULT_GROUP] };
 
@@ -35,7 +43,7 @@ const YOUTH_ALL: Scope = { all: true, exclude: [ADULT_GROUP] };
 // is what `.schema('adult')` sees — the two are genuinely different tables here, which is
 // the whole point of the split.
 // deno-lint-ignore no-explicit-any
-function mockSb(data: Record<string, any>, adultData: Record<string, any> = {}): any {
+function mockSb(data: Record<string, any>, adultData: Record<string, any> = {}, email?: string): any {
   // deno-lint-ignore no-explicit-any
   const handle = (rows: Record<string, any>): any => ({
     from(table: string) {
@@ -44,7 +52,10 @@ function mockSb(data: Record<string, any>, adultData: Record<string, any> = {}):
         select: () => chain,
         eq: () => chain,
         ilike: () => chain,
+        or: () => chain,
+        limit: () => chain,
         single: () => Promise.resolve({ data: rows[table] ?? null }),
+        maybeSingle: () => Promise.resolve({ data: rows[table] ?? null }),
       };
       return chain;
     },
@@ -53,6 +64,7 @@ function mockSb(data: Record<string, any>, adultData: Record<string, any> = {}):
   return {
     ...publicHandle,
     schema: (name: string) => (name === "adult" ? handle(adultData) : publicHandle),
+    auth: { getUser: () => Promise.resolve({ data: { user: email ? { email } : null } }) },
   };
 }
 
@@ -100,22 +112,22 @@ Deno.test("verifyAdmin: wrong password is rejected (no DB hit)", async () => {
 
 Deno.test("verifyAdmin: super password grants break-glass 'super_admin' from an unregistered device", async () => {
   const r = await verifyAdmin(mockSb({ devices: null }), "DEV-UNKNOWN-99", SUPER_PASSWORD);
-  assertEquals(r, { memberId: "", role: "super_admin", group: "", subgroup: "", ministry: "", partition: "youth" });
+  assertEquals(r, { memberId: "", role: "super_admin", group: "", subgroup: "", ministry: "", partition: "youth", email: "", memberPartition: "youth" });
 });
 
 Deno.test("verifyAdmin: leader password grants break-glass 'leader' from an unregistered device", async () => {
   const r = await verifyAdmin(mockSb({ devices: null }), "DEV-UNKNOWN-99", LEADER_PASSWORD);
-  assertEquals(r, { memberId: "", role: "leader", group: "", subgroup: "", ministry: "", partition: "youth" });
+  assertEquals(r, { memberId: "", role: "leader", group: "", subgroup: "", ministry: "", partition: "youth", email: "", memberPartition: "youth" });
 });
 
 Deno.test("verifyAdmin: welcoming password grants break-glass 'welcoming' from an unregistered device", async () => {
   const r = await verifyAdmin(mockSb({ devices: null }), "DEV-UNKNOWN-99", WELCOMING_PASSWORD);
-  assertEquals(r, { memberId: "", role: "welcoming", group: "", subgroup: "", ministry: "", partition: "youth" });
+  assertEquals(r, { memberId: "", role: "welcoming", group: "", subgroup: "", ministry: "", partition: "youth", email: "", memberPartition: "youth" });
 });
 
 Deno.test("verifyAdmin: the 장년부 password lands in the adult partition", async () => {
   const r = await verifyAdmin(mockSb({ devices: null }), "DEV-UNKNOWN-99", ADULT_PASSWORD);
-  assertEquals(r, { memberId: "", role: "super_admin", group: "", subgroup: "", ministry: "", partition: "adult" });
+  assertEquals(r, { memberId: "", role: "super_admin", group: "", subgroup: "", ministry: "", partition: "adult", email: "", memberPartition: "adult" });
 });
 
 Deno.test("verifyAdmin: either password works on a ROSTER/blank device too", async () => {
@@ -134,6 +146,7 @@ Deno.test("verifyAdmin: a registered device linked to a leader keeps that scope"
   );
   assertEquals(r, {
     memberId: "m1", role: "leader", group: "청년부", subgroup: "건영동산", ministry: "KM", partition: "youth",
+    email: "", memberPartition: "youth",
   });
 });
 
@@ -148,6 +161,7 @@ Deno.test("verifyAdmin: a 장년부 리더's phone keeps that scope under the �
   );
   assertEquals(r, {
     memberId: "a1", role: "leader", group: ADULT_GROUP, subgroup: "1셀", ministry: "", partition: "adult",
+    email: "", memberPartition: "adult",
   });
 });
 
@@ -164,6 +178,7 @@ Deno.test("verifyAdmin: a device's grant never crosses partitions", async () => 
   );
   assertEquals(crossed, {
     memberId: "", role: "super_admin", group: "", subgroup: "", ministry: "", partition: "adult",
+    email: "", memberPartition: "adult",
   });
   // …그리고 그 반대도 마찬가지.
   const other = await verifyAdmin(
@@ -303,4 +318,95 @@ Deno.test("canViewLoginLog: only the designated member, and only as super_admin"
   // isn't attributable to him, and anyone could have typed it
   assertEquals(canViewLoginLog({ ...viewer, memberId: "" }), false);
   assertEquals(canViewLoginLog(null), false);
+});
+
+// ── 두 부를 다 맡는 계정 ───────────────────────────────────────────────────────────────
+
+Deno.test("canCrossPartitions: 지정된 이메일만, 대소문자는 가리지 않는다", () => {
+  assertEquals(canCrossPartitions(CROSS_EMAIL), true);
+  assertEquals(canCrossPartitions(CROSS_EMAIL.toUpperCase()), true);
+  assertEquals(canCrossPartitions(`  ${CROSS_EMAIL}  `), true);
+  assertEquals(canCrossPartitions("someone.else@gmail.com"), false);
+  assertEquals(canCrossPartitions(""), false);
+  assertEquals(canCrossPartitions(null), false);
+});
+
+Deno.test("readPartition: 헤더에서 오는 값은 둘 중 하나이거나 아무것도 아니다", () => {
+  assertEquals(readPartition("adult"), "adult");
+  assertEquals(readPartition("ADULT"), "adult");
+  assertEquals(readPartition(" youth "), "youth");
+  assertEquals(readPartition("public"), null);
+  assertEquals(readPartition(""), null);
+  assertEquals(readPartition(null), null);
+});
+
+Deno.test("verifyAdminJwt: 보통 계정은 자기 members 행이 있는 부를 그대로 받는다", async () => {
+  const sb = mockSb(
+    { members: { id: "m1" }, member_roles: { role: "leader", group_name: "청년부", subgroup: "건영동산", ministry: "KM" } },
+    {},
+    "leader@example.com",
+  );
+  const r = await verifyAdminJwt(sb, "jwt");
+  assertEquals(r?.partition, "youth");
+  assertEquals(r?.memberId, "m1");
+  assertEquals(r?.email, "leader@example.com");
+  assertEquals(r?.memberPartition, "youth");
+});
+
+Deno.test("verifyAdminJwt: 고를 수 없는 계정은 X-Partition을 적어 보내도 건너가지 못한다", async () => {
+  const sb = mockSb(
+    { members: { id: "m1" }, member_roles: { role: "super_admin", group_name: "대학부", subgroup: "", ministry: "" } },
+    {},
+    "someone.else@gmail.com",
+  );
+  // 헤더는 요청일 뿐이다 — 이 이메일에게는 아무 효력이 없다.
+  const r = await verifyAdminJwt(sb, "jwt", "adult");
+  assertEquals(r?.partition, "youth");
+});
+
+Deno.test("verifyAdminJwt: 두 부를 다 맡는 계정은 고른 부로 들어간다", async () => {
+  const sb = mockSb(
+    { members: { id: LOGIN_LOG_VIEWER_MEMBER_ID }, member_roles: { role: "super_admin", group_name: "대학부", subgroup: "호연동산", ministry: "" } },
+    {},
+    CROSS_EMAIL,
+  );
+  // 고르지 않으면 지금까지와 똑같다: 자기 행이 있는 부.
+  const home = await verifyAdminJwt(sb, "jwt");
+  assertEquals(home?.partition, "youth");
+  assertEquals(home?.group, "대학부");
+
+  // 장년부를 고르면 장년부의 super_admin이 된다. 저쪽 부의 자리를 뜻하는 부서·동산은 지우고
+  // 가되(여기서는 뜻이 없다), 사람 자체는 여전히 자기 행으로 남는다.
+  const crossed = await verifyAdminJwt(sb, "jwt", "adult");
+  assertEquals(crossed?.partition, "adult");
+  assertEquals(crossed?.role, "super_admin");
+  assertEquals(crossed?.group, "");
+  assertEquals(crossed?.subgroup, "");
+  assertEquals(crossed?.memberId, LOGIN_LOG_VIEWER_MEMBER_ID);
+  assertEquals(crossed?.memberPartition, "youth"); // 이름은 여기서 찾아야 한다
+});
+
+Deno.test("두 부를 다 맡는 계정은 건너간 부에서도 로그인 기록을 본다", () => {
+  // login_log는 부서를 가리지 않는 공용 표라, 어느 부의 패널에서 보든 같은 목록이다.
+  const youth: Role = {
+    memberId: LOGIN_LOG_VIEWER_MEMBER_ID, role: "super_admin", group: "대학부", subgroup: "호연동산",
+    ministry: "", partition: "youth", email: CROSS_EMAIL, memberPartition: "youth",
+  };
+  const adult: Role = { ...youth, group: "", subgroup: "", partition: "adult" };
+  assertEquals(canViewLoginLog(youth), true);
+  assertEquals(canViewLoginLog(adult), true);
+  // 장년부 공용 비밀번호는 여전히 안 된다 — 누구든 칠 수 있는 값이라 신원이 아니다.
+  assertEquals(canViewLoginLog({ ...adult, memberId: "", email: undefined }), false);
+});
+
+Deno.test("canChoosePartition: 구글 로그인에만, 지정된 이메일에만 붙는다", () => {
+  const base: Role = {
+    memberId: "m", role: "super_admin", group: "", subgroup: "", ministry: "", partition: "youth",
+  };
+  assertEquals(canChoosePartition({ ...base, email: CROSS_EMAIL }), true);
+  assertEquals(canChoosePartition({ ...base, email: "someone.else@gmail.com" }), false);
+  // 비밀번호 로그인에는 이메일이 없다 — 비밀번호 자체가 이미 부를 뜻한다.
+  assertEquals(canChoosePartition({ ...base, email: "" }), false);
+  assertEquals(canChoosePartition(base), false);
+  assertEquals(canChoosePartition(null), false);
 });

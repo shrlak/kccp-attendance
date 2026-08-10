@@ -78,6 +78,7 @@
     "noMembers": "No members to show",
     "scopeAll": "All",
     "ministry": { "youth": "College & Young Adult", "adult": "Adult Ministry" },
+    "partitionChoice": { "title": "Which ministry?", "subtitle": "You oversee both, so we ask. You can switch at any time from the top of the panel.", "hint": { "youth": "College & young adult roster and attendance", "adult": "Adult ministry roster and attendance" } },
     "roles": { "super_admin": "Super admin", "leader": "Leader", "pastor": "Pastor", "welcoming": "Welcome team", "staff": "Staff" },
     "nav": { "today": "Today", "sheet": "Sheet", "members": "Members", "analytics": "Analytics", "newfamily": "New family", "newfamilyEdu": "New-family education", "visitors": "Visitors", "admins": "Admins", "dongsan": "동산", "dongsan_adult": "Cells", "settings": "Settings", "more": "More" },
     "navHelp": {
