@@ -3,16 +3,18 @@
 // Two auth paths, tried in order by resolveAdmin():
 //   1. Google JWT (Bearer token): email → members.email → member_roles → role/scope.
 //   2. Break-glass: a shared team password alone — works on ANY device, registered or not.
-//      There are four passwords, each landing on a different dashboard:
+//      There are three passwords, each landing on a different dashboard:
 //        • SUPER_PASSWORD      → "super_admin" role (full panel: settings, admins, backup…)
-//        • LEADER_PASSWORD     → "leader"      role (리더 dashboard)
-//        • WELCOMING_PASSWORD  → "welcoming"   role (새가족팀 dashboard)
+//        • WELCOMING_PASSWORD  → "welcoming"   role (새가족팀 dashboard, 대학·청년부만)
 //        • ADULT_PASSWORD      → "super_admin" role in the **장년부 partition** (see below)
 //      A device that happens to be linked to a roled member keeps that member's scope;
-//      otherwise the login gets the password's break-glass role. The three 대학·청년부
+//      otherwise the login gets the password's break-glass role. The two 대학·청년부
 //      passwords see that ministry's whole roster (a shared password can't pin to one
 //      동산); only SUPER_PASSWORD grants the super_admin powers (settings, admin
 //      management, 동산지기/임원, backup).
+//      **리더에게는 공용 비밀번호가 없다** — 리더는 구글 로그인으로 들어온다. 자기 동산이
+//      곧 리더의 권한 범위인데, 공용 비밀번호는 사람을 가리키지 못해 그 범위를 짚을 수
+//      없었다 (그래서 kccpleaders로 들어온 리더는 대학·청년부 명단 전체를 보고 있었다).
 // Public check-in stays anonymous and PII-free.
 //
 // ── PARTITIONS (부) ──────────────────────────────────────────────────────────────────
@@ -41,13 +43,17 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 //  vars to override without editing code). Each grants admin access from ANY device and
 //  lands on its own dashboard, so treat them as secrets and rotate if leaked:
 //    • SUPER_PASSWORD     → the full super-admin panel (대학·청년부)
-//    • LEADER_PASSWORD    → the 리더(leader) dashboard (대학·청년부)
-//    • WELCOMING_PASSWORD → the 새가족팀(welcoming) dashboard (대학·청년부)
+//    • WELCOMING_PASSWORD → the 새가족팀(welcoming) dashboard — **대학·청년부 전용.**
+//                           장년부에는 이 역할로 들어오는 비밀번호가 없다.
 //    • ADULT_PASSWORD     → the 장년부 panel: the same admin surface, but every query is
 //                           pinned to the 장년부 partition, so it never shows — and can
 //                           never touch — a 대학부/청년부 member (and vice versa).
+//
+//  리더 공용 비밀번호(kccpleaders)는 없앴다. 리더의 권한 범위는 자기 동산인데 공용 비밀번호는
+//  사람을 가리키지 못해 그 범위를 짚을 수 없었고, 그래서 그 비밀번호로 들어온 리더는 실제로는
+//  대학·청년부 명단 전체를 보고 있었다. 리더는 구글 로그인으로 들어온다 — 그때는 members 행이
+//  잡히므로 scopeFilter가 자기 동산으로 좁힌다. (이미 기록된 지난 로그인은 그대로 남는다.)
 export const SUPER_PASSWORD = Deno.env.get("SUPER_PASSWORD") ?? "kccpadmin";
-export const LEADER_PASSWORD = Deno.env.get("LEADER_PASSWORD") ?? "kccpleaders";
 export const WELCOMING_PASSWORD =
   Deno.env.get("WELCOMING_PASSWORD") ?? Deno.env.get("MASTER_PASSWORD") ?? "kccpwelcome";
 export const ADULT_PASSWORD = Deno.env.get("ADULT_PASSWORD") ?? "kccpadults";
@@ -115,14 +121,15 @@ export function dbOf(sb: any, partition: Partition): any {
 }
 
 // Map a typed password to the break-glass grant it confers, or null if it matches none.
-// Checked super → leader → welcoming → adult so the higher-privilege match wins if two
-// passwords are (mis)configured identically.
+// Checked super → welcoming → adult so the higher-privilege match wins if two passwords
+// are (mis)configured identically. There is deliberately no 리더 password (see above) —
+// `kccpleaders` now matches nothing and is rejected like any other wrong password.
 export function passwordGrant(
   password: string,
 ): { role: "super_admin" | "leader" | "welcoming"; partition: Partition } | null {
   if (!password) return null;
   if (password === SUPER_PASSWORD) return { role: "super_admin", partition: "youth" };
-  if (password === LEADER_PASSWORD) return { role: "leader", partition: "youth" };
+  // 새가족팀 공용 비밀번호는 대학·청년부의 것이다. 장년부에는 짝이 없다.
   if (password === WELCOMING_PASSWORD) return { role: "welcoming", partition: "youth" };
   // 장년부 runs its own department end to end, so its shared password is a super_admin —
   // inside the 장년부 partition only. scopeFilter pins it to 장년부 regardless of role.
@@ -261,14 +268,13 @@ export function canChoosePartition(role: Role | null): boolean {
 
 type SB = ReturnType<typeof createClient>;
 
-// Verify an admin via a shared team password. Any of the four passwords grants access
+// Verify an admin via a shared team password. Any of the three passwords grants access
 // from ANY device — no registration required and the device id is irrelevant (so staff can
 // sign in from a phone, a borrowed laptop, a fresh browser, etc.). If the device happens to
 // be a personal one linked to a member who holds a scoped role, that member's scope is
 // preserved; otherwise the login gets the role the password maps to (SUPER_PASSWORD →
-// "super_admin", LEADER_PASSWORD → "leader", WELCOMING_PASSWORD → "welcoming",
-// ADULT_PASSWORD → "super_admin" in the 장년부 partition). Returns null only when the
-// password matches none of them.
+// "super_admin", WELCOMING_PASSWORD → "welcoming", ADULT_PASSWORD → "super_admin" in the
+// 장년부 partition). Returns null only when the password matches none of them.
 export async function verifyAdmin(sb: SB, deviceId: string, password: string): Promise<Role | null> {
   const grant = passwordGrant(password);
   if (!grant) return null;

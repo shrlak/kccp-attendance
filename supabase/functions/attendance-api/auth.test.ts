@@ -23,7 +23,6 @@ import {
   CROSS_PARTITION_EMAILS,
   LOGIN_LOG_VIEWER_MEMBER_ID,
   SUPER_PASSWORD,
-  LEADER_PASSWORD,
   WELCOMING_PASSWORD,
   MASTER_PASSWORD,
   type Role,
@@ -87,7 +86,6 @@ Deno.test("partitionOfGroup: only 장년부 is the adult partition", () => {
 
 Deno.test("passwordRole: maps each password to its break-glass role", () => {
   assertEquals(passwordRole(SUPER_PASSWORD), "super_admin");
-  assertEquals(passwordRole(LEADER_PASSWORD), "leader");
   assertEquals(passwordRole(WELCOMING_PASSWORD), "welcoming");
   assertEquals(passwordRole("nope"), null);
   assertEquals(passwordRole(""), null);
@@ -96,7 +94,6 @@ Deno.test("passwordRole: maps each password to its break-glass role", () => {
 Deno.test("passwordGrant: the 장년부 password is a super_admin in the adult partition", () => {
   assertEquals(passwordGrant(ADULT_PASSWORD), { role: "super_admin", partition: "adult" });
   assertEquals(passwordGrant(SUPER_PASSWORD), { role: "super_admin", partition: "youth" });
-  assertEquals(passwordGrant(LEADER_PASSWORD), { role: "leader", partition: "youth" });
   assertEquals(passwordGrant(WELCOMING_PASSWORD), { role: "welcoming", partition: "youth" });
   assertEquals(passwordGrant("nope"), null);
 });
@@ -115,11 +112,6 @@ Deno.test("verifyAdmin: super password grants break-glass 'super_admin' from an 
   assertEquals(r, { memberId: "", role: "super_admin", group: "", subgroup: "", ministry: "", partition: "youth", email: "", memberPartition: "youth" });
 });
 
-Deno.test("verifyAdmin: leader password grants break-glass 'leader' from an unregistered device", async () => {
-  const r = await verifyAdmin(mockSb({ devices: null }), "DEV-UNKNOWN-99", LEADER_PASSWORD);
-  assertEquals(r, { memberId: "", role: "leader", group: "", subgroup: "", ministry: "", partition: "youth", email: "", memberPartition: "youth" });
-});
-
 Deno.test("verifyAdmin: welcoming password grants break-glass 'welcoming' from an unregistered device", async () => {
   const r = await verifyAdmin(mockSb({ devices: null }), "DEV-UNKNOWN-99", WELCOMING_PASSWORD);
   assertEquals(r, { memberId: "", role: "welcoming", group: "", subgroup: "", ministry: "", partition: "youth", email: "", memberPartition: "youth" });
@@ -130,8 +122,8 @@ Deno.test("verifyAdmin: the 장년부 password lands in the adult partition", as
   assertEquals(r, { memberId: "", role: "super_admin", group: "", subgroup: "", ministry: "", partition: "adult", email: "", memberPartition: "adult" });
 });
 
-Deno.test("verifyAdmin: either password works on a ROSTER/blank device too", async () => {
-  assertEquals((await verifyAdmin(mockSb({}), "ROSTER-12", LEADER_PASSWORD))?.role, "leader");
+Deno.test("verifyAdmin: a password works on a ROSTER/blank device too", async () => {
+  assertEquals((await verifyAdmin(mockSb({}), "ROSTER-12", SUPER_PASSWORD))?.role, "super_admin");
   assertEquals((await verifyAdmin(mockSb({}), "", WELCOMING_PASSWORD))?.role, "welcoming");
 });
 
@@ -409,4 +401,44 @@ Deno.test("canChoosePartition: 구글 로그인에만, 지정된 이메일에만
   assertEquals(canChoosePartition({ ...base, email: "" }), false);
   assertEquals(canChoosePartition(base), false);
   assertEquals(canChoosePartition(null), false);
+});
+
+// ── 공용 비밀번호는 셋뿐이고, 저마다 자기 부의 것이다 ────────────────────────────────
+
+Deno.test("리더 공용 비밀번호는 없다 — kccpleaders는 이제 아무것도 아니다", async () => {
+  // 리더의 권한 범위는 자기 동산인데 공용 비밀번호는 사람을 가리키지 못한다. 그래서
+  // 없앴고, 예전 값은 다른 틀린 비밀번호와 똑같이 거절된다.
+  assertEquals(passwordGrant("kccpleaders"), null);
+  assertEquals(passwordRole("kccpleaders"), null);
+  assertEquals(await verifyAdmin(mockSb({}), "DEV-anything", "kccpleaders"), null);
+  // 기기가 리더에게 묶여 있어도 마찬가지다 — 비밀번호가 먼저 통과해야 기기를 본다.
+  const linked = await verifyAdmin(
+    mockSb({
+      devices: { member_id: "m1" },
+      member_roles: { role: "leader", group_name: "청년부", subgroup: "건영동산", ministry: "KM" },
+    }),
+    "DEV-KNOWN-01",
+    "kccpleaders",
+  );
+  assertEquals(linked, null);
+});
+
+Deno.test("새가족팀 공용 비밀번호는 대학·청년부 전용이다", () => {
+  assertEquals(passwordGrant(WELCOMING_PASSWORD)?.partition, "youth");
+  // 그 비밀번호로 들어온 로그인이 보는 범위도 대학·청년부뿐 — 장년부는 빠진다.
+  const scope = scopeFilter(
+    { memberId: "", role: "welcoming", group: "", subgroup: "", ministry: "", partition: "youth" },
+    false,
+  );
+  assertEquals(inScopeGroup(scope, "대학부"), true);
+  assertEquals(inScopeGroup(scope, "청년부"), true);
+  assertEquals(inScopeGroup(scope, ADULT_GROUP), false);
+});
+
+Deno.test("공용 비밀번호는 셋 — 그 밖의 값은 전부 거절", async () => {
+  const grants = [SUPER_PASSWORD, WELCOMING_PASSWORD, ADULT_PASSWORD].map((p) => passwordGrant(p));
+  assertEquals(grants.filter(Boolean).length, 3);
+  for (const wrong of ["kccpleaders", "kccpleader", "nope", " ", ""]) {
+    assertEquals(await verifyAdmin(mockSb({}), "DEV-x", wrong), null);
+  }
 });
