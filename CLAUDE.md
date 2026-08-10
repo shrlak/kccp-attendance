@@ -38,11 +38,15 @@ live** at https://shrlak.github.io/kccp-attendance/.
     with ordinary column names. Same for `audit_log` — each 부's admin tab reads its own table
     with no filter. The one deliberate cross-schema read is the card-scan quota
     (`cardScanUsage` sums both), because that limit belongs to a single shared API key.
-- **Admin auth = a shared team password (works from ANY device)**: `kccpadmin` →
-  `super_admin` panel, `kccpleaders` → `leader` dashboard, `kccpwelcome` → `welcoming`
-  dashboard, **`kccpadults` → the 장년부 panel** (`super_admin` inside the adult partition — that
-  department runs itself end to end, so it gets settings/동산/관리자 for its own people and
-  nothing else). In `auth.ts` `SUPER_PASSWORD` / `LEADER_PASSWORD` / `WELCOMING_PASSWORD` /
+- **Admin auth = a shared team password (works from ANY device)**: **셋뿐이다** — `kccpadmin` →
+  `super_admin` panel, `kccpwelcome` → `welcoming` dashboard (**대학·청년부 전용**, 장년부에는
+  이 역할로 들어오는 비밀번호가 없다), **`kccpadults` → the 장년부 panel** (`super_admin` inside
+  the adult partition — that department runs itself end to end, so it gets settings/동산/관리자
+  for its own people and nothing else). **리더 공용 비밀번호(`kccpleaders`)는 없앴다**: 리더의
+  권한 범위는 자기 동산인데 공용 비밀번호는 사람을 가리키지 못해 그 범위를 짚을 수 없었고,
+  그래서 그 비밀번호로 들어온 리더는 실제로는 대학·청년부 명단 전체를 보고 있었다. 리더는 구글
+  로그인으로 들어온다 (members 행이 잡히므로 `scopeFilter`가 자기 동산으로 좁힌다). 지금 그 값은
+  다른 틀린 비밀번호와 똑같이 거절된다. In `auth.ts` `SUPER_PASSWORD` / `WELCOMING_PASSWORD` /
   `ADULT_PASSWORD`, or env overrides; `passwordGrant()` maps password→{role, partition}. All are
   break-glass logins covering their own 부's roster; a password typed on a personal device linked
   to a roled member keeps that member's scope instead — **but only when the grant is in the same
@@ -140,8 +144,9 @@ live** at https://shrlak.github.io/kccp-attendance/.
   유도할 수 있는 값이 **아니다** — 유도하면 두 부를 오가는 사람의 장년부 로그인이 전부
   대학·청년부로 읽힌다. 같은 이유로 1시간 중복 제거 키에도 부가 들어간다. 지난 기록은
   `member_id`가 어느 스키마에 있느냐로 되살렸고, 공용 비밀번호 로그인은 **역할로** 가렸다
-  (`20260815`): 비밀번호마다 주는 역할이 다르고 역할은 기록돼 있다 — `leader`(kccpleaders) ·
-  `welcoming`(kccpwelcome) · 레거시 `staff`는 대학·청년부에만 있는 비밀번호다. `super_admin`만
+  (`20260815`): 비밀번호마다 주는 역할이 다르고 역할은 기록돼 있다 — `leader`(당시의
+  kccpleaders, 지금은 없앤 비밀번호) · `welcoming`(kccpwelcome) · 레거시 `staff`는 대학·청년부
+  에만 있던 비밀번호다. `super_admin`만
   둘(kccpadmin/kccpadults)이 겹치는데, kccpadults는 **2026-08-10 03:14 EDT(#222 배포)에 처음
   생겼으므로** 그 전 것은 kccpadmin일 수밖에 없다. 그래서 남는 진짜 미상은 그 뒤의 super_admin
   공용 로그인 몇 건뿐 → '부 미기록'. 그 NULL 줄들은 **양쪽 패널에 다 남긴다**: 한쪽에 몰면
