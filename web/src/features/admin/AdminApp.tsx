@@ -134,7 +134,11 @@ export function AdminApp() {
       ? [identity.group, identity.subgroup].filter(Boolean).join(' · ')
       : ministryLabel
   const roleLabel = identity && !isStaff ? t(`admin.roles.${identity.role}`) : t('admin.roles.staff')
-  const roleScope = `${roleLabel} · ${scopeLabel}`
+  // 장년부에는 역할 구분이 없다 — 최고관리자도 새가족팀도 셀장도 같은 것을 보고 같은 것을
+  // 한다. 그래서 헤더에 역할 이름을 걸지 않는다: 있지도 않은 구분을 있는 것처럼 읽히게 하고,
+  // 로그인한 사람마다 다른 이름이 떠서 "내 권한이 저 사람과 다른가" 하게 만든다. 남는 것은
+  // 부의 이름 한 줄이고, 그것이 이 화면에서 유일하게 의미 있는 구분이다.
+  const roleScope = isAdultPanel ? scopeLabel : `${roleLabel} · ${scopeLabel}`
   const dateLabel = new Intl.DateTimeFormat(lang === 'ko' ? 'ko-KR' : 'en-US', {
     year: 'numeric',
     month: 'long',

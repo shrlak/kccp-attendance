@@ -250,13 +250,22 @@ export async function verifyAdmin(sb: SB, deviceId: string, password: string): P
 
 // Verify via Supabase JWT (Google sign-in path). Resolves email → member → role. Both
 // departments are searched, 대학·청년부 first; **whichever schema the member turns up in is
-// the 부 they get** — there is no other way to belong to one.
+// the 부 they get** — there is no other way to belong to one. 그러니 어떤 이메일을 어느
+// 스키마의 멤버에 붙이느냐가 곧 "이 사람은 로그인하면 어느 부를 보는가"이다.
 export async function verifyAdminJwt(sb: SB, jwt: string): Promise<Role | null> {
   const { data: { user } } = await sb.auth.getUser(jwt);
   if (!user?.email) return null;
   for (const partition of ["youth", "adult"] as const) {
     const db = dbOf(sb, partition);
-    const { data: member } = await db.from("members").select("id").ilike("email", user.email).single();
+    // 사람 하나가 이메일 둘을 쓸 수 있다 (사역용 · 개인용). 어느 쪽으로 들어와도 같은 사람이다
+    // — 20260811의 email_alt. 따옴표로 감싸 값 안의 쉼표·괄호가 필터 문법으로 읽히지 않게 한다.
+    const needle = user.email.replace(/["\\]/g, "");
+    const { data: member } = await db
+      .from("members")
+      .select("id")
+      .or(`email.ilike."${needle}",email_alt.ilike."${needle}"`)
+      .limit(1)
+      .maybeSingle();
     const memberId = (member as { id?: string } | null)?.id;
     if (!memberId) continue;
     const { data: r } = await db.from("member_roles").select("*").eq("member_id", memberId).single();
