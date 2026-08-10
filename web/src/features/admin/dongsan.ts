@@ -141,6 +141,22 @@ export function leaderOptions(members: string[], entry: DongsanLeaderEntry): str
   return members.concat(Array.from(new Set(extra)))
 }
 
+// 이름 고르기 상자가 보여 줄 것 — 이 동산/셀 사람들이 먼저, 검색어를 쳤을 때만 그 아래로
+// 부의 나머지가 따라온다. 아무것도 치지 않았는데 삼백 명이 쏟아지면 정작 그 셀 사람을
+// 고르기가 어려워지므로, 기본은 좁게 두되 치면 길이 열린다.
+export function pickerHits(
+  query: string,
+  inCell: string[],
+  allNames: string[],
+): { cell: string[]; outside: string[] } {
+  const q = query.trim().toLowerCase()
+  const match = (n: string) => n.toLowerCase().includes(q)
+  return {
+    cell: inCell.filter(match),
+    outside: q ? allNames.filter((n) => match(n) && !inCell.includes(n)) : [],
+  }
+}
+
 // Immutable edit of a single 동산's entry — set the leader.
 export function withLeader(entry: DongsanLeaderEntry, name: string): DongsanLeaderEntry {
   return { ...entry, leader: name }

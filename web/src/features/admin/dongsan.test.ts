@@ -10,6 +10,7 @@ import {
   summerDongsanList,
   membersInDongsan,
   leaderOptions,
+  pickerHits,
   withLeader,
   setSubLeaderAt,
 } from './dongsan'
@@ -225,5 +226,30 @@ describe('leaderOptions', () => {
 
   it('is just the member list when no 지기 is set', () => {
     expect(leaderOptions(['가', '나'], { leader: '', subLeaders: [] })).toEqual(['가', '나'])
+  })
+})
+
+describe('pickerHits — 셀장 고르기 검색', () => {
+  const cell = ['신승환', '한지현']
+  const all = ['신승환', '한지현', '송교철', '송진아', '고신석']
+
+  it('검색어가 없으면 그 셀 사람만 보여 준다', () => {
+    // 삼백 명이 한꺼번에 쏟아지면 정작 그 셀 사람을 고르기가 어려워진다.
+    expect(pickerHits('', cell, all)).toEqual({ cell, outside: [] })
+  })
+
+  it('치면 부 전체로 넓어지되 셀 사람은 위쪽에 남는다', () => {
+    expect(pickerHits('송', cell, all)).toEqual({ cell: [], outside: ['송교철', '송진아'] })
+    expect(pickerHits('신', cell, all)).toEqual({ cell: ['신승환'], outside: ['고신석'] })
+  })
+
+  it('셀 사람을 아래쪽에 또 보여 주지 않는다', () => {
+    const hits = pickerHits('한', cell, all)
+    expect(hits.cell).toEqual(['한지현'])
+    expect(hits.outside).toEqual([])
+  })
+
+  it('대소문자를 가리지 않는다', () => {
+    expect(pickerHits('mi', ['Mike Miller'], ['Mike Miller']).cell).toEqual(['Mike Miller'])
   })
 })
