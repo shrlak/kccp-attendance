@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { usePartitionT } from '../../lib/useAppConfig'
+import type { Partition } from '../../lib/partition'
 import { useNavigate } from 'react-router-dom'
 import { useAdminAuth } from '../../stores/useAdminAuth'
 import { useLang } from '../../stores/useLang'
@@ -25,6 +26,7 @@ import {
   LogOut,
   Save,
   Monitor,
+  ArrowLeftRight,
 } from '../../components/ui/Icon'
 import { KccpMark } from '../checkin/KccpMark'
 import { AdminToday } from './AdminToday'
@@ -53,6 +55,7 @@ export function AdminApp() {
   const navigate = useNavigate()
   const identity = useAdminAuth((s) => s.identity)
   const signOut = useAdminAuth((s) => s.signOut)
+  const choosePartition = useAdminAuth((s) => s.choosePartition)
   // Restored from the last visit in this browser tab, so a reload (or the Google OAuth
   // round-trip) comes back to the same screen instead of 오늘.
   const [tab, setTab] = useState<Tab>(() => readLastTab() ?? 'today')
@@ -127,6 +130,12 @@ export function AdminApp() {
   // 사람은 애초에 보이지 않으므로, 헤더의 이 한 줄이 "지금 누구의 명단을 보고 있는가"에 대한
   // 유일한 표시다.
   const ministryLabel = t(`admin.ministry.${partition}`)
+  // 두 부를 다 맡는 계정만 오갈 수 있다 (서버가 정한다 — auth.ts CROSS_PARTITION_EMAILS).
+  // 버튼에는 **건너갈 쪽의 이름**을 적는다: 지금 어느 부인지는 바로 왼쪽 부제에 이미 적혀
+  // 있으므로, 여기에 또 지금 부의 이름을 걸면 둘 중 어느 뜻인지 읽어야 알게 된다.
+  const otherPartition: Partition = isAdultPanel ? 'youth' : 'adult'
+  const canSwitchPartition = !!identity?.canChoosePartition
+  const otherMinistryLabel = t(`admin.ministry.${otherPartition}`)
   // A scoped (roled-device) leader shows their 부서·동산; a break-glass leader/welcoming
   // password login has no group/동산 and sees its whole 부, so it shows the 부's name.
   const scopeLabel =
@@ -237,6 +246,18 @@ export function AdminApp() {
               <p className="mt-0.5 truncate text-xs text-muted">{dateLabel} · {roleScope}</p>
             </div>
             <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
+              {canSwitchPartition && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => void choosePartition(otherPartition)}
+                  className="max-sm:aspect-square max-sm:px-0"
+                  title={otherMinistryLabel}
+                >
+                  <ArrowLeftRight className="size-4" strokeWidth={2} aria-hidden />
+                  <span className="max-sm:sr-only">{otherMinistryLabel}</span>
+                </Button>
+              )}
               <span className="hidden items-center gap-1.5 sm:flex">
                 <ThemeLangToggle />
                 {canRunBackup && (

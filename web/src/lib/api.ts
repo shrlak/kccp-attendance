@@ -1,5 +1,5 @@
 import { getDeviceId } from './device'
-import type { Partition } from './partition'
+import { ADMIN_PARTITION_KEY, readStoredPartition, type Partition } from './partition'
 import { DEFAULT_SEMESTER_DATES, type SemesterDates, type SemesterSchedule, type TermCalendar } from './semester'
 
 const API_BASE =
@@ -9,10 +9,23 @@ type Method = 'GET' | 'POST' | 'PUT' | 'DELETE'
 
 let adminPassword: string | null = null
 let adminToken: string | null = null
+// 새로고침한 탭의 **첫 요청**부터 고른 부로 나가야, 저쪽 부의 패널이 한 번 그려졌다가 바뀌는
+// 일이 없다. 그래서 스토어가 걸어 주기를 기다리지 않고 여기서 바로 읽는다.
+let adminPartition: Partition | null = readStoredPartition()
 
 export function setAdminPassword(pw: string | null) { adminPassword = pw }
 // Set by the auth store after a successful Google sign-in; sent as Authorization: Bearer.
 export function setAdminToken(token: string | null) { adminToken = token }
+// 두 부를 다 맡는 구글 계정이 고른 부 (identity.canChoosePartition). 고르기 전에는 null이고,
+// 그때는 서버가 지금까지처럼 그 사람의 members 행이 있는 부를 준다. 요청이라 신뢰되지 않는다 —
+// 서버가 그 이메일이 고를 수 있는 사람인지 확인한 뒤에만 따른다 (auth.ts resolveAdmin).
+export function setAdminPartition(partition: Partition | null) {
+  adminPartition = partition
+  try {
+    if (partition) sessionStorage.setItem(ADMIN_PARTITION_KEY, partition)
+    else sessionStorage.removeItem(ADMIN_PARTITION_KEY)
+  } catch { /* non-fatal */ }
+}
 
 export async function api<T = unknown>(
   method: Method,
@@ -28,6 +41,7 @@ export async function api<T = unknown>(
   const headers: Record<string, string> = { 'X-Device-Id': getDeviceId() }
   if (adminToken) headers['Authorization'] = `Bearer ${adminToken}`
   else if (adminPassword) headers['X-Admin-Password'] = adminPassword
+  if (adminToken && adminPartition) headers['X-Partition'] = adminPartition
   if (extraHeaders) Object.assign(headers, extraHeaders)
   if (body) headers['Content-Type'] = 'application/json'
   try {
@@ -127,6 +141,9 @@ export interface AdminIdentity {
   // linked device or Google email, never a bare shared password. Server-decided
   // (auth.ts canViewLoginLog); gates the login-history section in the Admins tab.
   canViewLoginLog?: boolean
+  // 이 로그인은 두 부를 다 볼 수 있다 — 로그인 뒤 어느 부의 패널로 들어갈지 고르고, 패널
+  // 안에서 언제든 건너갈 수 있다. 구글 로그인에만 붙는다 (auth.ts CROSS_PARTITION_EMAILS).
+  canChoosePartition?: boolean
 }
 
 // Precise sign-in coordinates from the browser's Geolocation API, attached to the login

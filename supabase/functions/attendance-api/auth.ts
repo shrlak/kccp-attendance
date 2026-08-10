@@ -56,6 +56,41 @@ export const ADULT_PASSWORD = Deno.env.get("ADULT_PASSWORD") ?? "kccpadults";
 export const MASTER_PASSWORD = WELCOMING_PASSWORD;
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────────────
+//  CROSS-PARTITION EMAILS — 두 부를 다 보는 사람.
+//
+//  보통 한 사람은 한 부에만 산다: 이메일이 어느 스키마의 members에서 나오느냐가 곧 그 사람의
+//  부이고, 그것 말고 부에 속하는 길은 없다. 그런데 두 부를 다 맡는 사람이 하나 있다 — 그
+//  사람은 로그인한 뒤 **어느 부의 패널로 들어갈지 고른다.**
+//
+//  두 번째 members 행을 만들어 주는 방법은 쓰지 않았다: 그러면 장년부 명단에 실제 교인이
+//  아닌 사람이 한 명 늘고, 출석부·통계·백업이 전부 그 사람을 세게 된다. 부를 고르는 것은
+//  **명단이 아니라 신원의 성질**이므로 여기, 인증 쪽에 둔다.
+//
+//  구글 로그인에만 적용된다. 공용 비밀번호는 그 자체가 부를 뜻하므로(ADULT_PASSWORD →
+//  장년부) 고를 것이 없고, 무엇보다 아무나 칠 수 있는 값이라 신원이 아니다.
+export const CROSS_PARTITION_EMAILS = readEmails(
+  Deno.env.get("CROSS_PARTITION_EMAILS") ?? "spencerkim1235@gmail.com",
+);
+
+function readEmails(raw: string): Set<string> {
+  return new Set(raw.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean));
+}
+
+// May this email pick its 부 at sign-in? Case-insensitive: Google hands back whatever
+// casing the account was typed with, and an address is not case-sensitive.
+export function canCrossPartitions(email: string | null | undefined): boolean {
+  return !!email && CROSS_PARTITION_EMAILS.has(email.trim().toLowerCase());
+}
+
+// A partition name off the wire (the X-Partition header) → the value, or null for anything
+// else. The header is a *request*, never a grant: only canCrossPartitions() honors it.
+export function readPartition(raw: string | null | undefined): Partition | null {
+  const v = (raw || "").trim().toLowerCase();
+  return v === "adult" ? "adult" : v === "youth" ? "youth" : null;
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 // The 부서 that makes up the 장년부 partition. Everything else is the youth partition.
 export const ADULT_GROUP = "장년부";
 // 장년부의 표가 사는 스키마. 대학·청년부는 기본 스키마(public)를 그대로 쓴다.
@@ -113,8 +148,17 @@ export interface Role {
   subgroup: string;
   ministry: string;
   // 대학·청년부 or 장년부. Every row this admin may read or write lives in this partition;
-  // see scopeFilter/inScope. Derived, never sent by the client.
+  // see scopeFilter/inScope. Derived, never sent by the client — except that a
+  // cross-partition email may *ask* for one of the two (see CROSS_PARTITION_EMAILS).
   partition: Partition;
+  // The verified Google email this login came in on. Identity, not scope: it decides
+  // whether the login may choose its 부 at all. Absent ⇒ a password login, which never can.
+  email?: string;
+  // The schema `memberId` actually lives in. Normally the same as `partition`; they differ
+  // for exactly one case — a cross-partition login working in the *other* 부, where the
+  // person is still their own member row back home. Anything that resolves the member (the
+  // sign-in log's name) must read this, not `partition`. Absent ⇒ the two are the same.
+  memberPartition?: Partition;
 }
 
 // What an admin may see. `all` is "the whole partition", which is not the whole table:
@@ -196,6 +240,10 @@ export function inScopeGroup(scope: Scope, group: string | null | undefined): bo
 //  the sign-in must be attributable to that member row — via his linked personal device or
 //  his Google email. A shared team password typed on an unlinked device (memberId "")
 //  never qualifies, even though it grants super_admin, because anyone could type it.
+//
+//  login_log는 부서를 가리지 않는 **시스템 전체의 기록**(공용 표)이라 어느 부의 패널에서 보든
+//  같은 목록이다. 그래서 이 사람이 부를 건너가도 권한이 따라간다 — memberId에 걸려 있고, 그
+//  UUID는 부를 건너가도 그대로이기 때문이다 (memberPartition이 그 행이 사는 곳을 가리킨다).
 export const LOGIN_LOG_VIEWER_MEMBER_ID =
   Deno.env.get("LOGIN_LOG_VIEWER_MEMBER_ID") ?? "e45e9708-9d44-418d-9ff5-734adf81fa68"; // 김호연
 // ─────────────────────────────────────────────────────────────────────────────
@@ -203,6 +251,12 @@ export const LOGIN_LOG_VIEWER_MEMBER_ID =
 export function canViewLoginLog(role: Role | null): boolean {
   return !!role && role.role === "super_admin" && !!role.memberId &&
     role.memberId === LOGIN_LOG_VIEWER_MEMBER_ID;
+}
+
+// 로그인한 뒤 부를 고를 수 있는가 — 패널이 "어느 부로 들어갈까요" 화면을 띄울지 정하는 값.
+// 구글 로그인에만 해당한다 (비밀번호 로그인은 role.email이 비어 있다).
+export function canChoosePartition(role: Role | null): boolean {
+  return !!role && canCrossPartitions(role.email);
 }
 
 type SB = ReturnType<typeof createClient>;
@@ -236,6 +290,8 @@ export async function verifyAdmin(sb: SB, deviceId: string, password: string): P
           subgroup: row.subgroup || "",
           ministry: row.ministry || "",
           partition: grant.partition,
+          email: "",
+          memberPartition: grant.partition,
         };
       }
     }
@@ -245,21 +301,40 @@ export async function verifyAdmin(sb: SB, deviceId: string, password: string): P
   // attribute) — safe because every role.memberId lookup downstream is gated behind a
   // leader/welcoming/staff role check (super_admin paths key off role.role and audit via
   // the device id), and scopeFilter still pins the login to its own partition.
-  return { memberId: "", role: grant.role, group: "", subgroup: "", ministry: "", partition: grant.partition };
+  return {
+    memberId: "",
+    role: grant.role,
+    group: "",
+    subgroup: "",
+    ministry: "",
+    partition: grant.partition,
+    email: "",
+    memberPartition: grant.partition,
+  };
 }
 
 // Verify via Supabase JWT (Google sign-in path). Resolves email → member → role. Both
 // departments are searched, 대학·청년부 first; **whichever schema the member turns up in is
 // the 부 they get** — there is no other way to belong to one. 그러니 어떤 이메일을 어느
 // 스키마의 멤버에 붙이느냐가 곧 "이 사람은 로그인하면 어느 부를 보는가"이다.
-export async function verifyAdminJwt(sb: SB, jwt: string): Promise<Role | null> {
+//
+// 예외가 하나 있다: CROSS_PARTITION_EMAILS의 이메일은 `wanted`로 부를 **고른다.** 고른 부에
+// 자기 members 행이 없으면(보통 그렇다 — 그 사람은 한쪽 부의 교인이다) 그 부의 super_admin
+// 으로 들어가되, 저쪽 부의 자리를 뜻하는 부서·동산은 지우고 간다. memberId는 그대로 들고
+// 가고 memberPartition이 그 행이 사는 스키마를 가리킨다 — 로그인 기록에 이름이 남아야 하고,
+// 로그인 기록 열람 권한도 그 UUID에 걸려 있기 때문이다.
+export async function verifyAdminJwt(sb: SB, jwt: string, wanted?: Partition | null): Promise<Role | null> {
   const { data: { user } } = await sb.auth.getUser(jwt);
   if (!user?.email) return null;
-  for (const partition of ["youth", "adult"] as const) {
+  const email = user.email;
+  const cross = canCrossPartitions(email);
+  // 고를 수 있는 사람이 고른 부를 먼저 찾는다 — 양쪽에 행이 있다면 고른 쪽이 이겨야 한다.
+  const order: Partition[] = cross && wanted === "adult" ? ["adult", "youth"] : ["youth", "adult"];
+  for (const partition of order) {
     const db = dbOf(sb, partition);
     // 사람 하나가 이메일 둘을 쓸 수 있다 (사역용 · 개인용). 어느 쪽으로 들어와도 같은 사람이다
     // — 20260811의 email_alt. 따옴표로 감싸 값 안의 쉼표·괄호가 필터 문법으로 읽히지 않게 한다.
-    const needle = user.email.replace(/["\\]/g, "");
+    const needle = email.replace(/["\\]/g, "");
     const { data: member } = await db
       .from("members")
       .select("id")
@@ -271,23 +346,40 @@ export async function verifyAdminJwt(sb: SB, jwt: string): Promise<Role | null> 
     const { data: r } = await db.from("member_roles").select("*").eq("member_id", memberId).single();
     if (!r) continue;
     const row = r as { role: AdminRole; group_name?: string; subgroup?: string; ministry?: string };
-    return {
+    const home: Role = {
       memberId,
       role: row.role,
       group: row.group_name || "",
       subgroup: row.subgroup || "",
       ministry: row.ministry || "",
       partition,
+      email,
+      memberPartition: partition,
     };
+    // 고를 수 있는 사람이 자기 행이 없는 쪽을 골랐다: 그 부의 super_admin으로 건너간다.
+    // 부서·동산을 비우는 이유 — 그것들은 **저쪽 부의 이름**이라 여기서는 뜻이 없고, 남겨 두면
+    // scopeFilter가 있지도 않은 동산으로 명단을 좁힐 수 있다. (장년부 super_admin은 부서·동산
+    // 없이 자기 부 전체를 본다.)
+    if (cross && wanted && wanted !== partition) {
+      return { ...home, role: "super_admin", group: "", subgroup: "", ministry: "", partition: wanted };
+    }
+    return home;
   }
   return null;
 }
 
 // Unified resolver: try Google JWT first (Authorization: Bearer), fall back to
 // device + master password. All hardened admin endpoints call this.
+//
+// X-Partition is the panel's *request* for a 부, sent on every call once a cross-partition
+// admin has picked one. It is not a grant and cannot become one: verifyAdminJwt honors it
+// only for CROSS_PARTITION_EMAILS, and the password path ignores it outright (a password
+// already says which 부 it is).
 export async function resolveAdmin(sb: SB, req: Request): Promise<Role | null> {
   const auth = req.headers.get("authorization") || "";
-  if (auth.startsWith("Bearer ")) return verifyAdminJwt(sb, auth.slice(7));
+  if (auth.startsWith("Bearer ")) {
+    return verifyAdminJwt(sb, auth.slice(7), readPartition(req.headers.get("x-partition")));
+  }
   const deviceId = req.headers.get("x-device-id") || req.headers.get("X-Device-Id") || "";
   return verifyAdmin(sb, deviceId, req.headers.get("x-admin-password") || "");
 }

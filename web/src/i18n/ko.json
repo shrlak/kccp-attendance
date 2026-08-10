@@ -78,6 +78,7 @@
     "noMembers": "표시할 멤버가 없습니다",
     "scopeAll": "전체",
     "ministry": { "youth": "대학·청년부", "adult": "장년부" },
+    "partitionChoice": { "title": "어느 부로 들어가시겠어요?", "subtitle": "두 부를 모두 맡고 계셔서 여쭙습니다. 들어간 뒤에도 화면 위쪽에서 언제든 건너가실 수 있어요.", "hint": { "youth": "대학부 · 청년부 명단과 출석", "adult": "장년부 명단과 출석" } },
     "roles": { "super_admin": "최고관리자", "leader": "리더", "pastor": "목사님", "welcoming": "새가족팀", "staff": "운영진" },
     "nav": { "today": "오늘", "sheet": "출석부", "members": "멤버", "analytics": "통계", "newfamily": "새가족", "newfamilyEdu": "새가족 교육", "visitors": "방문자", "admins": "관리자", "dongsan": "동산", "dongsan_adult": "셀", "settings": "설정", "more": "더보기" },
     "navHelp": {
