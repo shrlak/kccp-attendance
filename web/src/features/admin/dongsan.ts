@@ -132,6 +132,15 @@ export function membersInDongsan(members: Member[], group: string | null, subgro
   return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b))
 }
 
+// 드롭다운에 놓을 이름들. 원칙은 "그 동산/셀에 속한 사람"이지만, **이미 지기로 적혀 있는
+// 사람은 그 동산 밖에 있더라도 남긴다.** 그러지 않으면 셀 명단과 셀장 명단이 어긋난 순간
+// (장년부 이관 때 실제로 그랬다 — 명단에는 다른 셀인데 셀장 표에는 이 셀의 셀장) 드롭다운이
+// 빈칸으로 보여 "지기가 없다"고 오해하게 되고, 한 번 저장하면 그 이름이 조용히 지워진다.
+export function leaderOptions(members: string[], entry: DongsanLeaderEntry): string[] {
+  const extra = [entry.leader, ...entry.subLeaders].filter((n) => n && !members.includes(n))
+  return members.concat(Array.from(new Set(extra)))
+}
+
 // Immutable edit of a single 동산's entry — set the leader.
 export function withLeader(entry: DongsanLeaderEntry, name: string): DongsanLeaderEntry {
   return { ...entry, leader: name }

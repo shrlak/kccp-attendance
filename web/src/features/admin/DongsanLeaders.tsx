@@ -11,7 +11,7 @@ import { useToast } from '../../components/ui/Toast'
 import { Button } from '../../components/ui/Button'
 import { Select } from '../../components/ui/Select'
 import { Medal, Shield, AlertTriangle, Save } from '../../components/ui/Icon'
-import { leaderEntry, summerDongsanList, membersInDongsan, withLeader, setSubLeaderAt } from './dongsan'
+import { leaderEntry, summerDongsanList, membersInDongsan, leaderOptions, withLeader, setSubLeaderAt } from './dongsan'
 import { useAppConfig, usePartition, usePartitionT } from '../../lib/useAppConfig'
 import { groupsOfPartition, summerAppliesTo } from '../../lib/partition'
 
@@ -152,6 +152,8 @@ function LeaderBlock({
   const toast = useToast()
   const qc = useQueryClient()
   const [saving, setSaving] = useState(false)
+  // 그 동산의 사람들 + 이미 지기로 적혀 있는 바깥 사람 (leaderOptions 주석 참고).
+  const options = useMemo(() => leaderOptions(members, entry), [members, entry])
 
   async function save() {
     setSaving(true)
@@ -174,7 +176,7 @@ function LeaderBlock({
         <span className="truncate">{header}</span>
       </div>
 
-      {members.length === 0 ? (
+      {options.length === 0 ? (
         <p className="text-xs text-muted">{t('admin.settings.noDongsanMembers')}</p>
       ) : (
         <>
@@ -185,7 +187,7 @@ function LeaderBlock({
             </span>
             <Select value={entry.leader} onChange={(e) => onLeader(e.target.value)}>
               <option value="">{t('admin.settings.noLeader')}</option>
-              {members.map((n) => (
+              {options.map((n) => (
                 <option key={n} value={n}>
                   {n}
                 </option>
@@ -206,7 +208,7 @@ function LeaderBlock({
                 onChange={(e) => onSub(i, e.target.value)}
               >
                 <option value="">{t('admin.settings.noLeader')}</option>
-                {members.map((n) => (
+                {options.map((n) => (
                   <option key={n} value={n}>
                     {n}
                   </option>
