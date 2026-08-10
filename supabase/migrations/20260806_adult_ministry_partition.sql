@@ -7,7 +7,11 @@
 -- 다른 쪽이 덮여 버리므로, 장년부 몫은 `_adult` 접미사가 붙은 자기 칸에 넣는다.
 -- (엣지 함수 index.ts의 ck()/cfgVal()이 이 규칙을 강제한다.)
 --
--- 값을 미리 채워 두지 않는다: 비어 있으면 엣지 함수가 그 부서의 기본값(동산 이름 1~4구역,
+-- 장년부는 이 하위 단위를 **셀**이라 부른다 (대학·청년부의 동산에 해당). 셀 이름은 고정이라
+-- 학기가 끝나도 초기화하지 않는다 — 바뀌는 것은 셀장·부셀장뿐이다. 그래서 dongsan_names_adult는
+-- 대학·청년부처럼 학기마다 비워지지 않고 계속 남는다 (엣지 함수 RESETS_SUBGROUPS_EACH_TERM).
+--
+-- 값을 미리 채워 두지 않는다: 비어 있으면 엣지 함수가 그 부서의 기본값(셀 이름 1~4셀,
 -- 초록 계열 부서 색, 기본 학기 템플릿)을 쓰고, 장년부 설정 탭에서 처음 저장하는 순간 채워진다.
 -- 대학·청년부 쪽 컬럼은 손대지 않으므로 이 마이그레이션은 기존 동작을 바꾸지 않는다.
 
@@ -26,8 +30,10 @@ ALTER TABLE config
 
 COMMENT ON COLUMN config.semester_schedule_adult IS
   '장년부 학기 일정 (대학·청년부 semester_schedule의 짝) — 두 부서는 각자 일정을 쓴다';
+COMMENT ON COLUMN config.dongsan_names_adult IS
+  '장년부 셀 이름 — 고정이며 학기 종료 롤오버가 지우지 않는다 (셀장/부셀장만 바뀐다)';
 COMMENT ON COLUMN config.dongsan_reset_term_adult IS
-  '장년부 학기 종료 롤오버를 한 학기에 한 번만 돌리기 위한 표식';
+  '장년부 학기 종료 스냅숏을 한 학기에 한 번만 뜨기 위한 표식 (편성은 보존한다)';
 COMMENT ON COLUMN config.last_auto_backup_at_adult IS
   '장년부 자동 백업 청구권 — 장년부에서 일어난 변경만 장년부 백업 줄기를 깨운다';
 

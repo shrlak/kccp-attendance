@@ -44,7 +44,7 @@ import {
 import { useToast } from '../../components/ui/Toast'
 import type { ReactNode } from 'react'
 import { refreshRoster, refreshRosterSettled } from '../../lib/live'
-import { usePartition } from '../../lib/useAppConfig'
+import { usePartition, usePartitionT } from '../../lib/useAppConfig'
 
 const ROLES: AdminRole[] = ['super_admin', 'leader', 'pastor', 'welcoming']
 
@@ -101,7 +101,8 @@ function fileToBase64(file: File): Promise<string> {
 // Admins tab (super-admin): the admin roster with add/remove, the audit + login logs,
 // the clear-attendance request queue, and backups.
 export function AdminAdmins() {
-  const { t, i18n } = useTranslation()
+  const t = usePartitionT()
+  const { i18n } = useTranslation()
   const qc = useQueryClient()
   const toast = useToast()
   // 백업은 부서별 줄기다 — 대학·청년부는 데이터베이스 전체 스냅숏, 장년부는 장년부 데이터만.
@@ -496,7 +497,7 @@ export function AdminAdmins() {
 }
 
 function AddAdminModal({ onClose }: { onClose: () => void }) {
-  const { t } = useTranslation()
+  const t = usePartitionT()
   const qc = useQueryClient()
   const toast = useToast()
   const { data } = useRoster(true)
@@ -605,7 +606,7 @@ function RestoreDbDialog({ target, onClose }: { target: DbRestoreTarget; onClose
   // 장년부 복원은 장년부 행만 되돌린다 (엣지 함수의 ADULT_PARTITION_TABLES) — 경고 문구가
   // "전부 대체됩니다"라고 말하면 사실과 다르다.
   const partition = usePartition()
-  const { t } = useTranslation()
+  const t = usePartitionT()
   const qc = useQueryClient()
   const toast = useToast()
   const [privateKey, setPrivateKey] = useState('')

@@ -66,10 +66,12 @@ const PARTITION_CONFIG_KEYS=[
 ] as const;
 function ck(part: Partition, base: string): string { return part==="adult"?base+"_adult":base; }
 function cfgVal(cfg: any, part: Partition, base: string): any { return cfg?.[ck(part,base)]; }
-// 그 부서에서 기본으로 쓰는 동산 이름 (아직 아무것도 저장하지 않았을 때).
+// 아직 아무것도 저장하지 않았을 때 보여줄 기본 이름. 장년부는 이 하위 단위를 **셀**이라
+// 부르고 그 이름은 고정이라(학기가 끝나도 지우지 않는다 — RESETS_SUBGROUPS_EACH_TERM 참고)
+// 여기 값은 첫 설정 화면의 출발점일 뿐이다.
 function defaultDongsanNames(part: Partition): Record<string,string[]> {
   return part==="adult"
-    ?{[ADULT_GROUP]:["1구역","2구역","3구역","4구역"]}
+    ?{[ADULT_GROUP]:["1셀","2셀","3셀","4셀"]}
     :{"대학부":["동산1","동산2","동산3","동산4"],"청년부":["동산1","동산2","동산3","동산4"]};
 }
 function defaultGroupColors(part: Partition): Record<string,string> {
@@ -192,6 +194,12 @@ function mergedMemberFields(existing: any, body: any, subgroup: string, today: s
 //
 // 부서별로 따로 돈다: 장년부의 학기 일정·표식·기록은 자기 칸(_adult)에 있고, 편성을 비울 때도
 // 자기 부서 멤버/기기만 건드린다 — 한쪽 학기가 끝났다고 다른 쪽 편성이 지워지면 안 되므로.
+//
+// **장년부(셀)는 초기화하지 않는다.** 대학·청년부의 동산은 학기마다 새로 짜는 것이지만, 장년부의
+// 셀은 이름도 소속도 고정이고 바뀌는 것은 셀장·부셀장뿐이다 (그것도 학기와 무관하게, 부서가
+// 정할 때). 그래서 장년부는 스냅숏만 뜨고 — 지난 학기 출석부가 그 시점의 셀 편성으로 고정되도록 —
+// 이름·셀장·멤버 배정은 그대로 둔다. 이 한 줄이 CELL_PARTITIONS다.
+const RESETS_SUBGROUPS_EACH_TERM: Partition[]=["youth"];
 async function rolloverDongsan(sb: SB, cfg: any, part: Partition="youth") {
   const key=lastEndedTermKey(localDate(),cfgVal(cfg,part,"semester_dates"));
   const marker=ck(part,"dongsan_reset_term");
@@ -200,22 +208,28 @@ async function rolloverDongsan(sb: SB, cfg: any, part: Partition="youth") {
     await sb.from("config").update({[marker]:key}).eq("id",1);
     return {...cfg,[marker]:key};
   }
+  const clears=RESETS_SUBGROUPS_EACH_TERM.includes(part);
   const mine=(q:any)=>part==="adult"?q.eq("group_name",ADULT_GROUP):excludeGroups(q,[ADULT_GROUP]);
   const {data:members}=await mine(sb.from("members").select("id,subgroup"));
   const subgroups=subgroupSnapshot((members||[]) as {id:string;subgroup?:string|null}[]);
   const ts=new Date().toISOString();
+  // 스냅숏은 두 부서 모두 남긴다: 셀이 고정이더라도 누군가 셀을 옮기면 지난 학기 출석부가
+  // 그 사람을 새 셀에 그리게 되므로, 그때의 편성을 얼려 두는 것이 여전히 옳다.
   const history=trimHistory({
     ...(cfgVal(cfg,part,"dongsan_history")||{}),
     [key]:{endedAt:localDate(),subgroups,names:cfgVal(cfg,part,"dongsan_names")||{},leaders:cfgVal(cfg,part,"dongsan_leaders")||{}},
   });
-  await mine(sb.from("members").update({subgroup:"",updated_at:ts}).neq("subgroup",""));
-  await mine(sb.from("devices").update({subgroup:""}).neq("subgroup",""));
-  const upd={
-    [ck(part,"dongsan_names")]:{},[ck(part,"dongsan_leaders")]:{},
-    [ck(part,"dongsan_history")]:history,[marker]:key,updated_at:ts,
-  };
+  const upd: any={[ck(part,"dongsan_history")]:history,[marker]:key,updated_at:ts};
+  if(clears){
+    await mine(sb.from("members").update({subgroup:"",updated_at:ts}).neq("subgroup",""));
+    await mine(sb.from("devices").update({subgroup:""}).neq("subgroup",""));
+    upd[ck(part,"dongsan_names")]={};
+    upd[ck(part,"dongsan_leaders")]={};
+  }
   await sb.from("config").update(upd).eq("id",1);
-  await addAudit(sb,"term-rollover","system",key+" 학기 종료 — 동산 편성 해제 ("+Object.keys(subgroups).length+"명)",part);
+  await addAudit(sb,"term-rollover","system",
+    key+(clears?" 학기 종료 — 동산 편성 해제 ("+Object.keys(subgroups).length+"명)"
+               :" 학기 종료 — 셀 편성 보존, 스냅숏만 저장 ("+Object.keys(subgroups).length+"명)"),part);
   return {...cfg,...upd};
 }
 async function isAdmin(sb: SB, did: string) {

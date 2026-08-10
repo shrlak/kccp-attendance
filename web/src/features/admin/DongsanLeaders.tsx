@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   getDongsanNames,
@@ -13,7 +12,7 @@ import { Button } from '../../components/ui/Button'
 import { Select } from '../../components/ui/Select'
 import { Medal, Shield, AlertTriangle, Save } from '../../components/ui/Icon'
 import { leaderEntry, summerDongsanList, membersInDongsan, withLeader, setSubLeaderAt } from './dongsan'
-import { useAppConfig, usePartition } from '../../lib/useAppConfig'
+import { useAppConfig, usePartition, usePartitionT } from '../../lib/useAppConfig'
 import { groupsOfPartition, summerAppliesTo } from '../../lib/partition'
 
 const SUMMER_KEY = '합동'
@@ -22,7 +21,7 @@ const SUMMER_KEY = '합동'
 // In summer mode the 동산 list collapses to a single combined ("합동") set spanning both
 // KM departments, matching the legacy renderDongsanLeadersEditor() behaviour.
 export function DongsanLeadersEditor() {
-  const { t } = useTranslation()
+  const t = usePartitionT()
   const { data: cfg } = useAppConfig()
   const { data: names } = useQuery({ queryKey: ['dongsanNames'], queryFn: getDongsanNames })
   const { data: leaders } = useQuery({ queryKey: ['dongsanLeaders'], queryFn: getDongsanLeaders })
@@ -149,7 +148,7 @@ function LeaderBlock({
   onSub: (idx: number, name: string) => void
   onSaved: () => void
 }) {
-  const { t } = useTranslation()
+  const t = usePartitionT()
   const toast = useToast()
   const qc = useQueryClient()
   const [saving, setSaving] = useState(false)

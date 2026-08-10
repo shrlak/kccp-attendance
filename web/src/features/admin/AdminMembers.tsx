@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRoster } from './useRoster'
 import { mergeMembers, bulkSetSubgroup, getDongsanNames, type Member } from '../../lib/api'
@@ -20,13 +19,13 @@ import { IconKey } from './IconKey'
 import { EditModal, AttendanceModal, Field } from './MemberDialogs'
 import { resolveGroupColor, hexTint } from './groupColors'
 import { refreshRoster } from '../../lib/live'
-import { useAppConfig } from '../../lib/useAppConfig'
+import { useAppConfig, usePartitionT } from '../../lib/useAppConfig'
 
 // Members management: searchable card grid; tap a card to edit (scoped + read-only
 // enforced server-side). Renaming, group/동산 changes (= transfer), role, new-member,
 // and contact fields all go through PUT /api/admin/member.
 export function AdminMembers() {
-  const { t } = useTranslation()
+  const t = usePartitionT()
   const qc = useQueryClient()
   const toast = useToast()
   const { data, isLoading, isError } = useRoster(true)
@@ -340,7 +339,7 @@ export function AdminMembers() {
 }
 
 function MergeModal({ members, onClose }: { members: Member[]; onClose: () => void }) {
-  const { t } = useTranslation()
+  const t = usePartitionT()
   const qc = useQueryClient()
   const toast = useToast()
   const [s, setS] = useState<MergeState>({ fromId: '', toId: '' })

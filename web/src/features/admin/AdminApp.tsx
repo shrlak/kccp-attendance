@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { usePartitionT } from '../../lib/useAppConfig'
 import { useNavigate } from 'react-router-dom'
 import { useAdminAuth } from '../../stores/useAdminAuth'
 import { useLang } from '../../stores/useLang'
@@ -47,7 +47,7 @@ import { prefetchPanelExtrasOnIdle } from '../../app/prefetch'
 // touch) is replaced by a bottom tab bar — the 4 everyday tabs plus a 더보기 sheet for
 // the rest — per mobile navigation conventions.
 export function AdminApp() {
-  const { t } = useTranslation()
+  const t = usePartitionT()
   const toast = useToast()
   const lang = useLang((s) => s.lang)
   const navigate = useNavigate()

@@ -75,6 +75,15 @@ live** at https://shrlak.github.io/kccp-attendance/.
   예전 행은 대학·청년부로 친다). `/api/config`는 무인증 경로라 두 부의 블록을 함께 내려주고
   (`{...youth, adult:{...}}`), 웹은 `useAppConfig()`에서 한 번만 고른다 — 화면 코드는 예전처럼
   `cfg?.summerMode` / `configCalendar(cfg)`를 쓰면 자기 부의 값을 보게 된다.
+- **장년부는 하위 단위를 "셀"이라 부르고, 셀 이름은 고정이다.** 데이터는 같은 칸
+  (`members.subgroup`)이고 이름만 다르다: 대학·청년부는 동산·동산지기·부동산지기, 장년부는
+  셀·셀장·부셀장. 화면 문구는 **i18next context**가 맡는다 — `usePartitionT()`가 `t(key,
+  {context: partition})`를 걸어 주므로 번역 파일에는 실제로 달라지는 키만 `_adult`로 덧붙이면
+  되고(`dongsanNames_adult` …), 없는 키는 원래 문구로 되돌아간다. 번역 파일 밖에서 조립되는
+  라벨(엑셀·PDF·출석부 이미지의 언어별 문자열 표)은 `lib/partition.ts` `unitTerms()`를 쓴다.
+  **학기 종료 롤오버는 장년부 셀을 초기화하지 않는다** (`RESETS_SUBGROUPS_EACH_TERM`는
+  `['youth']`): 스냅숏만 떠서 지난 학기 출석부를 고정하고, 이름·셀장·멤버 배정은 그대로 둔다 —
+  바뀌는 것은 셀장·부셀장뿐이기 때문. 웹 쪽 짝은 `subgroupsResetEachTerm()`.
 - **여름 합동은 대학·청년부만의 장치**라 장년부에는 존재하지 않는다 (`summerNow(cfg,'adult')`은
   언제나 false, `scopeFilter`도 장년부는 합동으로 승격하지 않는다). 학기 종료 롤오버도 부서별로
   따로 돌며, 편성을 비울 때 자기 부 멤버/기기만 건드린다.
@@ -181,7 +190,8 @@ live** at https://shrlak.github.io/kccp-attendance/.
 is deliberately absent** there (it tracks 대학·청년부's two-week course). Its kiosk draws one 부서
 block instead of two and drops the 부서만 보기 chips (nothing to choose between); its 새가족 카드
 files everyone under 장년부 instead of guessing 대학부/청년부 from 소속; its 설정 탭 has no 여름
-모드 row. The panel header names the 부 on every screen, because that label is the only visible
+모드 row; and its 멤버 dialog drops the 새가족 교육 동산 field. **그 부서에서 동산은 "셀"이고,
+셀 이름은 고정** — 학기가 끝나도 지워지지 않고 셀장·부셀장만 바뀐다. The panel header names the 부 on every screen, because that label is the only visible
 difference between the two.
 
 Full Phase 1–4 parity + production cutover complete. Shipped: branded landing, KCCP logo

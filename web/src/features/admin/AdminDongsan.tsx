@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getDongsanNames, updateDongsanNames, type DongsanNames } from '../../lib/api'
 import { useToast } from '../../components/ui/Toast'
@@ -8,7 +7,7 @@ import { Input } from '../../components/ui/Input'
 import { Sprout, Trash2, Plus, AlertTriangle, Save } from '../../components/ui/Icon'
 import { renameAt, addDongsan, removeAt, cleanNames, summerDongsanList } from './dongsan'
 import { DongsanLeadersEditor } from './DongsanLeaders'
-import { useAppConfig, usePartition } from '../../lib/useAppConfig'
+import { useAppConfig, usePartition, usePartitionT } from '../../lib/useAppConfig'
 import { groupsOfPartition, summerAppliesTo, type Partition } from '../../lib/partition'
 
 // 동산 admin tab (super-admin only): edit 동산 names + 동산지기/부동산지기. In summer mode the
@@ -16,7 +15,7 @@ import { groupsOfPartition, summerAppliesTo, type Partition } from '../../lib/pa
 // to both KM departments, matching how summer mode merges them everywhere else. (The separate
 // 새가족 교육 동산 names live on the 새가족 교육 tab, next to the education tracking they configure.)
 export function AdminDongsan() {
-  const { t } = useTranslation()
+  const t = usePartitionT()
   const qc = useQueryClient()
   const { data: cfg } = useAppConfig()
   const { data: loaded } = useQuery({ queryKey: ['dongsanNames'], queryFn: getDongsanNames })
@@ -73,7 +72,7 @@ export function DongsanNamesEditor({
   desc?: string
   onSave: (next: DongsanNames) => Promise<void>
 }) {
-  const { t } = useTranslation()
+  const t = usePartitionT()
   const toast = useToast()
   const [edits, setEdits] = useState<DongsanNames | undefined>(undefined) // per-group (semester)
   const [combined, setCombined] = useState<string[] | undefined>(undefined) // single list (summer)
@@ -143,7 +142,7 @@ export function DongsanNamesEditor({
               <Input
                 value={name}
                 placeholder={t('admin.settings.dongsanPlaceholder')}
-                aria-label={`동산 ${idx + 1}`}
+                aria-label={`${t('admin.settings.dongsanPlaceholder')} ${idx + 1}`}
                 className="min-w-0 flex-1"
                 onChange={(e) =>
                   setCombined(combinedList.map((n, i) => (i === idx ? e.target.value : n)))

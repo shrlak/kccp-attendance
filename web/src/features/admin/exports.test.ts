@@ -14,7 +14,7 @@ import {
   reportHtml,
   formatHeaderDate,
   filterLabel,
-  NEW_FAMILY_HEADER,
+  newFamilyHeader,
   newFamilyRow,
   newFamilySheets,
 } from './exports'
@@ -489,16 +489,21 @@ describe('newFamilyRow', () => {
 
 describe('newFamilySheets', () => {
   it('has the template header, in column order', () => {
-    expect(NEW_FAMILY_HEADER).toEqual([
+    expect(newFamilyHeader()).toEqual([
       '이름', '등록일', '성별', '생년월일', '전화번호', '이메일',
       '학교/직장, 학과', '세례', '주소/동네', '동산 참여', '목사님 심방', '노트',
     ])
+  })
+  // 장년부는 하위 단위를 셀이라 부른다 — 그 칸만 바뀌고 나머지 열은 그대로다.
+  it('names the 참여 column after the 부의 unit — 셀 참여 for 장년부', () => {
+    expect(newFamilyHeader('adult')[9]).toBe('셀 참여')
+    expect(newFamilyHeader('adult').length).toBe(newFamilyHeader().length)
   })
   it('splits members into one sheet per 부서, first-seen order', () => {
     const ms = [member('1', 'A', '청년부'), member('2', 'B', '대학부'), member('3', 'C', '청년부')]
     const sheets = newFamilySheets(ms)
     expect(sheets.map((s) => s.name)).toEqual(['청년부', '대학부'])
-    expect(sheets[0].aoa[0]).toEqual(NEW_FAMILY_HEADER)
+    expect(sheets[0].aoa[0]).toEqual(newFamilyHeader())
     expect(sheets[0].aoa.map((r) => r[0])).toEqual(['이름', 'A', 'C'])
     expect(sheets[1].aoa.map((r) => r[0])).toEqual(['이름', 'B'])
   })

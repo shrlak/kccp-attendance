@@ -160,19 +160,23 @@ describe('AdminApp ministry navigation', () => {
     })
     renderApp()
     const rail = screen.getByRole('navigation', { name: '관리자 페이지' })
-    for (const name of ['오늘', '출석부', '멤버', '통계', '새가족', '방문자', '관리자', '동산', '설정']) {
+    // 장년부는 하위 단위를 셀이라 부르므로 그 탭 이름도 '동산'이 아니라 '셀'이다.
+    for (const name of ['오늘', '출석부', '멤버', '통계', '새가족', '방문자', '관리자', '셀', '설정']) {
       expect(within(rail).getByRole('button', { name })).toBeInTheDocument()
     }
+    expect(within(rail).queryByRole('button', { name: '동산' })).toBeNull()
     expect(within(rail).queryByRole('button', { name: '새가족 교육' })).toBeNull()
     expect(screen.getAllByText(/장년부/).length).toBeGreaterThan(0)
   })
 
   // 반대로 대학·청년부 패널에는 새가족 교육이 그대로 있어야 한다 — 위 테스트가 탭을 통째로
   // 없애 버리는 회귀를 잡아내도록.
-  it('keeps 새가족 교육 in the 대학·청년부 panel', () => {
+  it('keeps 새가족 교육 — and the 동산 wording — in the 대학·청년부 panel', () => {
     renderApp()
     const rail = screen.getByRole('navigation', { name: '관리자 페이지' })
     expect(within(rail).getByRole('button', { name: '새가족 교육' })).toBeInTheDocument()
+    expect(within(rail).getByRole('button', { name: '동산' })).toBeInTheDocument()
+    expect(within(rail).queryByRole('button', { name: '셀' })).toBeNull()
   })
 })
 

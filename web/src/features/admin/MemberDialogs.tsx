@@ -1,5 +1,4 @@
 import { useState, type ReactNode } from 'react'
-import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   getDongsanNames,
@@ -26,7 +25,7 @@ import { NewFamilyCardForm } from './NewFamilyCardForm'
 import { cardFormFromMember, joinAffiliation, type CardFormValue } from './newFamilyCard'
 import { copyNewFamilyCards, saveNewFamilyCards } from './newFamilyCardImage'
 import { refreshRoster } from '../../lib/live'
-import { useAppConfig, usePartition } from '../../lib/useAppConfig'
+import { useAppConfig, usePartition, usePartitionT } from '../../lib/useAppConfig'
 import { groupsOfPartition, type Partition } from '../../lib/partition'
 
 // 상태 표기 quick presets — canonical note values the 출석부 renders as grey spans.
@@ -68,7 +67,7 @@ export function EditModal({
   // server still enforces scope + read-only regardless of this flag.
   allowDelete?: boolean
 }) {
-  const { t } = useTranslation()
+  const t = usePartitionT()
   const qc = useQueryClient()
   const toast = useToast()
   // Configured 동산 names feed the 동산 dropdown (combined list in summer mode).
@@ -321,7 +320,9 @@ export function EditModal({
             ))}
           </Select>
         </Field>
-        {f.isNewMember && (
+        {/* 새가족 교육 동산은 대학·청년부의 2주 교육 과정에 딸린 칸이다 — 장년부 패널에는
+            그 탭 자체가 없으므로 이 칸도 두지 않는다. */}
+        {f.isNewMember && partition !== 'adult' && (
           <Field label={t('admin.members.eduDongsan')}>
             <Select value={currentEduDongsan} onChange={(e) => set('newMemberDongsan', e.target.value)}>
               <option value="">—</option>
@@ -402,7 +403,7 @@ export function AttendanceModal({
   readOnly: boolean
   onClose: () => void
 }) {
-  const { t } = useTranslation()
+  const t = usePartitionT()
   const qc = useQueryClient()
   const toast = useToast()
   const [date, setDate] = useState(easternNow().date)
