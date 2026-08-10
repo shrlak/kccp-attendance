@@ -4,7 +4,7 @@ import { buildGrid } from './sheet'
 import { semesterBounds, semesterKey, semesterSundays, transitionBounds, transitionSundays, isActiveNewFamily } from './newFamily'
 import { splitAffiliation } from './newFamilyCard'
 import { awayForRange, noteOn } from '../../lib/status'
-import { unitTerms, type Partition } from '../../lib/partition'
+import { seasonLabel, unitTerms, usesSemesters, type Partition } from '../../lib/partition'
 
 // ── Pure export helpers ──────────────────────────────────────────────────────
 // Everything here is side-effect free so it can be unit-tested. The thin DOM bits
@@ -59,20 +59,22 @@ const TERM_END_OVERRIDES: Record<string, string> = {
 // Worship Sundays shown in the export for the term containing `today`: the semester Sundays
 // (semesterSundays), clamped to the term's effective start (TERM_START_OVERRIDES) and run
 // through the term-end override when set — otherwise only through `today`. ISO ascending.
-export function exportSundays(today: string, semesterDates?: CalendarLike): string[] {
+export function exportSundays(today: string, semesterDates?: CalendarLike, partition: Partition = 'youth'): string[] {
   // 예배 doesn't stop just because `today` falls between two configured 학기 — the moment a
   // term ends the sheet rolls over to the gap's own table instead of freezing on the finished
   // term's columns. Like a term, the gap shows its *whole* Sunday set (upcoming ones blank
   // until they pass), so the transition sheet is a real table from its first day rather than
   // an empty one. Only possible once an admin's saved term dates leave a break.
-  const transition = transitionBounds(today, semesterDates)
+  const transition = transitionBounds(today, semesterDates, partition)
   if (transition) return transitionSundays(transition, transition.end)
   // Once an administrator saves explicit term dates, they are the source of truth and
   // the sheet exposes the whole configured term (future Sundays remain blank until they
   // occur). Before that, preserve the one-off legacy 2026 overrides below.
-  if (semesterDates) {
-    const { end } = semesterBounds(today, semesterDates)
-    return semesterSundays(today, end, semesterDates)
+  // 장년부는 저장된 학기 일정이 없어도 (그런 것이 없는 부다) 상·하반기 경계가 고정이므로
+  // 언제나 이 길로 온다 — 아래 2026 예외들은 대학·청년부의 옛 기록을 위한 것이다.
+  if (semesterDates || partition === 'adult') {
+    const { end } = semesterBounds(today, semesterDates, partition)
+    return semesterSundays(today, end, semesterDates, partition)
   }
   const key = semesterKey(today)
   // With an end override the columns are fixed for the whole term (upcoming Sundays included,
@@ -255,30 +257,31 @@ export function periodGroupBy(
 }
 
 // periodGroupBy for the period containing `today` (no configured 학기 covers it → transition).
+//
+// 장년부에는 학기가 없으니 **학기 사이라는 상태도 없다** — 전환 기간에는 부서로 묶느라 셀 구분이
+// 통째로 사라졌고, 부서가 하나뿐인 장년부에서는 그게 곧 "전체가 한 덩어리"였다. 그 부는 언제나
+// 셀로 나눈다.
 export function attendanceGroupBy(
   today: string,
   semesterDates: CalendarLike,
   unassigned: string,
+  partition: Partition = 'youth',
 ): (m: Member) => string {
-  return periodGroupBy(transitionBounds(today, semesterDates) ? 'transition' : 'semester', unassigned)
+  const transition = usesSemesters(partition) && !!transitionBounds(today, semesterDates)
+  return periodGroupBy(transition ? 'transition' : 'semester', unassigned)
 }
 
 // Human label for the semester containing `today`, e.g. "2026 여름 학기" / "Summer 2026" —
 // or, between two configured 학기, a transition-period label carrying the gap's own date
 // range, so it's obvious at a glance which stretch of 예배 the table covers.
-export function semesterLabel(today: string, lang: Lang, semesterDates?: CalendarLike): string {
-  const transition = transitionBounds(today, semesterDates)
+export function semesterLabel(today: string, lang: Lang, semesterDates?: CalendarLike, partition: Partition = 'youth'): string {
+  const transition = transitionBounds(today, semesterDates, partition)
   if (transition) {
     const range = `${formatGridDate(transition.start)}–${formatGridDate(transition.end)}`
     return lang === 'ko' ? `학기 사이 (전환 기간) · ${range}` : `Between terms · ${range}`
   }
-  const { year, season } = semesterBounds(today, semesterDates)
-  if (lang === 'ko') {
-    const ko = season === 'spring' ? '봄' : season === 'summer' ? '여름' : '가을'
-    return `${year} ${ko} 학기`
-  }
-  const en = season === 'spring' ? 'Spring' : season === 'summer' ? 'Summer' : 'Fall'
-  return `${en} ${year}`
+  const { year, season } = semesterBounds(today, semesterDates, partition)
+  return seasonLabel(year, season, lang, partition)
 }
 
 // Per-동산 header palette, matching the legacy sheet: blocks cycle green -> blue -> yellow ->
@@ -328,9 +331,9 @@ export function gridSheet(
     members,
     log,
     lang,
-    exportSundays(today, semesterDates),
+    exportSundays(today, semesterDates, partition),
     today,
-    attendanceGroupBy(today, semesterDates, sheetLabels(lang, partition).unassigned),
+    attendanceGroupBy(today, semesterDates, sheetLabels(lang, partition).unassigned, partition),
     partition,
   )
 }
@@ -620,10 +623,10 @@ export function reportHtml(members: Member[], log: LogEntry[], opts: ReportOpts)
   const model = buildAttendanceModel(
     members,
     log,
-    exportSundays(opts.today, opts.semesterDates),
+    exportSundays(opts.today, opts.semesterDates, opts.partition ?? 'youth'),
     opts.today,
     { unassigned: L.unassigned, newFamily: L.newFamily },
-    attendanceGroupBy(opts.today, opts.semesterDates, L.unassigned),
+    attendanceGroupBy(opts.today, opts.semesterDates, L.unassigned, opts.partition ?? 'youth'),
   )
   const pink = cssColor(HEADER_TOTAL_FILL)
 
@@ -699,7 +702,7 @@ export function reportHtml(members: Member[], log: LogEntry[], opts: ReportOpts)
 <body>
   <div class="actions"><button onclick="window.print()">${escapeHtml(L.save)}</button></div>
   <h1>${escapeHtml(L.title)}</h1>
-  <div class="sub">${escapeHtml(semesterLabel(opts.today, lang, opts.semesterDates))} · ${escapeHtml(formatHeaderDate(opts.today, lang))} · ${escapeHtml(filterLabel(opts.group, opts.subgroup, lang))}</div>
+  <div class="sub">${escapeHtml(semesterLabel(opts.today, lang, opts.semesterDates, opts.partition ?? 'youth'))} · ${escapeHtml(formatHeaderDate(opts.today, lang))} · ${escapeHtml(filterLabel(opts.group, opts.subgroup, lang))}</div>
   ${content}
   <div class="key"><b class="kchip" style="background:${cssColor(KEY_FILL)}">${escapeHtml(L.key)}</b><span><b>O</b> ${escapeHtml(L.present)}</span><span><b>X</b> ${escapeHtml(L.absent)}</span><span><b class="kchip" style="background:${cssColor(NOTE_FILL)};color:#1f2937">&nbsp;&nbsp;&nbsp;</b> ${escapeHtml(L.etc)}</span></div>
   <script>window.addEventListener('load', function () { setTimeout(function () { window.print() }, 350) })</script>

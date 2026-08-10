@@ -120,11 +120,15 @@ export function KioskView({ onExit }: { onExit: () => void }) {
   const depts = kioskDepts(partition)
   // 부서 하나만 보는 중인가 — 블록도 하나, 열도 그만큼 넉넉하게.
   const deptView = !!deptOnly && !summer
+  // 블록이 하나뿐이면 그 블록이 화면 전체를 쓴다. 부서만 보기로 고른 경우도 그렇지만, **애초에
+  // 부서가 하나뿐인 부**(장년부)도 그렇다 — 예전에는 뒤쪽만 보고 4열로 그려서, 고를 것도 없는
+  // 장년부 키오스크가 절반 너비만 쓰고 있었다.
+  const wide = deptView || depts.length === 1
   const scoped = deptView ? members.filter((m) => m.group_name === deptOnly) : members
   const visible = filterByName(scoped.filter((m) => !hiddenByStatus(m, today)), search)
   // 한 부서가 화면 전체를 쓰므로 4열이 아니라 8열로 쪼갠다. 나눈 개수와 아래 격자의 열 수는
   // 같아야 한다 — 그래야 한 줄을 왼쪽에서 오른쪽으로 읽는 순서가 가나다 순이 된다.
-  const cols = kioskColumns(visible, deptView ? KIOSK_COLS_DEPT : KIOSK_COLS, partition)
+  const cols = kioskColumns(visible, wide ? KIOSK_COLS_DEPT : KIOSK_COLS, partition)
   // 부서를 골랐으면 그 부서 블록만 남긴다 — 반대쪽 부서가 빈 칸으로 자리를 차지하지 않도록.
   const deptBlocks = deptView ? cols.depts.filter((d) => d.key === deptOnly) : cols.depts
   const hasAnyResult = deptBlocks.some((d) => d.total > 0) || cols.others.length > 0
@@ -284,7 +288,7 @@ export function KioskView({ onExit }: { onExit: () => void }) {
                     <div
                       className={
                         'grid grid-cols-2 items-start gap-x-3 gap-y-2 ' +
-                        (deptView
+                        (wide
                           ? 'min-[480px]:grid-cols-4 min-[900px]:grid-cols-8'
                           : 'min-[480px]:grid-cols-4')
                       }

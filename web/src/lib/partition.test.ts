@@ -4,8 +4,14 @@ import {
   YOUTH_GROUPS,
   groupsOfPartition,
   partitionOfGroup,
+  seasonLabel,
+  seasonName,
+  seasonsOf,
+  showsAttendanceLog,
+  subLeaderSlots,
   subgroupsResetEachTerm,
   summerAppliesTo,
+  usesSemesters,
   unitTerms,
 } from './partition'
 
@@ -73,5 +79,41 @@ describe('subgroupsResetEachTerm', () => {
   it('동산은 학기마다 초기화, 셀은 고정', () => {
     expect(subgroupsResetEachTerm('youth')).toBe(true)
     expect(subgroupsResetEachTerm('adult')).toBe(false)
+  })
+})
+
+describe('부마다 다른 규칙', () => {
+  it('부셀장은 한 명, 부동산지기는 둘', () => {
+    expect(subLeaderSlots('adult')).toBe(1)
+    expect(subLeaderSlots('youth')).toBe(2)
+  })
+
+  it('학기는 대학·청년부만 쓴다 — 장년부는 상·하반기로만 나뉜다', () => {
+    expect(usesSemesters('adult')).toBe(false)
+    expect(usesSemesters('youth')).toBe(true)
+  })
+
+  it('출석부의 기록 화면은 대학·청년부에만 있다', () => {
+    expect(showsAttendanceLog('adult')).toBe(false)
+    expect(showsAttendanceLog('youth')).toBe(true)
+  })
+})
+
+describe('한 해를 나누는 토막', () => {
+  it('대학·청년부는 세 학기, 장년부는 두 반기', () => {
+    expect(seasonsOf('youth')).toEqual(['spring', 'summer', 'fall'])
+    expect(seasonsOf('adult')).toEqual(['spring', 'fall'])
+  })
+
+  it('장년부는 spring/fall을 상반기·하반기라는 이름으로 쓴다', () => {
+    expect(seasonName('spring', 'adult')).toBe('상반기')
+    expect(seasonName('fall', 'adult')).toBe('하반기')
+    expect(seasonName('spring', 'youth')).toBe('봄')
+  })
+
+  it('이름표에서 장년부만 "학기"라는 말을 떼어 낸다', () => {
+    expect(seasonLabel(2026, 'summer', 'ko', 'youth')).toBe('2026 여름 학기')
+    expect(seasonLabel(2026, 'fall', 'ko', 'adult')).toBe('2026 하반기')
+    expect(seasonLabel(2026, 'fall', 'en', 'adult')).toBe('Second half 2026')
   })
 })

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { usePartition } from '../../lib/useAppConfig'
+import type { Partition } from '../../lib/partition'
 import type { Member, LogEntry } from '../../lib/api'
 import type { CalendarLike } from '../../lib/semester'
 import type { Filter } from './filters'
@@ -48,7 +49,7 @@ export function ArchiveSection({
   const toast = useToast()
   const [busy, setBusy] = useState<string | null>(null)
 
-  const entries = useMemo(() => archiveEntries(log, today, semesterDates), [log, today, semesterDates])
+  const entries = useMemo(() => archiveEntries(log, today, semesterDates, partition), [log, today, semesterDates, partition])
   const terms = entries.filter((e) => !isYearArchive(e))
   const years = entries.filter(isYearArchive)
 
@@ -90,7 +91,7 @@ export function ArchiveSection({
 
       {entries.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted">
-          {pendingHint(t, today, lang, semesterDates)}
+          {pendingHint(t, today, lang, semesterDates, partition)}
         </p>
       ) : (
         <div className="space-y-5">
@@ -132,6 +133,7 @@ function ArchiveList({
   onDownload: (e: ArchiveEntry) => void
 }) {
   const { t } = useTranslation()
+  const partition = usePartition()
   return (
     <div>
       <p className="section-kicker mb-2">{caption}</p>
@@ -139,7 +141,7 @@ function ArchiveList({
         {entries.map((e) => (
           <li key={e.id} className="inset-row min-h-16 flex-wrap gap-y-2 py-3">
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold text-text">{archiveLabel(e, lang)}</span>
+              <span className="block text-sm font-semibold text-text">{archiveLabel(e, lang, partition)}</span>
               <span className="block truncate text-xs text-muted">
                 {rangeLabel(e.start, e.end)} · {t('admin.sheet.archive.stats', { weeks: e.sundays, records: e.records })}
               </span>
@@ -150,7 +152,7 @@ function ArchiveList({
               onClick={() => onDownload(e)}
               {...onIntent(prefetchExcel)}
               disabled={busy !== null}
-              aria-label={`${archiveLabel(e, lang)} ${t('admin.sheet.archive.download')}`}
+              aria-label={`${archiveLabel(e, lang, partition)} ${t('admin.sheet.archive.download')}`}
             >
               <Download size={15} strokeWidth={2} aria-hidden />
               {busy === e.id ? t('common.loading') : t('admin.sheet.archive.download')}
@@ -169,9 +171,10 @@ function pendingHint(
   today: string,
   lang: Lang,
   semesterDates?: CalendarLike,
+  partition: Partition = 'youth',
 ): string {
-  const transition = transitionBounds(today, semesterDates)
-  const end = transition ? transition.end : semesterBounds(today, semesterDates).end
+  const transition = transitionBounds(today, semesterDates, partition)
+  const end = transition ? transition.end : semesterBounds(today, semesterDates, partition).end
   return t(transition ? 'admin.sheet.archive.pendingTransition' : 'admin.sheet.archive.pendingTerm', {
     date: lang === 'ko' ? end.replace(/-/g, '.') : end,
   })

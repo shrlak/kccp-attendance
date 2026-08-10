@@ -77,3 +77,62 @@ export function unitTerms(partition: Partition, lang: 'ko' | 'en' = 'ko'): UnitT
 export function subgroupsResetEachTerm(partition: Partition): boolean {
   return partition === 'youth'
 }
+
+// 부셀장은 한 명이다. 대학·청년부의 동산은 부동산지기를 둘까지 두지만 (한 동산이 크고, 학기마다
+// 새로 짜므로 나눠 맡는다), 장년부의 셀은 셀장 한 명 · 부셀장 한 명으로 고정이다.
+export function subLeaderSlots(partition: Partition): number {
+  return partition === 'adult' ? 1 : 2
+}
+
+// 봄·여름·가을학기로 한 해를 나누는가. 대학·청년부는 학사 일정을 따라가지만 장년부에는 학기가
+// 없다 — 한 해를 상반기(1–6월)·하반기(7–12월) 둘로만 나눈다. 이 값이 갈라 놓는 것은
+// 기간의 경계뿐 아니라 **설정 탭의 학기 일정 편집기가 뜨는지**, 그리고 출석부가 학기 사이의
+// '전환 기간'이라는 상태를 갖는지까지다 — 장년부에는 학기가 없으니 그 사이도 없다.
+export function usesSemesters(partition: Partition): boolean {
+  return partition === 'youth'
+}
+
+// 출석부의 표/기록 전환. 장년부는 표 하나로만 본다.
+export function showsAttendanceLog(partition: Partition): boolean {
+  return partition === 'youth'
+}
+
+// ── 한 해를 몇 토막으로 나누는가 ──────────────────────────────────────────────────────
+//
+// 대학·청년부는 학사 일정을 따라 봄·여름·가을 세 학기로 나눈다. 장년부에는 학기가 없다 —
+// 상반기(1–6월)와 하반기(7–12월) 둘뿐이고, 그 경계는 교회가 편집하지 않는 고정값이다.
+//
+// 토막의 **식별자는 그대로 Season을 쓴다** ('spring' = 상반기, 'fall' = 하반기). 새 이름을
+// 만들지 않은 이유: 이 값은 아카이브 키(`2026-fall`)와 동산 스냅숏 키로 이미 저장돼 있고,
+// 화면에 나가는 것은 언제나 seasonLabel()이 붙이는 라벨이다. 즉 부에 따라 달라지는 것은
+// **몇 토막인가 · 어디서 끊는가 · 뭐라 부르는가** 셋뿐이고, 나머지 기계는 손대지 않는다.
+export type Season = 'spring' | 'summer' | 'fall'
+
+// 이 부가 한 해를 나누는 토막들 — 달력 순서(1월 → 12월)다.
+export function seasonsOf(partition: Partition): Season[] {
+  return partition === 'adult' ? ['spring', 'fall'] : ['spring', 'summer', 'fall']
+}
+
+// 장년부의 고정 경계. 대학·청년부의 학기 일정처럼 config에 저장되지 않는다 — 설정 탭에
+// 학기 일정 편집기가 뜨지 않는 부이므로, 값이 바뀔 자리가 없다.
+export const ADULT_HALF_DATES: Record<'spring' | 'fall', { start: string; end: string }> = {
+  spring: { start: '01-01', end: '06-30' },
+  fall: { start: '07-01', end: '12-31' },
+}
+
+// 상반기/하반기냐 봄·여름·가을학기냐 — 화면에 나가는 이름.
+export function seasonName(season: Season, partition: Partition, lang: 'ko' | 'en' = 'ko'): string {
+  if (partition === 'adult') {
+    const first = season === 'spring'
+    return lang === 'ko' ? (first ? '상반기' : '하반기') : first ? 'First half' : 'Second half'
+  }
+  if (lang === 'ko') return season === 'spring' ? '봄' : season === 'summer' ? '여름' : '가을'
+  return season === 'spring' ? 'Spring' : season === 'summer' ? 'Summer' : 'Fall'
+}
+
+// 한 토막의 이름표: "2026 여름 학기" / "Summer 2026", 장년부는 "2026 상반기" / "First half 2026".
+export function seasonLabel(year: number, season: Season, lang: 'ko' | 'en' = 'ko', partition: Partition = 'youth'): string {
+  const name = seasonName(season, partition, lang)
+  if (partition === 'adult') return lang === 'ko' ? `${year} ${name}` : `${name} ${year}`
+  return lang === 'ko' ? `${year} ${name} 학기` : `${name} ${year}`
+}

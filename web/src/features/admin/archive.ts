@@ -1,5 +1,5 @@
 import type { Member, LogEntry } from '../../lib/api'
-import type { Partition } from '../../lib/partition'
+import { seasonLabel, seasonName, seasonsOf, usesSemesters, type Partition } from '../../lib/partition'
 import {
   addIsoDays,
   calendarOf,
@@ -7,7 +7,7 @@ import {
   type CalendarLike,
 } from '../../lib/semester'
 import type { Season } from './newFamily'
-import { sundaysBetween } from './newFamily'
+import { sundaysBetween, termRangeFor } from './newFamily'
 import {
   attendanceSheet,
   formatGridDate,
@@ -56,14 +56,15 @@ export interface Period {
 // opened when last year's 가을학기 ended, 봄학기, its trailing gap, 여름학기, its trailing gap,
 // 가을학기. The gap *after* 가을학기 belongs to the next year's list (it opens this December
 // but is the run-up to next 봄학기), so consecutive years tile without overlapping.
-export function periodsInYear(year: number, semesterDates?: CalendarLike): Period[] {
-  const cal = calendarOf(semesterDates)
+export function periodsInYear(year: number, semesterDates?: CalendarLike, partition: Partition = 'youth'): Period[] {
   // Calendar order (봄 → 여름 → 가을), not the settings editor's academic display order.
-  const seasons: Season[] = ['spring', 'summer', 'fall']
+  // 장년부는 상반기·하반기 둘뿐이고 (partition.ts seasonsOf), 그 둘이 한 해를 빈 곳 없이
+  // 덮으므로 아래 gap 계산은 언제나 빈 결과를 낸다 — 그 부에는 전환 기간이 없다.
+  const seasons: Season[] = seasonsOf(partition)
   const out: Period[] = []
-  let prevEnd = termRange(year - 1, 'fall', cal).end
+  let prevEnd = termRangeFor(year - 1, seasons[seasons.length - 1], semesterDates, partition).end
   for (const season of seasons) {
-    const { start, end } = termRange(year, season, cal)
+    const { start, end } = termRangeFor(year, season, semesterDates, partition)
     const gapStart = addIsoDays(prevEnd, 1)
     const gapEnd = addIsoDays(start, -1)
     // Back-to-back terms (the defaults) leave no gap at all — then there's no period to add.
@@ -78,11 +79,11 @@ export function periodsInYear(year: number, semesterDates?: CalendarLike): Perio
 
 // Every period overlapping [from, to], chronological. Spans as many calendar years as the
 // range covers (+1, so a range ending inside a year-crossing gap still picks that gap up).
-export function periodsBetween(from: string, to: string, semesterDates?: CalendarLike): Period[] {
+export function periodsBetween(from: string, to: string, semesterDates?: CalendarLike, partition: Partition = 'youth'): Period[] {
   const firstYear = Number(from.slice(0, 4))
   const lastYear = Number(to.slice(0, 4))
   const out: Period[] = []
-  for (let y = firstYear; y <= lastYear + 1; y++) out.push(...periodsInYear(y, semesterDates))
+  for (let y = firstYear; y <= lastYear + 1; y++) out.push(...periodsInYear(y, semesterDates, partition))
   return out.filter((p) => p.end >= from && p.start <= to).sort((a, b) => a.start.localeCompare(b.start))
 }
 
@@ -146,8 +147,9 @@ function periodSheetsIn(
   start: string,
   end: string,
   semesterDates?: CalendarLike,
+  partition: Partition = 'youth',
 ): Period[] {
-  return periodsBetween(start, end, semesterDates)
+  return periodsBetween(start, end, semesterDates, partition)
     .map((p) => clipPeriod(p, start, end))
     .filter((p) => rangeStats(log, p.start, p.end).records > 0)
 }
@@ -160,12 +162,13 @@ export function archiveEntries(
   log: LogEntry[],
   today: string,
   semesterDates?: CalendarLike,
+  partition: Partition = 'youth',
 ): ArchiveEntry[] {
   if (log.length === 0) return []
   const first = log.reduce((min, e) => (e.date < min ? e.date : min), log[0].date)
   const entries: ArchiveEntry[] = []
 
-  for (const p of periodsBetween(first, today, semesterDates)) {
+  for (const p of periodsBetween(first, today, semesterDates, partition)) {
     if (p.end >= today) continue
     const stats = rangeStats(log, p.start, p.end)
     if (stats.records === 0) continue
@@ -181,20 +184,24 @@ export function archiveEntries(
     })
   }
 
-  for (let y = academicYearOf(first, semesterDates); y <= academicYearOf(today, semesterDates); y++) {
-    const { start, end } = academicYearBounds(y, semesterDates)
-    if (end >= today) continue
-    const stats = rangeStats(log, start, end)
-    if (stats.records === 0) continue
-    entries.push({
-      id: `ay-${y}`,
-      kind: 'academicYear',
-      start,
-      end,
-      year: y,
-      periods: periodSheetsIn(log, start, end, semesterDates),
-      ...stats,
-    })
+  // 학년도(가을~여름)는 학사 일정을 따르는 부에만 있다. 장년부의 한 해는 상반기·하반기
+  // 둘로만 나뉘고 그 둘이 곧 역년이므로, 학년도를 따로 만들면 역년과 같은 것이 두 번 나온다.
+  if (usesSemesters(partition)) {
+    for (let y = academicYearOf(first, semesterDates); y <= academicYearOf(today, semesterDates); y++) {
+      const { start, end } = academicYearBounds(y, semesterDates)
+      if (end >= today) continue
+      const stats = rangeStats(log, start, end)
+      if (stats.records === 0) continue
+      entries.push({
+        id: `ay-${y}`,
+        kind: 'academicYear',
+        start,
+        end,
+        year: y,
+        periods: periodSheetsIn(log, start, end, semesterDates, partition),
+        ...stats,
+      })
+    }
   }
 
   for (let y = Number(first.slice(0, 4)); y <= Number(today.slice(0, 4)); y++) {
@@ -209,7 +216,7 @@ export function archiveEntries(
       start,
       end,
       year: y,
-      periods: periodSheetsIn(log, start, end, semesterDates),
+      periods: periodSheetsIn(log, start, end, semesterDates, partition),
       ...stats,
     })
   }
@@ -225,30 +232,26 @@ export function isYearArchive(e: ArchiveEntry): boolean {
 
 // ── Labels ───────────────────────────────────────────────────────────────────
 
-const SEASON_KO: Record<Season, string> = { spring: '봄', summer: '여름', fall: '가을' }
-const SEASON_EN: Record<Season, string> = { spring: 'Spring', summer: 'Summer', fall: 'Fall' }
-
-export function seasonLabel(year: number, season: Season, lang: Lang): string {
-  return lang === 'ko' ? `${year} ${SEASON_KO[season]} 학기` : `${SEASON_EN[season]} ${year}`
-}
+// 이름표의 주인은 lib/partition.ts다 (부마다 토막을 뭐라 부르는지가 거기 있으므로).
+export { seasonLabel }
 
 // "06/07/2026 – 08/08/2026" — the same MM/DD/YYYY the sheet's date columns use.
 export function rangeLabel(start: string, end: string): string {
   return `${formatGridDate(start)} – ${formatGridDate(end)}`
 }
 
-export function periodLabel(p: Period, lang: Lang): string {
-  if (p.kind === 'semester' && p.season) return seasonLabel(p.year, p.season, lang)
+export function periodLabel(p: Period, lang: Lang, partition: Partition = 'youth'): string {
+  if (p.kind === 'semester' && p.season) return seasonLabel(p.year, p.season, lang, partition)
   return lang === 'ko' ? '학기 사이 (전환 기간)' : 'Between terms'
 }
 
-export function archiveLabel(e: ArchiveEntry, lang: Lang): string {
+export function archiveLabel(e: ArchiveEntry, lang: Lang, partition: Partition = 'youth'): string {
   if (e.kind === 'academicYear') {
     const next = String(e.year + 1).slice(2)
     return lang === 'ko' ? `${e.year}–${next} 학년도` : `${e.year}–${next} Academic Year`
   }
   if (e.kind === 'calendarYear') return lang === 'ko' ? `${e.year}년` : `${e.year}`
-  return periodLabel({ kind: e.kind, key: e.id, start: e.start, end: e.end, year: e.year, season: e.season }, lang)
+  return periodLabel({ kind: e.kind, key: e.id, start: e.start, end: e.end, year: e.year, season: e.season }, lang, partition)
 }
 
 // Filename for a downloaded archive, mirroring exportFilename's shape:
@@ -268,13 +271,16 @@ export function archiveFilename(e: ArchiveEntry, group: string): string {
 
 // Excel worksheet title for one period. Sheet names cap at 31 chars and reject : \ / ? * [ ],
 // so the gap's dates use dots — and the whole thing is trimmed to fit.
-export function sheetTitle(p: Period, lang: Lang): string {
+export function sheetTitle(p: Period, lang: Lang, partition: Partition = 'youth'): string {
   const short = (iso: string) => iso.slice(5).replace('-', '.')
+  const season = p.season ? seasonName(p.season, partition, lang) : ''
   const raw =
     p.kind === 'semester' && p.season
       ? lang === 'ko'
-        ? `${p.year} ${SEASON_KO[p.season]}학기`
-        : `${SEASON_EN[p.season]} ${p.year}`
+        ? partition === 'adult'
+          ? `${p.year} ${season}`
+          : `${p.year} ${season}학기`
+        : `${season} ${p.year}`
       : lang === 'ko'
         ? `학기 사이 ${short(p.start)}-${short(p.end)}`
         : `Between ${short(p.start)}-${short(p.end)}`
@@ -406,7 +412,7 @@ export function archiveWorkbook(
   partition: Partition = 'youth',
 ): ArchiveWorkbook {
   const { unassigned } = sheetLabels(lang, partition)
-  const names = uniqueSheetNames(entry.periods.map((p) => sheetTitle(p, lang)))
+  const names = uniqueSheetNames(entry.periods.map((p) => sheetTitle(p, lang, partition)))
   // Computed once over the whole log, then shared by every period of the workbook.
   const firstSeen = firstSeenByName(log)
   const rosters = entry.periods.map((p) => periodRoster(members, p, log, history, firstSeen))

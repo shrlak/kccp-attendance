@@ -122,9 +122,19 @@ function summerNow(cfg: any, part: Partition="youth") {
   if(part==="adult") return false;
   return isSummerTerm(localDate(),cfg?.semester_dates,cfg?.semester_schedule);
 }
+// 장년부 새교우 방문·등록 카드가 가진 칸들 (마이그레이션 20260808). adult.members에만
+// 있는 컬럼이라 멤버 수정에서 **장년부 요청일 때만** 매핑한다. 웹의 짝은 adultCard.ts.
+const ADULT_CARD_COLS: Record<string,string>={nameEn:"name_en",phoneHome:"phone_home",address:"address",city:"city",state:"state",zipCode:"zip_code",attendReason:"attend_reason",registrationChoice:"registration_choice",visitDate:"visit_date",memberNo:"member_no"};
+
+// 봄·여름·가을학기로 한 해를 나누는 부. 장년부는 상반기·하반기 둘로만 나뉘고 그 경계가
+// 고정이라, 학기 일정도 학기 종료 롤오버도 없다. 웹의 짝은 partition.ts usesSemesters().
+const USES_SEMESTERS: Partition[]=["youth"];
 // 2년치 학기 일정을 굴린다: 끝난 학기는 편집 목록에서 빠지고(보관은 유지) 맨 뒤에 다음 학기가
 // 붙는다. 바뀐 게 없으면 쓰지 않으므로 매 요청에 불러도 안전하다. 부서마다 자기 일정을 쓴다.
 async function maybeRollSchedule(sb: SB, cfg: any, part: Partition="youth") {
+  // 장년부에는 학기 일정이라는 것이 없다 — 한 해가 상반기(1–6월)·하반기(7–12월)로 고정이고
+  // 설정 탭에 편집기도 뜨지 않는다. 굴릴 목록이 없으니 매 요청마다 손대지 않는다.
+  if(!USES_SEMESTERS.includes(part)) return cfg;
   const dates=cfg?.semester_dates, schedule=cfg?.semester_schedule;
   const rolled=rollSchedule(localDate(),dates,schedule);
   if(sameSchedule(rolled,scheduleOf(schedule))) return cfg;
@@ -187,6 +197,10 @@ function mergedMemberFields(existing: any, body: any, subgroup: string, today: s
   upd.registration_date=existing.registration_date&&existing.registration_date<reg?existing.registration_date:reg;
   return upd;
 }
+// 한 동산/셀에 둘 수 있는 부지기 수. 대학·청년부의 동산은 커서 부동산지기 둘이 나눠 맡지만,
+// 장년부의 셀은 셀장 한 명·부셀장 한 명으로 고정이다. 웹의 짝은 partition.ts subLeaderSlots().
+const SUB_LEADER_SLOTS: Record<Partition, number> = { youth: 2, adult: 1 };
+
 
 // 학기가 끝나면 동산을 없애고 모두를 동산에서 뺀다 — 한 학기당 정확히 한 번, 학기가 끝난
 // 다음 첫 요청에서. 지우기 전에 그 학기의 편성(+동산 이름/동산지기)을 config.dongsan_history에
@@ -206,6 +220,9 @@ function mergedMemberFields(existing: any, body: any, subgroup: string, today: s
 // 이름·셀장·멤버 배정은 그대로 둔다. 이 한 줄이 CELL_PARTITIONS다.
 const RESETS_SUBGROUPS_EACH_TERM: Partition[]=["youth"];
 async function rolloverDongsan(sb: SB, cfg: any, part: Partition="youth") {
+  // 학기가 없는 부에는 학기 종료도 없다. 장년부의 셀은 이름도 소속도 고정이라 비울 것이
+  // 없고(RESETS_SUBGROUPS_EACH_TERM), 얼려 둘 편성도 늘 같으니 스냅숏도 뜨지 않는다.
+  if(!USES_SEMESTERS.includes(part)) return cfg;
   const pdb=db(sb,part);
   const key=lastEndedTermKey(localDate(),cfg?.semester_dates);
   const marker="dongsan_reset_term";
@@ -884,7 +901,10 @@ Deno.serve(async (req: Request) => {
       // 자기 부의 부서(또는 여름 합동 키)에만 쓸 수 있다.
       if(partitionOfGroup(group)!==role.partition) return fail(403,"Out of scope");
       const cfg=await getCfg(sb,actingPartition); const ldrs=cfg?.dongsan_leaders||{}; if(!ldrs[group]) ldrs[group]={};
-      ldrs[group][subgroup]={leader:leader||"",subLeaders:Array.isArray(subLeaders)?subLeaders:[]};
+      // 부지기 수는 부마다 다르다: 대학·청년부 동산은 부동산지기 둘, 장년부 셀은 부셀장 하나.
+      // 화면도 그만큼만 그리지만 (web lib/partition.ts subLeaderSlots), 경계는 여기서 지킨다.
+      const subs=Array.isArray(subLeaders)?subLeaders.filter((n:any)=>typeof n==="string"&&n):[];
+      ldrs[group][subgroup]={leader:leader||"",subLeaders:subs.slice(0,SUB_LEADER_SLOTS[role.partition])};
       await adb.from("config").update({dongsan_leaders:ldrs,updated_at:new Date().toISOString()}).eq("id",1);
       await addAudit(adb,"config-change",xDev,"동산지기 수정: "+group+" "+subgroup,role.partition);
       return ok({status:"ok"});
@@ -1165,9 +1185,25 @@ Deno.serve(async (req: Request) => {
       // 부서를 옮기는 것도 자기 부 안에서만 (장년부 사람을 청년부로 넘길 수 없다).
       if(body.group!==undefined&&!inScopeGroup(editScope,body.group)) return fail(403,"Out of scope");
       const COLS: Record<string,string>={name:"name",group:"group_name",subgroup:"subgroup",notes:"notes",memberRole:"member_role",gender:"gender",phone:"phone",birthDate:"birth_date",baptismStatus:"baptism_status",schoolOrWork:"school_or_work",faithDuration:"faith_duration",registrationDate:"registration_date",pastoralVisitRequested:"pastoral_visit_requested",isNewMember:"is_new_member",newMemberEduWeek1:"new_member_edu_week1",newMemberEduWeek2:"new_member_edu_week2",newMemberDongsan:"new_member_dongsan",kakaoId:"kakao_id",statusNote:"status_note",statusStart:"status_start",statusEnd:"status_end"};
-      const DATE_COLS=new Set(["birth_date","registration_date","status_start","status_end"]);
+      const DATE_COLS=new Set(["birth_date","registration_date","status_start","status_end","visit_date"]);
       const upd: any={updated_at:new Date().toISOString()};
       for(const [k,col] of Object.entries(COLS)){ if(body[k]!==undefined) upd[col]=DATE_COLS.has(col)?(body[k]||null):body[k]; }
+      // 장년부 새교우 카드의 칸들 — **그 부에서만** 받는다. 이 컬럼들은 adult.members에만
+      // 있으므로(20260808), 대학·청년부 요청에서 같은 이름이 와도 조용히 버린다. 넣으면
+      // public.members에 없는 컬럼이라 업데이트 전체가 실패한다.
+      if(role.partition==="adult"){
+        for(const [k,col] of Object.entries(ADULT_CARD_COLS)){
+          if(body[k]!==undefined) upd[col]=DATE_COLS.has(col)?(body[k]||null):body[k];
+        }
+        if(body.family!==undefined){
+          if(!Array.isArray(body.family)) return fail(400,"family must be a list");
+          upd.family=body.family.map((r:any)=>({
+            nameKo:String(r?.nameKo??""), nameEn:String(r?.nameEn??""),
+            relation:String(r?.relation??""), birthDate:String(r?.birthDate??""),
+            gender:String(r?.gender??""),
+          }));
+        }
+      }
       // 상태 표기 목록 — 목록을 저장하고, 예전 단일 컬럼에는 현재(또는 최신) 표기를 남긴다.
       if(body.statusMarks!==undefined){
         const marks=cleanStatusMarks(body.statusMarks);
