@@ -9,9 +9,15 @@ export interface DialogProps {
   children: ReactNode
   /** Card-style dialogs (새가족 등록 카드) spread fields across columns and need more width. */
   wide?: boolean
+  /**
+   * 장년부 새교우 카드는 종이가 더 옆으로 길다 — 주소 줄이 City/State/Zip으로 나뉘고
+   * 동행가족 표가 일곱 열이다. wide(720px)로는 그 표가 다 들어가지 않아 옆으로 밀어야
+   * 했다. 카드를 좁히는 대신 창을 넓힌다: 읽는 사람이 종이와 같은 배치를 봐야 하므로.
+   */
+  xwide?: boolean
 }
 
-export function Dialog({ open, onOpenChange, title, children, wide }: DialogProps) {
+export function Dialog({ open, onOpenChange, title, children, wide, xwide }: DialogProps) {
   return (
     <RDialog.Root open={open} onOpenChange={onOpenChange}>
       {/* z-index must clear the full-screen kiosk layer (KioskView: fixed inset-0 z-[999]).
@@ -29,7 +35,11 @@ export function Dialog({ open, onOpenChange, title, children, wide }: DialogProp
             indicator. From `sm` up it's the centered modal it has always been. */}
         <RDialog.Content
           className={`fixed inset-x-0 bottom-0 z-[1001] sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2
-            ${wide ? 'sm:w-[min(720px,calc(100vw-2rem))]' : 'sm:w-[min(440px,calc(100vw-2rem))]'}`}
+            ${xwide
+              ? 'sm:w-[min(1000px,calc(100vw-2rem))]'
+              : wide
+                ? 'sm:w-[min(720px,calc(100vw-2rem))]'
+                : 'sm:w-[min(440px,calc(100vw-2rem))]'}`}
         >
           <div className="fx-sheet max-h-[92dvh] overflow-y-auto overscroll-contain rounded-t-[26px] border border-border bg-surface p-6 pb-[calc(1.5rem+var(--safe-bottom))] shadow-[var(--shadow-pop)] focus:outline-none sm:max-h-[calc(100dvh-2rem)] sm:rounded-[26px] sm:p-7 sm:pb-7">
           {/* Sheet grab handle — the affordance that says this panel is dismissible. */}

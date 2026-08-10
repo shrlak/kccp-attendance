@@ -91,7 +91,7 @@ export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && close()} title={t('kiosk.newMember.title')} wide>
+    <Dialog open={open} onOpenChange={(o) => !o && close()} title={t('kiosk.newMember.title')} wide xwide={isAdult}>
       {/* max-h is a safety valve for short/small screens; on the kiosk tablet the whole
           card fits without scrolling. */}
       <div className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto pr-1">

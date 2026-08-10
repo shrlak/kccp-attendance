@@ -275,7 +275,7 @@ export function CardScanDialog({
     cards.length > 1 ? t('admin.newfamily.scan.progress', { n: cardIndex + 1, total: cards.length }) : ''
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && close()} title={t('admin.newfamily.scan.title')} wide>
+    <Dialog open={open} onOpenChange={(o) => !o && close()} title={t('admin.newfamily.scan.title')} wide xwide={isAdultCard}>
       {usage && (
         <div className="mb-4">
           <Tag tone="muted" className="tabular-nums">
