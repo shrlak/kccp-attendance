@@ -77,11 +77,30 @@ ALTER TABLE adult.config         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE adult.audit_log      ENABLE ROW LEVEL SECURITY;
 
 -- ── 권한 ──────────────────────────────────────────────────────────────────────────────
-GRANT USAGE ON SCHEMA adult TO postgres, anon, authenticated, service_role;
-GRANT ALL ON ALL TABLES IN SCHEMA adult TO postgres, service_role;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA adult TO postgres, service_role;
-ALTER DEFAULT PRIVILEGES IN SCHEMA adult GRANT ALL ON TABLES TO postgres, service_role;
-ALTER DEFAULT PRIVILEGES IN SCHEMA adult GRANT ALL ON SEQUENCES TO postgres, service_role;
+-- anon·authenticated·service_role은 **수파베이스가 만들어 주는 역할**이라 맨 포스트그레스에는
+-- 없다. 주간 백업의 검증 단계가 바로 그 맨 포스트그레스다 — 일회용 컨테이너에 이 파일들을
+-- 그대로 재생해서 "마이그레이션만으로 스키마가 선다"를 증명하는 자리인데, 없는 역할에
+-- GRANT를 걸면 거기서 멈춘다 (그리고 그건 장년부만의 문제가 아니라 두 줄기 모두의 문제다).
+-- 그래서 있는 역할에만 건다. 없는 곳에서는 줄 사람이 없으니 건너뛰는 것이 맞다.
+DO $grants$
+DECLARE
+  role_name text;
+BEGIN
+  FOREACH role_name IN ARRAY ARRAY['postgres', 'anon', 'authenticated', 'service_role'] LOOP
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = role_name) THEN
+      EXECUTE format('GRANT USAGE ON SCHEMA adult TO %I', role_name);
+    END IF;
+  END LOOP;
+
+  FOREACH role_name IN ARRAY ARRAY['postgres', 'service_role'] LOOP
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = role_name) THEN
+      EXECUTE format('GRANT ALL ON ALL TABLES IN SCHEMA adult TO %I', role_name);
+      EXECUTE format('GRANT ALL ON ALL SEQUENCES IN SCHEMA adult TO %I', role_name);
+      EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA adult GRANT ALL ON TABLES TO %I', role_name);
+      EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA adult GRANT ALL ON SEQUENCES TO %I', role_name);
+    END IF;
+  END LOOP;
+END $grants$;
 
 -- ── 이미 public에 들어와 있는 장년부 사람들을 옮긴다 ──────────────────────────────────
 -- 이 기능이 아직 운영에 없으므로 보통은 0건이다. 그래도 미리보기 브랜치나 시험 중에 들어간
@@ -124,6 +143,12 @@ END $$;
 DO $$
 DECLARE current_schemas text;
 BEGIN
+  -- authenticator 역시 수파베이스가 만들어 주는 역할이라 맨 포스트그레스에는 없다.
+  -- 없는 곳에서는 PostgREST도 없으니 노출할 스키마 목록이라는 것 자체가 없다 — 건너뛴다.
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticator') THEN
+    RETURN;
+  END IF;
+
   SELECT COALESCE(
            (SELECT split_part(s, '=', 2)
               FROM unnest(setconfig) AS s
