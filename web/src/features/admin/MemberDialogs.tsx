@@ -235,7 +235,8 @@ export function EditModal({
 
   return (
     // wide: the 새가족 등록 카드 replica at the top needs the paper card's landscape width.
-    <Dialog open onOpenChange={(o) => !o && onClose()} title={t('admin.members.edit')} wide>
+    // 장년부 카드는 더 길어서 한 뼘 더 (Dialog xwide) — 옆으로 밀지 않고 다 보이도록.
+    <Dialog open onOpenChange={(o) => !o && onClose()} title={t('admin.members.edit')} wide xwide={isAdult}>
       <div className="flex max-h-[60vh] flex-col gap-3 overflow-y-auto pr-1">
         {/* ── 새가족 등록 카드 — edit the member's info directly on the paper card ── */}
         <div className="flex items-center justify-between gap-2">

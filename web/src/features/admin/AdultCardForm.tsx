@@ -39,15 +39,17 @@ export function AdultCardForm({
       <div className="min-w-[680px] bg-white text-[#111]">
         {/* 머리 — 왼쪽 제목, 오른쪽 방문 일자 · 교우 등록번호 */}
         <div className="flex items-start justify-between gap-4 px-1 pb-2 text-[11px]">
-          <span className="font-semibold">{ADULT_CARD_KICKER}</span>
-          <div className="flex flex-col items-end gap-1">
-            <label className="flex items-center gap-1.5">
-              <span>방문 일자</span>
-              <DateBox value={value.visitDate} onChange={(v) => onChange({ visitDate: v })} className="w-36" />
+          <span className="shrink-0 whitespace-nowrap font-semibold">{ADULT_CARD_KICKER}</span>
+          {/* 종이에서는 이 둘이 오른쪽 위에 한 줄씩 놓인다. whitespace-nowrap이 없으면
+              칸 이름이 접혀 두 줄이 되고, 그러면 종이와 다르게 읽힌다. */}
+          <div className="flex shrink-0 flex-col items-end gap-1">
+            <label className="flex items-center gap-1.5 whitespace-nowrap">
+              <span className="shrink-0">방문 일자</span>
+              <DateBox value={value.visitDate} onChange={(v) => onChange({ visitDate: v })} className="w-[8.5rem] shrink-0" />
             </label>
-            <label className="flex items-center gap-1.5">
-              <span>교우 등록번호:</span>
-              <TextBox value={value.memberNo} onChange={(v) => onChange({ memberNo: v })} className="w-24" />
+            <label className="flex items-center gap-1.5 whitespace-nowrap">
+              <span className="shrink-0">교우 등록번호:</span>
+              <TextBox value={value.memberNo} onChange={(v) => onChange({ memberNo: v })} className="w-24 shrink-0" />
             </label>
           </div>
         </div>
