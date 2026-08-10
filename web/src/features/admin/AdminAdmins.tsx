@@ -22,7 +22,7 @@ import {
   sortAdminRoles,
   auditDetail,
   loginLocationDisplay,
-  groupLoginsByLocation,
+  groupLoginsByPartition,
   roleNeedsScope,
   formatBytes,
   backupTotalSize,
@@ -337,39 +337,20 @@ export function AdminAdmins() {
           ) : (loginData?.log.length ?? 0) === 0 ? (
             <p className="text-sm text-muted">{t('admin.admins.noLogins')}</p>
           ) : (
-            // 주소가 묶음의 제목이다. 이 기록을 여는 이유는 대개 장소이므로 — 낯선 곳에서
-            // 들어온 로그인이 있는가 — 주소를 위로 올리고 그 아래에 그 주소의 로그인을 둔다.
-            // 그래서 각 줄에서는 위치 줄이 빠지고, 사람·시각·IP만 남는다.
+            // 부서가 묶음의 제목이다. 한 사람이 두 부를 오갈 수 있게 된 뒤로 "누가"와 "어느
+            // 부로"는 서로 다른 사실이 되었고, 이 목록에서는 뒤엣것이 먼저 보여야 한다.
             <div className="fx-rise grid gap-4">
-              {groupLoginsByLocation(loginData!.log).map((group) => (
-                <section key={group.key}>
-                  <div className="mb-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 px-1 text-xs">
-                    <span
-                      className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                        group.text
-                          ? group.precise ? 'bg-primary/15 text-primary' : 'bg-fill text-subtle'
-                          : 'bg-fill text-subtle'
-                      }`}
-                    >
-                      <MapPin size={10} strokeWidth={2.25} aria-hidden />
-                      {group.text
-                        ? group.precise ? t('admin.admins.gpsPrecise') : t('admin.admins.gpsApprox')
-                        : t('admin.admins.noLocation')}
+              {groupLoginsByPartition(loginData!.log).map((group) => (
+                <section key={group.partition || 'unknown'}>
+                  <div className="mb-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 px-1 text-xs">
+                    <span className="font-semibold text-text">
+                      {group.partition
+                        ? t(`admin.ministry.${group.partition}`)
+                        : t('admin.admins.noPartition')}
                     </span>
-                    <span className="font-semibold text-text">{group.text || t('admin.admins.noLocation')}</span>
                     <span className="tabular-nums text-subtle">
                       {t('admin.admins.loginCount', { n: group.entries.length })}
                     </span>
-                    {group.lat != null && group.lon != null && (
-                      <a
-                        href={`https://www.google.com/maps?q=${group.lat},${group.lon}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="font-semibold text-primary underline"
-                      >
-                        {t('admin.admins.map')}
-                      </a>
-                    )}
                   </div>
                   <ul className="inset-list text-xs">
                     {group.entries.map((e, i) => (
@@ -384,15 +365,37 @@ export function AdminAdmins() {
                         <div className="mt-0.5 font-mono text-muted">
                           {e.ip || '—'}
                           <span className="text-subtle"> · {t(`admin.admins.method.${e.method}`)}</span>
-                          {/* 정확도는 로그인마다 다르므로(같은 주소라도 그때그때 다르게 잡힌다)
-                              묶음 제목이 아니라 그 로그인 옆에 남는다. */}
-                          {(() => {
-                            const loc = loginLocationDisplay(e)
-                            return loc.precise && loc.accuracy != null ? (
-                              <span className="text-subtle"> · ±{Math.round(loc.accuracy)}m</span>
-                            ) : null
-                          })()}
                         </div>
+                        {(() => {
+                          const loc = loginLocationDisplay(e)
+                          if (!loc.text && loc.lat == null) return null
+                          return (
+                            <div className="mt-1 text-muted">
+                              <span
+                                className={`mr-1.5 inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                  loc.precise ? 'bg-primary/15 text-primary' : 'bg-fill text-subtle'
+                                }`}
+                              >
+                                <MapPin size={10} strokeWidth={2.25} aria-hidden />
+                                {loc.precise ? t('admin.admins.gpsPrecise') : t('admin.admins.gpsApprox')}
+                              </span>
+                              {loc.text}
+                              {loc.precise && loc.accuracy != null && (
+                                <span className="text-subtle"> · ±{Math.round(loc.accuracy)}m</span>
+                              )}
+                              {loc.lat != null && loc.lon != null && (
+                                <a
+                                  href={`https://www.google.com/maps?q=${loc.lat},${loc.lon}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="ml-1.5 font-semibold text-primary underline"
+                                >
+                                  {t('admin.admins.map')}
+                                </a>
+                              )}
+                            </div>
+                          )
+                        })()}
                       </li>
                     ))}
                   </ul>

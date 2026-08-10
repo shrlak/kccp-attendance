@@ -548,11 +548,14 @@ async function addLoginLog(sb: SB, req: Request, role: {role:string;memberId:str
     const num=(h:string)=>{const v=parseFloat(req.headers.get(h)||"");return Number.isFinite(v)?v:null;};
     const gpsLat=num("x-geo-lat"),gpsLon=num("x-geo-lon"),gpsAcc=num("x-geo-acc");
     const now=Date.now();
+    // 부까지 같아야 같은 로그인으로 묶는다 (20260814): 두 부를 오가는 사람이 한 시간 안에
+    // 저쪽 부로 건너간 것은 **같은 사실의 반복이 아니라 다른 사실**이다.
     const {data:last}=await sb.from("login_log").select("ts")
       .eq("role",role.role).eq("member_name",memberName).eq("device_id",deviceId).eq("ip",ip).eq("method",method)
+      .eq("partition",role.partition)
       .order("ts",{ascending:false}).limit(1);
     if(last&&last.length&&now-((last[0] as {ts:number}).ts)<60*60*1000) return;
-    await sb.from("login_log").insert({ts:now,role:role.role,member_id:role.memberId||null,member_name:memberName,device_id:deviceId,ip,method,user_agent:req.headers.get("user-agent")||"",gps_lat:gpsLat,gps_lon:gpsLon,gps_accuracy:gpsAcc});
+    await sb.from("login_log").insert({ts:now,role:role.role,member_id:role.memberId||null,member_name:memberName,device_id:deviceId,ip,method,partition:role.partition,user_agent:req.headers.get("user-agent")||"",gps_lat:gpsLat,gps_lon:gpsLon,gps_accuracy:gpsAcc});
   } catch(_){}
 }
 
@@ -997,6 +1000,8 @@ Deno.serve(async (req: Request) => {
       const addrs=await gpsAddresses(sb,gpsRows.map((e:any)=>({lat:e.gps_lat,lon:e.gps_lon})));
       return ok({log:rows.map((e:any)=>({
         ts:e.ts,role:e.role,memberName:e.member_name||"",deviceId:e.device_id||"",ip:e.ip||"",method:e.method||"password",
+        // 어느 부로 들어왔는가. "" = 부가 기록되기 전의 공용 비밀번호 로그인 (알 수 없음).
+        partition:e.partition||"",
         location:geo[e.ip]||null,
         gps:(typeof e.gps_lat==="number"&&typeof e.gps_lon==="number")
           ?{lat:e.gps_lat,lon:e.gps_lon,accuracy:typeof e.gps_accuracy==="number"?e.gps_accuracy:null,address:addrs[coordKey(e.gps_lat,e.gps_lon)]||""}

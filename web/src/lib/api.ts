@@ -455,6 +455,10 @@ export interface LoginLogEntry {
   location: LoginLocation | null
   // Precise device GPS, when the admin allowed it. Preferred over `location`.
   gps: LoginGps | null
+  // 이 로그인이 들어간 부 (20260814 migration). '' = 알 수 없음 — 부가 기록되기 전의
+  // 공용 비밀번호 로그인. 사람의 소속이 아니라 **그때 들어간 부**라, 두 부를 오가는 계정은
+  // 같은 사람의 로그인이 두 부에 나뉘어 남는다.
+  partition?: Partition | ''
 }
 
 // Successful admin sign-ins — which account, when, from which IP/device, and the IP's

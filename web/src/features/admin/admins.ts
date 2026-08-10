@@ -1,4 +1,5 @@
 import type { AdminRoleRow, AdminRole, DbBackupEntry, LoginLocation, LoginLogEntry } from '../../lib/api'
+import type { Partition } from '../../lib/partition'
 
 // 'staff' is a synthetic break-glass role, never stored as an admin row, so its rank only
 // satisfies the exhaustive Record type; it won't actually appear in the admins list.
@@ -45,57 +46,41 @@ export function loginLocationDisplay(e: Pick<LoginLogEntry, 'location' | 'gps'>)
   return { text: formatLoginLocation(e.location), lat: e.location?.lat ?? null, lon: e.location?.lon ?? null, accuracy: null, precise: false }
 }
 
-// ── 로그인 기록을 주소별로 가른다 ─────────────────────────────────────────────────────
+// ── 로그인 기록을 부서별로 가른다 ─────────────────────────────────────────────────────
 //
-// 한 줄로 쭉 이어진 목록에서는 "이 주소에서 몇 번 들어왔나"를 눈으로 세야 한다. 그런데 이
-// 기록을 보는 이유는 대개 **장소**다 — 낯선 곳에서 들어온 로그인이 있는가. 그래서 주소를
-// 묶음의 제목으로 올리고, 그 아래에 그 주소에서 있었던 로그인을 시간순으로 둔다.
+// login_log는 부서를 가리지 않는 공용 표라 두 부의 로그인이 한 목록에 섞여 있다. 한 사람이
+// 두 부를 오갈 수 있게 된 뒤로는 "누가 들어왔나"와 "어느 부로 들어왔나"가 서로 다른 사실이
+// 되었고, 뒤엣것이 이 목록에서 제일 먼저 눈에 들어와야 한다.
 //
-// 정확(GPS 주소)과 대략(IP 도시 추정)은 **따로 묶는다.** 같은 도시라도 "5000 Fifth Ave"와
-// "Pittsburgh, Pennsylvania, US"는 다른 주장이다 — 하나로 합치면 정확한 주소가 도시 하나로
-// 뭉개지거나, 도시 추정이 실제 주소인 것처럼 읽힌다.
-export interface LoginLocationGroup {
-  /** 묶음의 정체성 — 정확/대략 + 주소 문자열. React key로도 쓴다. */
-  key: string
-  /** 화면에 걸리는 주소. 아무것도 풀리지 않은 로그인들의 묶음에서는 ''. */
-  text: string
-  precise: boolean
-  lat: number | null
-  lon: number | null
-  /** 이 주소에서 있었던 로그인 — 새 것부터. */
+// 묶음의 순서는 **고정**이다 (대학·청년부 → 장년부 → 부 미기록). 주소와 달리 부는 닫힌
+// 집합이라, 최근 활동에 따라 자리가 바뀌면 매번 어디를 봐야 할지 다시 찾게 된다.
+//
+// 부 미기록('')은 부가 기록되기 전의 공용 비밀번호 로그인이다. 어느 비밀번호를 쳤는지는
+// 어디에도 남지 않아 되살릴 수 없으므로(20260814 참고), 지어내지 않고 따로 모아 맨 아래 둔다.
+export type LoginPartitionKey = Partition | ''
+
+export interface LoginPartitionGroup {
+  /** 'youth' · 'adult' · '' (부 미기록). React key로도 쓴다. */
+  partition: LoginPartitionKey
+  /** 이 부의 로그인 — 들어온 순서 그대로(새 것부터). */
   entries: LoginLogEntry[]
-  /** 이 주소에서 가장 최근 로그인 시각 — 묶음끼리의 순서를 정한다. */
-  latestTs: number
 }
 
-export function groupLoginsByLocation(entries: LoginLogEntry[]): LoginLocationGroup[] {
-  const groups = new Map<string, LoginLocationGroup>()
+const PARTITION_ORDER: LoginPartitionKey[] = ['youth', 'adult', '']
+
+export function groupLoginsByPartition(entries: LoginLogEntry[]): LoginPartitionGroup[] {
+  const buckets = new Map<LoginPartitionKey, LoginLogEntry[]>()
   for (const e of entries) {
-    const loc = loginLocationDisplay(e)
-    // 좌표만 있고 주소가 아직 안 풀린 것들은 좌표 문자열이 곧 이름이라 자연히 갈린다.
-    // 아무것도 없는 것들(사설 IP 등)은 '위치 없음' 하나로 모인다.
-    const key = loc.text ? `${loc.precise ? 'gps' : 'ip'}:${loc.text}` : 'none'
-    const found = groups.get(key)
-    if (found) {
-      found.entries.push(e)
-      if (e.ts > found.latestTs) found.latestTs = e.ts
-      continue
-    }
-    groups.set(key, {
-      key,
-      text: loc.text,
-      precise: loc.text ? loc.precise : false,
-      lat: loc.lat,
-      lon: loc.lon,
-      entries: [e],
-      latestTs: e.ts,
-    })
+    const key: LoginPartitionKey = e.partition === 'youth' || e.partition === 'adult' ? e.partition : ''
+    const found = buckets.get(key)
+    if (found) found.push(e)
+    else buckets.set(key, [e])
   }
-  // 최근에 쓰인 주소가 위로. 위치 없는 묶음은 언제나 맨 아래 — 볼 것이 없는 묶음이다.
-  return [...groups.values()].sort((a, b) => {
-    if (!a.text !== !b.text) return a.text ? -1 : 1
-    return b.latestTs - a.latestTs
-  })
+  // 비어 있는 부는 아예 내놓지 않는다 — 제목만 있고 아래가 빈 묶음은 읽는 사람을 멈추게 한다.
+  return PARTITION_ORDER.filter((p) => buckets.has(p)).map((partition) => ({
+    partition,
+    entries: buckets.get(partition)!,
+  }))
 }
 
 // Flatten an audit entry's details (string, {info}, or arbitrary object) to one line.
