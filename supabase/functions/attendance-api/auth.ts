@@ -44,7 +44,7 @@ export const SUPER_PASSWORD = Deno.env.get("SUPER_PASSWORD") ?? "kccpadmin";
 export const LEADER_PASSWORD = Deno.env.get("LEADER_PASSWORD") ?? "kccpleaders";
 export const WELCOMING_PASSWORD =
   Deno.env.get("WELCOMING_PASSWORD") ?? Deno.env.get("MASTER_PASSWORD") ?? "kccpwelcome";
-export const ADULT_PASSWORD = Deno.env.get("ADULT_PASSWORD") ?? "kccpadult";
+export const ADULT_PASSWORD = Deno.env.get("ADULT_PASSWORD") ?? "kccpadults";
 // Backwards-compat alias for the legacy single break-glass credential (now the welcoming
 // password). Kept so older references / env overrides keep working.
 export const MASTER_PASSWORD = WELCOMING_PASSWORD;

@@ -30,7 +30,7 @@ live** at https://shrlak.github.io/kccp-attendance/.
   PostgREST's `neq` silently drops NULL rows.
 - **Admin auth = a shared team password (works from ANY device)**: `kccpadmin` →
   `super_admin` panel, `kccpleaders` → `leader` dashboard, `kccpwelcome` → `welcoming`
-  dashboard, **`kccpadult` → the 장년부 panel** (`super_admin` inside the adult partition — that
+  dashboard, **`kccpadults` → the 장년부 panel** (`super_admin` inside the adult partition — that
   department runs itself end to end, so it gets settings/동산/관리자 for its own people and
   nothing else). In `auth.ts` `SUPER_PASSWORD` / `LEADER_PASSWORD` / `WELCOMING_PASSWORD` /
   `ADULT_PASSWORD`, or env overrides; `passwordGrant()` maps password→{role, partition}. All are
@@ -185,7 +185,7 @@ live** at https://shrlak.github.io/kccp-attendance/.
   rewrite them. Do not put the model id in commits/PRs/code.
 
 ## Status
-**장년부 also runs on this system** (`kccpadult`): the same panel, scoped to its own 부 — 오늘 ·
+**장년부 also runs on this system** (`kccpadults`): the same panel, scoped to its own 부 — 오늘 ·
 출석부 · 멤버 · 통계 · 새가족 · 방문자 · 관리자 · 동산 · 설정 · 키오스크, all of it. **새가족 교육
 is deliberately absent** there (it tracks 대학·청년부's two-week course). Its kiosk draws one 부서
 block instead of two and drops the 부서만 보기 chips (nothing to choose between); its 새가족 카드
