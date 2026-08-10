@@ -16,18 +16,28 @@ live** at https://shrlak.github.io/kccp-attendance/.
 - `supabase/migrations/` — schema. Prod project ref: `loovulhchmmwagtvjnhc`.
 
 ## Auth / data model (post-cutover)
-- **부(部) = the partition, and it is the top-level rule.** 대학·청년부 (`'youth'`) and 장년부
-  (`'adult'`) share one database and one screen but **never see each other's people**. The
-  partition is derived from the 부서: `group_name === '장년부'` is adult, everything else —
-  including the blank 부서 that guests and legacy rows carry — is youth. Every admin carries one
-  (`Role.partition`), and `auth.ts` `scopeFilter()` is the single place a role becomes rows:
-  a 대학·청년부 super gets `{all:true, exclude:['장년부']}`, a 장년부 admin gets
-  `{all:false, groups:['장년부']}`. Because `all` no longer means "the whole table", **no caller
-  may skip the scope check for super_admin** — every per-row guard goes through `inScope()`
-  (or `inScopeGroup()`, the 부서-only twin used for write *destinations* like "register a 새가족
-  into this 부서", which must not demand a 동산 the leader hasn't assigned yet). Queries go
-  through `scopeQuery()`; note it spells the exclusion as "NULL **or** not 장년부", because
-  PostgREST's `neq` silently drops NULL rows.
+- **부(部) = the partition, and the boundary is the Postgres SCHEMA.** 대학·청년부 (`'youth'`)
+  lives in `public`, 장년부 (`'adult'`) in `adult` (migration `20260807`) — separate tables,
+  separate sequences, separate backups. Reading `public.members` with no filter at all returns
+  zero 장년부 people, because they are not in that table. Two departments, one screen, one
+  edge function, one Supabase project; **two databases in every way that matters.**
+  - `auth.ts` `dbOf(sb, partition)` is **the one place a 부 becomes a database handle.** In the
+    request handler that shows up as `adb` (set by `auth()`), and **every authenticated route
+    must use `adb.from(...)`, never `sb.from(...)`, for the six tables a department owns**:
+    members · devices · attendance_log · member_roles · config · audit_log. `sb.from(...)` in a
+    hardened route is a bug — it writes 장년부 data into 대학·청년부's tables.
+  - Shared/global tables stay on plain `sb`: `login_log` + `ip_geo`/`gps_geo` (system-wide
+    sign-in trail, readable only by the designated viewer), and the legacy `events` /
+    `pending_registrations`. The legacy unauthenticated routes (`/api/export/*`,
+    `/api/report/html`, `/api/backup`) read `public` and are therefore 대학·청년부-only for free.
+  - `scopeFilter()`/`inScope()` still exist and still matter, but for a **different** job now:
+    the 동산/셀 scoping a 리더 needs *inside* their own department, plus belt-and-braces on the
+    부서. `inScopeGroup()` is the 부서-only twin for write *destinations* ("register a 새가족
+    into this 부서"), which must not demand a 동산 the leader hasn't assigned yet.
+  - Settings need no `_adult` suffix scheme: **each schema has its own `config` row (id=1)**
+    with ordinary column names. Same for `audit_log` — each 부's admin tab reads its own table
+    with no filter. The one deliberate cross-schema read is the card-scan quota
+    (`cardScanUsage` sums both), because that limit belongs to a single shared API key.
 - **Admin auth = a shared team password (works from ANY device)**: `kccpadmin` →
   `super_admin` panel, `kccpleaders` → `leader` dashboard, `kccpwelcome` → `welcoming`
   dashboard, **`kccpadults` → the 장년부 panel** (`super_admin` inside the adult partition — that
@@ -67,14 +77,10 @@ live** at https://shrlak.github.io/kccp-attendance/.
   member's **first check-in ever** (`firstSeenByName`) — must fall on or before the period's end.
   So a later joiner starts at the term they actually joined, and a 학년도/역년 workbook applies
   all of this per term sheet. The Full Log's 합계 is scored over the union of those rosters.
-- **설정도 부서별로 갈려 있다** (`20260806` migration): 장년부의 학기 일정·동산 이름·새가족 교육
-  동산 이름·동산지기·임원·부서 색·대기 중인 초기화 요청·자동 백업 청구권은 전부 `_adult` 접미사가
-  붙은 별도 config 칸에 들어간다. 엣지 함수는 `ck(partition, base)` / `cfgVal(cfg, partition,
-  base)`로만 읽고 쓴다 — **접미사를 한 군데라도 빼먹으면 두 부서가 같은 칸을 덮어쓴다.**
-  `audit_log.partition`도 같은 이유로 있다 (관리자 탭은 자기 부의 기록만 보여준다; 값이 없는
-  예전 행은 대학·청년부로 친다). `/api/config`는 무인증 경로라 두 부의 블록을 함께 내려주고
-  (`{...youth, adult:{...}}`), 웹은 `useAppConfig()`에서 한 번만 고른다 — 화면 코드는 예전처럼
-  `cfg?.summerMode` / `configCalendar(cfg)`를 쓰면 자기 부의 값을 보게 된다.
+- `/api/config`는 무인증 경로(랜딩도 부른다)라 신원을 풀지 않고 두 부의 블록을 함께 내려준다
+  (`{...youth, adult:{...}}`); 웹은 `useAppConfig()`에서 한 번만 고른다 — 화면 코드는 예전처럼
+  `cfg?.summerMode` / `configCalendar(cfg)`를 쓰면 자기 부의 값을 보게 된다. 담긴 것은 날짜와
+  색뿐이라 사람 정보가 아니다.
 - **장년부는 하위 단위를 "셀"이라 부르고, 셀 이름은 고정이다.** 데이터는 같은 칸
   (`members.subgroup`)이고 이름만 다르다: 대학·청년부는 동산·동산지기·부동산지기, 장년부는
   셀·셀장·부셀장. 화면 문구는 **i18next context**가 맡는다 — `usePartitionT()`가 `t(key,
@@ -87,10 +93,10 @@ live** at https://shrlak.github.io/kccp-attendance/.
 - **여름 합동은 대학·청년부만의 장치**라 장년부에는 존재하지 않는다 (`summerNow(cfg,'adult')`은
   언제나 false, `scopeFilter`도 장년부는 합동으로 승격하지 않는다). 학기 종료 롤오버도 부서별로
   따로 돌며, 편성을 비울 때 자기 부 멤버/기기만 건드린다.
-- **RLS is deny-all** on all tables (no anon/authenticated policies); the edge function
-  (service-role) is the only data path. 예전 단일 파일 클라이언트용으로 남아 있는 무인증 경로
-  (`/api/export/*`, `/api/report/html`, `/api/backup` …)는 전부 `youthOnly()`로 묶어 두었다 —
-  지금 앱은 쓰지 않지만, 장년부 명단이 그리로 새어 나가서는 안 되므로.
+- **RLS is deny-all** on every table in **both** schemas (no anon/authenticated policies); the
+  edge function (service-role) is the only data path. The `adult` schema is exposed to PostgREST
+  (the migration appends it to `authenticator`'s `pgrst.db_schemas` — appends, never overwrites,
+  or Supabase's own `graphql_public` disappears) so `.schema('adult')` can reach it at all.
 - 동산지기/부동산지기 are a **display-badge** system (`config.dongsan_leaders`), distinct from the
   `leader` admin role.
 - **중복 등록은 자동 병합**: `/api/admin/kiosk-new-member` · `/api/share/new-member` find an existing
@@ -114,17 +120,15 @@ live** at https://shrlak.github.io/kccp-attendance/.
   city estimate when GPS wasn't granted; the viewer shows a 정확/대략 (precise/approx) badge.
 
 ## Deploy / ops — IMPORTANT gotchas
-- **백업은 두 줄기**, 부서마다 따로 돈다 (`PARTITION` 환경변수 / `backup.yml`의 `partition`
-  입력 + matrix). `youth` → `backups/` 는 예전 그대로 **데이터베이스 전체** 덤프이자 재해복구선.
-  `adult` → `backups/adult/` 는 **장년부 사람들의 명단과 출석만** 담는다 (전체 덤프를 일회용
-  검증 DB에 올린 뒤 `scripts/backup/partition-adult.sql`로 깎아내고 다시 덤프 → 다시 올려
-  왕복 검증). 각 부서에서 데이터가 바뀔 때만 자기 줄기가 깨어나고 (`config.last_auto_backup_at`
-  / `_adult` 청구권), 주간 크론은 입력을 실을 수 없으므로 matrix로 둘 다 돈다. 패널은 자기
-  접두사만 보고 자기 것만 복원한다 — 장년부 복원은 `ADULT_PARTITION_TABLES`
-  (attendance_log · member_roles · devices · members)의 장년부 행만 지우고 되돌린 뒤
-  attendance_log 시퀀스를 밀어 준다 (전체 복원과 달리 `RESTART IDENTITY`를 쓸 수 없으므로).
-  장년부 줄기에 `config`가 없는 것은 의도적이다: 한 행을 두 부서가 나눠 쓰므로 장년부 몫만
-  떼어 복원할 방법이 없고, 설정은 전체 스냅숏이 이미 담고 있다.
+- **백업은 두 줄기**, 스키마 단위로 완전히 갈린다 (`PARTITION` 환경변수 / `backup.yml`의
+  `partition` 입력 + matrix). `youth` → `pg_dump --schema=public` → `backups/`,
+  `adult` → `pg_dump --schema=adult` → `backups/adult/`. **어느 파일에도 다른 부서의 사람은
+  한 명도 없다.** 두 줄기가 같은 검증을 거친다 (일회용 DB에 마이그레이션 재생 → 덤프 적재 →
+  행수 왕복 대조). 각 부서에서 데이터가 바뀔 때만 자기 줄기가 깨어나고 (그 스키마 config의
+  `last_auto_backup_at` 청구권), 주간 크론은 입력을 실을 수 없으므로 matrix로 둘 다 돈다.
+  복원도 스키마 단위다 — 그 스키마의 표를 전부 `TRUNCATE ... RESTART IDENTITY CASCADE` 하고
+  백업을 흘려 넣으므로, 시퀀스를 손으로 밀 필요가 없고 다른 부서는 어느 쪽으로도 닿지 않는다.
+  **재해복구는 이제 두 파일 다 필요하다** — `backups/`만으로는 장년부가 복구되지 않는다.
 - **Edge function deploys via CI**, not MCP: `mcp__Supabase__deploy_edge_function` and
   `get_edge_function` are **permission-denied** in this environment. `.github/workflows/deploy.yml`
   runs `supabase functions deploy` when the `SUPABASE_ACCESS_TOKEN` repo secret is set (it is).

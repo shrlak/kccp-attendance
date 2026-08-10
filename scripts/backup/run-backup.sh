@@ -13,15 +13,14 @@
 # AWS_SECRET_ACCESS_KEY / AWS_DEFAULT_REGION env vars the aws CLI already reads.
 #
 # ── 두 개의 백업 줄기 ─────────────────────────────────────────────────────────────
-# 대학·청년부와 장년부는 한 데이터베이스를 쓰지만 백업은 따로 돈다 — 각자 자기 부서에서
-# 데이터가 바뀔 때만 깨어나고(엣지 함수의 청구권 칸이 부서별로 따로 있다), 결과도 서로 다른
-# R2 접두사에 쌓이며, 각 패널은 자기 접두사만 보고 자기 것만 복원한다.
+# 두 부서는 **스키마가 다르다** (마이그레이션 20260807): 대학·청년부는 public, 장년부는 adult.
+# 그래서 백업도 pg_dump --schema 한 줄로 완전히 갈린다 — 어느 쪽 파일에도 다른 부서의 사람은
+# 한 명도 들어 있지 않다. 각자 자기 부서에서 데이터가 바뀔 때만 깨어나고(엣지 함수의 청구권이
+# 부서별로 따로 있다), 결과도 서로 다른 R2 접두사에 쌓이며, 각 패널은 자기 접두사만 보고
+# 자기 것만 복원한다 (복원은 그 스키마를 TRUNCATE 하고 다시 넣는다).
 #
-#   PARTITION=youth  →  backups/         데이터베이스 **전체** 덤프. 예전과 완전히 동일하며,
-#                                        시스템의 재해복구선이다 (장년부 행도 여기에는 들어 있다).
-#   PARTITION=adult  →  backups/adult/   장년부 사람들의 명단과 출석만. 전체 덤프를 일회용
-#                                        검증 DB에 올린 뒤 partition-adult.sql로 그 범위만
-#                                        남기고 다시 덤프해 만든다.
+#   PARTITION=youth  →  backups/         public 스키마 (대학·청년부 + 공용 표)
+#   PARTITION=adult  →  backups/adult/   adult 스키마 (장년부 전부: 명단·기기·출석·권한·설정·기록)
 #
 # The dump is plain SQL (--data-only --column-inserts), not pg_dump's --format=custom,
 # because the in-app restore path (supabase/functions/attendance-api) runs in a Deno edge
@@ -34,18 +33,18 @@ set -euo pipefail
 
 PARTITION="${PARTITION:-youth}"
 case "$PARTITION" in
-  youth) R2_PREFIX="backups" ;;
-  adult) R2_PREFIX="backups/adult" ;;
+  youth) R2_PREFIX="backups";       DUMP_SCHEMA="public" ;;
+  adult) R2_PREFIX="backups/adult"; DUMP_SCHEMA="adult"  ;;
   *) echo "::error::Unknown PARTITION '$PARTITION' (expected youth or adult)"; exit 1 ;;
 esac
-echo "Backing up partition: $PARTITION -> s3://\$R2_BUCKET/$R2_PREFIX/"
+echo "Backing up partition: $PARTITION (schema $DUMP_SCHEMA) -> s3://\$R2_BUCKET/$R2_PREFIX/"
 
 WORKDIR=$(mktemp -d)
 trap 'rm -rf "$WORKDIR"' EXIT
 
-echo "== 1/6 Dumping public schema data only =="
+echo "== 1/6 Dumping the $DUMP_SCHEMA schema, data only =="
 pg_dump \
-  --schema=public \
+  --schema="$DUMP_SCHEMA" \
   --data-only \
   --column-inserts \
   --no-owner \
@@ -59,50 +58,33 @@ done
 
 echo "== 3/6 Clearing seeded data and loading the dump into the throwaway database =="
 # Some migrations intentionally seed production rows. The real in-app restore truncates
-# every public table before loading a snapshot, so verification must start from that same
-# state or seeded rows can collide with their copies in the data-only dump.
+# every table in the 부's schema before loading a snapshot, so verification must start from
+# that same state or seeded rows can collide with their copies in the data-only dump.
 verify_tables=$(psql "$VERIFY_DB_URL" -X -v ON_ERROR_STOP=1 -Atc "
   SELECT string_agg(format('%I.%I', table_schema, table_name), ', ' ORDER BY table_name)
   FROM information_schema.tables
-  WHERE table_schema = 'public' AND table_type = 'BASE TABLE';
+  WHERE table_schema = '$DUMP_SCHEMA' AND table_type = 'BASE TABLE';
 ")
 if [ -z "$verify_tables" ]; then
-  echo "::error::No public tables found in the verification database after migrations."
+  echo "::error::No $DUMP_SCHEMA tables found in the verification database after migrations."
   exit 1
 fi
 psql "$VERIFY_DB_URL" -X -v ON_ERROR_STOP=1 \
   -c "TRUNCATE TABLE $verify_tables RESTART IDENTITY CASCADE" > /dev/null
 psql "$VERIFY_DB_URL" --single-transaction -v ON_ERROR_STOP=1 -f "$WORKDIR/db.sql" > /dev/null
 
-if [ "$PARTITION" = "adult" ]; then
-  echo "== 3b/6 Carving the 장년부 partition out of the throwaway copy and re-dumping =="
-  # 운영 DB는 손대지 않는다 — 깎아내는 대상은 방금 전체 덤프를 올려 둔 일회용 DB다.
-  psql "$VERIFY_DB_URL" -X -v ON_ERROR_STOP=1 -f scripts/backup/partition-adult.sql > /dev/null
-  pg_dump "$VERIFY_DB_URL" \
-    --schema=public \
-    --data-only \
-    --column-inserts \
-    --no-owner \
-    --no-privileges \
-    --file="$WORKDIR/db.sql"
-  # 깎아낸 결과를 지우고 방금 만든 파일로 다시 채운다 — 아래 4단계의 대조가 "이 파일이
-  # 통째로 복원되는가"를 그대로 검사하게 하려고 (전체 백업과 같은 왕복 검증).
-  psql "$VERIFY_DB_URL" -X -v ON_ERROR_STOP=1 \
-    -c "TRUNCATE TABLE $verify_tables RESTART IDENTITY CASCADE" > /dev/null
-  psql "$VERIFY_DB_URL" --single-transaction -v ON_ERROR_STOP=1 -f "$WORKDIR/db.sql" > /dev/null
-fi
-
-# Counts every public base table via one query on each side (source vs. restored) so a
+# Counts every base table in this 부's schema via one query on each side (source vs.
+# restored) so a
 # newly added table is picked up automatically instead of silently skipped by a stale
 # hardcoded table list. query_to_xml is a built-in SQL/XML function, no extension needed.
 count_query() {
   psql "$@" -X -Atc "
     SELECT table_name,
            (xpath('/row/c/text()',
-             query_to_xml(format('select count(*) as c from %I.%I', 'public', table_name), false, true, '')
+             query_to_xml(format('select count(*) as c from %I.%I', '$DUMP_SCHEMA', table_name), false, true, '')
            ))[1]::text::bigint
     FROM information_schema.tables
-    WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+    WHERE table_schema = '$DUMP_SCHEMA' AND table_type = 'BASE TABLE'
     ORDER BY table_name;
   "
 }
@@ -118,7 +100,7 @@ count_query "$VERIFY_DB_URL" > "$WORKDIR/counts-restored.txt"
 # `INSERT INTO public.<table> …` statement per row, so counting them is an exact count
 # of what the backup carries; tables the dump has no rows for count 0.
 while IFS='|' read -r tbl _; do
-  rows=$(grep -cE "^INSERT INTO public\.\"?${tbl}\"? " "$WORKDIR/db.sql" || true)
+  rows=$(grep -cE "^INSERT INTO ${DUMP_SCHEMA}\.\"?${tbl}\"? " "$WORKDIR/db.sql" || true)
   printf '%s|%s\n' "$tbl" "$rows"
 done < "$WORKDIR/counts-restored.txt" > "$WORKDIR/counts-dump.txt"
 if ! diff -u "$WORKDIR/counts-dump.txt" "$WORKDIR/counts-restored.txt"; then
@@ -128,33 +110,20 @@ fi
 echo "Every row in the backup restored:"
 cat "$WORKDIR/counts-restored.txt"
 
-if [ "$PARTITION" = "youth" ]; then
-  # Row-level drift against live production is expected (writes land during the run) and
-  # is reported, not failed. An entire populated table missing from the dump is a
-  # different thing — that's a lost table, not drift — so that still fails the run.
-  count_query > "$WORKDIR/counts-source.txt"
-  if ! diff -u "$WORKDIR/counts-source.txt" "$WORKDIR/counts-dump.txt" > "$WORKDIR/drift.diff"; then
-    echo "::notice::Production moved on while the backup ran — the dump is a consistent snapshot from before those writes."
-    cat "$WORKDIR/drift.diff"
-  fi
-  empty_in_dump=$(join -t'|' "$WORKDIR/counts-source.txt" "$WORKDIR/counts-dump.txt" \
-    | awk -F'|' '$2 > 0 && $3 == 0 {print $1}')
-  if [ -n "$empty_in_dump" ]; then
-    echo "::error::These tables have rows in production but none in the dump: $(echo "$empty_in_dump" | tr '\n' ' ')"
-    exit 1
-  fi
-else
-  # 장년부 줄기는 일부러 표 대부분을 비우므로 "운영에는 있는데 덤프엔 없다"를 그대로 쓸 수
-  # 없다. 대신 이 줄기가 존재하는 이유 하나를 확인한다: 운영에 장년부 멤버가 있는데 백업에
-  # 하나도 안 담겼다면 그건 드리프트가 아니라 사고다.
-  source_members=$(psql -X -v ON_ERROR_STOP=1 -Atc \
-    "SELECT count(*) FROM public.members WHERE COALESCE(group_name,'') = '장년부'")
-  dumped_members=$(grep -cE '^INSERT INTO public\."?members"? ' "$WORKDIR/db.sql" || true)
-  echo "장년부 members — production: $source_members, backup: $dumped_members"
-  if [ "$source_members" -gt 0 ] && [ "$dumped_members" -eq 0 ]; then
-    echo "::error::Production has $source_members 장년부 members but the backup carries none."
-    exit 1
-  fi
+# Row-level drift against live production is expected (writes land during the run) and
+# is reported, not failed. An entire populated table missing from the dump is a
+# different thing — that's a lost table, not drift — so that still fails the run.
+# 두 줄기 모두 자기 스키마만 놓고 비교하므로 규칙이 하나다.
+count_query > "$WORKDIR/counts-source.txt"
+if ! diff -u "$WORKDIR/counts-source.txt" "$WORKDIR/counts-dump.txt" > "$WORKDIR/drift.diff"; then
+  echo "::notice::Production moved on while the backup ran — the dump is a consistent snapshot from before those writes."
+  cat "$WORKDIR/drift.diff"
+fi
+empty_in_dump=$(join -t'|' "$WORKDIR/counts-source.txt" "$WORKDIR/counts-dump.txt" \
+  | awk -F'|' '$2 > 0 && $3 == 0 {print $1}')
+if [ -n "$empty_in_dump" ]; then
+  echo "::error::These tables have rows in production but none in the dump: $(echo "$empty_in_dump" | tr '\n' ' ')"
+  exit 1
 fi
 
 echo "== 5/6 Encrypting =="

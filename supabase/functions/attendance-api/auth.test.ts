@@ -5,12 +5,13 @@ import { assertEquals } from "jsr:@std/assert";
 import {
   ADULT_GROUP,
   ADULT_PASSWORD,
+  ADULT_SCHEMA,
   isPersonalDevice,
   inScope,
   inScopeGroup,
   partitionOfGroup,
-  partitionOfRole,
   scopeFilter,
+  dbOf,
   verifyAdmin,
   passwordGrant,
   passwordRole,
@@ -30,20 +31,28 @@ const leader: Role = {
 // 대학·청년부 "everything" is everything except the other partition.
 const YOUTH_ALL: Scope = { all: true, exclude: [ADULT_GROUP] };
 
-// Minimal chainable Supabase stub: every .from(table)…single() resolves to data[table].
+// Minimal chainable Supabase stub. `data` is the public (대학·청년부) schema; `adultData`
+// is what `.schema('adult')` sees — the two are genuinely different tables here, which is
+// the whole point of the split.
 // deno-lint-ignore no-explicit-any
-function mockSb(data: Record<string, any>): any {
-  return {
+function mockSb(data: Record<string, any>, adultData: Record<string, any> = {}): any {
+  // deno-lint-ignore no-explicit-any
+  const handle = (rows: Record<string, any>): any => ({
     from(table: string) {
       // deno-lint-ignore no-explicit-any
       const chain: any = {
         select: () => chain,
         eq: () => chain,
         ilike: () => chain,
-        single: () => Promise.resolve({ data: data[table] ?? null }),
+        single: () => Promise.resolve({ data: rows[table] ?? null }),
       };
       return chain;
     },
+  });
+  const publicHandle = handle(data);
+  return {
+    ...publicHandle,
+    schema: (name: string) => (name === "adult" ? handle(adultData) : publicHandle),
   };
 }
 
@@ -62,13 +71,6 @@ Deno.test("partitionOfGroup: only 장년부 is the adult partition", () => {
   // guests / legacy rows with no 부서 stay where they have always shown up
   assertEquals(partitionOfGroup(""), "youth");
   assertEquals(partitionOfGroup(null), "youth");
-});
-
-Deno.test("partitionOfRole: a grant is 장년부's via its 부서 or its 사역", () => {
-  assertEquals(partitionOfRole(ADULT_GROUP, ""), "adult");
-  assertEquals(partitionOfRole("", ADULT_GROUP), "adult");
-  assertEquals(partitionOfRole("청년부", "KM"), "youth");
-  assertEquals(partitionOfRole("", ""), "youth");
 });
 
 Deno.test("passwordRole: maps each password to its break-glass role", () => {
@@ -137,20 +139,21 @@ Deno.test("verifyAdmin: a registered device linked to a leader keeps that scope"
 
 Deno.test("verifyAdmin: a 장년부 리더's phone keeps that scope under the 장년부 password", async () => {
   const r = await verifyAdmin(
-    mockSb({
+    mockSb({}, {
       devices: { member_id: "a1" },
-      member_roles: { role: "leader", group_name: ADULT_GROUP, subgroup: "1구역", ministry: "" },
+      member_roles: { role: "leader", group_name: ADULT_GROUP, subgroup: "1셀", ministry: "" },
     }),
     "DEV-KNOWN-02",
     ADULT_PASSWORD,
   );
   assertEquals(r, {
-    memberId: "a1", role: "leader", group: ADULT_GROUP, subgroup: "1구역", ministry: "", partition: "adult",
+    memberId: "a1", role: "leader", group: ADULT_GROUP, subgroup: "1셀", ministry: "", partition: "adult",
   });
 });
 
 Deno.test("verifyAdmin: a device's grant never crosses partitions", async () => {
-  // The 장년부 password typed on a 청년부 리더's phone must NOT hand back the 청년부 scope.
+  // 장년부 비밀번호는 adult 스키마만 뒤진다. 청년부 리더의 기기 기록은 public에 있으므로
+  // 찾지 못하고 break-glass로 떨어진다 — 스키마가 곧 경계다.
   const crossed = await verifyAdmin(
     mockSb({
       devices: { member_id: "m1" },
@@ -162,17 +165,24 @@ Deno.test("verifyAdmin: a device's grant never crosses partitions", async () => 
   assertEquals(crossed, {
     memberId: "", role: "super_admin", group: "", subgroup: "", ministry: "", partition: "adult",
   });
-  // …and the 대학·청년부 super password on a 장년부 리더's phone falls back the same way.
+  // …그리고 그 반대도 마찬가지.
   const other = await verifyAdmin(
-    mockSb({
+    mockSb({}, {
       devices: { member_id: "a1" },
-      member_roles: { role: "leader", group_name: ADULT_GROUP, subgroup: "1구역", ministry: "" },
+      member_roles: { role: "leader", group_name: ADULT_GROUP, subgroup: "1셀", ministry: "" },
     }),
     "DEV-KNOWN-02",
     SUPER_PASSWORD,
   );
   assertEquals(other?.partition, "youth");
   assertEquals(other?.memberId, "");
+});
+
+// dbOf가 부(部)를 데이터베이스 손잡이로 바꾸는 유일한 자리다.
+Deno.test("dbOf: 장년부만 adult 스키마로 간다", () => {
+  const marker = { schema: (name: string) => ({ picked: name }) };
+  assertEquals(dbOf(marker, "adult"), { picked: ADULT_SCHEMA });
+  assertEquals(dbOf(marker, "youth"), marker);
 });
 
 Deno.test("super_admin sees their whole partition — everything except 장년부", () => {

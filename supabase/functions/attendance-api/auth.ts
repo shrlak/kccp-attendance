@@ -16,16 +16,22 @@
 // Public check-in stays anonymous and PII-free.
 //
 // ── PARTITIONS (부) ──────────────────────────────────────────────────────────────────
-// The app now serves two departments out of one database, and they must never see each
-// other's people: 대학·청년부 ("youth") and 장년부 ("adult"). The partition is derived
-// from the 부서 (`members.group_name`) — 장년부 is the adult partition, everything else
-// (대학부 · 청년부 · EM · 미지정 …) is the youth partition — and every admin carries one.
-// scopeFilter() is the single place that turns a role into the rows it may touch, and it
-// now ALWAYS returns a meaningful scope, super admins included: a 대학·청년부 super gets
-// `{all:true, exclude:['장년부']}`, a 장년부 admin gets `{all:false, groups:['장년부']}`.
-// Callers must therefore never skip the scope check for super_admin — use inScope().
+// The app serves two departments and they must never see each other's people:
+// 대학·청년부 ("youth") and 장년부 ("adult"). **The boundary is the Postgres schema.**
+// 대학·청년부 lives in `public`, 장년부 in `adult` (migration 20260807) — separate tables,
+// separate sequences, separate backups. Reading `public.members` with no filter at all
+// returns zero 장년부 people, because they are not in that table.
 //
-// Wired into index.ts (imports resolveAdmin + scopeFilter + inScope) and unit-tested
+// Every admin carries the partition their credentials belong to (`Role.partition`), and
+// `dbOf(sb, partition)` is the single place that turns it into a database handle. Get that
+// right and the rest follows: a query can't reach across departments even if someone
+// forgets a WHERE clause.
+//
+// scopeFilter()/inScope() still exist and still matter — they carry the 동산/셀 scoping a
+// 리더 needs *within* their own department, and they double as belt-and-braces on the 부서
+// (`{all:true, exclude:['장년부']}` for a youth super). But the schema is the real wall.
+//
+// Wired into index.ts (imports resolveAdmin + dbOf + scopeFilter + inScope) and unit-tested
 // (auth.test.ts).
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
@@ -52,6 +58,8 @@ export const MASTER_PASSWORD = WELCOMING_PASSWORD;
 
 // The 부서 that makes up the 장년부 partition. Everything else is the youth partition.
 export const ADULT_GROUP = "장년부";
+// 장년부의 표가 사는 스키마. 대학·청년부는 기본 스키마(public)를 그대로 쓴다.
+export const ADULT_SCHEMA = "adult";
 export type Partition = "youth" | "adult";
 
 // Which partition a 부서 belongs to. The empty/unknown 부서 (guests, legacy rows, staff
@@ -60,11 +68,15 @@ export function partitionOfGroup(group: string | null | undefined): Partition {
   return (group || "") === ADULT_GROUP ? "adult" : "youth";
 }
 
-// Which partition an admin belongs to. A stored grant (member_roles) is 장년부's when its
-// 부서 or 사역(ministry) says so; break-glass logins carry the partition their password
-// maps to.
-export function partitionOfRole(group: string, ministry: string): Partition {
-  return group === ADULT_GROUP || ministry === ADULT_GROUP ? "adult" : "youth";
+// **The one place a 부 becomes a database handle.** Everything the two departments own —
+// 사람·기기·출석·권한·설정·감사기록 — is reached through this, so a query is scoped to a
+// department by construction rather than by remembering a filter.
+//
+// A stored admin grant no longer needs a 부서 to say which 부 it belongs to: it belongs to
+// the schema it was found in.
+// deno-lint-ignore no-explicit-any
+export function dbOf(sb: any, partition: Partition): any {
+  return partition === "adult" ? sb.schema(ADULT_SCHEMA) : sb;
 }
 
 // Map a typed password to the break-glass grant it confers, or null if it matches none.
@@ -207,26 +219,24 @@ export async function verifyAdmin(sb: SB, deviceId: string, password: string): P
   const grant = passwordGrant(password);
   if (!grant) return null;
   if (isPersonalDevice(deviceId)) {
-    const { data: dev } = await sb.from("devices").select("member_id").eq("id", deviceId).single();
+    // Look only in the schema the typed password belongs to. That is what keeps a device's
+    // stored grant from crossing departments: the 장년부 password on a 청년부 리더's phone
+    // searches `adult.devices`, doesn't find them, and falls through to break-glass.
+    const db = dbOf(sb, grant.partition);
+    const { data: dev } = await db.from("devices").select("member_id").eq("id", deviceId).single();
     const memberId = (dev as { member_id?: string } | null)?.member_id;
     if (memberId) {
-      const { data: r } = await sb.from("member_roles").select("*").eq("member_id", memberId).single();
+      const { data: r } = await db.from("member_roles").select("*").eq("member_id", memberId).single();
       if (r) {
         const row = r as { role: AdminRole; group_name?: string; subgroup?: string; ministry?: string };
-        const group = row.group_name || "", ministry = row.ministry || "";
-        // A device's stored grant only wins inside the partition the typed password is
-        // for: typing the 장년부 password on a 대학부 리더's phone must not hand back the
-        // 대학부 scope (and vice versa). Mismatched partitions fall through to break-glass.
-        if (partitionOfRole(group, ministry) === grant.partition) {
-          return {
-            memberId,
-            role: row.role,
-            group,
-            subgroup: row.subgroup || "",
-            ministry,
-            partition: grant.partition,
-          };
-        }
+        return {
+          memberId,
+          role: row.role,
+          group: row.group_name || "",
+          subgroup: row.subgroup || "",
+          ministry: row.ministry || "",
+          partition: grant.partition,
+        };
       }
     }
   }
@@ -238,25 +248,30 @@ export async function verifyAdmin(sb: SB, deviceId: string, password: string): P
   return { memberId: "", role: grant.role, group: "", subgroup: "", ministry: "", partition: grant.partition };
 }
 
-// Verify via Supabase JWT (Google sign-in path). Resolves email → member → role.
+// Verify via Supabase JWT (Google sign-in path). Resolves email → member → role. Both
+// departments are searched, 대학·청년부 first; **whichever schema the member turns up in is
+// the 부 they get** — there is no other way to belong to one.
 export async function verifyAdminJwt(sb: SB, jwt: string): Promise<Role | null> {
   const { data: { user } } = await sb.auth.getUser(jwt);
   if (!user?.email) return null;
-  const { data: member } = await sb.from("members").select("id").ilike("email", user.email).single();
-  const memberId = (member as { id?: string } | null)?.id;
-  if (!memberId) return null;
-  const { data: r } = await sb.from("member_roles").select("*").eq("member_id", memberId).single();
-  if (!r) return null;
-  const row = r as { role: AdminRole; group_name?: string; subgroup?: string; ministry?: string };
-  const group = row.group_name || "", ministry = row.ministry || "";
-  return {
-    memberId,
-    role: row.role,
-    group,
-    subgroup: row.subgroup || "",
-    ministry,
-    partition: partitionOfRole(group, ministry),
-  };
+  for (const partition of ["youth", "adult"] as const) {
+    const db = dbOf(sb, partition);
+    const { data: member } = await db.from("members").select("id").ilike("email", user.email).single();
+    const memberId = (member as { id?: string } | null)?.id;
+    if (!memberId) continue;
+    const { data: r } = await db.from("member_roles").select("*").eq("member_id", memberId).single();
+    if (!r) continue;
+    const row = r as { role: AdminRole; group_name?: string; subgroup?: string; ministry?: string };
+    return {
+      memberId,
+      role: row.role,
+      group: row.group_name || "",
+      subgroup: row.subgroup || "",
+      ministry: row.ministry || "",
+      partition,
+    };
+  }
+  return null;
 }
 
 // Unified resolver: try Google JWT first (Authorization: Bearer), fall back to

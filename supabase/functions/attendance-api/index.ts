@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { ADULT_GROUP, canViewLoginLog, inScope, inScopeGroup, partitionOfGroup, resolveAdmin, scopeFilter, type Partition, type Role, type Scope } from "./auth.ts";
+import { ADULT_GROUP, ADULT_SCHEMA, canViewLoginLog, dbOf, inScope, inScopeGroup, partitionOfGroup, resolveAdmin, scopeFilter, type Partition, type Role, type Scope } from "./auth.ts";
 import { DEFAULT_SEMESTER_DATES, isSummerTerm, lastEndedTermKey, mergeSchedule, rollSchedule, sameSchedule, scheduleOf, scheduleToDates, subgroupSnapshot, trimHistory, validSchedule } from "./term.ts";
 import { availableCardModels, buildCardRequest, cardModelChain, parseCardResponse } from "./gemini.ts";
 // Decrypt-side of the weekly R2 backup pipeline (see scripts/backup/). age-encryption is
@@ -53,22 +53,28 @@ function checkLocation(lat?: number | null, lng?: number | null) {
 }
 
 type SB = ReturnType<typeof createClient>;
-async function getCfg(sb: SB) { const {data}=await sb.from("config").select("*").eq("id",1).single(); return data||{}; }
 
-// ── 부(partition)별 설정 ────────────────────────────────────────────────────────────
-// 대학·청년부와 장년부는 한 config 행을 쓰되 칸을 나눠 쓴다: 장년부 쪽 값은 전부 `_adult`
-// 접미사가 붙은 별도 컬럼에 들어가므로, 한 부서에서 학기 일정·동산 이름·동산지기·임원·부서
-// 색을 저장해도 다른 부서 설정은 그대로다. cfgVal()로만 읽고 ck()로만 쓴다 — 어느 한 곳에서
-// 접미사를 빼먹으면 두 부서가 같은 칸을 덮어쓰게 되므로.
-const PARTITION_CONFIG_KEYS=[
-  "semester_dates","semester_schedule","dongsan_names","new_member_dongsan_names","dongsan_leaders",
-  "dongsan_history","dongsan_reset_term","officers","group_colors","pending_clear","last_auto_backup_at",
-] as const;
-function ck(part: Partition, base: string): string { return part==="adult"?base+"_adult":base; }
-function cfgVal(cfg: any, part: Partition, base: string): any { return cfg?.[ck(part,base)]; }
-// 아직 아무것도 저장하지 않았을 때 보여줄 기본 이름. 장년부는 이 하위 단위를 **셀**이라
-// 부르고 그 이름은 고정이라(학기가 끝나도 지우지 않는다 — RESETS_SUBGROUPS_EACH_TERM 참고)
-// 여기 값은 첫 설정 화면의 출발점일 뿐이다.
+// ── 부(部)별 데이터베이스 손잡이 ────────────────────────────────────────────────────────
+// 대학·청년부는 public, 장년부는 adult 스키마 (마이그레이션 20260807). 사람·기기·출석·권한·
+// 설정·감사기록 — 두 부서가 각각 소유하는 것은 전부 이 손잡이를 거쳐 읽고 쓴다. 그래서 조건을
+// 빠뜨려도 남의 부서가 나올 수 없다: 그 표에 없기 때문이다.
+//
+// 여기 없는 표(login_log·ip_geo·gps_geo·events·pending_registrations)는 공용이라 sb를 그대로 쓴다.
+//
+// 클라이언트를 모듈 변수에 담아 두지 않고 매번 넘기는 이유: 한 아이솔레이트가 요청 여러 개를
+// 동시에 처리하므로, 담아 두면 늦게 온 요청이 앞 요청의 부(部)를 덮어쓸 수 있다.
+// deno-lint-ignore no-explicit-any
+function db(sb: SB, part: Partition): any { return dbOf(sb, part); }
+
+// 설정은 부서마다 자기 스키마의 config 행 하나다. 예전처럼 `_adult` 접미사 칸을 세는 일은
+// 없다 — 이름은 양쪽 다 똑같고, 어느 행을 읽느냐만 다르다.
+async function getCfg(sb: SB, part: Partition="youth") {
+  const {data}=await db(sb,part).from("config").select("*").eq("id",1).single();
+  return data||{};
+}
+// 그 부서에서 기본으로 쓰는 하위 단위 이름 (아직 아무것도 저장하지 않았을 때). 장년부는 이
+// 단위를 **셀**이라 부르고 그 이름은 고정이라(학기가 끝나도 지우지 않는다 —
+// RESETS_SUBGROUPS_EACH_TERM 참고) 여기 값은 첫 설정 화면의 출발점일 뿐이다.
 function defaultDongsanNames(part: Partition): Record<string,string[]> {
   return part==="adult"
     ?{[ADULT_GROUP]:["1셀","2셀","3셀","4셀"]}
@@ -77,15 +83,17 @@ function defaultDongsanNames(part: Partition): Record<string,string[]> {
 function defaultGroupColors(part: Partition): Record<string,string> {
   return part==="adult"?{[ADULT_GROUP]:"#10B981"}:{"대학부":"#E0A800","청년부":"#3B82F6"};
 }
-// 부서 이름을 키로 갖는 지도(동산 이름·동산지기·부서 색)에서 이 부에 속한 키만 남긴다.
-// 여름 합동 키("합동")는 대학·청년부 쪽 것이다.
+// 부서 이름을 키로 갖는 지도(동산/셀 이름·동산지기·부서 색)에서 이 부에 속한 키만 남긴다.
+// 스키마가 이미 갈라 놓았지만, 오래된 탭이 남의 부서 키를 실어 보내는 것까지 막아 둔다.
 function partitionNames<T>(map: Record<string,T>, part: Partition): Record<string,T> {
   const out: Record<string,T>={};
   for(const [g,v] of Object.entries(map||{})) if(partitionOfGroup(g)===part) out[g]=v;
   return out;
 }
 
-// ── 부(partition) 범위를 쿼리에 거는 두 조각 ─────────────────────────────────────────
+// ── 부(部) 범위를 쿼리에 거는 두 조각 ─────────────────────────────────────────────────
+// 스키마가 부서를 가른 뒤에도 이것이 남아 있는 이유: 리더는 자기 동산/셀만 봐야 하고,
+// 부서 조건은 "혹시라도" 잘못 들어온 행에 대한 이중 잠금이다.
 // PostgREST의 neq는 NULL 행을 떨어뜨리므로, "장년부만 빼라"는 조건은 "NULL이거나 장년부가
 // 아니거나"로 풀어 써야 부서가 비어 있는 예전 행(방문자 등)이 사라지지 않는다.
 function excludeGroups(q: any, groups: string[]) {
@@ -99,15 +107,11 @@ function scopeQuery(q: any, scope: Scope) {
   if(scope.subgroup) q=q.eq("subgroup",scope.subgroup);
   return q;
 }
-// 아래쪽 레거시 경로들(/api/export/*, /api/report/html, /api/backup, /api/dongsan-*)은 지금은
-// 쓰이지 않는 예전 단일 파일 클라이언트의 것으로, 인증이 없거나(export/report) 기기 목록에만
-// 기대고 있다. 새 부서의 명단이 그리로 새어 나가지 않도록 전부 대학·청년부로 묶어 둔다 —
-// 장년부는 로그인한 패널을 통해서만 보인다.
-function youthOnly(q: any) { return excludeGroups(q,[ADULT_GROUP]); }
 // "출석 기록 전체 삭제"는 자기 부의 전체다. 출석 행은 찍힐 때의 부서를 함께 들고 있으므로
 // 같은 범위 조건을 그대로 쓴다 — 부서가 비어 있는 예전/방문자 행은 대학·청년부 쪽에 남는다.
-async function clearPartitionAttendance(sb: SB, scope: Scope) {
-  await scopeQuery(sb.from("attendance_log").delete().neq("id",0),scope);
+// deno-lint-ignore no-explicit-any
+async function clearPartitionAttendance(pdb: any, scope: Scope) {
+  await scopeQuery(pdb.from("attendance_log").delete().neq("id",0),scope);
 }
 
 // 여름 모드 = 오늘이 여름학기 안인가. Was an admin toggle (config.summer_mode); it is now
@@ -121,11 +125,11 @@ function summerNow(cfg: any, part: Partition="youth") {
 // 2년치 학기 일정을 굴린다: 끝난 학기는 편집 목록에서 빠지고(보관은 유지) 맨 뒤에 다음 학기가
 // 붙는다. 바뀐 게 없으면 쓰지 않으므로 매 요청에 불러도 안전하다. 부서마다 자기 일정을 쓴다.
 async function maybeRollSchedule(sb: SB, cfg: any, part: Partition="youth") {
-  const dates=cfgVal(cfg,part,"semester_dates"), schedule=cfgVal(cfg,part,"semester_schedule");
+  const dates=cfg?.semester_dates, schedule=cfg?.semester_schedule;
   const rolled=rollSchedule(localDate(),dates,schedule);
   if(sameSchedule(rolled,scheduleOf(schedule))) return cfg;
-  await sb.from("config").update({[ck(part,"semester_schedule")]:rolled,updated_at:new Date().toISOString()}).eq("id",1);
-  return {...cfg,[ck(part,"semester_schedule")]:rolled};
+  await db(sb,part).from("config").update({semester_schedule:rolled,updated_at:new Date().toISOString()}).eq("id",1);
+  return {...cfg,semester_schedule:rolled};
 }
 // 상태 표기(한국 귀국 · 방학 …)는 멤버당 여러 개다: [{note,start,end}]. 저장 전에 모양을
 // 다듬고(문구 trim, 빈 날짜 → null, 문구 없는 항목 제거) 시작일 순으로 정렬한다.
@@ -154,8 +158,9 @@ function currentStatusMark(marks: {note:string;start:string|null;end:string|null
 // 같은 사람이 다시 등록되면 새 행을 만들지 않고 기존 멤버를 찾아 준다: 이름이 같고 부서도
 // 같으면 같은 사람으로 본다. 전화번호나 생년월일이 둘 다 있는데 서로 다르면 동명이인으로
 // 보고 병합하지 않는다 (교회 명단은 동명이인을 "김서현(청년부)"처럼 구분해 적는다).
-async function findDuplicateMember(sb: SB, name: string, group: string, body: any) {
-  const {data}=await sb.from("members").select("*").eq("name",name);
+// deno-lint-ignore no-explicit-any
+async function findDuplicateMember(pdb: any, name: string, group: string, body: any) {
+  const {data}=await pdb.from("members").select("*").eq("name",name);
   const rows=(data||[]) as any[];
   return rows.find((r)=>{
     if(group&&(r.group_name||"")&&r.group_name!==group) return false;
@@ -201,33 +206,34 @@ function mergedMemberFields(existing: any, body: any, subgroup: string, today: s
 // 이름·셀장·멤버 배정은 그대로 둔다. 이 한 줄이 CELL_PARTITIONS다.
 const RESETS_SUBGROUPS_EACH_TERM: Partition[]=["youth"];
 async function rolloverDongsan(sb: SB, cfg: any, part: Partition="youth") {
-  const key=lastEndedTermKey(localDate(),cfgVal(cfg,part,"semester_dates"));
-  const marker=ck(part,"dongsan_reset_term");
+  const pdb=db(sb,part);
+  const key=lastEndedTermKey(localDate(),cfg?.semester_dates);
+  const marker="dongsan_reset_term";
   if(!key||cfg?.[marker]===key) return cfg;
   if(!cfg?.[marker]){
-    await sb.from("config").update({[marker]:key}).eq("id",1);
+    await pdb.from("config").update({[marker]:key}).eq("id",1);
     return {...cfg,[marker]:key};
   }
   const clears=RESETS_SUBGROUPS_EACH_TERM.includes(part);
-  const mine=(q:any)=>part==="adult"?q.eq("group_name",ADULT_GROUP):excludeGroups(q,[ADULT_GROUP]);
-  const {data:members}=await mine(sb.from("members").select("id,subgroup"));
+  // 부서를 조건으로 거르지 않는다 — 이 스키마에는 이 부서 사람만 있다.
+  const {data:members}=await pdb.from("members").select("id,subgroup");
   const subgroups=subgroupSnapshot((members||[]) as {id:string;subgroup?:string|null}[]);
   const ts=new Date().toISOString();
   // 스냅숏은 두 부서 모두 남긴다: 셀이 고정이더라도 누군가 셀을 옮기면 지난 학기 출석부가
   // 그 사람을 새 셀에 그리게 되므로, 그때의 편성을 얼려 두는 것이 여전히 옳다.
   const history=trimHistory({
-    ...(cfgVal(cfg,part,"dongsan_history")||{}),
-    [key]:{endedAt:localDate(),subgroups,names:cfgVal(cfg,part,"dongsan_names")||{},leaders:cfgVal(cfg,part,"dongsan_leaders")||{}},
+    ...(cfg?.dongsan_history||{}),
+    [key]:{endedAt:localDate(),subgroups,names:cfg?.dongsan_names||{},leaders:cfg?.dongsan_leaders||{}},
   });
-  const upd: any={[ck(part,"dongsan_history")]:history,[marker]:key,updated_at:ts};
+  const upd: any={dongsan_history:history,[marker]:key,updated_at:ts};
   if(clears){
-    await mine(sb.from("members").update({subgroup:"",updated_at:ts}).neq("subgroup",""));
-    await mine(sb.from("devices").update({subgroup:""}).neq("subgroup",""));
-    upd[ck(part,"dongsan_names")]={};
-    upd[ck(part,"dongsan_leaders")]={};
+    await pdb.from("members").update({subgroup:"",updated_at:ts}).neq("subgroup","");
+    await pdb.from("devices").update({subgroup:""}).neq("subgroup","");
+    upd["dongsan_names"]={};
+    upd["dongsan_leaders"]={};
   }
-  await sb.from("config").update(upd).eq("id",1);
-  await addAudit(sb,"term-rollover","system",
+  await pdb.from("config").update(upd).eq("id",1);
+  await addAudit(pdb,"term-rollover","system",
     key+(clears?" 학기 종료 — 동산 편성 해제 ("+Object.keys(subgroups).length+"명)"
                :" 학기 종료 — 셀 편성 보존, 스냅숏만 저장 ("+Object.keys(subgroups).length+"명)"),part);
   return {...cfg,...upd};
@@ -277,7 +283,8 @@ function rowToDev(d: any) {
   };
 }
 function rowToLog(e: any) { return {id:e.id,memberId:e.member_id,deviceId:e.device_id,name:e.name,group:e.group_name||"",subgroup:e.subgroup||"",date:e.date,time:e.time_str,ts:e.ts,locationVerified:e.location_verified,adminAdded:e.admin_added,manual:e.is_manual,bulk:e.is_bulk,guest:e.is_guest,firstVisit:e.first_visit,memberRole:e.member_role}; }
-async function getDevsByName(sb: SB, name: string): Promise<string[]> { const {data}=await sb.from("devices").select("id").eq("name",name); return (data||[]).map((d:any)=>d.id); }
+// deno-lint-ignore no-explicit-any
+async function getDevsByName(pdb: any, name: string): Promise<string[]> { const {data}=await pdb.from("devices").select("id").eq("name",name); return (data||[]).map((d:any)=>d.id); }
 // When a real device is added for a member, it supersedes any ROSTER-… placeholder rows
 // for that same name (seeded roster stubs with no real device). The placeholder's MEMBER
 // IDENTITY is inherited onto the new personal device (so any member_roles grant on that
@@ -286,7 +293,9 @@ async function getDevsByName(sb: SB, name: string): Promise<string[]> { const {d
 // admin_devices entry is remapped, and the placeholders are deleted so the member has a
 // single canonical device record. No-op unless devId is a personal (non-ROSTER) id and
 // ROSTER- stubs for the name exist.
-async function supersedeRosterPlaceholders(sb: SB, name: string, devId: string) {
+// deno-lint-ignore no-explicit-any
+async function supersedeRosterPlaceholders(pdb: any, name: string, devId: string) {
+  const sb=pdb; // 이 함수가 만지는 표(devices·attendance_log·config)는 전부 그 부서의 것이다.
   if(!name||!devId||devId.startsWith("ROSTER-")) return;
   const {data:rows}=await sb.from("devices").select("id,member_id").eq("name",name).like("id","ROSTER-%");
   const stubs=(rows||[]).filter((r:any)=>r.id!==devId);
@@ -344,19 +353,18 @@ async function checkedToday(sb: SB, name: string, today: string) {
   const {data}=await sb.from("attendance_log").select("*").in("device_id",dids).eq("date",today).limit(1);
   return data&&data.length?data[0]:null;
 }
-// 감사 로그도 부서별로 갈린다 (audit_log.partition): 장년부 관리자 탭은 장년부에서 일어난
-// 일만, 대학·청년부 탭은 대학·청년부에서 일어난 일만 본다. 부서를 특정할 수 없는 옛 행과
-// 로그인 없이 도는 경로는 기본값 'youth'로 남는다.
-async function addAudit(sb: SB, action: string, adminId: string, details: any, part: Partition="youth") {
+// 감사 기록도 부서마다 자기 스키마의 audit_log에 쌓인다 — 그러니 관리자 탭은 조건 없이 읽어도
+// 자기 부의 일만 본다. **첫 인자는 부(部)에 묶인 손잡이(db(sb,part))이지 원본 클라이언트가
+// 아니다**: 그래야 기록이 남의 스키마로 새지 않는다. 마지막 인자 part는 표시용 문구에만 쓴다.
+// deno-lint-ignore no-explicit-any
+async function addAudit(pdb: any, action: string, adminId: string, details: any, _part?: Partition) {
   try {
-    const {data:d}=await sb.from("devices").select("name").eq("id",adminId).single();
-    const row={ts:Date.now(),action,admin_id:adminId,admin_name:d?.name||adminId,details:typeof details==="string"?{info:details}:details};
-    const {error}=await sb.from("audit_log").insert({...row,partition:part});
-    if(!error) return true;
-    // 마이그레이션(20260806)이 아직 안 붙은 배포 순서에서는 partition 컬럼이 없다. 그때
-    // 감사 기록을 통째로 잃으면 안 된다 — 특히 카드 스캔은 이 함수가 성공해야 진행된다.
-    const {error:fallbackError}=await sb.from("audit_log").insert(row);
-    return !fallbackError;
+    const {data:d}=await pdb.from("devices").select("name").eq("id",adminId).single();
+    const {error}=await pdb.from("audit_log").insert({
+      ts:Date.now(),action,admin_id:adminId,admin_name:d?.name||adminId,
+      details:typeof details==="string"?{info:details}:details,
+    });
+    return !error;
   } catch(_){return false;}
 }
 // R2 access for the db-backup list/download/restore endpoints (scripts/backup/ writes
@@ -376,26 +384,22 @@ function backupKeyRe(part: Partition) {
 // 백업 워크플로에 넘기는 입력 — 어느 부서의 백업을 뜰지.
 function backupWorkflowInputs(part: Partition) { return {partition:part==="adult"?"adult":"youth"}; }
 
-// ── 장년부 백업이 담는 것 ─────────────────────────────────────────────────────────────
-// 장년부 줄기는 데이터베이스 전체가 아니라 장년부 사람들의 기록만 담는다. scripts/backup/
-// partition-adult.sql이 백업을 뜰 때 남기는 표와, 복원이 되돌리는 표는 정확히 이 목록이며
-// 순서까지 같아야 한다 (자식 → 부모). 감사 로그·로그인 기록·공용 config·행사 등 부서를 가릴
-// 수 없거나 두 부서가 함께 쓰는 표는 들어 있지 않다 — 그쪽은 데이터베이스 전체를 담는
-// 대학·청년부(backups/) 스냅숏이 재해복구선을 지킨다.
-const ADULT_PARTITION_TABLES=["attendance_log","member_roles","devices","members"] as const;
-// 장년부 멤버를 고르는 조건 — 표마다 같은 뜻이 되도록 한 군데에 적어 둔다.
-const ADULT_MEMBER_IDS=`SELECT id FROM public.members WHERE COALESCE(group_name,'') = '${ADULT_GROUP}'`;
-const ADULT_RESTORE_WIPE_SQL=[
-  `DELETE FROM public.attendance_log WHERE COALESCE(group_name,'') = '${ADULT_GROUP}' OR member_id IN (${ADULT_MEMBER_IDS});`,
-  `DELETE FROM public.member_roles WHERE member_id IN (${ADULT_MEMBER_IDS});`,
-  `DELETE FROM public.devices WHERE COALESCE(group_name,'') = '${ADULT_GROUP}' OR member_id IN (${ADULT_MEMBER_IDS});`,
-  `DELETE FROM public.members WHERE COALESCE(group_name,'') = '${ADULT_GROUP}';`,
-].join("\n");
-// 전체 복원과 달리 RESTART IDENTITY를 쓸 수 없으므로(대학·청년부 행이 그대로 남아 있다),
-// 되살린 행의 id를 넘어서도록 시퀀스를 손으로 밀어 준다 — 안 그러면 다음 출석 한 줄이
-// 중복 키로 실패한다.
-const ADULT_RESTORE_RESEQ_SQL=
-  `SELECT setval(pg_get_serial_sequence('public.attendance_log','id'), GREATEST((SELECT COALESCE(MAX(id),0) FROM public.attendance_log), 1));`;
+// ── 복원이 되돌리는 범위 ──────────────────────────────────────────────────────────────
+// 부서마다 자기 스키마를 통째로 갖고 있으므로 복원도 스키마 단위다: 그 스키마의 표를 전부
+// 비우고 백업의 INSERT를 그대로 흘려 넣으면 끝이다. 시퀀스도 그 스키마 것이라 RESTART
+// IDENTITY가 그대로 통한다 — 예전처럼 부서 조건으로 골라 지우고 시퀀스를 손으로 밀 필요가 없다.
+// 스키마 이름은 식별자라 파라미터로 넘길 수 없어 상수로 둔다 (사용자 입력이 닿지 않는다).
+function restoreWipeSql(part: Partition): string {
+  const schema=part==="adult"?ADULT_SCHEMA:"public";
+  return `DO $$
+DECLARE tables text;
+BEGIN
+  SELECT string_agg(format('%I.%I', schemaname, tablename), ', ')
+    INTO tables FROM pg_tables WHERE schemaname = '${schema}';
+  IF tables IS NULL THEN RAISE EXCEPTION 'No tables found in schema ${schema}'; END IF;
+  EXECUTE 'TRUNCATE ' || tables || ' RESTART IDENTITY CASCADE';
+END $$;`;
+}
 function r2Client(): InstanceType<typeof S3Client> | null {
   const endpoint=Deno.env.get("R2_ENDPOINT"), accessKeyId=Deno.env.get("R2_ACCESS_KEY_ID"), secretAccessKey=Deno.env.get("R2_SECRET_ACCESS_KEY");
   if(!endpoint||!accessKeyId||!secretAccessKey) return null;
@@ -426,9 +430,9 @@ async function maybeAutoBackup(sb:any,p:string,part:Partition): Promise<void> {
   const pat=Deno.env.get("GITHUB_PAT"); if(!pat) return;
   const cooldownMin=Number(Deno.env.get("AUTO_BACKUP_COOLDOWN_MIN")||"60");
   if(!(Number.isFinite(cooldownMin)&&cooldownMin>0)) return; // 0/invalid disables auto-backup
-  const claimCol=ck(part,"last_auto_backup_at");
+  const claimCol="last_auto_backup_at";
   const cutoff=new Date(Date.now()-cooldownMin*60_000).toISOString();
-  const {data:claimed}=await sb.from("config").update({[claimCol]:new Date().toISOString()})
+  const {data:claimed}=await db(sb,part).from("config").update({[claimCol]:new Date().toISOString()})
     .eq("id",1).or(`${claimCol}.is.null,${claimCol}.lt.${cutoff}`).select("id");
   if(!claimed?.length) return; // within cooldown, or another isolate holds the claim
   const res=await fetch("https://api.github.com/repos/shrlak/kccp-attendance/actions/workflows/backup.yml/dispatches",{
@@ -474,10 +478,12 @@ async function cardScanUsage(sb: SB): Promise<{limit:number;used:number;remainin
   const limit=CARD_SCAN_DAILY_LIMIT;
   const day=localDate();
   const startsAt=easternDayStartMs(day),resetsAt=easternDayStartMs(addIsoDays(day,1));
-  const {count,error}=await sb.from("audit_log").select("id",{count:"exact",head:true})
-    .eq("action","extract-card").gte("ts",startsAt).lt("ts",resetsAt);
-  if(error) throw new Error(error.message);
-  const used=count||0;
+  // 한도는 부서가 아니라 하나뿐인 무료 API 키에 걸린다 — 두 스키마의 시도를 합쳐서 센다.
+  const counts=await Promise.all((["youth","adult"] as Partition[]).map((part)=>
+    db(sb,part).from("audit_log").select("id",{count:"exact",head:true})
+      .eq("action","extract-card").gte("ts",startsAt).lt("ts",resetsAt)));
+  for(const c of counts) if(c.error) throw new Error(c.error.message);
+  const used=counts.reduce((n:number,c:any)=>n+(c.count||0),0);
   return {limit,used,remaining:Math.max(0,limit-used),day,resetsAt,updatedAt:Date.now()};
 }
 // Client IP as seen by the edge runtime: first hop of X-Forwarded-For (Supabase's proxy
@@ -492,14 +498,16 @@ function clientIp(req: Request): string {
 // identical repeat (same role+member+device+ip+method) within an hour is collapsed into
 // the original entry instead of flooding the log. Best-effort: a logging failure must
 // never block the login itself.
-async function addLoginLog(sb: SB, req: Request, role: {role:string;memberId:string}) {
+async function addLoginLog(sb: SB, req: Request, role: {role:string;memberId:string;partition:Partition}) {
   try {
     const ip=clientIp(req);
     const deviceId=req.headers.get("x-device-id")||req.headers.get("X-Device-Id")||"";
     const method=(req.headers.get("authorization")||"").startsWith("Bearer ")?"google":"password";
     let memberName="";
     if(role.memberId){
-      const {data:m}=await sb.from("members").select("name").eq("id",role.memberId).single();
+      // login_log 자체는 부서를 가리지 않는 시스템 기록(공용 표)이지만, 이름은 그 사람이
+      // 실제로 사는 스키마에서 찾아야 한다.
+      const {data:m}=await db(sb,role.partition).from("members").select("name").eq("id",role.memberId).single();
       memberName=(m as {name?:string}|null)?.name||"";
     }
     // Precise device-GPS coordinates, sent by the web app only when the admin allowed the
@@ -578,11 +586,11 @@ async function geoForIps(sb: SB, ips: string[]): Promise<Record<string,IpGeo>> {
 
 async function buildCsvLog(sb: SB, gf: string, sf: string) {
   const [{data:logs},{data:devs}]=await Promise.all([
-    (()=>{let q:any=youthOnly(sb.from("attendance_log").select("*").order("ts",{ascending:false}));if(gf)q=q.eq("group_name",gf);if(sf)q=q.eq("subgroup",sf);return q;})(),
-    youthOnly(sb.from("devices").select("*"))
+    (()=>{let q:any=(sb.from("attendance_log").select("*").order("ts",{ascending:false}));if(gf)q=q.eq("group_name",gf);if(sf)q=q.eq("subgroup",sf);return q;})(),
+    (sb.from("devices").select("*"))
   ]);
   const dm: Record<string,any>={}; (devs||[]).forEach((d:any)=>{dm[d.id]=d;});
-  const allLogs=(await youthOnly(sb.from("attendance_log").select("device_id,name,date"))).data||[];
+  const allLogs=(await (sb.from("attendance_log").select("device_id,name,date"))).data||[];
   const nt: Record<string,Set<string>>={};
   for(const e of allLogs){const nm=dm[e.device_id]?.name||e.name||"";if(!nt[nm])nt[nm]=new Set();nt[nm].add(e.date);}
   const h=["Name","Group","Subgroup","Day","Date","Time","Total"];
@@ -591,12 +599,12 @@ async function buildCsvLog(sb: SB, gf: string, sf: string) {
   return [h,...r].map((row:any[])=>row.map((c:any)=>q+String(c).replace(/"/g,qq)+q).join(",")).join("\n");
 }
 async function buildCsvGrid(sb: SB, gf: string, sf: string) {
-  let dq: any=youthOnly(sb.from("devices").select("*")); if(gf) dq=dq.eq("group_name",gf); if(sf) dq=dq.eq("subgroup",sf);
+  let dq: any=(sb.from("devices").select("*")); if(gf) dq=dq.eq("group_name",gf); if(sf) dq=dq.eq("subgroup",sf);
   const {data:devs}=await dq;
   const members: Record<string,{group:string;subgroup:string;devices:string[]}>={};
   (devs||[]).forEach((d:any)=>{if(!members[d.name])members[d.name]={group:d.group_name||"",subgroup:d.subgroup||"",devices:[]};members[d.name].devices.push(d.id);});
   const names=Object.keys(members).sort();
-  let lq: any=youthOnly(sb.from("attendance_log").select("*").order("date",{ascending:true})); if(gf) lq=lq.eq("group_name",gf); if(sf) lq=lq.eq("subgroup",sf);
+  let lq: any=(sb.from("attendance_log").select("*").order("date",{ascending:true})); if(gf) lq=lq.eq("group_name",gf); if(sf) lq=lq.eq("subgroup",sf);
   const {data:logs}=await lq;
   const dates=[...new Set((logs||[]).map((e:any)=>e.date as string))].sort();
   const h=["Name","Group","Subgroup","Total",...dates.map(fmtDateWithDay)];
@@ -645,9 +653,14 @@ Deno.serve(async (req: Request) => {
   // 자동 백업이 어느 줄기로 나갈지를 정한다. 로그인 없이 도는 경로(공개 체크인 등)는
   // 기본값 그대로 대학·청년부로 남는다.
   let actingPartition: Partition="youth";
+  // 로그인한 부(部)의 데이터베이스 손잡이. **인증된 경로에서 사람·기기·출석·권한·설정·감사기록을
+  // 만질 때는 sb가 아니라 이것을 쓴다** — 그래야 대학·청년부는 public, 장년부는 adult 스키마로
+  // 간다. 요청 처리 함수 안의 지역 변수라 동시에 들어온 다른 요청과 섞이지 않는다.
+  // deno-lint-ignore no-explicit-any
+  let adb: any=sb;
   const auth=async(): Promise<Role|null>=>{
-    const r=await auth();
-    if(r) actingPartition=r.partition;
+    const r=await resolveAdmin(sb,req);
+    if(r){ actingPartition=r.partition; adb=dbOf(sb,r.partition); }
     return r;
   };
   const ok=(obj:any)=>{
@@ -665,10 +678,10 @@ Deno.serve(async (req: Request) => {
       // 부서 범위까지 걸린다: 장년부 관리자에게는 장년부 행만, 대학·청년부에는 장년부를 뺀 나머지만.
       const role=await auth();
       if(role?.role!=="super_admin") return fail(403,"Not authorized");
-      const dumpScope=scopeFilter(role,summerNow(await getCfg(sb),role.partition));
+      const dumpScope=scopeFilter(role,summerNow(await getCfg(sb,actingPartition),role.partition));
       const [{data:devData},{data:logData}]=await Promise.all([
-        scopeQuery(sb.from("devices").select("*"),dumpScope),
-        scopeQuery(sb.from("attendance_log").select("*").order("ts",{ascending:false}),dumpScope),
+        scopeQuery(adb.from("devices").select("*"),dumpScope),
+        scopeQuery(adb.from("attendance_log").select("*").order("ts",{ascending:false}),dumpScope),
       ]);
       const devices: Record<string,any>={}; (devData||[]).forEach((d:any)=>{devices[d.id]=rowToDev(d);});
       return ok({devices,log:(logData||[]).map(rowToLog)});
@@ -692,15 +705,19 @@ Deno.serve(async (req: Request) => {
       // 이 응답이 앱에서 제일 자주, 제일 오래 기다리는 요청이라 순차 왕복을 최대한 줄인다.
       // 인증과 설정 읽기는 서로를 기다릴 이유가 없으니 함께 보낸다. (설정 *쓰기*인 롤오버는
       // 401 뒤로 미룬다 — 인증 안 된 요청이 학기 롤오버를 촉발하면 안 된다.)
-      const [role,baseCfg]=await Promise.all([auth(),getCfg(sb)]);
+      // 신원이 풀리기 전에는 어느 스키마의 설정을 읽어야 할지 알 수 없다. 그렇다고 순서대로
+      // 기다리면 왕복이 하나 늘어나므로, 두 부의 설정을 인증과 함께 나란히 보내고 고른다
+      // (설정은 행 하나짜리 읽기라 한 번 더 부르는 값이 왕복 한 번보다 싸다).
+      const [role,youthCfg,adultCfg]=await Promise.all([auth(),getCfg(sb,"youth"),getCfg(sb,"adult")]);
       if(!role) return fail(401,"Not authorized");
       const part=role.partition;
+      const baseCfg=part==="adult"?adultCfg:youthCfg;
       // Every admin page load is also the clock that retires a finished 학기's 동산 편성
       // (no-op except on the first request after a term ends) — for this 부 only.
       const cfg=await rolloverDongsan(sb,await maybeRollSchedule(sb,baseCfg,part),part);
       const summer=summerNow(cfg,part);
       const scope=scopeFilter(role,summer);
-      const mq:any=scopeQuery(sb.from("members").select("*").order("name",{ascending:true}),scope);
+      const mq:any=scopeQuery(adb.from("members").select("*").order("name",{ascending:true}),scope);
       // 멤버 목록 · 방문자 출석 · (리더/새가족팀이면) 본인 이름 — 셋 다 서로 독립이라 한 번에.
       // 방문자(guests) have no member_id and no 동산, so the member-id filter below drops
       // them. Fold them in for admins who see their whole 부 (대학·청년부 super/pastor, and
@@ -711,12 +728,12 @@ Deno.serve(async (req: Request) => {
       const needsTag=role.role==="leader"||role.role==="welcoming";
       const [mRes,gRes,meRes]:any[]=await Promise.all([
         mq,
-        seesWholePartition?scopeQuery(sb.from("attendance_log").select("*").eq("is_guest",true),scope).order("ts",{ascending:false}):Promise.resolve({data:[]}),
-        needsTag?sb.from("members").select("name").eq("id",role.memberId).single():Promise.resolve({data:null}),
+        seesWholePartition?scopeQuery(adb.from("attendance_log").select("*").eq("is_guest",true),scope).order("ts",{ascending:false}):Promise.resolve({data:[]}),
+        needsTag?adb.from("members").select("name").eq("id",role.memberId).single():Promise.resolve({data:null}),
       ]);
       const members=mRes?.data;
       const ids=(members||[]).map((m:any)=>m.id);
-      const {data:md}=ids.length?await sb.from("attendance_log").select("*").in("member_id",ids).order("ts",{ascending:false}):{data:[] as any[]};
+      const {data:md}=ids.length?await adb.from("attendance_log").select("*").in("member_id",ids).order("ts",{ascending:false}):{data:[] as any[]};
       let logs:any[]=md||[];
       const gd=gRes?.data; if(gd&&gd.length)logs=logs.concat(gd);
       // Bulk 동산 reassignment: super-admins + staff + leaders who are NOT 동산지기/부동산지기.
@@ -725,7 +742,7 @@ Deno.serve(async (req: Request) => {
       let canBulkSubgroup=role.role==="super_admin"||role.role==="staff";
       let canClearAttendance=role.role==="super_admin"||role.role==="staff";
       if(needsTag){
-        const tag=isDongsanLeaderName(meRes?.data?.name||"",role.group,role.subgroup,cfgVal(cfg,part,"dongsan_leaders"),summer);
+        const tag=isDongsanLeaderName(meRes?.data?.name||"",role.group,role.subgroup,cfg?.dongsan_leaders,summer);
         if(role.role==="leader") canBulkSubgroup=!tag;
         canClearAttendance=!tag;
       }
@@ -733,7 +750,7 @@ Deno.serve(async (req: Request) => {
       // 수 있는 멤버의 것만. (visible로 거르는 것이 곧 부서 분리이기도 하다.)
       const visible=new Set(ids);
       const dongsanHistory: Record<string,any>={};
-      for(const [term,entry] of Object.entries<any>(cfgVal(cfg,part,"dongsan_history")||{})){
+      for(const [term,entry] of Object.entries<any>(cfg?.dongsan_history||{})){
         const subs: Record<string,string>={};
         for(const [mid,sub] of Object.entries<any>(entry?.subgroups||{})) if(visible.has(mid)) subs[mid]=String(sub);
         dongsanHistory[term]={endedAt:entry?.endedAt||"",subgroups:subs};
@@ -757,27 +774,27 @@ Deno.serve(async (req: Request) => {
           if(partitionOfGroup(g)!==part) continue;
           if(typeof c==="string"&&HEX.test(c)) clean[g]=c;
         }
-        upd[ck(part,"group_colors")]=clean;
+        upd["group_colors"]=clean;
       }
       // card_scan_daily_limit is intentionally NOT accepted here anymore — the card-scan
       // allowance is fixed at CARD_SCAN_DAILY_LIMIT (an older open tab posting it is a no-op).
       if(semesterDates!==undefined){
         if(!validSemesterDates(semesterDates)) return fail(400,"Invalid semester dates");
-        upd[ck(part,"semester_dates")]=semesterDates;
+        upd["semester_dates"]=semesterDates;
       }
       // 2년치 학기 목록. 저장된 지난 학기는 그대로 남기고(아카이브가 그 날짜를 쓴다) 보내온
       // 목록으로 앞부분을 갈아끼운 뒤, 매년 반복되는 템플릿도 최신 패턴으로 맞춰 둔다.
       // 두 부서는 각자의 학기 일정을 갖는다 (장년부는 _adult 칸).
       if(semesterSchedule!==undefined){
         if(!validSchedule(semesterSchedule)) return fail(400,"Invalid semester schedule");
-        const cfg=await getCfg(sb);
-        const savedDates=cfgVal(cfg,part,"semester_dates");
-        const merged=mergeSchedule(semesterSchedule,cfgVal(cfg,part,"semester_schedule"),localDate());
-        upd[ck(part,"semester_schedule")]=merged;
+        const cfg=await getCfg(sb,actingPartition);
+        const savedDates=cfg?.semester_dates;
+        const merged=mergeSchedule(semesterSchedule,cfg?.semester_schedule,localDate());
+        upd["semester_schedule"]=merged;
         const tmpl=scheduleToDates(merged,validSemesterDates(savedDates)?savedDates:DEFAULT_SEMESTER_DATES);
-        if(validSemesterDates(tmpl)) upd[ck(part,"semester_dates")]=tmpl;
+        if(validSemesterDates(tmpl)) upd["semester_dates"]=tmpl;
       }
-      const {error}=await sb.from("config").update(upd).eq("id",1);
+      const {error}=await adb.from("config").update(upd).eq("id",1);
       if(error) throw new Error(error.message);
       return ok({status:"ok"});
     }
@@ -787,8 +804,8 @@ Deno.serve(async (req: Request) => {
     if(req.method==="GET"&&p==="/api/admin/dongsan-names") {
       const role=await auth();
       if(role?.role!=="super_admin") return fail(403,"Super admin required");
-      const cfg=await getCfg(sb);
-      return ok({names:cfgVal(cfg,role.partition,"dongsan_names")||defaultDongsanNames(role.partition)});
+      const cfg=await getCfg(sb,actingPartition);
+      return ok({names:cfg?.dongsan_names||defaultDongsanNames(role.partition)});
     }
 
     // 동산 names editor — write (super-admin only). Replaces this 부's dongsan_names with
@@ -800,8 +817,8 @@ Deno.serve(async (req: Request) => {
       const {names}=body;
       if(!names||typeof names!=="object"||Array.isArray(names)) return fail(400,"names map required");
       const mine=partitionNames(names,role.partition);
-      await sb.from("config").update({[ck(role.partition,"dongsan_names")]:mine,updated_at:new Date().toISOString()}).eq("id",1);
-      await addAudit(sb,"config-change",xDev,"동산 이름 수정",role.partition);
+      await adb.from("config").update({dongsan_names:mine,updated_at:new Date().toISOString()}).eq("id",1);
+      await addAudit(adb,"config-change",xDev,"동산 이름 수정",role.partition);
       return ok({status:"ok"});
     }
 
@@ -812,10 +829,10 @@ Deno.serve(async (req: Request) => {
     if(req.method==="GET"&&p==="/api/admin/new-member-dongsan-names") {
       const role=await auth();
       if(role?.role!=="super_admin") return fail(403,"Super admin required");
-      const cfg=await getCfg(sb);
+      const cfg=await getCfg(sb,actingPartition);
       const blank: Record<string,string[]>={};
       for(const g of Object.keys(defaultDongsanNames(role.partition))) blank[g]=[];
-      return ok({names:cfgVal(cfg,role.partition,"new_member_dongsan_names")||blank});
+      return ok({names:cfg?.new_member_dongsan_names||blank});
     }
 
     // 새가족 교육 동산 names editor — write (super-admin only). Same shape as
@@ -826,8 +843,8 @@ Deno.serve(async (req: Request) => {
       const {names}=body;
       if(!names||typeof names!=="object"||Array.isArray(names)) return fail(400,"names map required");
       const mine=partitionNames(names,role.partition);
-      await sb.from("config").update({[ck(role.partition,"new_member_dongsan_names")]:mine,updated_at:new Date().toISOString()}).eq("id",1);
-      await addAudit(sb,"config-change",xDev,"새가족 교육 동산 이름 수정",role.partition);
+      await adb.from("config").update({new_member_dongsan_names:mine,updated_at:new Date().toISOString()}).eq("id",1);
+      await addAudit(adb,"config-change",xDev,"새가족 교육 동산 이름 수정",role.partition);
       return ok({status:"ok"});
     }
 
@@ -852,8 +869,8 @@ Deno.serve(async (req: Request) => {
     if(req.method==="GET"&&p==="/api/admin/dongsan-leaders") {
       const role=await auth();
       if(!role) return fail(401,"Not authorized");
-      const cfg=await getCfg(sb);
-      return ok({leaders:cfgVal(cfg,role.partition,"dongsan_leaders")||{}});
+      const cfg=await getCfg(sb,actingPartition);
+      return ok({leaders:cfg?.dongsan_leaders||{}});
     }
 
     // 동산지기/부동산지기 editor — write one 동산's leader + sub-leaders (super-admin only).
@@ -866,10 +883,10 @@ Deno.serve(async (req: Request) => {
       if(!group||!subgroup) return fail(400,"group and subgroup required");
       // 자기 부의 부서(또는 여름 합동 키)에만 쓸 수 있다.
       if(partitionOfGroup(group)!==role.partition) return fail(403,"Out of scope");
-      const cfg=await getCfg(sb); const ldrs=cfgVal(cfg,role.partition,"dongsan_leaders")||{}; if(!ldrs[group]) ldrs[group]={};
+      const cfg=await getCfg(sb,actingPartition); const ldrs=cfg?.dongsan_leaders||{}; if(!ldrs[group]) ldrs[group]={};
       ldrs[group][subgroup]={leader:leader||"",subLeaders:Array.isArray(subLeaders)?subLeaders:[]};
-      await sb.from("config").update({[ck(role.partition,"dongsan_leaders")]:ldrs,updated_at:new Date().toISOString()}).eq("id",1);
-      await addAudit(sb,"config-change",xDev,"동산지기 수정: "+group+" "+subgroup,role.partition);
+      await adb.from("config").update({dongsan_leaders:ldrs,updated_at:new Date().toISOString()}).eq("id",1);
+      await addAudit(adb,"config-change",xDev,"동산지기 수정: "+group+" "+subgroup,role.partition);
       return ok({status:"ok"});
     }
 
@@ -878,8 +895,8 @@ Deno.serve(async (req: Request) => {
     if(req.method==="GET"&&p==="/api/admin/officers") {
       const role=await auth();
       if(!role) return fail(401,"Not authorized");
-      const cfg=await getCfg(sb);
-      const officers=cfgVal(cfg,role.partition,"officers");
+      const cfg=await getCfg(sb,actingPartition);
+      const officers=cfg?.officers;
       return ok({officers:Array.isArray(officers)?officers:[]});
     }
 
@@ -891,8 +908,8 @@ Deno.serve(async (req: Request) => {
       const {officers}=body;
       if(!Array.isArray(officers)||officers.some((n:any)=>typeof n!=="string")) return fail(400,"officers array required");
       const clean=Array.from(new Set(officers.map((n:string)=>n.trim()).filter((n:string)=>n.length>0)));
-      await sb.from("config").update({[ck(role.partition,"officers")]:clean,updated_at:new Date().toISOString()}).eq("id",1);
-      await addAudit(sb,"config-change",xDev,"임원 수정",role.partition);
+      await adb.from("config").update({officers:clean,updated_at:new Date().toISOString()}).eq("id",1);
+      await addAudit(adb,"config-change",xDev,"임원 수정",role.partition);
       return ok({status:"ok"});
     }
 
@@ -902,17 +919,17 @@ Deno.serve(async (req: Request) => {
     if(req.method==="GET"&&p==="/api/admin/roles") {
       const role=await auth();
       if(role?.role!=="super_admin") return fail(403,"Super admin required");
-      const scope=scopeFilter(role,summerNow(await getCfg(sb),role.partition));
-      const {data:roles}=await sb.from("member_roles").select("*");
+      // 이 스키마의 member_roles에는 이 부서의 권한만 있다 — 다른 부의 관리자가 누구인지는
+      // 보이지도 않는다. 남는 것은 부서 안에서의 범위(리더의 동산/셀)뿐.
+      const scope=scopeFilter(role,summerNow(await getCfg(sb,actingPartition),role.partition));
+      const {data:roles}=await adb.from("member_roles").select("*");
       const ids=(roles||[]).map((r:any)=>r.member_id);
-      const {data:mem}=ids.length?await sb.from("members").select("id,name,group_name,subgroup").in("id",ids):{data:[] as any[]};
+      const {data:mem}=ids.length?await adb.from("members").select("id,name,group_name,subgroup").in("id",ids):{data:[] as any[]};
       const byId: Record<string,any>={}; (mem||[]).forEach((m:any)=>{byId[m.id]=m;});
       const visible=(roles||[]).filter((r:any)=>{
         const m=byId[r.member_id];
-        // A grant whose member row is gone can't be placed in a 부 — show it only to the
-        // 대학·청년부 panel, which is where such orphans have always surfaced.
-        if(!m) return role.partition==="youth";
-        return inScope(scope,m.group_name,m.subgroup);
+        // 멤버 행이 사라진 고아 권한도 이 스키마의 것이니 그대로 보여준다 (지워 줄 수 있도록).
+        return !m||inScope(scope,m.group_name,m.subgroup);
       });
       return ok({roles:visible.map((r:any)=>({memberId:r.member_id,name:byId[r.member_id]?.name||"—",role:r.role,group:r.group_name||"",subgroup:r.subgroup||"",ministry:r.ministry||""}))});
     }
@@ -922,10 +939,8 @@ Deno.serve(async (req: Request) => {
       const role=await auth();
       if(role?.role!=="super_admin") return fail(403,"Super admin required");
       const limit=Math.min(parseInt(url.searchParams.get("limit")||"100")||100,200);
-      // 예전 행에는 partition 값이 없다 (NULL) — 그 시절엔 대학·청년부밖에 없었으므로 거기로 친다.
-      let aq:any=sb.from("audit_log").select("*").order("ts",{ascending:false}).limit(limit);
-      aq=role.partition==="adult"?aq.eq("partition","adult"):aq.or("partition.is.null,partition.neq.adult");
-      const {data:log}=await aq;
+      // 조건이 없다 — 이 스키마의 audit_log에는 이 부서에서 일어난 일만 있다.
+      const {data:log}=await adb.from("audit_log").select("*").order("ts",{ascending:false}).limit(limit);
       return ok({log:(log||[]).map((e:any)=>({ts:e.ts,action:e.action,adminName:e.admin_name,details:e.details}))});
     }
 
@@ -971,7 +986,7 @@ Deno.serve(async (req: Request) => {
         body:JSON.stringify({ref:"main",inputs:backupWorkflowInputs(role.partition)}),
       });
       if(!res.ok) return fail(502,"GitHub dispatch failed ("+res.status+")");
-      await addAudit(sb,"db-backup-run",xDev,"Triggered backup workflow manually ("+role.partition+")",role.partition);
+      await addAudit(adb,"db-backup-run",xDev,"Triggered backup workflow manually ("+role.partition+")",role.partition);
       return ok({status:"dispatched"});
     }
 
@@ -1030,7 +1045,7 @@ Deno.serve(async (req: Request) => {
       const s3=r2Client();
       if(!s3) return fail(500,"R2 credentials not configured");
       const signedUrl=await getSignedUrl(s3,new GetObjectCommand({Bucket:r2Bucket(),Key:key}),{expiresIn:300});
-      await addAudit(sb,"db-backup-download",xDev,"Downloaded "+key,role.partition);
+      await addAudit(adb,"db-backup-download",xDev,"Downloaded "+key,role.partition);
       return ok({url:signedUrl});
     }
 
@@ -1079,23 +1094,16 @@ Deno.serve(async (req: Request) => {
       if(!restoreDbUrl) return fail(500,"RESTORE_DB_URL not configured — set it in Supabase Edge Function secrets");
       const pgSql=postgres(restoreDbUrl,{max:1});
       try {
-        if(restorePart==="adult") {
-          // 장년부 백업은 장년부 데이터(멤버·기기·출석·권한)만 담고 있다. 그러니 복원도 그
-          // 범위만 되돌린다: 장년부 행을 지우고 스냅숏을 다시 넣을 뿐, 대학·청년부 데이터도
-          // 공용 config 행도 건드리지 않는다. 한 트랜잭션 안이라 도중에 실패하면 전부 원상복귀.
-          await pgSql.begin(async (tx: any)=>{
-            await tx.unsafe(ADULT_RESTORE_WIPE_SQL+"\n"+sqlText+"\n"+ADULT_RESTORE_RESEQ_SQL);
-          });
-          await addAudit(sb,"db-restore",xDev,"장년부 복원: "+(source==="online"?key:"uploaded file"),"adult");
-          return ok({status:"restored",tables:ADULT_PARTITION_TABLES.length});
-        }
-        const tables=await pgSql`SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'`;
-        if(!tables.length) return fail(500,"No tables found to restore into");
-        const tableList=tables.map((t: any)=>`"public"."${t.table_name}"`).join(", ");
+        // 자기 부의 스키마만 비우고 그 백업을 흘려 넣는다. 한 트랜잭션이라 도중에 실패하면
+        // 전부 원상복귀하고, 다른 부서의 스키마는 어느 쪽으로도 손대지 않는다.
+        const schema=restorePart==="adult"?ADULT_SCHEMA:"public";
+        const tables=await pgSql`SELECT tablename FROM pg_tables WHERE schemaname=${schema}`;
+        if(!tables.length) return fail(500,`No tables found in schema ${schema}`);
         await pgSql.begin(async (tx: any)=>{
-          await tx.unsafe(`TRUNCATE ${tableList} RESTART IDENTITY CASCADE;\n`+sqlText);
+          await tx.unsafe(restoreWipeSql(restorePart)+"\n"+sqlText);
         });
-        await addAudit(sb,"db-restore",xDev,"Restored from "+(source==="online"?key:"uploaded file")+" ("+tables.length+" tables)","youth");
+        await addAudit(adb,"db-restore",xDev,
+          schema+" 스키마 복원: "+(source==="online"?key:"uploaded file")+" ("+tables.length+" tables)");
         return ok({status:"restored",tables:tables.length});
       } catch(e: any) {
         return fail(500,"Restore failed: "+(e?.message||"unknown error"));
@@ -1111,14 +1119,14 @@ Deno.serve(async (req: Request) => {
       const {memberId,role:newRole,group,subgroup,ministry}=body;
       if(!memberId||!newRole) return fail(400,"memberId and role required");
       if(!["super_admin","leader","pastor","welcoming"].includes(newRole)) return fail(400,"Invalid role");
-      const {data:m}=await sb.from("members").select("name,group_name,subgroup").eq("id",memberId).single();
+      const {data:m}=await adb.from("members").select("name,group_name,subgroup").eq("id",memberId).single();
       if(!m) return fail(404,"Member not found");
       // 자기 부 사람에게만, 자기 부 부서로만 권한을 줄 수 있다.
-      const setScope=scopeFilter(role,summerNow(await getCfg(sb),role.partition));
+      const setScope=scopeFilter(role,summerNow(await getCfg(sb,actingPartition),role.partition));
       if(!inScope(setScope,m.group_name,m.subgroup)) return fail(403,"Out of scope");
       if(group&&partitionOfGroup(group)!==role.partition) return fail(403,"Out of scope");
-      await sb.from("member_roles").upsert({member_id:memberId,role:newRole,group_name:group||"",subgroup:subgroup||"",ministry:ministry||""});
-      await addAudit(sb,"admin-add",xDev,(m as {name?:string}).name+" → "+newRole,role.partition);
+      await adb.from("member_roles").upsert({member_id:memberId,role:newRole,group_name:group||"",subgroup:subgroup||"",ministry:ministry||""});
+      await addAudit(adb,"admin-add",xDev,(m as {name?:string}).name+" → "+newRole,role.partition);
       return ok({status:"ok"});
     }
 
@@ -1127,18 +1135,18 @@ Deno.serve(async (req: Request) => {
       const role=await auth();
       if(role?.role!=="super_admin") return fail(403,"Super admin required");
       const {memberId}=body; if(!memberId) return fail(400,"memberId required");
-      const {data:tr}=await sb.from("member_roles").select("role").eq("member_id",memberId).single();
+      const {data:tr}=await adb.from("member_roles").select("role").eq("member_id",memberId).single();
       if(!tr) return ok({status:"ok"});
-      const {data:m}=await sb.from("members").select("name,group_name,subgroup").eq("id",memberId).single();
+      const {data:m}=await adb.from("members").select("name,group_name,subgroup").eq("id",memberId).single();
       // 다른 부의 관리자 권한은 보이지도, 지워지지도 않는다.
-      const rmScope=scopeFilter(role,summerNow(await getCfg(sb),role.partition));
+      const rmScope=scopeFilter(role,summerNow(await getCfg(sb,actingPartition),role.partition));
       if(m&&!inScope(rmScope,m.group_name,m.subgroup)) return fail(403,"Out of scope");
       if((tr as {role?:string}).role==="super_admin"){
-        const {count}=await sb.from("member_roles").select("member_id",{count:"exact",head:true}).eq("role","super_admin");
+        const {count}=await adb.from("member_roles").select("member_id",{count:"exact",head:true}).eq("role","super_admin");
         if((count||0)<=1) return fail(400,"Cannot remove the last super admin");
       }
-      await sb.from("member_roles").delete().eq("member_id",memberId);
-      await addAudit(sb,"admin-remove",xDev,((m as {name?:string}|null)?.name||memberId)+"",role.partition);
+      await adb.from("member_roles").delete().eq("member_id",memberId);
+      await addAudit(adb,"admin-remove",xDev,((m as {name?:string}|null)?.name||memberId)+"",role.partition);
       return ok({status:"ok"});
     }
 
@@ -1149,10 +1157,10 @@ Deno.serve(async (req: Request) => {
       if(!role) return fail(401,"Not authorized");
       if(role.role==="pastor") return fail(403,"Read-only");
       const {memberId}=body; if(!memberId) return fail(400,"memberId required");
-      const {data:m}=await sb.from("members").select("name,group_name,subgroup").eq("id",memberId).single();
+      const {data:m}=await adb.from("members").select("name,group_name,subgroup").eq("id",memberId).single();
       if(!m) return fail(404,"Member not found");
       // 부 경계는 최고관리자에게도 적용된다 — scopeFilter가 자기 부만 돌려주므로 예외 없이 검사.
-      const editScope=scopeFilter(role,summerNow(await getCfg(sb),role.partition));
+      const editScope=scopeFilter(role,summerNow(await getCfg(sb,actingPartition),role.partition));
       if(!inScope(editScope,m.group_name,m.subgroup)) return fail(403,"Out of scope");
       // 부서를 옮기는 것도 자기 부 안에서만 (장년부 사람을 청년부로 넘길 수 없다).
       if(body.group!==undefined&&!inScopeGroup(editScope,body.group)) return fail(403,"Out of scope");
@@ -1168,7 +1176,7 @@ Deno.serve(async (req: Request) => {
         upd.status_marks=marks;
         upd.status_note=cur.note; upd.status_start=cur.start; upd.status_end=cur.end;
       }
-      await sb.from("members").update(upd).eq("id",memberId);
+      await adb.from("members").update(upd).eq("id",memberId);
       // Attendance rows carry the 이름/부서/동산 they were stamped with at check-in, and the
       // 출석부 filters on those — so a 새가족 who gets assigned a 동산 after their first
       // Sundays would keep those rows filed under the old (usually empty) 동산 while the
@@ -1180,10 +1188,10 @@ Deno.serve(async (req: Request) => {
       if(body.group!==undefined&&(body.group||"")!==(m.group_name||"")) moved.group_name=body.group||"";
       if(body.subgroup!==undefined&&(body.subgroup||"")!==(m.subgroup||"")) moved.subgroup=body.subgroup||"";
       if(Object.keys(moved).length){
-        await sb.from("devices").update(moved).eq("member_id",memberId);
-        await sb.from("attendance_log").update(moved).eq("member_id",memberId);
+        await adb.from("devices").update(moved).eq("member_id",memberId);
+        await adb.from("attendance_log").update(moved).eq("member_id",memberId);
       }
-      await addAudit(sb,"member-edit",xDev,(body.name||m.name)+" ("+memberId+")",role.partition);
+      await addAudit(adb,"member-edit",xDev,(body.name||m.name)+" ("+memberId+")",role.partition);
       return ok({status:"ok"});
     }
 
@@ -1195,20 +1203,20 @@ Deno.serve(async (req: Request) => {
       if(!role) return fail(401,"Not authorized");
       if(role.role==="pastor") return fail(403,"Read-only");
       const {fromId,toId}=body; if(!fromId||!toId||fromId===toId) return fail(400,"fromId and a different toId required");
-      const {data:from}=await sb.from("members").select("name,group_name,subgroup").eq("id",fromId).single();
-      const {data:to}=await sb.from("members").select("name,group_name,subgroup").eq("id",toId).single();
+      const {data:from}=await adb.from("members").select("name,group_name,subgroup").eq("id",fromId).single();
+      const {data:to}=await adb.from("members").select("name,group_name,subgroup").eq("id",toId).single();
       if(!from||!to) return fail(404,"Member not found");
       {
-        const scope=scopeFilter(role,summerNow(await getCfg(sb),role.partition));
+        const scope=scopeFilter(role,summerNow(await getCfg(sb,actingPartition),role.partition));
         for(const mm of [from,to]) if(!inScope(scope,mm.group_name,mm.subgroup)) return fail(403,"Out of scope");
       }
       // Reassign BEFORE deleting (devices.member_id is ON DELETE CASCADE). Migrated rows
       // inherit the target's denormalized name/group/동산 — matches the legacy merge.
       const denorm={name:to.name,group_name:to.group_name||"",subgroup:to.subgroup||""};
-      await sb.from("devices").update({member_id:toId,...denorm}).eq("member_id",fromId);
-      await sb.from("attendance_log").update({member_id:toId,...denorm}).eq("member_id",fromId);
-      await sb.from("members").delete().eq("id",fromId);
-      await addAudit(sb,"member-merge",xDev,from.name+" → "+to.name,role.partition);
+      await adb.from("devices").update({member_id:toId,...denorm}).eq("member_id",fromId);
+      await adb.from("attendance_log").update({member_id:toId,...denorm}).eq("member_id",fromId);
+      await adb.from("members").delete().eq("id",fromId);
+      await addAudit(adb,"member-merge",xDev,from.name+" → "+to.name,role.partition);
       return ok({status:"ok"});
     }
 
@@ -1220,17 +1228,17 @@ Deno.serve(async (req: Request) => {
       if(!role) return fail(401,"Not authorized");
       if(role.role==="pastor") return fail(403,"Read-only");
       const {memberId}=body; if(!memberId) return fail(400,"memberId required");
-      const {data:m}=await sb.from("members").select("name,group_name,subgroup").eq("id",memberId).single();
+      const {data:m}=await adb.from("members").select("name,group_name,subgroup").eq("id",memberId).single();
       if(!m) return fail(404,"Member not found");
       {
-        const scope=scopeFilter(role,summerNow(await getCfg(sb),role.partition));
+        const scope=scopeFilter(role,summerNow(await getCfg(sb,actingPartition),role.partition));
         if(!inScope(scope,m.group_name,m.subgroup)) return fail(403,"Out of scope");
       }
       // attendance_log.member_id is ON DELETE SET NULL, so the member's rows would orphan
       // (and keep counting) — delete them explicitly. devices + member_roles cascade.
-      await sb.from("attendance_log").delete().eq("member_id",memberId);
-      await sb.from("members").delete().eq("id",memberId);
-      await addAudit(sb,"member-delete",xDev,m.name+" ("+memberId+")",role.partition);
+      await adb.from("attendance_log").delete().eq("member_id",memberId);
+      await adb.from("members").delete().eq("id",memberId);
+      await addAudit(adb,"member-delete",xDev,m.name+" ("+memberId+")",role.partition);
       return ok({status:"ok"});
     }
 
@@ -1240,28 +1248,28 @@ Deno.serve(async (req: Request) => {
     if(req.method==="POST"&&p==="/api/admin/members/bulk-subgroup") {
       const role=await auth();
       if(!role) return fail(401,"Not authorized");
-      const cfg=await getCfg(sb);
+      const cfg=await getCfg(sb,actingPartition);
       const part=role.partition, summer=summerNow(cfg,part);
       // super + staff (break-glass, all-access) may bulk-transfer freely; a leader may too
       // unless they're a 동산지기/부동산지기. Everyone else is rejected.
       if(role.role!=="super_admin"&&role.role!=="staff"){
         if(role.role!=="leader") return fail(403,"Not authorized");
-        const {data:me}=await sb.from("members").select("name").eq("id",role.memberId).single();
-        if(isDongsanLeaderName((me as any)?.name||"",role.group,role.subgroup,cfgVal(cfg,part,"dongsan_leaders"),summer)) return fail(403,"동산지기/부동산지기는 사용할 수 없습니다");
+        const {data:me}=await adb.from("members").select("name").eq("id",role.memberId).single();
+        if(isDongsanLeaderName((me as any)?.name||"",role.group,role.subgroup,cfg?.dongsan_leaders,summer)) return fail(403,"동산지기/부동산지기는 사용할 수 없습니다");
       }
       const {memberIds,subgroup}=body;
       if(!Array.isArray(memberIds)||!memberIds.length) return fail(400,"memberIds required");
       const sub=(subgroup||"").trim();
       // 범위 밖 멤버는 조용히 빠진다 — 최고관리자도 다른 부 사람은 옮길 수 없다.
       const scope=scopeFilter(role,summer);
-      const {data:ms}=await sb.from("members").select("id,group_name,subgroup").in("id",memberIds);
+      const {data:ms}=await adb.from("members").select("id,group_name,subgroup").in("id",memberIds);
       const targetIds=(ms||[]).filter((m:any)=>inScope(scope,m.group_name,m.subgroup)).map((m:any)=>m.id);
       if(!targetIds.length) return ok({status:"ok",updated:0});
       const ts=new Date().toISOString();
-      await sb.from("members").update({subgroup:sub,updated_at:ts}).in("id",targetIds);
-      await sb.from("devices").update({subgroup:sub}).in("member_id",targetIds);
-      await sb.from("attendance_log").update({subgroup:sub}).in("member_id",targetIds);
-      await addAudit(sb,"bulk-transfer",xDev,targetIds.length+"명 → 동산 "+(sub||"(해제)"),part);
+      await adb.from("members").update({subgroup:sub,updated_at:ts}).in("id",targetIds);
+      await adb.from("devices").update({subgroup:sub}).in("member_id",targetIds);
+      await adb.from("attendance_log").update({subgroup:sub}).in("member_id",targetIds);
+      await addAudit(adb,"bulk-transfer",xDev,targetIds.length+"명 → 동산 "+(sub||"(해제)"),part);
       return ok({status:"ok",updated:targetIds.length});
     }
 
@@ -1272,23 +1280,23 @@ Deno.serve(async (req: Request) => {
     if(req.method==="POST"&&p==="/api/admin/attendance/clear") {
       const role=await auth();
       if(!role) return fail(401,"Not authorized");
-      const cfg=await getCfg(sb);
+      const cfg=await getCfg(sb,actingPartition);
       const part=role.partition, summer=summerNow(cfg,part);
       if(role.role==="super_admin"){
-        await clearPartitionAttendance(sb,scopeFilter(role,summer));
-        await addAudit(sb,"clear-attendance",xDev,"모든 출석 기록 삭제",part);
+        await clearPartitionAttendance(adb,scopeFilter(role,summer));
+        await addAudit(adb,"clear-attendance",xDev,"모든 출석 기록 삭제",part);
         return ok({status:"cleared"});
       }
       // staff (break-glass 리더+새가족팀) is non-super, so like leader/welcoming it files a
       // request for super approval rather than clearing directly.
       if(role.role!=="leader"&&role.role!=="welcoming"&&role.role!=="staff") return fail(403,"Not authorized");
-      const {data:me}=await sb.from("members").select("name").eq("id",role.memberId).single();
-      if(isDongsanLeaderName((me as any)?.name||"",role.group,role.subgroup,cfgVal(cfg,part,"dongsan_leaders"),summer)) return fail(403,"동산지기/부동산지기는 사용할 수 없습니다");
-      const stored=cfgVal(cfg,part,"pending_clear");
+      const {data:me}=await adb.from("members").select("name").eq("id",role.memberId).single();
+      if(isDongsanLeaderName((me as any)?.name||"",role.group,role.subgroup,cfg?.dongsan_leaders,summer)) return fail(403,"동산지기/부동산지기는 사용할 수 없습니다");
+      const stored=cfg?.pending_clear;
       const pending=Array.isArray(stored)?stored:[];
       pending.push({requestedBy:xDev,requestedByName:(me as any)?.name||xDev,requestedAt:Date.now()});
-      await sb.from("config").update({[ck(part,"pending_clear")]:pending}).eq("id",1);
-      await addAudit(sb,"clear-requested",xDev,"출석 기록 삭제 요청",part);
+      await adb.from("config").update({pending_clear:pending}).eq("id",1);
+      await addAudit(adb,"clear-requested",xDev,"출석 기록 삭제 요청",part);
       return ok({status:"pending"});
     }
 
@@ -1296,8 +1304,8 @@ Deno.serve(async (req: Request) => {
     if(req.method==="GET"&&p==="/api/admin/attendance/clear-pending") {
       const role=await auth();
       if(role?.role!=="super_admin") return fail(403,"Super admin required");
-      const cfg=await getCfg(sb);
-      const stored=cfgVal(cfg,role.partition,"pending_clear");
+      const cfg=await getCfg(sb,actingPartition);
+      const stored=cfg?.pending_clear;
       return ok({pending:Array.isArray(stored)?stored:[]});
     }
 
@@ -1306,9 +1314,9 @@ Deno.serve(async (req: Request) => {
       const role=await auth();
       if(role?.role!=="super_admin") return fail(403,"Super admin required");
       const part=role.partition;
-      await clearPartitionAttendance(sb,scopeFilter(role,summerNow(await getCfg(sb),part)));
-      await sb.from("config").update({[ck(part,"pending_clear")]:[]}).eq("id",1);
-      await addAudit(sb,"clear-attendance",xDev,"모든 출석 기록 삭제 (요청 승인)",part);
+      await clearPartitionAttendance(adb,scopeFilter(role,summerNow(await getCfg(sb,actingPartition),part)));
+      await adb.from("config").update({pending_clear:[]}).eq("id",1);
+      await addAudit(adb,"clear-attendance",xDev,"모든 출석 기록 삭제 (요청 승인)",part);
       return ok({status:"cleared"});
     }
 
@@ -1316,8 +1324,8 @@ Deno.serve(async (req: Request) => {
     if(req.method==="POST"&&p==="/api/admin/attendance/clear-reject") {
       const role=await auth();
       if(role?.role!=="super_admin") return fail(403,"Super admin required");
-      await sb.from("config").update({[ck(role.partition,"pending_clear")]:[]}).eq("id",1);
-      await addAudit(sb,"clear-rejected",xDev,"출석 기록 삭제 요청 거절",role.partition);
+      await adb.from("config").update({pending_clear:[]}).eq("id",1);
+      await addAudit(adb,"clear-rejected",xDev,"출석 기록 삭제 요청 거절",role.partition);
       return ok({status:"ok"});
     }
 
@@ -1330,21 +1338,21 @@ Deno.serve(async (req: Request) => {
       if(!role) return fail(401,"Not authorized");
       if(role.role==="pastor") return fail(403,"Read-only");
       const {memberId}=body; if(!memberId) return fail(400,"memberId required");
-      const {data:m}=await sb.from("members").select("name,group_name,subgroup,member_role").eq("id",memberId).single();
+      const {data:m}=await adb.from("members").select("name,group_name,subgroup,member_role").eq("id",memberId).single();
       if(!m) return fail(404,"Member not found");
       {
-        const scope=scopeFilter(role,summerNow(await getCfg(sb),role.partition));
+        const scope=scopeFilter(role,summerNow(await getCfg(sb,actingPartition),role.partition));
         if(!inScope(scope,m.group_name,m.subgroup)) return fail(403,"Out of scope");
       }
       const today=localDate(),time=localTime();
-      const {data:exist}=await sb.from("attendance_log").select("time_str").eq("member_id",memberId).eq("date",today).limit(1);
+      const {data:exist}=await adb.from("attendance_log").select("time_str").eq("member_id",memberId).eq("date",today).limit(1);
       if(exist&&exist.length) return ok({status:"already",time:exist[0].time_str,name:m.name});
-      const {count}=await sb.from("attendance_log").select("id",{count:"exact",head:true}).eq("member_id",memberId);
+      const {count}=await adb.from("attendance_log").select("id",{count:"exact",head:true}).eq("member_id",memberId);
       const isFirst=(count||0)===0;
-      const {data:dev}=await sb.from("devices").select("id").eq("member_id",memberId).limit(1);
+      const {data:dev}=await adb.from("devices").select("id").eq("member_id",memberId).limit(1);
       const did=(dev&&dev.length)?dev[0].id:("MANUAL-"+Date.now());
-      await sb.from("attendance_log").insert({device_id:did,member_id:memberId,name:m.name,group_name:m.group_name||"",subgroup:m.subgroup||"",date:today,time_str:time,ts:Date.now(),is_manual:true,admin_added:true,first_visit:isFirst,member_role:m.member_role||null});
-      await addAudit(sb,"admin-checkin",xDev,m.name+" | "+today,role.partition);
+      await adb.from("attendance_log").insert({device_id:did,member_id:memberId,name:m.name,group_name:m.group_name||"",subgroup:m.subgroup||"",date:today,time_str:time,ts:Date.now(),is_manual:true,admin_added:true,first_visit:isFirst,member_role:m.member_role||null});
+      await addAudit(adb,"admin-checkin",xDev,m.name+" | "+today,role.partition);
       return ok({status:"ok",time,name:m.name,firstVisit:isFirst});
     }
 
@@ -1355,18 +1363,18 @@ Deno.serve(async (req: Request) => {
       if(!role) return fail(401,"Not authorized");
       if(role.role==="pastor") return fail(403,"Read-only");
       const {memberId,date}=body; if(!memberId||!date||!/^\d{4}-\d{2}-\d{2}$/.test(date)) return fail(400,"memberId and a YYYY-MM-DD date required");
-      const {data:m}=await sb.from("members").select("name,group_name,subgroup,member_role").eq("id",memberId).single();
+      const {data:m}=await adb.from("members").select("name,group_name,subgroup,member_role").eq("id",memberId).single();
       if(!m) return fail(404,"Member not found");
       {
-        const scope=scopeFilter(role,summerNow(await getCfg(sb),role.partition));
+        const scope=scopeFilter(role,summerNow(await getCfg(sb,actingPartition),role.partition));
         if(!inScope(scope,m.group_name,m.subgroup)) return fail(403,"Out of scope");
       }
-      const {data:exist}=await sb.from("attendance_log").select("id").eq("member_id",memberId).eq("date",date).limit(1);
+      const {data:exist}=await adb.from("attendance_log").select("id").eq("member_id",memberId).eq("date",date).limit(1);
       if(exist&&exist.length) return ok({status:"already"});
-      const {data:dev}=await sb.from("devices").select("id").eq("member_id",memberId).limit(1);
+      const {data:dev}=await adb.from("devices").select("id").eq("member_id",memberId).limit(1);
       const did=(dev&&dev.length)?dev[0].id:("MANUAL-"+Date.now());
-      await sb.from("attendance_log").insert({device_id:did,member_id:memberId,name:m.name,group_name:m.group_name||"",subgroup:m.subgroup||"",date,time_str:localTime(),ts:Date.now(),is_manual:true,admin_added:true,member_role:m.member_role||null});
-      await addAudit(sb,"manual-add",xDev,m.name+" | "+date,role.partition);
+      await adb.from("attendance_log").insert({device_id:did,member_id:memberId,name:m.name,group_name:m.group_name||"",subgroup:m.subgroup||"",date,time_str:localTime(),ts:Date.now(),is_manual:true,admin_added:true,member_role:m.member_role||null});
+      await addAudit(adb,"manual-add",xDev,m.name+" | "+date,role.partition);
       return ok({status:"ok"});
     }
 
@@ -1377,19 +1385,19 @@ Deno.serve(async (req: Request) => {
       if(!role) return fail(401,"Not authorized");
       if(role.role==="pastor") return fail(403,"Read-only");
       const {logId}=body; if(logId===undefined||logId===null) return fail(400,"logId required");
-      const {data:row}=await sb.from("attendance_log").select("id,name,date,member_id,group_name,subgroup").eq("id",logId).single();
+      const {data:row}=await adb.from("attendance_log").select("id,name,date,member_id,group_name,subgroup").eq("id",logId).single();
       if(!row) return fail(404,"Entry not found");
       {
         // 멤버가 달린 행은 멤버의 현재 부서/동산으로, 방문자 행은 찍힐 때의 부서로 판단한다.
-        const scope=scopeFilter(role,summerNow(await getCfg(sb),role.partition));
+        const scope=scopeFilter(role,summerNow(await getCfg(sb,actingPartition),role.partition));
         const {data:m}=row.member_id
-          ?await sb.from("members").select("group_name,subgroup").eq("id",row.member_id).single()
+          ?await adb.from("members").select("group_name,subgroup").eq("id",row.member_id).single()
           :{data:null};
         const owner=(m as any)||{group_name:row.group_name,subgroup:row.subgroup};
         if(!inScope(scope,owner.group_name,owner.subgroup)) return fail(403,"Out of scope");
       }
-      await sb.from("attendance_log").delete().eq("id",logId);
-      await addAudit(sb,"manual-remove",xDev,row.name+" | "+row.date,role.partition);
+      await adb.from("attendance_log").delete().eq("id",logId);
+      await addAudit(adb,"manual-remove",xDev,row.name+" | "+row.date,role.partition);
       return ok({status:"ok"});
     }
 
@@ -1402,22 +1410,22 @@ Deno.serve(async (req: Request) => {
       if(role.role==="pastor") return fail(403,"Read-only");
       const {memberIds,date}=body;
       if(!Array.isArray(memberIds)||!memberIds.length||!date||!/^\d{4}-\d{2}-\d{2}$/.test(date)) return fail(400,"memberIds[] and a YYYY-MM-DD date required");
-      const {data:mem}=await sb.from("members").select("id,name,group_name,subgroup,member_role").in("id",memberIds);
-      const bulkScope=scopeFilter(role,summerNow(await getCfg(sb),role.partition));
+      const {data:mem}=await adb.from("members").select("id,name,group_name,subgroup,member_role").in("id",memberIds);
+      const bulkScope=scopeFilter(role,summerNow(await getCfg(sb,actingPartition),role.partition));
       const scoped=(mem||[]).filter((m:any)=>inScope(bulkScope,m.group_name,m.subgroup));
       if(!scoped.length) return ok({status:"ok",added:0});
       const ids=scoped.map((m:any)=>m.id);
-      const {data:existing}=await sb.from("attendance_log").select("member_id").in("member_id",ids).eq("date",date);
+      const {data:existing}=await adb.from("attendance_log").select("member_id").in("member_id",ids).eq("date",date);
       const have=new Set((existing||[]).map((e:any)=>e.member_id));
       const toAdd=scoped.filter((m:any)=>!have.has(m.id));
       if(toAdd.length){
-        const {data:devs}=await sb.from("devices").select("id,member_id").in("member_id",toAdd.map((m:any)=>m.id));
+        const {data:devs}=await adb.from("devices").select("id,member_id").in("member_id",toAdd.map((m:any)=>m.id));
         const devByMember: Record<string,string>={}; (devs||[]).forEach((d:any)=>{if(!devByMember[d.member_id])devByMember[d.member_id]=d.id;});
         const now=Date.now();
         const rows=toAdd.map((m:any,i:number)=>({device_id:devByMember[m.id]||("MANUAL-"+(now+i)),member_id:m.id,name:m.name,group_name:m.group_name||"",subgroup:m.subgroup||"",date,time_str:localTime(),ts:now+i,is_manual:true,is_bulk:true,admin_added:true,member_role:m.member_role||null}));
-        await sb.from("attendance_log").insert(rows);
+        await adb.from("attendance_log").insert(rows);
       }
-      await addAudit(sb,"bulk-add",xDev,date+" | "+toAdd.length+" members",role.partition);
+      await addAudit(adb,"bulk-add",xDev,date+" | "+toAdd.length+" members",role.partition);
       return ok({status:"ok",added:toAdd.length});
     }
 
@@ -1434,16 +1442,16 @@ Deno.serve(async (req: Request) => {
       if(!did||!nm) return fail(400,"deviceId and name required");
       const grp=(group||"").trim(),sub=(subgroup||"").trim();
       // 자기 부의 부서로만 등록할 수 있다.
-      if(!inScopeGroup(scopeFilter(role,summerNow(await getCfg(sb),role.partition)),grp)) return fail(403,"Out of scope");
-      const {data:mm}=await sb.from("members").select("id").eq("name",nm).limit(1);
+      if(!inScopeGroup(scopeFilter(role,summerNow(await getCfg(sb,actingPartition),role.partition)),grp)) return fail(403,"Out of scope");
+      const {data:mm}=await adb.from("members").select("id").eq("name",nm).limit(1);
       let memberId=mm&&mm.length?mm[0].id:null;
       if(!memberId){
-        const {data:created}=await sb.from("members").insert({name:nm,group_name:grp,subgroup:sub}).select("id").single();
+        const {data:created}=await adb.from("members").insert({name:nm,group_name:grp,subgroup:sub}).select("id").single();
         memberId=(created as {id?:string}|null)?.id||null;
       }
-      await sb.from("devices").upsert({id:did,name:nm,group_name:grp,subgroup:sub,member_id:memberId});
-      await supersedeRosterPlaceholders(sb,nm,did);
-      await addAudit(sb,"device-register",xDev,nm+" ("+did+")",role.partition);
+      await adb.from("devices").upsert({id:did,name:nm,group_name:grp,subgroup:sub,member_id:memberId});
+      await supersedeRosterPlaceholders(adb,nm,did);
+      await addAudit(adb,"device-register",xDev,nm+" ("+did+")",role.partition);
       return ok({status:"ok"});
     }
 
@@ -1458,15 +1466,15 @@ Deno.serve(async (req: Request) => {
       const {deviceId,memberId}=body;
       const did=(deviceId||"").trim();
       if(!did||!memberId) return fail(400,"deviceId and memberId required");
-      const {data:m}=await sb.from("members").select("name,group_name,subgroup").eq("id",memberId).single();
+      const {data:m}=await adb.from("members").select("name,group_name,subgroup").eq("id",memberId).single();
       if(!m) return fail(404,"Member not found");
       {
-        const scope=scopeFilter(role,summerNow(await getCfg(sb),role.partition));
+        const scope=scopeFilter(role,summerNow(await getCfg(sb,actingPartition),role.partition));
         if(!inScope(scope,m.group_name,m.subgroup)) return fail(403,"Out of scope");
       }
-      await sb.from("devices").upsert({id:did,name:m.name,group_name:m.group_name||"",subgroup:m.subgroup||"",member_id:memberId});
-      await supersedeRosterPlaceholders(sb,m.name,did);
-      await addAudit(sb,"device-edit",xDev,m.name+" ("+did+")",role.partition);
+      await adb.from("devices").upsert({id:did,name:m.name,group_name:m.group_name||"",subgroup:m.subgroup||"",member_id:memberId});
+      await supersedeRosterPlaceholders(adb,m.name,did);
+      await addAudit(adb,"device-edit",xDev,m.name+" ("+did+")",role.partition);
       return ok({status:"ok"});
     }
 
@@ -1487,10 +1495,10 @@ Deno.serve(async (req: Request) => {
       const guestGroups=role.partition==="adult"?[ADULT_GROUP]:["대학부","청년부"];
       const group=guestGroups.includes(requestedGroup)?requestedGroup:(role.partition==="adult"?ADULT_GROUP:"");
       const today=localDate(),time=localTime();
-      const {data:exist}=await sb.from("attendance_log").select("time_str").eq("name",name).eq("date",today).eq("is_guest",true).limit(1);
+      const {data:exist}=await adb.from("attendance_log").select("time_str").eq("name",name).eq("date",today).eq("is_guest",true).limit(1);
       if(exist&&exist.length) return ok({status:"already",time:exist[0].time_str,name});
-      await sb.from("attendance_log").insert({device_id:"GUEST-"+Date.now(),name,group_name:group,subgroup:"",date:today,time_str:time,ts:Date.now(),is_manual:true,is_guest:true,member_role:"visitor"});
-      await addAudit(sb,"guest-checkin",xDev,name+(group?" | "+group:"")+" | "+today,role.partition);
+      await adb.from("attendance_log").insert({device_id:"GUEST-"+Date.now(),name,group_name:group,subgroup:"",date:today,time_str:time,ts:Date.now(),is_manual:true,is_guest:true,member_role:"visitor"});
+      await addAudit(adb,"guest-checkin",xDev,name+(group?" | "+group:"")+" | "+today,role.partition);
       return ok({status:"ok",time,name});
     }
 
@@ -1509,7 +1517,7 @@ Deno.serve(async (req: Request) => {
         if(role.role==="pastor") return fail(403,"Read-only");
         newMemberPart=role.partition;
         // 자기 부의 부서로만 새 사람을 등록할 수 있다. (동산은 나중에 배정하므로 보지 않는다.)
-        if(!inScopeGroup(scopeFilter(role,summerNow(await getCfg(sb),newMemberPart)),group)) return fail(403,"Out of scope");
+        if(!inScopeGroup(scopeFilter(role,summerNow(await getCfg(sb,actingPartition),newMemberPart)),group)) return fail(403,"Out of scope");
       } else if(partitionOfGroup(group)!=="youth") {
         // 로그인 없이 도는 새가족 카드 링크는 대학·청년부 전용이다.
         return fail(403,"Out of scope");
@@ -1518,13 +1526,13 @@ Deno.serve(async (req: Request) => {
       const today=localDate(),time=localTime();
       // 이미 같은 사람이 등록돼 있으면 행을 하나 더 만들지 않고 그 멤버에 최신 정보를 덮어쓴다
       // (출석 기록·기기가 그대로 이어진다).
-      const dup=await findDuplicateMember(sb,name,group,body);
+      const dup=await findDuplicateMember(adb,name,group,body);
       let memberId: string|null=null, merged=false;
       if(dup){
-        await sb.from("members").update(mergedMemberFields(dup,body,subgroup,today)).eq("id",dup.id);
+        await adb.from("members").update(mergedMemberFields(dup,body,subgroup,today)).eq("id",dup.id);
         memberId=dup.id; merged=true;
       } else {
-        const {data:created}=await sb.from("members").insert({
+        const {data:created}=await adb.from("members").insert({
           name,group_name:group,subgroup,is_new_member:true,
           gender:body.gender||"",phone:body.phone||"",kakao_id:body.kakaoId||"",
           birth_date:body.birthDate||null,baptism_status:body.baptismStatus||"해당없음",
@@ -1538,22 +1546,22 @@ Deno.serve(async (req: Request) => {
       }
       if(!memberId) return fail(500,"Could not create member");
       // 기기: 병합이면 이미 연결된 기기를 재사용하고, 없을 때만 새로 만든다.
-      const {data:existingDev}=merged?await sb.from("devices").select("id").eq("member_id",memberId).limit(1):{data:null};
+      const {data:existingDev}=merged?await adb.from("devices").select("id").eq("member_id",memberId).limit(1):{data:null};
       const newId=(existingDev as {id?:string}[]|null)?.[0]?.id||("NEW-"+Date.now());
       if(!(existingDev as unknown[]|null)?.length){
-        await sb.from("devices").insert({id:newId,name,group_name:group,subgroup,member_id:memberId,is_new_member:true});
+        await adb.from("devices").insert({id:newId,name,group_name:group,subgroup,member_id:memberId,is_new_member:true});
       } else {
-        await sb.from("devices").update({name,group_name:group,subgroup}).eq("id",newId);
+        await adb.from("devices").update({name,group_name:group,subgroup}).eq("id",newId);
       }
       // skipCheckin (admin card-scan path): create the member + device but don't record
       // today's attendance — e.g. entering a stack of paper cards later in the week.
       // The kiosk never sends the flag, so its check-them-in-now behavior is unchanged.
       // 병합된 사람이 오늘 이미 출석했다면 줄을 하나 더 남기지 않는다.
-      const already=merged?(await sb.from("attendance_log").select("id").eq("member_id",memberId).eq("date",today).limit(1)).data:null;
+      const already=merged?(await adb.from("attendance_log").select("id").eq("member_id",memberId).eq("date",today).limit(1)).data:null;
       if(!body.skipCheckin&&!(already as unknown[]|null)?.length){
-        await sb.from("attendance_log").insert({device_id:newId,member_id:memberId,name,group_name:group,subgroup,date:today,time_str:time,ts:Date.now(),is_manual:true,admin_added:false,first_visit:!merged});
+        await adb.from("attendance_log").insert({device_id:newId,member_id:memberId,name,group_name:group,subgroup,date:today,time_str:time,ts:Date.now(),is_manual:true,admin_added:false,first_visit:!merged});
       }
-      await addAudit(sb,merged?"new-member-merge":"new-member-register",xDev,name+" | "+group+(merged?" | 중복 등록 → 기존 멤버에 병합":"")+(body.skipCheckin?" | no-checkin":"")+(viaShare?" | share-link":""),newMemberPart);
+      await addAudit(adb,merged?"new-member-merge":"new-member-register",xDev,name+" | "+group+(merged?" | 중복 등록 → 기존 멤버에 병합":"")+(body.skipCheckin?" | no-checkin":"")+(viaShare?" | share-link":""),newMemberPart);
       return ok({status:"ok",memberId,time,merged});
     }
 
@@ -1584,7 +1592,7 @@ Deno.serve(async (req: Request) => {
       // Record the attempt before calling out so every consumed try is reflected in the
       // live usage counter, even when every model in the chain errors. One row per
       // request (not per model), so the fallbacks don't eat the daily allowance.
-      const usageRecorded=await addAudit(sb,"extract-card",xDev,mediaType+" | "+Math.round(image.length*3/4/1024)+"KB | api-call"+(viaExtractShare?" | share-link":""));
+      const usageRecorded=await addAudit(adb,"extract-card",xDev,mediaType+" | "+Math.round(image.length*3/4/1024)+"KB | api-call"+(viaExtractShare?" | share-link":""));
       if(!usageRecorded) return fail(500,"Could not record card API usage — retry");
       let cards:Record<string,unknown>[]|null=null,used=chain[0],lastError="",rateLimited=false;
       // Capped so a long chain can't outlive the client's 60s budget (4 × 20s worst case).
@@ -1840,9 +1848,9 @@ Deno.serve(async (req: Request) => {
       const cfg=await getCfg(sb);
       const block=(part: Partition)=>({
         summerMode:summerNow(cfg,part),
-        semesterSchedule:scheduleOf(cfgVal(cfg,part,"semester_schedule")),
-        groupColors:cfgVal(cfg,part,"group_colors")||defaultGroupColors(part),
-        semesterDates:validSemesterDates(cfgVal(cfg,part,"semester_dates"))?cfgVal(cfg,part,"semester_dates"):null,
+        semesterSchedule:scheduleOf(cfg?.semester_schedule),
+        groupColors:cfg?.group_colors||defaultGroupColors(part),
+        semesterDates:validSemesterDates(cfg?.semester_dates)?cfg?.semester_dates:null,
       });
       return ok({...block("youth"),adult:block("adult")});
     }
@@ -1949,7 +1957,7 @@ Deno.serve(async (req: Request) => {
 
     if(req.method==="GET"&&p==="/api/backup") {
       const adminId=xDev||url.searchParams.get("deviceId")||""; if(!await isAdmin(sb,adminId)) return fail(403,"Not authorized");
-      const [{data:dd},{data:ld},{data:ed},{data:ad},{data:pd},cfg]=await Promise.all([youthOnly(sb.from("devices").select("*")),youthOnly(sb.from("attendance_log").select("*").order("ts",{ascending:false})),sb.from("events").select("*, event_attendees(device_id, name)"),sb.from("audit_log").select("*").order("ts",{ascending:false}),sb.from("pending_registrations").select("*"),getCfg(sb)]);
+      const [{data:dd},{data:ld},{data:ed},{data:ad},{data:pd},cfg]=await Promise.all([(sb.from("devices").select("*")),(sb.from("attendance_log").select("*").order("ts",{ascending:false})),sb.from("events").select("*, event_attendees(device_id, name)"),sb.from("audit_log").select("*").order("ts",{ascending:false}),sb.from("pending_registrations").select("*"),getCfg(sb)]);
       const devices: Record<string,any>={}; (dd||[]).forEach((d:any)=>{devices[d.id]=rowToDev(d);});
       const bk={version:2,exportedAt:Date.now(),attendance:{devices,log:(ld||[]).map(rowToLog)},config:{adminDevices:cfg.admin_devices||[],nameOrder:cfg.name_order||[],dongsanNames:cfg.dongsan_names,checkinDays:cfg.checkin_days||[0],checkinStartMin:cfg.checkin_start_min??780,checkinEndMin:cfg.checkin_end_min??900,dongsanLeaders:cfg.dongsan_leaders||{},requireApproval:cfg.require_approval||false,individualCheckinEnabled:cfg.individual_checkin_enabled||false,semesterDates:validSemesterDates(cfg.semester_dates)?cfg.semester_dates:null},events:{events:(ed||[]).map((e:any)=>({id:e.id,name:e.name,date:e.date,type:e.type,group:e.group_name,notes:e.notes,createdBy:e.created_by,createdAt:new Date(e.created_at).getTime(),attendees:(e.event_attendees||[]).map((a:any)=>a.name||a.device_id)}))},audit:(ad||[]).map((e:any)=>({ts:e.ts,action:e.action,adminId:e.admin_id,adminName:e.admin_name,details:e.details})),pending:(pd||[]).map((p:any)=>({deviceId:p.device_id,name:p.name,group:p.group_name,subgroup:p.subgroup,requestedAt:new Date(p.requested_at).getTime()}))};
       return new Response(JSON.stringify(bk,null,2),{headers:{...CORS,"Content-Type":"application/json","Content-Disposition":'attachment; filename="kccp-backup-'+localDate()+'.json"'}});
@@ -1968,9 +1976,9 @@ Deno.serve(async (req: Request) => {
     if(req.method==="GET"&&p==="/api/report/html") {
       const gf=url.searchParams.get("group")||"",sf=url.searchParams.get("subgroup")||"",period=url.searchParams.get("period")||"all",fromP=url.searchParams.get("from")||"",toP=url.searchParams.get("to")||"";
       const today=localDate();
-      let dq: any=youthOnly(sb.from("devices").select("*")); if(gf) dq=dq.eq("group_name",gf); if(sf) dq=dq.eq("subgroup",sf);
+      let dq: any=(sb.from("devices").select("*")); if(gf) dq=dq.eq("group_name",gf); if(sf) dq=dq.eq("subgroup",sf);
       const {data:devData}=await dq;
-      let lq: any=youthOnly(sb.from("attendance_log").select("*").order("date",{ascending:true}));
+      let lq: any=(sb.from("attendance_log").select("*").order("date",{ascending:true}));
       if(gf) lq=lq.eq("group_name",gf); if(sf) lq=lq.eq("subgroup",sf);
       if(period==="today") lq=lq.eq("date",today);
       else if(period==="weekly"){const d=new Date();d.setDate(d.getDate()-6);lq=lq.gte("date",d.toLocaleDateString("en-CA",{timeZone:"America/New_York"})).lte("date",today);}
