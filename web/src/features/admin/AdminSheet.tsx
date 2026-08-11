@@ -78,6 +78,9 @@ export function AdminSheet() {
   // on this screen is about who is actually on the roster now.
   const members = filterMembers(data.members, filter)
   const fLog = filterLog(data.log, filter)
+  // 동산모임 출석 (구글 시트 연동이 들어오기 전에는 비어 있다). 예배 출석과 같은 필터를
+  // 거쳐야 부서/동산을 좁혔을 때 두 값이 같은 사람들의 것으로 남는다.
+  const fDongsanLog = filterLog(data.dongsanLog ?? [], filter)
   const log = [...fLog].sort((a, b) => b.ts - a.ts)
   const canBulk = data.role !== 'pastor'
   // 아카이브만은 숨긴 멤버까지 되돌려 넣는다: 이미 끝난 학기의 출석부는 그때 실제로 있던
@@ -123,6 +126,7 @@ export function AdminSheet() {
         <GridView
           members={members}
           log={fLog}
+          dongsanLog={fDongsanLog}
           lang={lang}
           today={today}
           filter={filter}
@@ -328,6 +332,7 @@ const DATE_COL = 72
 function GridView({
   members,
   log,
+  dongsanLog,
   lang,
   today,
   filter,
@@ -335,6 +340,7 @@ function GridView({
 }: {
   members: Member[]
   log: LogEntry[]
+  dongsanLog: LogEntry[]
   lang: Lang
   today: string
   filter: Filter
@@ -347,8 +353,8 @@ function GridView({
   const U = useUnitTerms(lang)
   const L =
     lang === 'ko'
-      ? { name: '이름', memberTotal: '예배 총 출석', total: '총 출석', key: 'KEY', present: '출석', absent: '결석', etc: '기타', leaderKey: U.leader, subleaderKey: U.subLeader, unassigned: U.unassigned, newFamily: '새가족', empty: '출석 기록이 없습니다' }
-      : { name: 'Name', memberTotal: 'Worship Total', total: 'Total', key: 'KEY', present: 'Present', absent: 'Absent', etc: 'Other', leaderKey: U.leader, subleaderKey: U.subLeader, unassigned: U.unassigned, newFamily: 'New family', empty: 'No attendance records' }
+      ? { name: '이름', memberTotal: '예배 총 출석', total: '총 출석', key: 'KEY', present: '출석', absent: '결석', etc: '기타', leaderKey: U.leader, subleaderKey: U.subLeader, unassigned: U.unassigned, newFamily: '새가족', empty: '출석 기록이 없습니다', dongsanMeeting: `${U.unit}모임` }
+      : { name: 'Name', memberTotal: 'Worship Total', total: 'Total', key: 'KEY', present: 'Present', absent: 'Absent', etc: 'Other', leaderKey: U.leader, subleaderKey: U.subLeader, unassigned: U.unassigned, newFamily: 'New family', empty: 'No attendance records', dongsanMeeting: `${U.unit} meeting` }
 
   // 동산지기/부동산지기(셀장/부셀장) float to the top of their own block (roster order otherwise).
   const ordered = orderByDongsanRole(members, roleOf)
@@ -359,7 +365,9 @@ function GridView({
     today,
     { unassigned: L.unassigned, newFamily: L.newFamily },
     attendanceGroupBy(today, semesterDates, L.unassigned, partition),
+    dongsanLog,
   )
+  const hasDongsan = dongsanLog.length > 0
   const pink = cssColor(HEADER_TOTAL_FILL)
   const grey = cssColor(NOTE_FILL)
 
@@ -380,6 +388,13 @@ function GridView({
           <span className="inline-block h-3.5 w-5 rounded-sm" style={{ background: grey }} />
           {L.etc}
         </span>
+        {/* 동산모임 표시는 시트 연동이 붙은 뒤에만 칸에 나타나므로, 범례도 그때만 보여준다. */}
+        {hasDongsan && (
+          <span className="inline-flex items-center gap-1">
+            <b>O</b><sup className="text-[9px] font-bold opacity-70">O</sup>
+            <span className="ml-0.5">{L.dongsanMeeting}</span>
+          </span>
+        )}
         <span className="inline-flex items-center gap-1.5">
           <span className="inline-block h-3.5 w-5 rounded-sm" style={{ background: '#FFF3C4' }} />
           <b>{L.leaderKey}</b>
@@ -458,6 +473,17 @@ function GridView({
                             className={`${CELL} bg-white text-center ${here ? 'font-bold text-[#16a34a]' : 'text-[#dc2626]'}`}
                           >
                             {here ? 'O' : 'X'}
+                            {/* 동산모임은 예배와 다른 사실이라 같은 칸에 작게 덧붙는다 —
+                                예배엔 못 왔지만 동산모임엔 온 주가 실제로 있다. 그날 동산모임을
+                                아무도 적지 않았으면 아무것도 붙지 않는다. */}
+                            {c.dongsan && (
+                              <sup
+                                className={`ml-0.5 text-[9px] font-bold ${c.dongsan === 'present' ? 'text-[#16a34a]' : 'text-[#dc2626]'} opacity-70`}
+                                title={L.dongsanMeeting}
+                              >
+                                {c.dongsan === 'present' ? 'O' : 'X'}
+                              </sup>
+                            )}
                           </td>
                         )
                       })}

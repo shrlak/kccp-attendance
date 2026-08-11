@@ -6,7 +6,8 @@ import { useToast } from '../../components/ui/Toast'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { Tag } from '../../components/ui/Tag'
-import { Calendar, Sparkles, ScanLine, Settings } from '../../components/ui/Icon'
+import { Calendar, Link, Sparkles, ScanLine, Settings } from '../../components/ui/Icon'
+import { SheetSyncSection } from './SheetSyncSection'
 import type { ReactNode } from 'react'
 import { DEFAULT_GROUP_COLORS, isValidHex } from './groupColors'
 import { easternNow } from '../../lib/checkinWindow'
@@ -208,6 +209,20 @@ export function AdminSettings() {
           {colorsSaving ? t('common.loading') : t('admin.settings.save')}
         </Button>
       </section>
+
+      {/* 동산이 쓰는 구글 시트를 출석부에 붙이는 곳. 지금은 대학·청년부만 쓴다 —
+          장년부의 셀 출석은 아직 종이로 오므로 붙일 시트가 없다. */}
+      {usesSemesters(partition) && (
+      <section>
+        <SectionHeader
+          icon={<Link size={18} strokeWidth={2} aria-hidden />}
+          tone="bg-success/15 text-success"
+          title={t('admin.sheetSync.title')}
+          desc={t('admin.sheetSync.desc')}
+        />
+        <SheetSyncSection />
+      </section>
+      )}
 
       <section>
         <SectionHeader

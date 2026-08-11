@@ -273,7 +273,16 @@ export interface LogEntry {
   ts: number
   firstVisit?: boolean
   memberRole?: string
+  // 무엇의 출석인가. 서버가 `log`에는 예배만, `dongsanLog`에는 동산모임만 담아 보내므로
+  // 화면이 이 값을 보고 갈라낼 일은 없다 — 한 줄만 따로 들여다볼 때를 위한 표시다.
+  kind?: AttendanceKind
+  // 이 줄을 만든 것. 'sheet'면 구글 시트 연동이 넣었다는 뜻(앱에서 찍은 것은 비어 있다).
+  source?: string | null
 }
+
+// 주일예배 출석과 동산모임 출석은 서로 다른 사실이다 — 동산모임에는 왔지만 예배에는 못 온
+// 주가 실제로 있고, 동산 시트가 그 둘을 따로 적는다.
+export type AttendanceKind = 'worship' | 'dongsan'
 
 // One retired term's 동산 편성, frozen by the server the day the term ended (the live
 // assignment is cleared at that point). Keyed by member id → 동산.
@@ -287,7 +296,11 @@ export interface RosterResponse {
   // The 부 this roster was scoped to — the same value /api/admin/verify returned.
   partition?: Partition
   members: Member[]
+  // 주일예배 출석만. 지금까지와 같은 목록이라, 이것을 읽는 화면은 동산모임이 생겼다는 것을
+  // 몰라도 계속 맞는다.
   log: LogEntry[]
+  // 동산모임 출석. 구글 시트 연동이 들어오기 전에는 비어 있다.
+  dongsanLog?: LogEntry[]
   // 학기 종료 시 얼려둔 동산 편성, 학기 키("2026-summer")별 — 지난 학기 출석부가 그 학기의
   // 동산 블록을 유지하는 근거. Scoped to the members this admin can see.
   dongsanHistory?: Record<string, TermDongsan>
@@ -681,3 +694,67 @@ export const shareNewMember = (fields: NewMemberFields) =>
   api<{ status: 'ok'; memberId: string; time?: string }>('POST', '/api/share/new-member', fields)
 
 export const getShareCardScanUsage = () => api<CardScanUsage>('GET', '/api/share/card-scan-usage')
+
+// ── 구글 시트 동산 출석 연동 ──────────────────────────────────────────────────
+// 동산은 예배·동산모임 출석을 구글 시트에 적는다. 그 시트가 바뀌면 시트에 붙인 Apps
+// Script가 서버를 두드리고, **읽고 해석하는 일은 서버가 한다** — 여기 있는 것은 어느
+// 시트를 볼지 등록하고, 지난번에 무슨 일이 있었는지 읽어 오는 관리자 쪽 손잡이뿐이다.
+
+export interface SheetSource {
+  /** 스프레드시트 id (공유 링크에서 뽑는다). */
+  id: string
+  /** 탭 gid. 비어 있으면 첫 번째 탭. */
+  gid: string
+  title: string
+  /** 이 시트가 어느 부서의 것인가. 여름 합동 시트처럼 부서가 섞여 있으면 빈 문자열. */
+  group: string
+}
+
+/** 시트 한 장을 읽고 난 결과. 관리자 화면에 그대로 보여준다. */
+export interface SheetSyncOutcome {
+  sourceId: string
+  title: string
+  /** 새로 넣은 출석 줄 수. */
+  added: number
+  /** 시트에서 O가 X로 바뀌어 되돌린 줄 수 (연동이 넣었던 것만). */
+  removed: number
+  /** 상태 표기·등록일자·동산이 갱신된 사람 수. */
+  marked: number
+  /** 명단에 없어서 새로 만든 사람. */
+  created: string[]
+  /** 누구인지 확실하지 않아 손대지 않은 이름 (동명이인 등). */
+  unmatched: string[]
+  warnings: string[]
+  error?: string
+}
+
+export interface SheetSyncRun {
+  at: number
+  by: 'admin' | 'sheet'
+  outcomes: SheetSyncOutcome[]
+}
+
+export interface SheetSyncSettings {
+  /** 시트에 붙인 Apps Script가 들고 오는 연동 키. */
+  token: string
+  sources: SheetSource[]
+  lastRun: SheetSyncRun | null
+  /** Apps Script가 두드릴 주소 (설치 안내에 그대로 보여준다). */
+  pingUrl?: string
+}
+
+export const getSheetSync = () => api<SheetSyncSettings>('GET', '/api/admin/sheet-sync')
+
+export const addSheetSource = (url: string, title: string, group: string) =>
+  api<SheetSyncSettings>('POST', '/api/admin/sheet-sync', { action: 'add-source', url, title, group })
+
+export const removeSheetSource = (id: string, gid: string) =>
+  api<SheetSyncSettings>('POST', '/api/admin/sheet-sync', { action: 'remove-source', id, gid })
+
+export const rotateSheetSyncToken = () =>
+  api<SheetSyncSettings>('POST', '/api/admin/sheet-sync', { action: 'rotate-token' })
+
+// 시트를 읽는 데는 왕복이 몇 번 걸린다 (시트 내려받기 + 명단 대조 + 쓰기) — 기본 12초로는
+// 사람 수가 많은 시트에서 끊긴다.
+export const runSheetSync = (sourceId?: string) =>
+  api<{ lastRun: SheetSyncRun }>('POST', '/api/admin/sheet-sync/run', { sourceId }, undefined, 60_000)

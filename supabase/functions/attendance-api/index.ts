@@ -3,6 +3,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 import { ADULT_GROUP, ADULT_SCHEMA, canChoosePartition, canViewLoginLog, dbOf, inScope, inScopeGroup, partitionOfGroup, resolveAdmin, scopeFilter, type Partition, type Role, type Scope } from "./auth.ts";
 import { DEFAULT_SEMESTER_DATES, isSummerTerm, lastEndedTermKey, mergeSchedule, rollSchedule, sameSchedule, scheduleOf, scheduleToDates, subgroupSnapshot, trimHistory, validSchedule } from "./term.ts";
 import { availableCardModels, buildCardRequest, cardModelChain, parseCardResponse } from "./gemini.ts";
+import { csvUrl, matchPerson, mergeSheetMarks, nameCounts, normalizeMarks, parseAttendanceSheet, parseSheetUrl, sameMarks, type ParsedSheet } from "./sheetSync.ts";
 // Decrypt-side of the weekly R2 backup pipeline (see scripts/backup/). age-encryption is
 // FiloSottile's own pure-JS port of `age` (no native/subprocess dependency, which Deno
 // edge functions can't shell out to anyway); postgres.js's .unsafe() with no parameters
@@ -20,7 +21,7 @@ import { getSignedUrl } from "npm:@aws-sdk/s3-request-presigner@3.1090.0";
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type,X-Device-Id,X-Admin-Password,X-Geo-Lat,X-Geo-Lon,X-Geo-Acc,X-Partition,Authorization,apikey",
+  "Access-Control-Allow-Headers": "Content-Type,X-Device-Id,X-Admin-Password,X-Geo-Lat,X-Geo-Lon,X-Geo-Acc,X-Partition,X-Sync-Token,Authorization,apikey",
 };
 function localDate() { return new Date().toLocaleDateString("en-CA",{timeZone:"America/New_York"}); }
 function localTime() { return new Date().toLocaleTimeString("en-US",{timeZone:"America/New_York",hour:"2-digit",minute:"2-digit",second:"2-digit"}); }
@@ -313,7 +314,7 @@ function rowToDev(d: any) {
     kakaoId:d.kakao_id||"",
   };
 }
-function rowToLog(e: any) { return {id:e.id,memberId:e.member_id,deviceId:e.device_id,name:e.name,group:e.group_name||"",subgroup:e.subgroup||"",date:e.date,time:e.time_str,ts:e.ts,locationVerified:e.location_verified,adminAdded:e.admin_added,manual:e.is_manual,bulk:e.is_bulk,guest:e.is_guest,firstVisit:e.first_visit,memberRole:e.member_role}; }
+function rowToLog(e: any) { return {id:e.id,memberId:e.member_id,deviceId:e.device_id,name:e.name,group:e.group_name||"",subgroup:e.subgroup||"",date:e.date,time:e.time_str,ts:e.ts,locationVerified:e.location_verified,adminAdded:e.admin_added,manual:e.is_manual,bulk:e.is_bulk,guest:e.is_guest,firstVisit:e.first_visit,memberRole:e.member_role,kind:e.kind||"worship",source:e.source||null}; }
 // deno-lint-ignore no-explicit-any
 async function getDevsByName(pdb: any, name: string): Promise<string[]> { const {data}=await pdb.from("devices").select("id").eq("name",name); return (data||[]).map((d:any)=>d.id); }
 // When a real device is added for a member, it supersedes any ROSTER-… placeholder rows
@@ -368,7 +369,7 @@ async function supersedeRosterPlaceholders(pdb: any, name: string, devId: string
 }
 async function countAtt(sb: SB, name: string): Promise<number> {
   const dids=await getDevsByName(sb,name); if(!dids.length) return 0;
-  const {data}=await sb.from("attendance_log").select("date").in("device_id",dids);
+  const {data}=await sb.from("attendance_log").select("date").eq("kind","worship").in("device_id",dids);
   return new Set((data||[]).map((e:any)=>e.date)).size;
 }
 // Is `name` the 동산지기/부동산지기 of their 동산 (the display roster in config.dongsan_leaders)?
@@ -381,7 +382,7 @@ function isDongsanLeaderName(name: string, group: string, subgroup: string, lead
 }
 async function checkedToday(sb: SB, name: string, today: string) {
   const dids=await getDevsByName(sb,name); if(!dids.length) return null;
-  const {data}=await sb.from("attendance_log").select("*").in("device_id",dids).eq("date",today).limit(1);
+  const {data}=await sb.from("attendance_log").select("*").eq("kind","worship").in("device_id",dids).eq("date",today).limit(1);
   return data&&data.length?data[0]:null;
 }
 // 감사 기록도 부서마다 자기 스키마의 audit_log에 쌓인다 — 그러니 관리자 탭은 조건 없이 읽어도
@@ -398,6 +399,185 @@ async function addAudit(pdb: any, action: string, adminId: string, details: any,
     return !error;
   } catch(_){return false;}
 }
+
+// ── 구글 시트 동산 출석 연동 ─────────────────────────────────────────────────────────
+// 동산은 예배·동산모임 출석을 구글 시트에 적는다. 그 시트가 바뀌면 여기로 흘러 들어온다.
+//
+// 파싱은 sheetSync.ts가 한다(순수 함수, 테스트가 붙어 있다). 여기는 그 결과를 명단에
+// 붙이고 표에 쓰는 일만 한다. **한 방향뿐이다** — 시트가 출석부를 고치고, 출석부는 시트를
+// 고치지 않는다.
+//
+// 되돌릴 수 있는 것만 되돌린다: 연동이 넣은 행에는 source='sheet'가 적혀 있고, 시트에서
+// O가 X로 바뀌면 그 행만 지운다. 같은 날짜에 그 사람이 키오스크로 직접 찍은 출석은
+// source가 비어 있으므로 손대지 않는다. 시트가 사람의 실제 체크인을 지우는 일은 없다.
+const SHEET_SOURCE="sheet";
+
+interface SyncSource { id: string; gid: string; title: string; group: string }
+interface SyncSettings { token: string; sources: SyncSource[]; lastRun: unknown }
+
+// deno-lint-ignore no-explicit-any
+function syncSettings(cfg: any): SyncSettings {
+  const s=cfg?.sheet_sync||{};
+  const sources=(Array.isArray(s.sources)?s.sources:[])
+    // deno-lint-ignore no-explicit-any
+    .filter((x: any)=>x&&typeof x.id==="string"&&x.id)
+    // deno-lint-ignore no-explicit-any
+    .map((x: any)=>({id:String(x.id),gid:String(x.gid||""),title:String(x.title||""),group:String(x.group||"")}));
+  return {token:typeof s.token==="string"?s.token:"",sources,lastRun:s.lastRun??null};
+}
+
+function newSyncToken() {
+  const bytes=new Uint8Array(24); crypto.getRandomValues(bytes);
+  return [...bytes].map((b)=>b.toString(16).padStart(2,"0")).join("");
+}
+
+// 길이가 같은 두 토큰을 끝까지 다 비교한다 — 앞 글자부터 맞춰 보며 걸리는 시간으로 토큰을
+// 알아내는 수를 막는다.
+function tokenEq(a: string, b: string) {
+  if(!a||!b||a.length!==b.length) return false;
+  let diff=0; for(let i=0;i<a.length;i++) diff|=a.charCodeAt(i)^b.charCodeAt(i);
+  return diff===0;
+}
+
+interface SyncOutcome {
+  sourceId: string; title: string;
+  added: number; removed: number; marked: number;
+  created: string[]; unmatched: string[]; warnings: string[]; error?: string;
+}
+
+// 시트 한 장을 CSV로 받아 온다. 링크 공개(보기 권한)면 열쇠가 필요 없다 — 로그인 페이지가
+// 돌아오면 아직 공개가 아니라는 뜻이므로 그렇게 알려 준다 (raw HTML을 파싱하다 0명으로
+// 조용히 끝나는 것보다 낫다).
+async function fetchSheetCsv(source: SyncSource): Promise<string> {
+  const res=await fetch(csvUrl(source.id,source.gid),{redirect:"follow"});
+  const body=await res.text();
+  if(!res.ok) throw new Error(`시트를 읽지 못했습니다 (HTTP ${res.status}). 링크와 공유 설정을 확인해 주세요.`);
+  const looksHtml=(res.headers.get("content-type")||"").includes("text/html")||body.trimStart().startsWith("<");
+  if(looksHtml) throw new Error("시트가 링크 공개가 아닙니다 — 공유에서 '링크가 있는 모든 사용자'에게 보기 권한을 주세요.");
+  return body;
+}
+
+// deno-lint-ignore no-explicit-any
+async function runSheetSync(sb: SB, part: Partition, cfg: any, onlyId?: string): Promise<SyncOutcome[]> {
+  const pdb=db(sb,part);
+  const {sources}=syncSettings(cfg);
+  const picked=onlyId?sources.filter((s)=>s.id===onlyId):sources;
+  const outcomes: SyncOutcome[]=[];
+  for(const source of picked) {
+    const out: SyncOutcome={sourceId:source.id,title:source.title||source.id,added:0,removed:0,marked:0,created:[],unmatched:[],warnings:[]};
+    try {
+      const parsed=parseAttendanceSheet(await fetchSheetCsv(source));
+      out.warnings.push(...parsed.warnings);
+      if(parsed.people.length) await applySheet(pdb,source,parsed,out);
+    } catch(e) {
+      out.error=e instanceof Error?e.message:String(e);
+    }
+    outcomes.push(out);
+  }
+  return outcomes;
+}
+
+// deno-lint-ignore no-explicit-any
+async function applySheet(pdb: any, source: SyncSource, parsed: ParsedSheet, out: SyncOutcome) {
+  // 후보 명단. 시트에 부서가 적혀 있지 않으므로(동산 이름뿐이다) 어느 부서의 시트인지는
+  // 등록할 때 사람이 정해 준 값(source.group)으로만 알 수 있다. 봄·가을처럼 부서마다 시트가
+  // 따로일 때 그 값이 후보를 그 부서로 좁혀 준다. 여름 합동 시트는 비어 있어 부 전체가 후보다.
+  let rq=pdb.from("members").select("id,name,group_name,subgroup,status_marks,registration_date,member_role");
+  if(source.group) rq=rq.eq("group_name",source.group);
+  const {data:roster}=await rq;
+  const candidates=(roster||[]) as any[];
+  const counts=nameCounts(parsed.people);
+
+  // 붙일 사람을 먼저 다 정한다 — 새로 만들 사람까지 포함해서. 표에 쓰는 것은 그 뒤에 한꺼번에.
+  const resolved: Array<{person: typeof parsed.people[number]; member: any}>=[];
+  const toCreate: Array<{person: typeof parsed.people[number]; row: any}>=[];
+  for(const person of parsed.people) {
+    const match=matchPerson(person,candidates.map((m)=>({id:m.id,name:m.name,subgroup:m.subgroup})),counts.get(person.name.trim())??1);
+    if(match.kind==="ambiguous") { out.unmatched.push(`${person.name} — ${match.reason}`); continue; }
+    if(match.kind==="matched") {
+      resolved.push({person,member:candidates.find((m)=>m.id===match.id)});
+      continue;
+    }
+    // 명단에 없는 이름은 새 멤버로 만든다. 등록일자는 시트가 '새가족'으로 덮어 둔 구간이
+    // 끝난 날 — 그 사람이 실제로 명단에 들어온 날이다. 그런 표시가 없으면 시트에서 처음
+    // 값이 적힌 날로 둔다 (지난 학기 출석부가 이 사람을 언제부터 세는지가 여기서 정해진다).
+    const firstSeen=person.joinedFrom??person.marks[0]?.date??null;
+    // 동산은 비워 둔다 (위 갱신 쪽 주석 참고 — 시트의 동산 이름은 명단의 것과 다른 체계다).
+    // 대신 어느 동산 줄에서 왔는지를 메모에 남겨, 관리자가 동산 탭에서 배정할 때 근거가 된다.
+    toCreate.push({person,row:{
+      name:person.name,group_name:source.group||"",subgroup:"",
+      registration_date:firstSeen,
+      notes:`구글 시트 연동으로 자동 등록 (${source.title||source.id}${person.subgroup?` · ${person.subgroup}`:""})`,
+    }});
+  }
+  if(toCreate.length) {
+    const {data:made,error}=await pdb.from("members").insert(toCreate.map((c)=>c.row)).select("id,name,group_name,subgroup,status_marks,registration_date,member_role");
+    if(error) out.warnings.push(`새 멤버를 만들지 못했습니다: ${error.message}`);
+    const rows=(made||[]) as any[];
+    toCreate.forEach((c,i)=>{ const row=rows[i]; if(row){ out.created.push(c.person.name); resolved.push({person:c.person,member:row}); } });
+  }
+  if(!resolved.length) return;
+
+  // 이미 있는 출석을 한 번에 읽어 온다 — 사람마다 물어보면 왕복이 수백 번이 된다.
+  const ids=resolved.map((r)=>r.member.id);
+  const dates=parsed.dates;
+  const {data:existing}=await pdb.from("attendance_log")
+    .select("id,member_id,date,kind,source").in("member_id",ids).gte("date",dates[0]).lte("date",dates[dates.length-1]);
+  const seen=new Map<string,{id:number;source:string|null}>();
+  for(const row of (existing||[]) as any[]) seen.set(`${row.member_id}|${row.date}|${row.kind||"worship"}`,{id:row.id,source:row.source??null});
+
+  // 기기 번호. 출석 행은 device_id가 비어 있을 수 없어서, 그 사람의 기기가 있으면 그것을,
+  // 없으면 SHEET- 자리표를 쓴다 (관리자가 손으로 넣을 때 MANUAL-을 쓰는 것과 같은 방식).
+  const {data:devs}=await pdb.from("devices").select("id,member_id").in("member_id",ids);
+  const devOf: Record<string,string>={};
+  for(const d of (devs||[]) as any[]) if(!devOf[d.member_id]) devOf[d.member_id]=d.id;
+
+  const inserts: any[]=[]; const deletes: number[]=[]; let stamp=Date.now();
+  for(const {person,member} of resolved) {
+    for(const mark of person.marks) {
+      const key=`${member.id}|${mark.date}|${mark.kind}`;
+      const have=seen.get(key);
+      if(mark.present) {
+        if(have) continue; // 이미 있다 — 앱에서 찍힌 것이든 지난번 동기화가 넣은 것이든 그대로 둔다
+        inserts.push({
+          device_id:devOf[member.id]||`SHEET-${stamp++}`,member_id:member.id,name:member.name,
+          group_name:member.group_name||"",subgroup:member.subgroup||person.subgroup||"",
+          date:mark.date,time_str:localTime(),ts:stamp,kind:mark.kind,source:SHEET_SOURCE,
+          is_manual:true,admin_added:true,member_role:member.member_role||null,
+        });
+      } else if(have&&have.source===SHEET_SOURCE) {
+        deletes.push(have.id); // 시트가 넣었던 것만 시트가 되돌린다
+      }
+    }
+  }
+  if(inserts.length) {
+    const {error}=await pdb.from("attendance_log").insert(inserts);
+    if(error) out.warnings.push(`출석을 넣지 못했습니다: ${error.message}`); else out.added=inserts.length;
+  }
+  if(deletes.length) {
+    const {error}=await pdb.from("attendance_log").delete().in("id",deletes);
+    if(error) out.warnings.push(`출석을 되돌리지 못했습니다: ${error.message}`); else out.removed=deletes.length;
+  }
+
+  // 상태 표기와 등록일자. 사람마다 갱신이지만 실제로 바뀐 줄만 쓴다.
+  for(const {person,member} of resolved) {
+    const merged=mergeSheetMarks(member.status_marks,person.spans);
+    const patch: any={};
+    if(!sameMarks(normalizeMarks(member.status_marks),merged)) patch.status_marks=merged;
+    // 등록일자는 앞으로만 당긴다: 시트가 말하는 합류일이 지금 적힌 것보다 이르면 그것으로.
+    if(person.joinedFrom&&(!member.registration_date||person.joinedFrom<member.registration_date)) patch.registration_date=person.joinedFrom;
+    // **동산은 쓰지 않는다.** 시트의 동산은 사람을 찾는 데만 쓰고 명단에 옮겨 적지 않는다.
+    // 두 가지가 걸린다. 하나는 두 곳이 같은 칸에 다른 것을 담고 있다는 점 — 시트는
+    // '건영동산·중호동산'이라 부르고 명단의 subgroup에는 '호연선규'처럼 짝지은 이름이 들어
+    // 있다. 다른 하나는 학기 종료 롤오버다: 학기가 끝나면 서버가 동산 편성을 일부러 비우고
+    // 그 학기 것을 스냅숏으로 얼려 두는데(rolloverDongsan), 연동이 시트를 보고 도로 채우면
+    // 그 일을 매번 되돌리게 된다. 편성의 주인은 동산 탭이다.
+    if(!Object.keys(patch).length) continue;
+    const {error}=await pdb.from("members").update(patch).eq("id",member.id);
+    if(error) out.warnings.push(`${member.name}의 정보를 고치지 못했습니다: ${error.message}`); else out.marked++;
+  }
+}
+
 // R2 access for the db-backup list/download/restore endpoints (scripts/backup/ writes
 // here on its own schedule; these just read). Returns null when the edge-function-side R2
 // secrets haven't been configured yet, so callers can fail with a clear setup message
@@ -621,11 +801,11 @@ async function geoForIps(sb: SB, ips: string[]): Promise<Record<string,IpGeo>> {
 
 async function buildCsvLog(sb: SB, gf: string, sf: string) {
   const [{data:logs},{data:devs}]=await Promise.all([
-    (()=>{let q:any=(sb.from("attendance_log").select("*").order("ts",{ascending:false}));if(gf)q=q.eq("group_name",gf);if(sf)q=q.eq("subgroup",sf);return q;})(),
+    (()=>{let q:any=(sb.from("attendance_log").select("*").eq("kind","worship").order("ts",{ascending:false}));if(gf)q=q.eq("group_name",gf);if(sf)q=q.eq("subgroup",sf);return q;})(),
     (sb.from("devices").select("*"))
   ]);
   const dm: Record<string,any>={}; (devs||[]).forEach((d:any)=>{dm[d.id]=d;});
-  const allLogs=(await (sb.from("attendance_log").select("device_id,name,date"))).data||[];
+  const allLogs=(await (sb.from("attendance_log").select("device_id,name,date").eq("kind","worship"))).data||[];
   const nt: Record<string,Set<string>>={};
   for(const e of allLogs){const nm=dm[e.device_id]?.name||e.name||"";if(!nt[nm])nt[nm]=new Set();nt[nm].add(e.date);}
   const h=["Name","Group","Subgroup","Day","Date","Time","Total"];
@@ -639,7 +819,7 @@ async function buildCsvGrid(sb: SB, gf: string, sf: string) {
   const members: Record<string,{group:string;subgroup:string;devices:string[]}>={};
   (devs||[]).forEach((d:any)=>{if(!members[d.name])members[d.name]={group:d.group_name||"",subgroup:d.subgroup||"",devices:[]};members[d.name].devices.push(d.id);});
   const names=Object.keys(members).sort();
-  let lq: any=(sb.from("attendance_log").select("*").order("date",{ascending:true})); if(gf) lq=lq.eq("group_name",gf); if(sf) lq=lq.eq("subgroup",sf);
+  let lq: any=(sb.from("attendance_log").select("*").eq("kind","worship").order("date",{ascending:true})); if(gf) lq=lq.eq("group_name",gf); if(sf) lq=lq.eq("subgroup",sf);
   const {data:logs}=await lq;
   const dates=[...new Set((logs||[]).map((e:any)=>e.date as string))].sort();
   const h=["Name","Group","Subgroup","Total",...dates.map(fmtDateWithDay)];
@@ -765,7 +945,7 @@ Deno.serve(async (req: Request) => {
       const needsTag=role.role==="leader"||role.role==="welcoming";
       const [mRes,gRes,meRes]:any[]=await Promise.all([
         mq,
-        seesWholePartition?scopeQuery(adb.from("attendance_log").select("*").eq("is_guest",true),scope).order("ts",{ascending:false}):Promise.resolve({data:[]}),
+        seesWholePartition?scopeQuery(adb.from("attendance_log").select("*").eq("kind","worship").eq("is_guest",true),scope).order("ts",{ascending:false}):Promise.resolve({data:[]}),
         needsTag?adb.from("members").select("name").eq("id",role.memberId).single():Promise.resolve({data:null}),
       ]);
       const members=mRes?.data;
@@ -792,7 +972,85 @@ Deno.serve(async (req: Request) => {
         for(const [mid,sub] of Object.entries<any>(entry?.subgroups||{})) if(visible.has(mid)) subs[mid]=String(sub);
         dongsanHistory[term]={endedAt:entry?.endedAt||"",subgroups:subs};
       }
-      return ok({role:role.role,partition:part,canBulkSubgroup,canClearAttendance,members:members||[],log:(logs||[]).map(rowToLog),dongsanHistory});
+      // 예배 출석과 동산모임 출석은 서로 다른 사실이므로 갈라서 내려준다 — `log`은 지금까지와
+      // 똑같이 예배 출석뿐이라, 이것을 읽는 화면(출석부·오늘·통계·아카이브)은 손대지 않아도
+      // 동산모임 행을 출석으로 잘못 세지 않는다. 동산모임은 자기 목록으로 따로 간다.
+      // 쿼리를 둘로 쪼개지 않는 이유: 여기는 앱에서 제일 자주 도는 경로라 왕복을 늘릴 수 없다.
+      const worshipLog=(logs||[]).filter((e: any)=>(e.kind||"worship")!=="dongsan");
+      const dongsanLog=(logs||[]).filter((e: any)=>e.kind==="dongsan");
+      return ok({role:role.role,partition:part,canBulkSubgroup,canClearAttendance,members:members||[],log:worshipLog.map(rowToLog),dongsanLog:dongsanLog.map(rowToLog),dongsanHistory});
+    }
+
+    // ── 구글 시트 연동 ───────────────────────────────────────────────────────────────
+    // 설정을 보고 고치는 쪽은 super_admin만. 실제 동기화를 부르는 쪽(/api/sheet/sync)은
+    // 사람이 아니라 시트가 두드리므로 토큰으로 들어온다 — 아래 따로 있다.
+    if(req.method==="GET"&&p==="/api/admin/sheet-sync") {
+      const role=await auth();
+      if(role?.role!=="super_admin") return fail(403,"Not authorized");
+      const s=syncSettings(await getCfg(sb,actingPartition));
+      return ok({token:s.token,sources:s.sources,lastRun:s.lastRun,
+        pingUrl:`${url.origin}${raw.slice(0,raw.indexOf("/api"))}/api/sheet/sync`});
+    }
+
+    if(req.method==="POST"&&p==="/api/admin/sheet-sync") {
+      const role=await auth();
+      if(role?.role!=="super_admin") return fail(403,"Not authorized");
+      const cfg=await getCfg(sb,actingPartition);
+      const s=syncSettings(cfg);
+      const {action}=body;
+      let next={...s};
+      if(action==="rotate-token") next.token=newSyncToken();
+      else if(action==="add-source") {
+        const parsedUrl=parseSheetUrl(String(body.url||""));
+        if(!parsedUrl) return fail(400,"구글 시트 링크가 아닙니다");
+        // 부서는 시트 안에 없다 — 봄·가을처럼 부서마다 시트가 따로일 때만 값이 있고,
+        // 여름 합동 시트는 비어 있다. 이 부에 없는 부서 이름은 받지 않는다.
+        const group=String(body.group||"");
+        if(group&&partitionOfGroup(group)!==actingPartition) return fail(400,"이 부의 부서가 아닙니다");
+        const source: SyncSource={id:parsedUrl.id,gid:parsedUrl.gid,title:String(body.title||"").slice(0,120),group};
+        next.sources=[...s.sources.filter((x)=>x.id!==source.id||x.gid!==source.gid),source];
+        if(!next.token) next.token=newSyncToken(); // 첫 시트를 붙일 때 열쇠도 같이 난다
+      }
+      else if(action==="remove-source") next.sources=s.sources.filter((x)=>!(x.id===String(body.id||"")&&x.gid===String(body.gid||"")));
+      else return fail(400,"Unknown action");
+      await db(sb,actingPartition).from("config").update({sheet_sync:{...next},updated_at:new Date().toISOString()}).eq("id",1);
+      await addAudit(adb,"sheet-sync-config",xDev,String(action),actingPartition);
+      return ok({token:next.token,sources:next.sources,lastRun:next.lastRun});
+    }
+
+    // 지금 동기화 — 관리자가 버튼을 눌렀을 때. 시트가 두드리는 경로와 같은 일을 한다.
+    if(req.method==="POST"&&p==="/api/admin/sheet-sync/run") {
+      const role=await auth();
+      if(role?.role!=="super_admin") return fail(403,"Not authorized");
+      const cfg=await getCfg(sb,actingPartition);
+      const outcomes=await runSheetSync(sb,actingPartition,cfg,body.sourceId?String(body.sourceId):undefined);
+      const lastRun={at:Date.now(),by:"admin",outcomes};
+      await db(sb,actingPartition).from("config").update({sheet_sync:{...syncSettings(cfg),lastRun}}).eq("id",1);
+      await addAudit(adb,"sheet-sync-run",xDev,`${outcomes.reduce((n,o)=>n+o.added,0)} added, ${outcomes.reduce((n,o)=>n+o.removed,0)} removed`,actingPartition);
+      return ok({lastRun});
+    }
+
+    // 시트가 바뀌었다고 알려 오는 자리. 스프레드시트에 붙인 Apps Script가 여기를 두드리고,
+    // **읽기와 해석은 서버가 한다** — 그래야 파서를 고칠 때 시트마다 스크립트를 다시
+    // 붙여넣지 않아도 된다. 로그인이 아니라 토큰으로 들어오므로 사람도 부서도 없고,
+    // 토큰이 어느 부의 것이냐가 곧 어느 명단을 고칠 것이냐다.
+    if(req.method==="POST"&&p==="/api/sheet/sync") {
+      const token=req.headers.get("x-sync-token")||req.headers.get("X-Sync-Token")||String(body.token||"");
+      if(!token) return fail(401,"Not authorized");
+      const [youthCfg,adultCfg]=await Promise.all([getCfg(sb,"youth"),getCfg(sb,"adult")]);
+      const part: Partition|null=tokenEq(syncSettings(youthCfg).token,token)?"youth"
+        :tokenEq(syncSettings(adultCfg).token,token)?"adult":null;
+      if(!part) return fail(401,"Not authorized");
+      const cfg=part==="adult"?adultCfg:youthCfg;
+      // 시트가 자기 id를 실어 보내면 그 시트만 읽는다. 등록되지 않은 id는 무시한다 —
+      // 토큰을 쥐었다고 아무 스프레드시트나 명단에 부어 넣을 수 있으면 안 된다.
+      const asked=body.sourceId?String(body.sourceId):undefined;
+      const known=syncSettings(cfg).sources.some((s)=>s.id===asked);
+      const outcomes=await runSheetSync(sb,part,cfg,asked&&known?asked:undefined);
+      const lastRun={at:Date.now(),by:"sheet",outcomes};
+      await db(sb,part).from("config").update({sheet_sync:{...syncSettings(cfg),lastRun}}).eq("id",1);
+      actingPartition=part; // 자동 백업이 이 부의 줄기로 나가도록
+      return ok({status:"ok",outcomes});
     }
 
     // Settings (super-admin only): group colors, semester dates. 여름 모드는 더 이상 설정이
@@ -1413,9 +1671,9 @@ Deno.serve(async (req: Request) => {
         if(!inScope(scope,m.group_name,m.subgroup)) return fail(403,"Out of scope");
       }
       const today=localDate(),time=localTime();
-      const {data:exist}=await adb.from("attendance_log").select("time_str").eq("member_id",memberId).eq("date",today).limit(1);
+      const {data:exist}=await adb.from("attendance_log").select("time_str").eq("kind","worship").eq("member_id",memberId).eq("date",today).limit(1);
       if(exist&&exist.length) return ok({status:"already",time:exist[0].time_str,name:m.name});
-      const {count}=await adb.from("attendance_log").select("id",{count:"exact",head:true}).eq("member_id",memberId);
+      const {count}=await adb.from("attendance_log").select("id",{count:"exact",head:true}).eq("kind","worship").eq("member_id",memberId);
       const isFirst=(count||0)===0;
       const {data:dev}=await adb.from("devices").select("id").eq("member_id",memberId).limit(1);
       const did=(dev&&dev.length)?dev[0].id:("MANUAL-"+Date.now());
@@ -1437,7 +1695,7 @@ Deno.serve(async (req: Request) => {
         const scope=scopeFilter(role,summerNow(await getCfg(sb,actingPartition),role.partition));
         if(!inScope(scope,m.group_name,m.subgroup)) return fail(403,"Out of scope");
       }
-      const {data:exist}=await adb.from("attendance_log").select("id").eq("member_id",memberId).eq("date",date).limit(1);
+      const {data:exist}=await adb.from("attendance_log").select("id").eq("kind","worship").eq("member_id",memberId).eq("date",date).limit(1);
       if(exist&&exist.length) return ok({status:"already"});
       const {data:dev}=await adb.from("devices").select("id").eq("member_id",memberId).limit(1);
       const did=(dev&&dev.length)?dev[0].id:("MANUAL-"+Date.now());
@@ -1483,7 +1741,7 @@ Deno.serve(async (req: Request) => {
       const scoped=(mem||[]).filter((m:any)=>inScope(bulkScope,m.group_name,m.subgroup));
       if(!scoped.length) return ok({status:"ok",added:0});
       const ids=scoped.map((m:any)=>m.id);
-      const {data:existing}=await adb.from("attendance_log").select("member_id").in("member_id",ids).eq("date",date);
+      const {data:existing}=await adb.from("attendance_log").select("member_id").eq("kind","worship").in("member_id",ids).eq("date",date);
       const have=new Set((existing||[]).map((e:any)=>e.member_id));
       const toAdd=scoped.filter((m:any)=>!have.has(m.id));
       if(toAdd.length){
@@ -1563,7 +1821,7 @@ Deno.serve(async (req: Request) => {
       const guestGroups=role.partition==="adult"?[ADULT_GROUP]:["대학부","청년부"];
       const group=guestGroups.includes(requestedGroup)?requestedGroup:(role.partition==="adult"?ADULT_GROUP:"");
       const today=localDate(),time=localTime();
-      const {data:exist}=await adb.from("attendance_log").select("time_str").eq("name",name).eq("date",today).eq("is_guest",true).limit(1);
+      const {data:exist}=await adb.from("attendance_log").select("time_str").eq("kind","worship").eq("name",name).eq("date",today).eq("is_guest",true).limit(1);
       if(exist&&exist.length) return ok({status:"already",time:exist[0].time_str,name});
       await adb.from("attendance_log").insert({device_id:"GUEST-"+Date.now(),name,group_name:group,subgroup:"",date:today,time_str:time,ts:Date.now(),is_manual:true,is_guest:true,member_role:"visitor"});
       await addAudit(adb,"guest-checkin",xDev,name+(group?" | "+group:"")+" | "+today,role.partition);
@@ -1635,7 +1893,7 @@ Deno.serve(async (req: Request) => {
       // today's attendance — e.g. entering a stack of paper cards later in the week.
       // The kiosk never sends the flag, so its check-them-in-now behavior is unchanged.
       // 병합된 사람이 오늘 이미 출석했다면 줄을 하나 더 남기지 않는다.
-      const already=merged?(await ndb.from("attendance_log").select("id").eq("member_id",memberId).eq("date",today).limit(1)).data:null;
+      const already=merged?(await ndb.from("attendance_log").select("id").eq("kind","worship").eq("member_id",memberId).eq("date",today).limit(1)).data:null;
       if(!body.skipCheckin&&!(already as unknown[]|null)?.length){
         await ndb.from("attendance_log").insert({device_id:newId,member_id:memberId,name,group_name:group,subgroup,date:today,time_str:time,ts:Date.now(),is_manual:true,admin_added:false,first_visit:!merged});
       }
@@ -1850,7 +2108,7 @@ Deno.serve(async (req: Request) => {
         if(loc!==null) return ok({status:"location-restricted",message:"교회 근처에서만 출석할 수 있습니다.",distance:loc});
       }
       const today=localDate(),time=localTime();
-      const {data:ex}=await sb.from("attendance_log").select("id").eq("name",name.trim()).eq("date",today).eq("is_guest",true).limit(1);
+      const {data:ex}=await sb.from("attendance_log").select("id").eq("kind","worship").eq("name",name.trim()).eq("date",today).eq("is_guest",true).limit(1);
       if(!ex||!ex.length) await sb.from("attendance_log").insert({device_id:"GUEST-"+Date.now(),name:name.trim(),group_name:"",subgroup:"",date:today,time_str:time,ts:Date.now(),is_guest:true,member_role:"visitor"});
       return ok({status:"ok",time,name:name.trim()});
     }
@@ -2051,7 +2309,7 @@ Deno.serve(async (req: Request) => {
     if(req.method==="POST"&&p==="/api/restore") {
       if(!await isAdmin(sb,xDev)) return fail(403,"Not authorized"); const bk=body; if(!bk.version||!bk.attendance) return fail(400,"Invalid backup file");
       if(bk.attendance?.devices){await sb.from("devices").delete().neq("id","");const dr=Object.entries(bk.attendance.devices).map(([id,v]:any)=>({id,name:v.name,group_name:v.group||"",subgroup:v.subgroup||"",notes:v.notes||"",member_role:v.memberRole||"",gender:v.gender||"",phone:v.phone||"",birth_date:v.birthDate||null,baptism_status:v.baptismStatus||"해당없음",school_or_work:v.schoolOrWork||"",faith_duration:v.faithDuration||"",registration_date:v.registrationDate||null,pastoral_visit_requested:v.pastoralVisitRequested||false,is_new_member:v.isNewMember||false,new_member_edu_week1:v.newMemberEduWeek1||false,new_member_edu_week2:v.newMemberEduWeek2||false}));if(dr.length) await sb.from("devices").insert(dr);}
-      if(bk.attendance?.log){await sb.from("attendance_log").delete().neq("id",0);const lr=bk.attendance.log.map((e:any)=>({device_id:e.deviceId,name:e.name,group_name:e.group||"",subgroup:e.subgroup||"",date:e.date,time_str:e.time,ts:e.ts,location_verified:!!e.locationVerified,admin_added:!!e.adminAdded,first_visit:!!e.firstVisit,is_manual:!!e.manual,is_bulk:!!e.bulk,is_guest:!!e.guest,member_role:e.memberRole||null}));if(lr.length) await sb.from("attendance_log").insert(lr);}
+      if(bk.attendance?.log){await sb.from("attendance_log").delete().neq("id",0);const lr=bk.attendance.log.map((e:any)=>({device_id:e.deviceId,name:e.name,group_name:e.group||"",subgroup:e.subgroup||"",date:e.date,time_str:e.time,ts:e.ts,location_verified:!!e.locationVerified,admin_added:!!e.adminAdded,first_visit:!!e.firstVisit,is_manual:!!e.manual,is_bulk:!!e.bulk,is_guest:!!e.guest,member_role:e.memberRole||null,kind:e.kind==="dongsan"?"dongsan":"worship",source:e.source||null}));if(lr.length) await sb.from("attendance_log").insert(lr);}
       if(bk.config){const c=bk.config;await sb.from("config").update({admin_devices:c.adminDevices||[],name_order:c.nameOrder||[],dongsan_names:c.dongsanNames,checkin_days:c.checkinDays||[0],checkin_start_min:c.checkinStartMin??780,checkin_end_min:c.checkinEndMin??900,dongsan_leaders:c.dongsanLeaders||{},require_approval:c.requireApproval||false,individual_checkin_enabled:c.individualCheckinEnabled||false,semester_dates:validSemesterDates(c.semesterDates)?c.semesterDates:null}).eq("id",1);}
       if(bk.events?.events){await sb.from("events").delete().neq("id","");for(const e of bk.events.events){await sb.from("events").insert({id:e.id,name:e.name,date:e.date,type:e.type||"기타",group_name:e.group||"",notes:e.notes||"",created_by:e.createdBy,created_at:e.createdAt?new Date(e.createdAt).toISOString():new Date().toISOString()});if(e.attendees?.length) await sb.from("event_attendees").insert(e.attendees.map((a:string)=>({event_id:e.id,device_id:"NAME-"+a,name:a})));}}
       await addAudit(sb,"restore",xDev,"Restored backup from "+(bk.exportedAt?new Date(bk.exportedAt).toLocaleString("ko-KR",{timeZone:"America/New_York"}):"unknown"));
@@ -2063,7 +2321,7 @@ Deno.serve(async (req: Request) => {
       const today=localDate();
       let dq: any=(sb.from("devices").select("*")); if(gf) dq=dq.eq("group_name",gf); if(sf) dq=dq.eq("subgroup",sf);
       const {data:devData}=await dq;
-      let lq: any=(sb.from("attendance_log").select("*").order("date",{ascending:true}));
+      let lq: any=(sb.from("attendance_log").select("*").eq("kind","worship").order("date",{ascending:true}));
       if(gf) lq=lq.eq("group_name",gf); if(sf) lq=lq.eq("subgroup",sf);
       if(period==="today") lq=lq.eq("date",today);
       else if(period==="weekly"){const d=new Date();d.setDate(d.getDate()-6);lq=lq.gte("date",d.toLocaleDateString("en-CA",{timeZone:"America/New_York"})).lte("date",today);}

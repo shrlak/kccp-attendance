@@ -115,12 +115,18 @@ export interface SheetData {
 // run (한국 귀국 / 이주 / 돌아옴 / 새가족 …) spanning `span` columns; the covered cells that
 // follow are 'inNote' so renderers can merge them. 'blank' = pre-등록일자, upcoming, or a
 // date the 동산 has no data for yet.
+// `dongsan` is the 동산모임 mark for the same date, when there is one — a second, smaller
+// fact sitting in the same cell. 구글 시트 연동이 들어오기 전에는 언제나 undefined다.
 export type CellMark =
-  | { kind: 'present' }
-  | { kind: 'absent' }
+  | { kind: 'present'; dongsan?: DongsanMark }
+  | { kind: 'absent'; dongsan?: DongsanMark }
   | { kind: 'blank' }
   | { kind: 'note'; note: string; span: number }
   | { kind: 'inNote' }
+
+// 동산모임에 왔는가. 예배와 **따로 적히는 사실**이라 없을 수도 있다 (그날 동산모임을 적지
+// 않았거나, 그 시트가 아직 붙지 않았거나).
+export type DongsanMark = 'present' | 'absent'
 
 // One member row inside an attendance block: their attended dates (by name), per-date cell
 // marks, and the count of shown dates they attended (예배 총 출석).
@@ -175,6 +181,8 @@ export function buildAttendanceModel(
   today: string,
   labels: AttendanceLabels,
   groupBy: (m: Member) => string = (m) => m.subgroup || labels.unassigned,
+  // 동산모임 출석 (/api/roster의 dongsanLog). 예배 출석과 같은 칸에 작게 덧붙는다.
+  dongsanLog: LogEntry[] = [],
 ): AttendanceModel {
   // 한국 귀국 / 이주 for the whole shown stretch → not part of this sheet at all.
   const roster = dates.length
@@ -191,6 +199,21 @@ export function buildAttendanceModel(
     }
     set.add(e.date)
   }
+
+  // 동산모임도 같은 방식으로 이름 → 날짜. 예배와 겹치지 않는 별개의 집합이다.
+  const attendedDongsan = new Map<string, Set<string>>()
+  for (const e of dongsanLog) {
+    let set = attendedDongsan.get(e.name)
+    if (!set) {
+      set = new Set<string>()
+      attendedDongsan.set(e.name, set)
+    }
+    set.add(e.date)
+  }
+  // 그 동산모임이 적힌 날짜들. 여기 없는 날짜는 "안 왔다"가 아니라 "아무도 적지 않았다"라서
+  // 칸에 아무것도 덧붙이지 않는다 — 시트의 빈칸을 결석으로 읽지 않는 것과 같은 규칙이다.
+  const dongsanDates = new Set<string>()
+  for (const e of dongsanLog) dongsanDates.add(e.date)
 
   const order: string[] = []
   const byKey = new Map<string, Member[]>()
@@ -213,12 +236,16 @@ export function buildAttendanceModel(
 
     const rows: AttendanceMemberRow[] = sectionMembers.map((m, mi) => {
       const present = presents[mi]
+      const inDongsan = attendedDongsan.get(m.name)
       const marks: CellMark[] = dates.map((d, di) => {
         const note = noteOn(m, d) ?? (isActiveNewFamily(m) && beforeRegistration(m, d) ? labels.newFamily : null)
         if (note) return { kind: 'note', note, span: 1 }
         if (beforeRegistration(m, d)) return { kind: 'blank' }
         if (isFutureDate(d, today) || !hasData[di]) return { kind: 'blank' }
-        return present.has(d) ? { kind: 'present' } : { kind: 'absent' }
+        const dongsan: DongsanMark | undefined = dongsanDates.has(d)
+          ? inDongsan?.has(d) ? 'present' : 'absent'
+          : undefined
+        return present.has(d) ? { kind: 'present', dongsan } : { kind: 'absent', dongsan }
       })
       // Coalesce consecutive same-note cells into one span (the master sheet's merged grey cell).
       for (let i = 0; i < marks.length; i++) {
