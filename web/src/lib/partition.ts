@@ -112,11 +112,6 @@ export function usesSemesters(partition: Partition): boolean {
   return partition === 'youth'
 }
 
-// 출석부의 표/기록 전환. 장년부는 표 하나로만 본다.
-export function showsAttendanceLog(partition: Partition): boolean {
-  return partition === 'youth'
-}
-
 // ── 한 해를 몇 토막으로 나누는가 ──────────────────────────────────────────────────────
 //
 // 대학·청년부는 학사 일정을 따라 봄·여름·가을 세 학기로 나눈다. 장년부에는 학기가 없다 —

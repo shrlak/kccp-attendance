@@ -22,8 +22,8 @@ beforeAll(async () => { await i18n.init() })
 // 표기가 붙어 명단에서 빠진 사람이다.
 const board: DongsanBoard = {
   partition: 'youth',
-  group: '',
-  subgroup: '건영동산',
+  group: '대학부',
+  subgroup: '',
   dates: ['2026-08-02', '2026-08-09'],
   members: [
     { id: 'm1', name: '김출석', group: '대학부', subgroup: '건영동산' },
@@ -71,7 +71,7 @@ describe('/dongsan/:token — 동산지기 출석 화면', () => {
   it('opens with the most recent Sunday and shows each member as O or X', async () => {
     renderScreen()
 
-    expect(await screen.findByText('건영동산')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '대학부 전체' })).toBeInTheDocument()
     expect(getDongsanBoard).toHaveBeenCalledWith('tok123')
 
     // 이번 주일(목록의 마지막)이 먼저 열린다 — 리더가 열자마자 적는 곳이 이번 주이기 때문.
@@ -88,7 +88,7 @@ describe('/dongsan/:token — 동산지기 출석 화면', () => {
   it('saves the pick as 동산 attendance for the chosen Sunday', async () => {
     const user = userEvent.setup()
     renderScreen()
-    await screen.findByText('건영동산')
+    await screen.findByRole('heading', { name: '대학부 전체' })
 
     await user.selectOptions(screen.getByRole('combobox', { name: '박결석' }), 'O')
 
@@ -101,7 +101,7 @@ describe('/dongsan/:token — 동산지기 출석 화면', () => {
   it('turning a member back to X takes the mark away', async () => {
     const user = userEvent.setup()
     renderScreen()
-    await screen.findByText('건영동산')
+    await screen.findByRole('heading', { name: '대학부 전체' })
 
     await user.selectOptions(screen.getByRole('combobox', { name: '김출석' }), 'X')
 
@@ -114,7 +114,7 @@ describe('/dongsan/:token — 동산지기 출석 화면', () => {
   it('another Sunday shows that week, and the pick lands on that date', async () => {
     const user = userEvent.setup()
     renderScreen()
-    await screen.findByText('건영동산')
+    await screen.findByRole('heading', { name: '대학부 전체' })
 
     const weeks = screen.getByLabelText('주일 고르기')
     await user.selectOptions(weeks, '2026-08-02')
@@ -126,7 +126,7 @@ describe('/dongsan/:token — 동산지기 출석 화면', () => {
     await waitFor(() => expect(markDongsan).toHaveBeenCalledWith('tok123', 'm1', '2026-08-02', true))
   })
 
-  it('a 부서 link names the department and blocks its members by 동산', async () => {
+  it('names the department and blocks its members by 동산', async () => {
     getDongsanBoard.mockResolvedValue(groupBoard)
     renderScreen()
 
@@ -141,7 +141,7 @@ describe('/dongsan/:token — 동산지기 출석 화면', () => {
 
   it('a 동산 link draws no 동산 headers — there is only the one', async () => {
     renderScreen()
-    await screen.findByText('건영동산') // 제목에 한 번 (머리글로는 그리지 않는다)
+    await screen.findByRole('heading', { name: '대학부 전체' }) // 제목에 한 번 (머리글로는 그리지 않는다)
     expect(screen.getAllByText('건영동산')).toHaveLength(1)
   })
 
@@ -157,7 +157,7 @@ describe('/dongsan/:token — 동산지기 출석 화면', () => {
     const user = userEvent.setup()
     markDongsan.mockRejectedValue(new Error('nope'))
     renderScreen()
-    await screen.findByText('건영동산')
+    await screen.findByRole('heading', { name: '대학부 전체' })
 
     await user.selectOptions(screen.getByRole('combobox', { name: '박결석' }), 'O')
 

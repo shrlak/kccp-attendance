@@ -1177,15 +1177,19 @@ Deno.serve(async (req: Request) => {
       const action=String(body.action||"");
       let next=links; let made: DongsanLink|null=null;
       if(action==="create") {
-        const subgroup=String(body.subgroup||"").trim();
+        // **부서 링크만 낸다** — 대학부 하나, 청년부 하나. 그 부서의 동산이 다 담기고, 화면이
+        // 동산별로 묶어 그린다. 동산마다 링크를 따로 내는 길은 두지 않는다: 적는 사람이 부서
+        // 담당자 한 명이면 링크도 하나여야 관리가 되고, 동산이 새로 서거나 이름이 바뀔 때마다
+        // 링크를 다시 내고 다시 나눠 주는 일이 없다.
+        //
+        // 부서가 없는 링크는 부 전체를 여는 열쇠라 만들지 않는다 — 범위를 짚지 못하는 열쇠를
+        // 없앤 것이 애초에 이 링크가 생긴 이유다.
         const group=String(body.group||"");
-        // 동산도 부서도 없는 링크는 부 전체를 여는 열쇠다 — 그런 열쇠를 없앤 것이 이 링크가
-        // 생긴 이유이므로 만들지 않는다.
-        if(!subgroup&&!group) return fail(400,"동산이나 부서를 골라 주세요");
-        if(group&&partitionOfGroup(group)!==actingPartition) return fail(400,"이 부의 부서가 아닙니다");
-        // 같은 자리를 두 번 내지 않는다 — 링크가 하나뿐이어야 거둘 때도 하나만 거둔다.
-        made=findLinkFor(links,group,subgroup);
-        if(!made) { made={token:newLinkToken(),group,subgroup,createdAt:Date.now()}; next=[...links,made]; }
+        if(!group) return fail(400,"부서를 골라 주세요");
+        if(partitionOfGroup(group)!==actingPartition) return fail(400,"이 부의 부서가 아닙니다");
+        // 같은 부서를 두 번 내지 않는다 — 링크가 하나뿐이어야 거둘 때도 하나만 거둔다.
+        made=findLinkFor(links,group,"");
+        if(!made) { made={token:newLinkToken(),group,subgroup:"",createdAt:Date.now()}; next=[...links,made]; }
       }
       else if(action==="revoke") next=links.filter((l)=>l.token!==String(body.token||""));
       else return fail(400,"Unknown action");
@@ -1193,7 +1197,12 @@ Deno.serve(async (req: Request) => {
         await db(sb,actingPartition).from("config").update({dongsan_links:next,updated_at:new Date().toISOString()}).eq("id",1);
         // 감사 기록에는 어느 자리의 링크인지가 남아야 한다 — 부서 링크는 동산 칸이 비어 있으므로
         // 부서 이름으로 적힌다 ('대학부 전체').
-        const spot=made?(made.subgroup||`${made.group} 전체`):(String(body.subgroup||"")||`${String(body.group||"")} 전체`);
+        // 감사 기록에는 어느 자리의 링크인지가 남는다. 지금 내는 것은 부서 링크뿐이지만,
+        // 폐기는 동산별로 내던 시절의 링크에도 걸리므로 그쪽 이름도 그대로 적는다.
+        const gone=links.find((l)=>l.token===String(body.token||""));
+        const spot=made?`${made.group} 전체`
+          :gone?(gone.subgroup||`${gone.group} 전체`)
+          :String(body.token||"").slice(0,8);
         await addAudit(adb,"dongsan-link",xDev,`${action} | ${spot}`,actingPartition);
       }
       return ok({links:next,created:made});

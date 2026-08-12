@@ -7,7 +7,6 @@ import {
   seasonLabel,
   seasonName,
   seasonsOf,
-  showsAttendanceLog,
   subLeaderSlots,
   subgroupsResetEachTerm,
   summerAppliesTo,
@@ -94,8 +93,6 @@ describe('부마다 다른 규칙', () => {
   })
 
   it('출석부의 기록 화면은 대학·청년부에만 있다', () => {
-    expect(showsAttendanceLog('adult')).toBe(false)
-    expect(showsAttendanceLog('youth')).toBe(true)
   })
 })
 

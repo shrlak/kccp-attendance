@@ -9,14 +9,14 @@ import { ThemeLangToggle } from '../../components/ui/ThemeLangToggle'
 import { Select } from '../../components/ui/Select'
 import { useToast } from '../../components/ui/Toast'
 
-// ── /dongsan/:token — 동산지기가 자기 동산의 출석을 적는 화면 ─────────────────────
-// 로그인이 없다. 링크가 신원이고, 그 링크는 동산 하나를 가리킨다 — 이 화면으로 볼 수 있는
-// 것은 그 동산 사람들의 이름과 그들의 **동산모임** 출석뿐이다. 예배 출석도, 연락처도, 다른
-// 동산도 여기서는 보이지 않는다 (서버 /api/dongsan/board가 그만큼만 내려준다).
+// ── /dongsan/:token — 부서 담당자가 그 부서의 동산모임 출석을 적는 화면 ───────────
+// 로그인이 없다. 링크가 신원이고, 그 링크는 부서 하나를 가리킨다 — 이 화면으로 볼 수 있는
+// 것은 그 부서 사람들의 이름과 그들의 **동산모임** 출석뿐이다. 예배 출석도, 연락처도, 다른
+// 부서도 여기서는 보이지 않는다 (서버 /api/dongsan/board가 그만큼만 내려준다).
 //
 // 왜 O/X 둘뿐인가: 표에서 출석은 "줄이 있다/없다"이고, 없는 줄은 "안 왔다"와 "아직 안 적었다"를
 // 구별하지 않는다. 시트 연동에서는 그 구별이 중요했지만(빈칸을 결석으로 읽으면 안 되니까),
-// 여기서는 적는 사람이 곧 그 동산의 지기라 X가 곧 "안 왔다"이다. 다만 한 주일에 O가 하나도
+// 여기서는 적는 사람이 곧 그 부서의 담당자라 X가 곧 "안 왔다"이다. 다만 한 주일에 O가 하나도
 // 없으면 아직 손대지 않은 주일일 수 있으므로, 그 주는 화면이 따로 알려 준다.
 export function DongsanBoardScreen() {
   const { token = '' } = useParams()
@@ -46,11 +46,10 @@ export function DongsanBoardScreen() {
   const marks = useMemo(() => new Set(data?.marks ?? []), [data?.marks])
   const presentCount = members.filter((m) => marks.has(`${m.id}|${week}`)).length
 
-  // 부서 링크(subgroup이 비어 있다)는 그 부서의 동산을 다 담으므로 동산별로 묶어 그린다 —
-  // 이름만 30줄 늘어놓으면 적는 사람이 자기 줄을 못 찾는다. 동산 링크는 묶을 것이 하나뿐이라
-  // 머리글 없이 그대로 나열된다. 서버가 이미 동산 → 이름 순으로 정렬해 보낸다.
+  // 링크 하나가 부서 하나를 담으므로 화면은 동산별로 묶어 그린다 — 이름만 30줄 늘어놓으면
+  // 적는 사람이 자기 줄을 못 찾는다. 동산이 아직 없는 사람은 '동산 미지정' 블록에 모인다
+  // (편성 전에도 이 링크로 적을 수 있어야 한다). 서버가 이미 동산 → 이름 순으로 정렬해 보낸다.
   const blocks = useMemo(() => {
-    if (data?.subgroup) return [{ subgroup: '', members }]
     const out: { subgroup: string; members: typeof members }[] = []
     for (const m of members) {
       const last = out[out.length - 1]
@@ -58,7 +57,7 @@ export function DongsanBoardScreen() {
       else out.push({ subgroup: m.subgroup, members: [m] })
     }
     return out
-  }, [data?.subgroup, members])
+  }, [members])
 
   const mark = useMutation({
     mutationFn: ({ memberId, present }: { memberId: string; present: boolean }) =>
@@ -89,18 +88,15 @@ export function DongsanBoardScreen() {
           <div className="flex min-w-0 items-center gap-2.5">
             <KccpMark size={28} className="shrink-0" />
             <div className="min-w-0">
-              {/* 이 링크가 무엇을 가리키는지가 제목이다 — 동산 링크는 동산 이름, 부서 링크는
-                  '대학부 전체'. 열자마자 자기 것이 맞는지 알아야 남의 동산에 적지 않는다. */}
+              {/* 이 링크가 어느 부서의 것인지가 제목이다 ('대학부 전체'). 열자마자 자기 것이
+                  맞는지 알아야 남의 부서에 적지 않는다. */}
               <h1 className="truncate font-display text-base font-bold tracking-tight text-text">
                 {!data
                   ? t('dongsan.title', { context: ctx })
-                  : data.subgroup || t('dongsan.wholeGroup', { group: data.group })}
+                  : t('dongsan.wholeGroup', { group: data.group })}
               </h1>
               {data && (
-                <p className="truncate text-[11px] text-muted">
-                  {data.subgroup ? `${data.group || t('dongsan.combined')} · ` : ''}
-                  {t('dongsan.title', { context: ctx })}
-                </p>
+                <p className="truncate text-[11px] text-muted">{t('dongsan.title', { context: ctx })}</p>
               )}
             </div>
           </div>
@@ -149,11 +145,9 @@ export function DongsanBoardScreen() {
             )}
             {blocks.map((block) => (
               <div key={block.subgroup} className="mt-2">
-                {!data.subgroup && (
-                  <span className="section-kicker mb-1 mt-3 block">
-                    {block.subgroup || t('dongsan.noSubgroup', { context: ctx })}
-                  </span>
-                )}
+                <span className="section-kicker mb-1 mt-3 block">
+                  {block.subgroup || t('dongsan.noSubgroup', { context: ctx })}
+                </span>
                 <div className="inset-list">
                   {block.members.map((m) => {
                     const present = marks.has(`${m.id}|${week}`)

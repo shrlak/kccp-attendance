@@ -810,11 +810,11 @@ export interface DongsanLink {
 
 export const getDongsanLinks = () => api<{ links: DongsanLink[] }>('GET', '/api/admin/dongsan-links')
 
-export const createDongsanLink = (group: string, subgroup: string) =>
+// 링크는 부서 하나짜리뿐이다 — 그 부서의 동산을 다 담는다 (DongsanLinks.tsx의 이유 참고).
+export const createDongsanLink = (group: string) =>
   api<{ links: DongsanLink[]; created: DongsanLink | null }>('POST', '/api/admin/dongsan-links', {
     action: 'create',
     group,
-    subgroup,
   })
 
 export const revokeDongsanLink = (token: string) =>

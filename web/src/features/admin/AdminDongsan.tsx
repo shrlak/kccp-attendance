@@ -52,7 +52,7 @@ export function AdminDongsan() {
 
       {/* 동산지기에게 건네는 출석 링크. 편성(위)이 정해진 뒤에 나오는 것이므로 그 아래 둔다. */}
       <div className="mt-8 border-t border-border pt-8">
-        <DongsanLinksSection names={loaded} summer={summer} partition={partition} />
+        <DongsanLinksSection summer={summer} partition={partition} />
       </div>
     </div>
   )
