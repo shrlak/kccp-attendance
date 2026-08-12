@@ -767,6 +767,8 @@ export interface DongsanBoardMember {
   id: string
   name: string
   group: string
+  /** 이 사람의 동산. 부서 링크는 여러 동산이 한 화면에 오므로 이것으로 묶어 그린다. */
+  subgroup: string
   // 상태 표기 — lib/status.ts가 읽는 그 칸들 그대로. 귀국·이주처럼 명단에서 빠진 사람이
   // 리더 화면에도 뜨지 않도록, 같은 규칙을 같은 코드로 적용하기 위해 실어 보낸다.
   status_marks?: { note: string; start: string | null; end: string | null }[] | null
@@ -777,8 +779,9 @@ export interface DongsanBoardMember {
 
 export interface DongsanBoard {
   partition: Partition
-  /** 이 링크가 가리키는 부서. 여름 합동이면 빈 문자열. */
+  /** 이 링크가 가리키는 부서. 여름 합동 동산 링크면 빈 문자열. */
   group: string
+  /** 이 링크가 가리키는 동산. **비어 있으면 group 부서 전체를 담는 부서 링크다.** */
   subgroup: string
   /** 적을 수 있는 주일들 (오래된 것부터). 서버가 정한다. */
   dates: string[]

@@ -48,13 +48,21 @@ export function DongsanLinksSection({
     onError: () => toast({ title: t('common.error'), tone: 'err' }),
   })
 
-  // 여름 합동에는 부서가 없다 — 같은 동산이 대학부·청년부에 걸쳐 있으므로 링크의 부서도 비운다.
-  // 학기 중에는 부서마다 동산이 갈리므로 그 부서 이름이 붙는다.
-  const rows = summer
+  // 낼 수 있는 링크는 두 종류다.
+  //
+  //  · **부서 링크** (subgroup 없음) — 그 부서의 동산을 다 담는다. 부서 담당자가 한 자리에서
+  //    적거나, 동산 편성이 아직 안 끝났을 때 쓴다. 여름 합동에도 부서별로 따로 낸다: 동산은
+  //    합쳐도 사람은 여전히 대학부 아니면 청년부이고, 담당자는 부서마다 다르기 때문.
+  //  · **동산 링크** — 그 동산 하나. 동산지기에게 건넨다.
+  //
+  // 여름 합동 동산은 두 부서에 걸쳐 있으므로 동산 링크의 부서는 비운다. 학기 중에는 부서마다
+  // 동산이 갈리므로 그 부서 이름이 붙는다.
+  const groups = groupsOfPartition(partition)
+  const groupRows = groups.map((group) => ({ group, subgroup: '' }))
+  const dongsanRows = summer
     ? summerDongsanList(names).map((subgroup) => ({ group: '', subgroup }))
-    : groupsOfPartition(partition).flatMap((group) =>
-        (names[group] ?? []).map((subgroup) => ({ group, subgroup })),
-      )
+    : groups.flatMap((group) => (names[group] ?? []).map((subgroup) => ({ group, subgroup })))
+  const rows = [...groupRows, ...dongsanRows]
 
   async function copy(link: DongsanLink) {
     try {
@@ -87,8 +95,10 @@ export function DongsanLinksSection({
           return (
             <div key={`${group}|${subgroup}`} className="inset-row min-h-14 items-center justify-between gap-3 py-2.5">
               <div className="flex min-w-0 items-center gap-2">
-                <span className="truncate text-sm font-semibold text-text">{subgroup}</span>
-                {group && <Tag tone="muted">{group}</Tag>}
+                <span className="truncate text-sm font-semibold text-text">
+                  {subgroup || t('admin.settings.dongsanLinkWholeGroup', { group })}
+                </span>
+                {subgroup ? group && <Tag tone="muted">{group}</Tag> : <Tag tone="primary">{group}</Tag>}
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 {link ? (
@@ -126,7 +136,10 @@ export function DongsanLinksSection({
           목록에서 사라지면 거둘 방법도 사라지므로 여기 남겨 둔다. */}
       {links.filter((l) => !rows.some((r) => r.group === l.group && r.subgroup === l.subgroup)).map((l) => (
         <div key={l.token} className="mt-2 flex items-center justify-between gap-3 rounded-xl border border-dashed border-border px-3 py-2">
-          <span className="truncate text-xs text-muted">{l.subgroup}{l.group ? ` · ${l.group}` : ''}</span>
+          <span className="truncate text-xs text-muted">
+            {l.subgroup || t('admin.settings.dongsanLinkWholeGroup', { group: l.group })}
+            {l.subgroup && l.group ? ` · ${l.group}` : ''}
+          </span>
           <div className="flex shrink-0 items-center gap-2">
             <Button variant="ghost" size="sm" onClick={() => copy(l)}>{t('admin.settings.dongsanLinkCopy')}</Button>
             <Button variant="ghost" size="sm" className="text-danger hover:bg-danger/10" onClick={() => revoke.mutate(l.token)}>

@@ -62,6 +62,7 @@
   "share": { "title": "새가족 카드 등록", "received": "사진 {{n}}장을 받았습니다", "receivedHint": "카드를 인식하는 중입니다. 인식된 내용을 확인한 뒤 등록해주세요.", "emptyHint": "휴대폰 사진 앱에서 공유 → KCCP 출석을 선택하면 여기로 바로 넘어옵니다. 지금 사진을 고르셔도 됩니다.", "pick": "카드 사진 선택", "goToPanel": "관리자 페이지로 이동" },
   "dongsan": {
     "title": "동산 출석", "title_adult": "셀 출석", "combined": "합동", "week": "주일 고르기",
+    "wholeGroup": "{{group}} 전체", "noSubgroup": "동산 미지정", "noSubgroup_adult": "셀 미지정",
     "present": "O 출석", "absent": "X 결석",
     "count": "{{n}}명 출석 · 전체 {{total}}명", "emptyWeek": "아직 아무도 적히지 않았습니다",
     "noMembers": "이 동산에 배정된 사람이 없습니다", "noMembers_adult": "이 셀에 배정된 사람이 없습니다",
@@ -144,6 +145,7 @@
       "dongsanLinks": "동산 리더 링크", "dongsanLinks_adult": "셀 리더 링크",
       "dongsanLinksDesc": "동산마다 링크를 하나씩 냅니다. 그 링크로는 그 동산의 동산모임 출석만 보이고 적힙니다 — 리더는 로그인하지 않습니다.",
       "dongsanLinksDesc_adult": "셀마다 링크를 하나씩 냅니다. 그 링크로는 그 셀의 셀모임 출석만 보이고 적힙니다 — 리더는 로그인하지 않습니다.",
+      "dongsanLinkWholeGroup": "{{group}} 전체",
       "dongsanLinkCreate": "링크 만들기", "dongsanLinkCopy": "복사", "dongsanLinkCopied": "링크를 복사했습니다",
       "dongsanLinkRevoke": "폐기", "dongsanLinkRevoked": "링크를 폐기했습니다", "dongsanLinkNone": "아직 낸 링크가 없습니다",
       "dongsanLinkHint": "폐기하면 그 주소는 바로 열리지 않습니다. 이미 적힌 출석은 그대로 남습니다.",

@@ -46,6 +46,20 @@ export function DongsanBoardScreen() {
   const marks = useMemo(() => new Set(data?.marks ?? []), [data?.marks])
   const presentCount = members.filter((m) => marks.has(`${m.id}|${week}`)).length
 
+  // 부서 링크(subgroup이 비어 있다)는 그 부서의 동산을 다 담으므로 동산별로 묶어 그린다 —
+  // 이름만 30줄 늘어놓으면 적는 사람이 자기 줄을 못 찾는다. 동산 링크는 묶을 것이 하나뿐이라
+  // 머리글 없이 그대로 나열된다. 서버가 이미 동산 → 이름 순으로 정렬해 보낸다.
+  const blocks = useMemo(() => {
+    if (data?.subgroup) return [{ subgroup: '', members }]
+    const out: { subgroup: string; members: typeof members }[] = []
+    for (const m of members) {
+      const last = out[out.length - 1]
+      if (last && last.subgroup === m.subgroup) last.members.push(m)
+      else out.push({ subgroup: m.subgroup, members: [m] })
+    }
+    return out
+  }, [data?.subgroup, members])
+
   const mark = useMutation({
     mutationFn: ({ memberId, present }: { memberId: string; present: boolean }) =>
       markDongsan(token, memberId, week, present),
@@ -75,12 +89,17 @@ export function DongsanBoardScreen() {
           <div className="flex min-w-0 items-center gap-2.5">
             <KccpMark size={28} className="shrink-0" />
             <div className="min-w-0">
+              {/* 이 링크가 무엇을 가리키는지가 제목이다 — 동산 링크는 동산 이름, 부서 링크는
+                  '대학부 전체'. 열자마자 자기 것이 맞는지 알아야 남의 동산에 적지 않는다. */}
               <h1 className="truncate font-display text-base font-bold tracking-tight text-text">
-                {data ? data.subgroup : t('dongsan.title', { context: ctx })}
+                {!data
+                  ? t('dongsan.title', { context: ctx })
+                  : data.subgroup || t('dongsan.wholeGroup', { group: data.group })}
               </h1>
               {data && (
                 <p className="truncate text-[11px] text-muted">
-                  {data.group || t('dongsan.combined')} · {t('dongsan.title', { context: ctx })}
+                  {data.subgroup ? `${data.group || t('dongsan.combined')} · ` : ''}
+                  {t('dongsan.title', { context: ctx })}
                 </p>
               )}
             </div>
@@ -123,28 +142,39 @@ export function DongsanBoardScreen() {
               )}
             </div>
 
-            <div className="inset-list mt-2">
-              {!members.length && (
+            {!members.length && (
+              <div className="inset-list mt-2">
                 <div className="inset-row min-h-14 text-sm text-muted">{t('dongsan.noMembers', { context: ctx })}</div>
-              )}
-              {members.map((m) => {
-                const present = marks.has(`${m.id}|${week}`)
-                return (
-                  <div key={m.id} className="inset-row min-h-14 items-center justify-between gap-3 py-2.5">
-                    <span className="min-w-0 truncate text-sm font-semibold text-text">{m.name}</span>
-                    <Select
-                      className="!w-28 shrink-0"
-                      aria-label={m.name}
-                      value={present ? 'O' : 'X'}
-                      onChange={(e) => mark.mutate({ memberId: m.id, present: e.target.value === 'O' })}
-                    >
-                      <option value="O">{t('dongsan.present')}</option>
-                      <option value="X">{t('dongsan.absent')}</option>
-                    </Select>
-                  </div>
-                )
-              })}
-            </div>
+              </div>
+            )}
+            {blocks.map((block) => (
+              <div key={block.subgroup} className="mt-2">
+                {!data.subgroup && (
+                  <span className="section-kicker mb-1 mt-3 block">
+                    {block.subgroup || t('dongsan.noSubgroup', { context: ctx })}
+                  </span>
+                )}
+                <div className="inset-list">
+                  {block.members.map((m) => {
+                    const present = marks.has(`${m.id}|${week}`)
+                    return (
+                      <div key={m.id} className="inset-row min-h-14 items-center justify-between gap-3 py-2.5">
+                        <span className="min-w-0 truncate text-sm font-semibold text-text">{m.name}</span>
+                        <Select
+                          className="!w-28 shrink-0"
+                          aria-label={m.name}
+                          value={present ? 'O' : 'X'}
+                          onChange={(e) => mark.mutate({ memberId: m.id, present: e.target.value === 'O' })}
+                        >
+                          <option value="O">{t('dongsan.present')}</option>
+                          <option value="X">{t('dongsan.absent')}</option>
+                        </Select>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
 
             <p className="mt-4 text-xs text-muted">{t('dongsan.hint', { context: ctx })}</p>
           </>

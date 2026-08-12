@@ -1,21 +1,37 @@
 import { assertEquals, assertNotEquals } from "jsr:@std/assert@1";
-import { addIsoDays, findLink, findLinkFor, newLinkToken, parseLinks, recentSundays } from "./dongsanLink.ts";
+import { addIsoDays, findLink, findLinkFor, isGroupLink, newLinkToken, parseLinks, recentSundays } from "./dongsanLink.ts";
 
 Deno.test("저장된 링크를 읽는다 — 모양이 어긋난 줄은 버린다", () => {
   const links = parseLinks([
     { token: "aaa", group: "대학부", subgroup: "호연선규", createdAt: 1723000000000 },
-    { token: "bbb", subgroup: "건영동산" }, // group 없음 = 합동, createdAt 없음
+    { token: "bbb", subgroup: "건영동산" }, // group 없음 = 합동 동산, createdAt 없음
+    { token: "ccc", group: "청년부" }, // subgroup 없음 = 부서 전체를 담는 링크
     { token: "", subgroup: "빈 토큰" }, // 버린다
-    { token: "ccc", subgroup: "" }, // 동산 없는 링크는 가리키는 것이 없다 — 버린다
+    { token: "ddd" }, // 동산도 부서도 없다 = 부 전체를 여는 열쇠 — 버린다
+    { token: "eee", group: "", subgroup: "" }, // 같은 이유로 버린다
     null,
     "문자열",
   ]);
   assertEquals(links, [
     { token: "aaa", group: "대학부", subgroup: "호연선규", createdAt: 1723000000000 },
     { token: "bbb", group: "", subgroup: "건영동산", createdAt: 0 },
+    { token: "ccc", group: "청년부", subgroup: "", createdAt: 0 },
   ]);
   assertEquals(parseLinks(undefined), []);
   assertEquals(parseLinks({ token: "aaa" }), []);
+});
+
+Deno.test("부서 링크와 동산 링크를 가른다", () => {
+  const [dongsan, group] = parseLinks([
+    { token: "aaa", group: "대학부", subgroup: "호연선규" },
+    { token: "bbb", group: "대학부" },
+  ]);
+  assertEquals(isGroupLink(dongsan), false);
+  assertEquals(isGroupLink(group), true);
+  // 부서 링크는 그 부서의 자리 하나다 — 같은 부서를 두 번 내지 않는다.
+  const links = [dongsan, group];
+  assertEquals(findLinkFor(links, "대학부", "")?.token, "bbb");
+  assertEquals(findLinkFor(links, "청년부", ""), null);
 });
 
 Deno.test("토큰으로 링크를 찾는다", () => {

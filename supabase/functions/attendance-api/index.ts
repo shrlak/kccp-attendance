@@ -606,10 +606,15 @@ async function resolveDongsanLink(sb: SB, token: string): Promise<{part:Partitio
   return null;
 }
 
-// 이 링크가 가리키는 동산의 명단. group이 비어 있으면 부서를 가리지 않는다(여름 합동).
+// 이 링크가 가리키는 자리의 명단. 두 칸이 각자 좁힌다:
+//   · subgroup이 있으면 그 동산으로 (동산 링크)
+//   · group이 있으면 그 부서로 (부서 링크는 subgroup이 비어 있어 부서로만 좁혀진다)
+// 둘 다 비어 있는 링크는 parseLinks가 이미 버렸으므로 여기까지 오지 않는다 — 조건이 하나도
+// 걸리지 않은 채 명단 전체가 나가는 일은 없다.
 // deno-lint-ignore no-explicit-any
 function dongsanMemberQuery(pdb: any, link: DongsanLink, select: string) {
-  let q=pdb.from("members").select(select).eq("subgroup",link.subgroup);
+  let q=pdb.from("members").select(select);
+  if(link.subgroup) q=q.eq("subgroup",link.subgroup);
   if(link.group) q=q.eq("group_name",link.group);
   return q;
 }
@@ -1097,8 +1102,12 @@ Deno.serve(async (req: Request) => {
       if(!found) return fail(404,"이 링크는 더 이상 쓸 수 없습니다");
       const {part,link}=found;
       const pdb=db(sb,part);
-      const {data:mem}=await dongsanMemberQuery(pdb,link,"id,name,group_name,status_marks,status_note,status_start,status_end");
-      const members=((mem||[]) as any[]).sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),"ko"));
+      const {data:mem}=await dongsanMemberQuery(pdb,link,"id,name,group_name,subgroup,status_marks,status_note,status_start,status_end");
+      // 부서 링크는 여러 동산이 한 화면에 오므로 동산 → 이름 순으로 정렬해 두면 화면이 그대로
+      // 묶어 그린다. 동산 링크는 한 동산뿐이라 결국 이름 순이다.
+      const members=((mem||[]) as any[]).sort((a,b)=>
+        String(a.subgroup||"").localeCompare(String(b.subgroup||""),"ko")
+        ||String(a.name||"").localeCompare(String(b.name||""),"ko"));
       const dates=recentSundays(localDate(),LINK_WEEKS);
       const ids=members.map((m)=>m.id);
       const {data:logs}=ids.length
@@ -1106,7 +1115,7 @@ Deno.serve(async (req: Request) => {
             .in("member_id",ids).gte("date",dates[0]).lte("date",dates[dates.length-1])
         : {data:[] as any[]};
       return ok({partition:part,group:link.group,subgroup:link.subgroup,dates,
-        members:members.map((m)=>({id:m.id,name:m.name,group:m.group_name||"",
+        members:members.map((m)=>({id:m.id,name:m.name,group:m.group_name||"",subgroup:m.subgroup||"",
           status_marks:m.status_marks??null,status_note:m.status_note??null,
           status_start:m.status_start??null,status_end:m.status_end??null})),
         // "누가 어느 주일에 왔나"만 실어 보낸다 — 행 id도 기기 번호도 리더에게는 쓸 데가 없다.
@@ -1169,10 +1178,12 @@ Deno.serve(async (req: Request) => {
       let next=links; let made: DongsanLink|null=null;
       if(action==="create") {
         const subgroup=String(body.subgroup||"").trim();
-        if(!subgroup) return fail(400,"동산을 골라 주세요");
         const group=String(body.group||"");
+        // 동산도 부서도 없는 링크는 부 전체를 여는 열쇠다 — 그런 열쇠를 없앤 것이 이 링크가
+        // 생긴 이유이므로 만들지 않는다.
+        if(!subgroup&&!group) return fail(400,"동산이나 부서를 골라 주세요");
         if(group&&partitionOfGroup(group)!==actingPartition) return fail(400,"이 부의 부서가 아닙니다");
-        // 같은 동산을 두 번 내지 않는다 — 그 동산의 링크는 하나뿐이어야 거둘 때도 하나만 거둔다.
+        // 같은 자리를 두 번 내지 않는다 — 링크가 하나뿐이어야 거둘 때도 하나만 거둔다.
         made=findLinkFor(links,group,subgroup);
         if(!made) { made={token:newLinkToken(),group,subgroup,createdAt:Date.now()}; next=[...links,made]; }
       }
@@ -1180,7 +1191,10 @@ Deno.serve(async (req: Request) => {
       else return fail(400,"Unknown action");
       if(next!==links) {
         await db(sb,actingPartition).from("config").update({dongsan_links:next,updated_at:new Date().toISOString()}).eq("id",1);
-        await addAudit(adb,"dongsan-link",xDev,`${action} | ${made?made.subgroup:String(body.subgroup||"")}`,actingPartition);
+        // 감사 기록에는 어느 자리의 링크인지가 남아야 한다 — 부서 링크는 동산 칸이 비어 있으므로
+        // 부서 이름으로 적힌다 ('대학부 전체').
+        const spot=made?(made.subgroup||`${made.group} 전체`):(String(body.subgroup||"")||`${String(body.group||"")} 전체`);
+        await addAudit(adb,"dongsan-link",xDev,`${action} | ${spot}`,actingPartition);
       }
       return ok({links:next,created:made});
     }

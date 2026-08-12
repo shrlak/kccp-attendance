@@ -62,6 +62,7 @@
   "share": { "title": "Register a new-family card", "received": "Received {{n}} photo(s)", "receivedHint": "Reading the card now. Check what was recognized, then register.", "emptyHint": "From your phone's photo app, tap Share → KCCP 출석 to land here directly. You can also pick a photo now.", "pick": "Choose card photos", "goToPanel": "Go to the admin panel" },
   "dongsan": {
     "title": "동산 attendance", "title_adult": "Cell attendance", "combined": "Combined", "week": "Pick a Sunday",
+    "wholeGroup": "All of {{group}}", "noSubgroup": "No 동산 assigned", "noSubgroup_adult": "No cell assigned",
     "present": "O Present", "absent": "X Absent",
     "count": "{{n}} present · {{total}} total", "emptyWeek": "Nothing recorded yet",
     "noMembers": "No one is assigned to this 동산", "noMembers_adult": "No one is assigned to this cell",
@@ -144,6 +145,7 @@
       "dongsanLinks": "동산 leader links", "dongsanLinks_adult": "Cell leader links",
       "dongsanLinksDesc": "One link per 동산. It shows and records only that 동산's meeting attendance — leaders never sign in.",
       "dongsanLinksDesc_adult": "One link per cell. It shows and records only that cell's meeting attendance — leaders never sign in.",
+      "dongsanLinkWholeGroup": "All of {{group}}",
       "dongsanLinkCreate": "Create link", "dongsanLinkCopy": "Copy", "dongsanLinkCopied": "Link copied",
       "dongsanLinkRevoke": "Revoke", "dongsanLinkRevoked": "Link revoked", "dongsanLinkNone": "No links yet",
       "dongsanLinkHint": "Revoking closes that address immediately. Attendance already recorded stays.",

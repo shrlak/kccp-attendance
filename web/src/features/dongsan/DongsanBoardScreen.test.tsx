@@ -26,11 +26,25 @@ const board: DongsanBoard = {
   subgroup: '건영동산',
   dates: ['2026-08-02', '2026-08-09'],
   members: [
-    { id: 'm1', name: '김출석', group: '대학부' },
-    { id: 'm2', name: '박결석', group: '청년부' },
-    { id: 'm3', name: '이귀국', group: '대학부', status_marks: [{ note: '한국 귀국', start: '2026-07-01', end: null }] },
+    { id: 'm1', name: '김출석', group: '대학부', subgroup: '건영동산' },
+    { id: 'm2', name: '박결석', group: '청년부', subgroup: '건영동산' },
+    { id: 'm3', name: '이귀국', group: '대학부', subgroup: '건영동산', status_marks: [{ note: '한국 귀국', start: '2026-07-01', end: null }] },
   ],
   marks: ['m1|2026-08-09'],
+}
+
+// 부서 링크 — subgroup이 비어 있고, 그 부서의 동산이 다 담긴다.
+const groupBoard: DongsanBoard = {
+  partition: 'youth',
+  group: '대학부',
+  subgroup: '',
+  dates: ['2026-08-02', '2026-08-09'],
+  members: [
+    { id: 'g1', name: '가동산원', group: '대학부', subgroup: '건영동산' },
+    { id: 'g2', name: '나동산원', group: '대학부', subgroup: '윤서동산' },
+    { id: 'g3', name: '다미지정', group: '대학부', subgroup: '' },
+  ],
+  marks: [],
 }
 
 function renderScreen() {
@@ -110,6 +124,25 @@ describe('/dongsan/:token — 동산지기 출석 화면', () => {
 
     await user.selectOptions(screen.getByRole('combobox', { name: '김출석' }), 'O')
     await waitFor(() => expect(markDongsan).toHaveBeenCalledWith('tok123', 'm1', '2026-08-02', true))
+  })
+
+  it('a 부서 link names the department and blocks its members by 동산', async () => {
+    getDongsanBoard.mockResolvedValue(groupBoard)
+    renderScreen()
+
+    // 제목은 이 링크가 가리키는 자리다 — 동산 이름이 없으므로 '대학부 전체'.
+    expect(await screen.findByRole('heading', { name: '대학부 전체' })).toBeInTheDocument()
+    expect(screen.getByText('건영동산')).toBeInTheDocument()
+    expect(screen.getByText('윤서동산')).toBeInTheDocument()
+    // 동산이 아직 없는 사람도 빠지지 않는다 — 편성 전에 이 링크를 쓰는 경우가 그것이다.
+    expect(screen.getByText('동산 미지정')).toBeInTheDocument()
+    expect(screen.getByText('0명 출석 · 전체 3명')).toBeInTheDocument()
+  })
+
+  it('a 동산 link draws no 동산 headers — there is only the one', async () => {
+    renderScreen()
+    await screen.findByText('건영동산') // 제목에 한 번 (머리글로는 그리지 않는다)
+    expect(screen.getAllByText('건영동산')).toHaveLength(1)
   })
 
   it('a revoked or mistyped link says so instead of showing an empty sheet', async () => {
