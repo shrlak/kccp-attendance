@@ -146,6 +146,7 @@
       "dongsanLinksDesc": "동산마다 링크를 하나씩 냅니다. 그 링크로는 그 동산의 동산모임 출석만 보이고 적힙니다 — 리더는 로그인하지 않습니다.",
       "dongsanLinksDesc_adult": "셀마다 링크를 하나씩 냅니다. 그 링크로는 그 셀의 셀모임 출석만 보이고 적힙니다 — 리더는 로그인하지 않습니다.",
       "dongsanLinkWholeGroup": "{{group}} 전체",
+      "dongsanLinkSummer": "여름학기 동산 출석은 구글 시트로 들어옵니다. 리더 링크는 가을학기부터 냅니다 — 같은 동산을 시트와 링크로 함께 적으면 다음 동기화에서 시트 값이 덮어씁니다.",
       "dongsanLinkCreate": "링크 만들기", "dongsanLinkCopy": "복사", "dongsanLinkCopied": "링크를 복사했습니다",
       "dongsanLinkRevoke": "폐기", "dongsanLinkRevoked": "링크를 폐기했습니다", "dongsanLinkNone": "아직 낸 링크가 없습니다",
       "dongsanLinkHint": "폐기하면 그 주소는 바로 열리지 않습니다. 이미 적힌 출석은 그대로 남습니다.",

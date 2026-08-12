@@ -10,15 +10,17 @@ import { useToast } from '../../components/ui/Toast'
 import { Button } from '../../components/ui/Button'
 import { Tag } from '../../components/ui/Tag'
 import { Link } from '../../components/ui/Icon'
-import { summerDongsanList } from './dongsan'
 import { usePartitionT } from '../../lib/useAppConfig'
 import { groupsOfPartition, type Partition } from '../../lib/partition'
 
-// 동산 탭의 "동산 리더 링크" — 동산마다 링크를 하나 내고, 복사해서 그 동산지기에게 건넨다.
+// 동산 탭의 "동산 리더 링크" — 자리마다 링크를 하나 내고, 복사해서 그 자리를 맡은 사람에게
+// 건넨다 (부서 담당자에게는 부서 링크, 동산지기에게는 그 동산 링크).
 //
-// 링크를 동산마다 내는 이유는 그 링크가 곧 범위이기 때문이다: 하나가 새도 새는 것은 그 동산
+// 링크를 자리마다 내는 이유는 그 링크가 곧 범위이기 때문이다: 하나가 새도 새는 것은 그 자리
 // 하나뿐이고, 거둘 때도 그 하나만 거둔다. (공용 비밀번호 하나로 리더 전체를 들여보내던 방식을
 // 이 프로젝트가 왜 버렸는지는 CLAUDE.md에 있다 — 범위를 짚지 못하는 열쇠가 문제였다.)
+//
+// 여름학기에는 내지 않는다 — 그 학기의 동산 출석은 구글 시트가 갖고 온다 (아래 rows 주석).
 export function DongsanLinksSection({
   names,
   summer,
@@ -51,16 +53,17 @@ export function DongsanLinksSection({
   // 낼 수 있는 링크는 두 종류다.
   //
   //  · **부서 링크** (subgroup 없음) — 그 부서의 동산을 다 담는다. 부서 담당자가 한 자리에서
-  //    적거나, 동산 편성이 아직 안 끝났을 때 쓴다. 여름 합동에도 부서별로 따로 낸다: 동산은
-  //    합쳐도 사람은 여전히 대학부 아니면 청년부이고, 담당자는 부서마다 다르기 때문.
+  //    적거나, 동산 편성이 아직 안 끝났을 때 쓴다.
   //  · **동산 링크** — 그 동산 하나. 동산지기에게 건넨다.
   //
-  // 여름 합동 동산은 두 부서에 걸쳐 있으므로 동산 링크의 부서는 비운다. 학기 중에는 부서마다
-  // 동산이 갈리므로 그 부서 이름이 붙는다.
+  // **여름학기에는 아무것도 내지 않는다.** 여름 동산 출석은 구글 시트로 들어오고(그 시트가
+  // 등록돼 있다), 같은 동산을 시트와 링크로 함께 적으면 다음 동기화에서 시트가 자기 값을 도로
+  // 넣는다. 링크는 시트가 없는 학기 — 가을부터 — 의 것이다. 학기가 끝나 편성이 비워진 뒤에는
+  // 동산 줄이 없고 부서 줄만 남으며, 가을 동산이 동산이름 편집기에 들어오는 순간 줄이 생긴다.
   const groups = groupsOfPartition(partition)
-  const groupRows = groups.map((group) => ({ group, subgroup: '' }))
+  const groupRows = summer ? [] : groups.map((group) => ({ group, subgroup: '' }))
   const dongsanRows = summer
-    ? summerDongsanList(names).map((subgroup) => ({ group: '', subgroup }))
+    ? []
     : groups.flatMap((group) => (names[group] ?? []).map((subgroup) => ({ group, subgroup })))
   const rows = [...groupRows, ...dongsanRows]
 
@@ -85,9 +88,17 @@ export function DongsanLinksSection({
       </div>
       <p className="mb-4 mt-2 text-sm text-muted">{t('admin.settings.dongsanLinksDesc')}</p>
 
-      <div className="inset-list">
+      {/* 여름학기 동안에는 낼 것이 없다 — 그 이유를 자리에 적어 둔다. 이미 낸 링크가 있으면
+          아래 목록에 그대로 남아 거둘 수 있다. */}
+      {summer && (
+        <p className="rounded-xl border border-dashed border-border px-3 py-2 text-xs text-muted">
+          {t('admin.settings.dongsanLinkSummer')}
+        </p>
+      )}
+
+      <div className={summer && !rows.length ? 'hidden' : 'inset-list'}>
         {isLoading && <div className="inset-row min-h-14 text-sm text-muted">{t('common.loading')}</div>}
-        {!isLoading && !rows.length && (
+        {!isLoading && !rows.length && !summer && (
           <div className="inset-row min-h-14 text-sm text-muted">{t('admin.settings.dongsanEmptyAfterTerm')}</div>
         )}
         {rows.map(({ group, subgroup }) => {

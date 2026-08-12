@@ -146,6 +146,7 @@
       "dongsanLinksDesc": "One link per 동산. It shows and records only that 동산's meeting attendance — leaders never sign in.",
       "dongsanLinksDesc_adult": "One link per cell. It shows and records only that cell's meeting attendance — leaders never sign in.",
       "dongsanLinkWholeGroup": "All of {{group}}",
+      "dongsanLinkSummer": "Summer 동산 attendance arrives from the Google Sheet. Leader links start in the fall term — recording one 동산 through both a sheet and a link lets the next sync overwrite what was typed here.",
       "dongsanLinkCreate": "Create link", "dongsanLinkCopy": "Copy", "dongsanLinkCopied": "Link copied",
       "dongsanLinkRevoke": "Revoke", "dongsanLinkRevoked": "Link revoked", "dongsanLinkNone": "No links yet",
       "dongsanLinkHint": "Revoking closes that address immediately. Attendance already recorded stays.",
