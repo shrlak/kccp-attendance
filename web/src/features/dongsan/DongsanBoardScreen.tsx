@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -6,7 +6,6 @@ import { getDongsanBoard, markDongsan, type DongsanBoard, type DongsanBoardMembe
 import { hasHidingMark } from '../../lib/status'
 import { KccpMark } from '../checkin/KccpMark'
 import { ThemeLangToggle } from '../../components/ui/ThemeLangToggle'
-import { Select } from '../../components/ui/Select'
 import { useToast } from '../../components/ui/Toast'
 
 // ── /dongsan/:token — 부서 담당자가 그 부서의 동산모임 출석을 적는 화면 ───────────
@@ -14,16 +13,19 @@ import { useToast } from '../../components/ui/Toast'
 // 것은 그 부서 사람들의 이름과 그들의 **동산모임** 출석뿐이다. 예배 출석도, 연락처도, 다른
 // 부서도 여기서는 보이지 않는다 (서버 /api/dongsan/board가 그만큼만 내려준다).
 //
+// **표로 적는다**: 세로가 사람, 가로가 주일이고 칸마다 O/X를 고른다. 주일을 하나씩 골라 가며
+// 적으면 지난주를 마저 채우는 데 화면을 여러 번 오가야 하고, 무엇보다 "우리 동산이 요즘 어떤가"가
+// 한눈에 안 보인다. 관리자 출석부와 같은 모양이라 옮겨 적을 때도 눈이 덜 미끄러진다.
+//
 // 왜 O/X 둘뿐인가: 표에서 출석은 "줄이 있다/없다"이고, 없는 줄은 "안 왔다"와 "아직 안 적었다"를
 // 구별하지 않는다. 시트 연동에서는 그 구별이 중요했지만(빈칸을 결석으로 읽으면 안 되니까),
-// 여기서는 적는 사람이 곧 그 부서의 담당자라 X가 곧 "안 왔다"이다. 다만 한 주일에 O가 하나도
-// 없으면 아직 손대지 않은 주일일 수 있으므로, 그 주는 화면이 따로 알려 준다.
+// 여기서는 적는 사람이 곧 그 부서의 담당자라 X가 곧 "안 왔다"이다. 다만 아직 손대지 않은 주일도
+// X로 보이므로, 각 열의 **합계**를 함께 두어 0인 열이 눈에 띄게 했다.
 export function DongsanBoardScreen() {
   const { token = '' } = useParams()
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const toast = useToast()
   const qc = useQueryClient()
-  const [date, setDate] = useState<string | null>(null)
 
   const key = ['dongsanBoard', token]
   const { data, isLoading, error } = useQuery({
@@ -33,8 +35,6 @@ export function DongsanBoardScreen() {
     retry: false,
   })
 
-  // 서버가 정한 주일 목록의 마지막이 이번 주다. 리더가 다른 주를 고르면 그 선택이 이긴다.
-  const week = date ?? data?.dates[data.dates.length - 1] ?? ''
   const ctx = data?.partition === 'adult' ? 'adult' : undefined
 
   // 귀국·이주처럼 명단에서 빠진 사람은 리더 화면에도 뜨지 않는다 — 앱 전체가 쓰는 그 규칙을
@@ -44,7 +44,6 @@ export function DongsanBoardScreen() {
     [data?.members],
   )
   const marks = useMemo(() => new Set(data?.marks ?? []), [data?.marks])
-  const presentCount = members.filter((m) => marks.has(`${m.id}|${week}`)).length
 
   // 링크 하나가 부서 하나를 담으므로 화면은 동산별로 묶어 그린다 — 이름만 30줄 늘어놓으면
   // 적는 사람이 자기 줄을 못 찾는다. 동산이 아직 없는 사람은 '동산 미지정' 블록에 모인다
@@ -60,14 +59,14 @@ export function DongsanBoardScreen() {
   }, [members])
 
   const mark = useMutation({
-    mutationFn: ({ memberId, present }: { memberId: string; present: boolean }) =>
-      markDongsan(token, memberId, week, present),
-    // 탭이 화면에 바로 남는다 — 왕복을 기다리면 드롭다운이 되돌아갔다가 다시 바뀐다.
-    onMutate: async ({ memberId, present }) => {
+    mutationFn: ({ memberId, date, present }: { memberId: string; date: string; present: boolean }) =>
+      markDongsan(token, memberId, date, present),
+    // 고른 값이 화면에 바로 남는다 — 왕복을 기다리면 드롭다운이 되돌아갔다가 다시 바뀐다.
+    onMutate: async ({ memberId, date, present }) => {
       await qc.cancelQueries({ queryKey: key })
       const prev = qc.getQueryData<DongsanBoard>(key)
       if (prev) {
-        const cell = `${memberId}|${week}`
+        const cell = `${memberId}|${date}`
         qc.setQueryData<DongsanBoard>(key, {
           ...prev,
           marks: present ? [...prev.marks.filter((c) => c !== cell), cell] : prev.marks.filter((c) => c !== cell),
@@ -81,10 +80,12 @@ export function DongsanBoardScreen() {
     },
   })
 
+  const dates = data?.dates ?? []
+
   return (
     <main className="relative flex min-h-dvh flex-col bg-canvas">
       <header className="material-bar sticky top-0 z-20 border-b pt-[env(safe-area-inset-top)]">
-        <div className="safe-x mx-auto flex h-14 w-full max-w-2xl items-center justify-between gap-3">
+        <div className="safe-x mx-auto flex h-14 w-full max-w-4xl items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2.5">
             <KccpMark size={28} className="shrink-0" />
             <div className="min-w-0">
@@ -104,7 +105,7 @@ export function DongsanBoardScreen() {
         </div>
       </header>
 
-      <div className="safe-x mx-auto w-full max-w-2xl grow px-4 py-5">
+      <div className="safe-x mx-auto w-full max-w-4xl grow px-4 py-5">
         {isLoading && <p className="text-sm text-muted">{t('common.loading')}</p>}
 
         {/* 폐기된 링크·오타 난 주소는 여기로 온다. 무엇이 잘못됐는지만 말하고 끝낸다 —
@@ -118,63 +119,128 @@ export function DongsanBoardScreen() {
 
         {data && (
           <>
-            <label className="block">
-              <span className="field-label">{t('dongsan.week')}</span>
-              <Select value={week} onChange={(e) => setDate(e.target.value)}>
-                {[...data.dates].reverse().map((d) => (
-                  <option key={d} value={d}>
-                    {formatSunday(d, i18n.language)}
-                  </option>
-                ))}
-              </Select>
-            </label>
-
-            <div className="mt-4 flex items-center justify-between gap-3">
-              <span className="text-sm font-semibold text-text">
-                {t('dongsan.count', { n: presentCount, total: members.length })}
-              </span>
-              {presentCount === 0 && members.length > 0 && (
-                <span className="text-xs text-muted">{t('dongsan.emptyWeek')}</span>
-              )}
-            </div>
-
-            {!members.length && (
-              <div className="inset-list mt-2">
+            {!members.length ? (
+              <div className="inset-list">
                 <div className="inset-row min-h-14 text-sm text-muted">{t('dongsan.noMembers', { context: ctx })}</div>
               </div>
+            ) : (
+              blocks.map((block) => (
+                <DongsanTable
+                  key={block.subgroup}
+                  title={block.subgroup || t('dongsan.noSubgroup', { context: ctx })}
+                  members={block.members}
+                  dates={dates}
+                  marks={marks}
+                  onPick={(memberId, date, present) => mark.mutate({ memberId, date, present })}
+                />
+              ))
             )}
-            {blocks.map((block) => (
-              <div key={block.subgroup} className="mt-2">
-                <span className="section-kicker mb-1 mt-3 block">
-                  {block.subgroup || t('dongsan.noSubgroup', { context: ctx })}
-                </span>
-                <div className="inset-list">
-                  {block.members.map((m) => {
-                    const present = marks.has(`${m.id}|${week}`)
-                    return (
-                      <div key={m.id} className="inset-row min-h-14 items-center justify-between gap-3 py-2.5">
-                        <span className="min-w-0 truncate text-sm font-semibold text-text">{m.name}</span>
-                        <Select
-                          className="!w-28 shrink-0"
-                          aria-label={m.name}
-                          value={present ? 'O' : 'X'}
-                          onChange={(e) => mark.mutate({ memberId: m.id, present: e.target.value === 'O' })}
-                        >
-                          <option value="O">{t('dongsan.present')}</option>
-                          <option value="X">{t('dongsan.absent')}</option>
-                        </Select>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            ))}
 
-            <p className="mt-4 text-xs text-muted">{t('dongsan.hint', { context: ctx })}</p>
+            <p className="mt-5 text-xs text-muted">{t('dongsan.hint', { context: ctx })}</p>
+            <p className="mt-1 text-xs text-muted">{t('dongsan.blankNote')}</p>
           </>
         )}
       </div>
     </main>
+  )
+}
+
+// 한 동산의 표. 세로가 사람, 가로가 주일. 관리자 출석부(AdminSheet GridView)와 같은 방식으로
+// 이름 열을 왼쪽에 고정하고 나머지를 가로로 굴린다 — 폰에서는 8주가 한 화면에 들어가지 않는다.
+function DongsanTable({
+  title,
+  members,
+  dates,
+  marks,
+  onPick,
+}: {
+  title: string
+  members: DongsanBoardMember[]
+  dates: string[]
+  marks: Set<string>
+  onPick: (memberId: string, date: string, present: boolean) => void
+}) {
+  const { t } = useTranslation()
+  return (
+    <section className="mt-4 first:mt-0">
+      <span className="section-kicker mb-1.5 block">{title}</span>
+      <div className="overflow-x-auto rounded-2xl border border-border">
+        <table className="w-full border-collapse text-sm">
+          <thead>
+            <tr className="bg-surface-2">
+              <th
+                scope="col"
+                className="sticky left-0 z-[1] min-w-[7.5rem] bg-surface-2 px-3 py-2 text-left text-xs font-semibold
+                           text-muted shadow-[1px_0_0_var(--color-border)]"
+              >
+                {t('dongsan.name')}
+              </th>
+              {dates.map((d) => (
+                <th key={d} scope="col" className="min-w-[4.5rem] px-1.5 py-2 text-center text-xs font-semibold text-muted">
+                  {shortSunday(d)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {members.map((m) => (
+              <tr key={m.id} className="border-t border-border">
+                <th
+                  scope="row"
+                  className="sticky left-0 z-[1] bg-surface px-3 py-1.5 text-left text-sm font-semibold text-text
+                             shadow-[1px_0_0_var(--color-border)]"
+                >
+                  <span className="block max-w-[7rem] truncate">{m.name}</span>
+                </th>
+                {dates.map((d) => {
+                  const present = marks.has(`${m.id}|${d}`)
+                  return (
+                    <td key={d} className="px-1 py-1 text-center">
+                      {/* 칸마다 드롭다운. 네이티브 select라 폰에서 손가락으로 고르기 쉽고,
+                          O/X 둘뿐이라 고르는 동안 헷갈릴 것이 없다. */}
+                      <select
+                        aria-label={`${m.name} ${d}`}
+                        value={present ? 'O' : 'X'}
+                        onChange={(e) => onPick(m.id, d, e.target.value === 'O')}
+                        className={
+                          'min-h-9 w-full cursor-pointer appearance-none rounded-lg border border-border bg-surface ' +
+                          'text-center text-sm font-bold outline-none transition-colors duration-150 ' +
+                          'focus-visible:border-primary focus-visible:ring-[3px] focus-visible:ring-primary/18 ' +
+                          (present ? 'text-success' : 'text-subtle')
+                        }
+                      >
+                        <option value="O">O</option>
+                        <option value="X">X</option>
+                      </select>
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+          {/* 합계 — 아직 손대지 않은 주일은 0으로 드러난다 (그 열은 전부 X로 보이므로). */}
+          <tfoot>
+            <tr className="border-t border-border bg-surface-2">
+              <th
+                scope="row"
+                className="sticky left-0 z-[1] bg-surface-2 px-3 py-2 text-left text-xs font-semibold text-muted
+                           shadow-[1px_0_0_var(--color-border)]"
+              >
+                {t('dongsan.total')}
+              </th>
+              {dates.map((d) => {
+                const n = members.filter((m) => marks.has(`${m.id}|${d}`)).length
+                return (
+                  <td key={d} className={'px-1.5 py-2 text-center text-xs font-bold tabular-nums ' + (n ? 'text-text' : 'text-subtle')}>
+                    {n}
+                  </td>
+                )
+              })}
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>
   )
 }
 
@@ -190,13 +256,11 @@ function statusOf(m: DongsanBoardMember) {
   }
 }
 
-// 2026-08-09 → "8월 9일 (주일)" / "Sun, Aug 9". 날짜 문자열은 자정 UTC로 읽히면 하루 밀리므로
-// 정오를 붙여 읽는다 (앱의 다른 날짜 표시와 같은 방식).
-function formatSunday(iso: string, lang: string) {
-  const at = new Date(iso + 'T12:00:00')
-  return at.toLocaleDateString(lang === 'en' ? 'en-US' : 'ko-KR', {
-    month: 'long',
-    day: 'numeric',
-    weekday: 'short',
-  })
+// 2026-08-09 → "8/9". 열이 여덟 개라 머리글은 짧아야 하고, 그 안에서 주일끼리 구별만 되면
+// 된다. toLocaleDateString을 쓰지 않는 이유는 ko-KR이 "8. 9."로 점을 찍어 좁은 칸에서 지저분해
+// 지기 때문이고, 어차피 월/일 두 숫자라 언어에 따라 달라질 것이 없다. 문자열에서 바로 자르므로
+// 자정 UTC로 읽혀 하루 밀리는 일도 없다.
+function shortSunday(iso: string) {
+  const [, m, d] = iso.split('-')
+  return `${Number(m)}/${Number(d)}`
 }
