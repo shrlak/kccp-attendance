@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { getDongsanBoard, markDongsan, type DongsanBoard } from '../../lib/api'
+import { getDongsanBoard, markDongsan, type DongsanBoard, type DongsanBoardMember } from '../../lib/api'
 import { hasHidingMark } from '../../lib/status'
 import { KccpMark } from '../checkin/KccpMark'
 import { ThemeLangToggle } from '../../components/ui/ThemeLangToggle'
@@ -40,7 +40,7 @@ export function DongsanBoardScreen() {
   // 귀국·이주처럼 명단에서 빠진 사람은 리더 화면에도 뜨지 않는다 — 앱 전체가 쓰는 그 규칙을
   // 그대로 쓴다 (lib/status.ts가 그 규칙의 단 하나뿐인 독자다).
   const members = useMemo(
-    () => (data?.members ?? []).filter((m) => !hasHidingMark(m)),
+    () => (data?.members ?? []).filter((m) => !hasHidingMark(statusOf(m))),
     [data?.members],
   )
   const marks = useMemo(() => new Set(data?.marks ?? []), [data?.marks])
@@ -182,6 +182,18 @@ export function DongsanBoardScreen() {
       </div>
     </main>
   )
+}
+
+// 서버는 표에 있는 그대로 — 비어 있으면 null — 을 실어 보내고, status.ts는 Member의 모양
+// (비어 있으면 없는 칸)을 읽는다. 그 한 칸 차이를 여기서 맞춘다. 표기를 읽는 규칙 자체는
+// 여전히 status.ts 하나뿐이고, 여기서 하는 일은 모양을 맞춰 넘기는 것뿐이다.
+function statusOf(m: DongsanBoardMember) {
+  return {
+    status_note: m.status_note ?? undefined,
+    status_start: m.status_start ?? null,
+    status_end: m.status_end ?? null,
+    status_marks: m.status_marks ?? undefined,
+  }
 }
 
 // 2026-08-09 → "8월 9일 (주일)" / "Sun, Aug 9". 날짜 문자열은 자정 UTC로 읽히면 하루 밀리므로
