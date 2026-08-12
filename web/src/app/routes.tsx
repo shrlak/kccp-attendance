@@ -15,6 +15,11 @@ const KioskShell = lazy(() => import('../features/kiosk/KioskShell').then((m) =>
 const ShareTargetScreen = lazy(() =>
   import('../features/share/ShareTargetScreen').then((m) => ({ default: m.ShareTargetScreen })),
 )
+// 동산지기가 링크로 여는 출석 화면. 로그인이 없고 관리자 패널의 코드도 필요 없으므로 자기
+// 조각으로 떨어뜨린다 — 리더의 폰이 명단 UI 전체를 내려받을 이유가 없다.
+const DongsanBoardScreen = lazy(() =>
+  import('../features/dongsan/DongsanBoardScreen').then((m) => ({ default: m.DongsanBoardScreen })),
+)
 
 // A reload stays where it was — the URL is the screen, and the admin session (sessionStorage
 // password / Supabase's own Google session) survives it, so reloading the admin panel or the
@@ -57,6 +62,15 @@ export function AppRoutes() {
           element={
             <Suspense fallback={<RouteSplash />}>
               <ShareTargetScreen partition="adult" />
+            </Suspense>
+          }
+        />
+        {/* 동산지기가 받은 링크. 토큰이 곧 신원이라 로그인 문을 지나지 않는다. */}
+        <Route
+          path="/dongsan/:token"
+          element={
+            <Suspense fallback={<RouteSplash />}>
+              <DongsanBoardScreen />
             </Suspense>
           }
         />

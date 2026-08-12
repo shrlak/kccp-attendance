@@ -114,6 +114,31 @@ describe('buildAttendanceModel', () => {
     const narrow = buildAttendanceModel(members, log, ['2026-06-07'], today, labels).sections[0]
     expect(narrow.rows.map((r) => r.total)).toEqual([1, 1])
   })
+  // ── 동산모임 (구글 시트 연동) ──────────────────────────────────────────────
+  // 예배와 동산모임은 같은 날의 **서로 다른 사실**이다. 시트에 그렇게 적혀 있고(한 날짜에
+  // 두 칸), 실제로 엇갈린 줄이 있다 — 그래서 한 칸에 겹쳐 담지 않는다.
+  it('동산모임 출석을 같은 칸에 덧붙이되 예배 출석과 섞지 않는다', () => {
+    // A는 예배에 왔고 동산모임엔 안 왔다. B는 그 반대다.
+    const dongsan = [entry('B', '2026-06-07', 9)]
+    const rows = buildAttendanceModel(members, log, ['2026-06-07'], today, labels, undefined, dongsan)
+      .sections[0].rows
+    expect(rows.map((r) => [r.member.name, r.marks[0].kind])).toEqual([['A', 'present'], ['B', 'present']])
+    expect(rows.map((r) => (r.marks[0] as { dongsan?: string }).dongsan)).toEqual(['absent', 'present'])
+    // 예배 총 출석은 예배만 센다 — 동산모임이 총계를 흔들면 안 된다.
+    expect(rows.map((r) => r.total)).toEqual([1, 1])
+  })
+  it('동산모임을 아무도 적지 않은 날짜에는 아무것도 덧붙이지 않는다', () => {
+    // 빈칸은 결석이 아니다: 그날 동산모임 출석을 안 적었다는 뜻이라 칸을 비워 둔다.
+    const dongsan = [entry('A', '2026-06-07', 9)]
+    const rows = buildAttendanceModel(members, log, dates, today, labels, undefined, dongsan).sections[0].rows
+    expect((rows[0].marks[0] as { dongsan?: string }).dongsan).toBeUndefined() // 05-31: 아무도 안 적었다
+    expect((rows[0].marks[1] as { dongsan?: string }).dongsan).toBe('present') // 06-07: 적혔다
+  })
+  it('동산모임 기록이 없으면 지금까지와 똑같다', () => {
+    const rows = buildAttendanceModel(members, log, dates, today, labels).sections[0].rows
+    expect(rows.every((r) => r.marks.every((c) => !(c as { dongsan?: string }).dongsan))).toBe(true)
+  })
+
   it('buckets members without a 동산 under the unassigned label, last', () => {
     const ms = [member('1', 'A'), member('9', 'Z', '청년부', '')]
     const m = buildAttendanceModel(ms, [], ['2026-06-07'], today, labels)
