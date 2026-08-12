@@ -210,27 +210,30 @@ live** at https://shrlak.github.io/kccp-attendance/.
   못하는 주소를 두드리게 된다. 가을 링크가 나오면 설정 탭에서 부서를 골라 붙이면 된다.
 
 ## 동산 리더 링크 (`/dongsan/:token`)
-- **시트가 없는 학기에 동산지기가 출석을 적는 자리.** 로그인이 아니라 **링크가 신원**이고,
-  링크 하나가 **한 자리**를 가리킨다 (`config.dongsan_links` = `[{token,group,subgroup,
-  createdAt}]`, `20260817`). 자리는 둘 중 하나다 — **동산 하나**(`subgroup` 있음, 동산지기에게)
-  또는 **부서 하나**(`subgroup` 빈 문자열 + `group`='대학부'|'청년부', 부서 담당자에게). 부서
-  링크는 그 부서의 동산을 다 담되 **여전히 동산모임 출석뿐**이다 — 넓어진 것은 사람 수지 종류가
-  아니다. 화면은 부서 링크일 때만 동산별로 묶어 그리고, 동산이 아직 없는 사람도 '동산 미지정'
-  블록으로 남는다 (편성 전에 쓰는 경우가 그것이다). 여름 합동에도 부서 링크는 부서마다 따로
-  낸다: 동산은 합쳐도 사람은 여전히 대학부 아니면 청년부이고 담당자가 다르기 때문.
-  **`group`도 `subgroup`도 비어 있는 링크는 만들지 않는다** — 부 전체를 여는 열쇠라 범위를
-  짚지 못하고, 그런 열쇠를 없앤 것이 이 링크가 생긴 이유다 (서버가 만들 때 막고 `parseLinks`가
-  읽을 때 또 버린다). 그 링크로 보이는 것은 그 동산 사람들의 이름과 그들의 **동산모임
-  출석**뿐이다 — 예배 출석도, 연락처도, 다른 동산도 이 문으로 나가지 않는다. 공용 비밀번호를
-  없앤 이유(범위를 짚지 못하는 열쇠)를 링크에도 똑같이 적용한 것이라, 하나가 새면 새는 것은
-  그 동산 하나이고 관리자는 그것만 폐기한다 (동산 탭의 `DongsanLinksSection`).
+- **시트가 없는 학기에 그 부서의 동산모임 출석을 적는 자리.** 로그인이 아니라 **링크가
+  신원**이고, 링크 하나가 **부서 하나**를 가리킨다 (`config.dongsan_links` =
+  `[{token,group,subgroup,createdAt}]`, `20260817`; 지금 내는 링크는 `subgroup`이 빈 문자열인
+  부서 링크뿐이다). 대학부 하나, 청년부 하나 — 그 부서 담당자에게 건넨다. 화면은 그 부서를
+  **동산별로 묶어** 그리고, 동산이 아직 없는 사람은 '동산 미지정' 블록에 모인다 (편성 전에도
+  적을 수 있어야 하므로).
+  - **동산마다 링크를 따로 내는 길은 두지 않았다**: 적는 사람이 부서 담당자 한 명이면 링크도
+    하나여야 관리가 되고, 동산이 새로 서거나 이름이 바뀔 때마다 링크를 다시 내고 다시 나눠 줄
+    일이 없다. 동산별로 내던 시절의 링크가 남아 있어도 `parseLinks`가 그대로 읽고
+    (`subgroup`으로 좁혀진다) 동산 탭 아래쪽 목록에서 폐기할 수 있다 — 목록에서 감추면 거둘
+    방법까지 사라지기 때문.
+  - **`group`이 비어 있는 링크는 만들지 않는다** — 부 전체를 여는 열쇠라 범위를 짚지 못하고,
+    그런 열쇠를 없앤 것이 이 링크가 생긴 이유다 (서버가 만들 때 막고 `parseLinks`가 읽을 때 또
+    버린다). 그 링크로 보이는 것은 그 부서 사람들의 이름과 그들의 **동산모임 출석**뿐이다 —
+    예배 출석도, 연락처도, 다른 부서도 이 문으로 나가지 않는다. 공용 비밀번호를
+    없앤 이유(범위를 짚지 못하는 열쇠)를 링크에도 똑같이 적용한 것이라, 하나가 새면 새는 것은
+    그 부서 하나이고 관리자는 그것만 폐기한다 (동산 탭의 `DongsanLinksSection`).
 - **적히는 것은 `kind='dongsan'` + `source='link'`.** 시트에서 온 줄(`source='sheet'`)과 같은
   칸에 앉으므로 출석부의 동산모임 위첨자가 그대로 둘 다 보여준다. 화면에서 X를 고르면
   `source`가 있는 줄(link·sheet 둘 다)을 지우고, `source`가 비어 있는 앱 출석은 건드리지
-  않는다. **한 동산에 시트와 링크를 같이 쓰지 않는다** — 다음 동기화에서 시트가 자기 값을
+  않는다. **같은 사람을 시트와 링크로 함께 적지 않는다** — 다음 동기화에서 시트가 자기 값을
   도로 넣는다.
 - **적을 수 있는 날은 서버가 정한다** (`recentSundays`, 최근 8주일). 화면이 보낸 날짜도,
-  사람 id도 그대로 믿지 않고 링크의 동산 안에 있는지 표에 다시 물어본다.
+  사람 id도 그대로 믿지 않고 링크의 범위 안에 있는지 표에 다시 물어본다.
 - **여름학기에는 동산 탭이 링크를 내주지 않는다** (`DongsanLinksSection`, `summer`면 자리 목록이
   비고 이유만 적힌다). 그 학기의 동산 출석은 시트가 갖고 오므로 같은 동산을 둘로 적으면 다음
   동기화가 덮어쓴다. 링크는 시트가 없는 학기 — 가을부터 — 의 것이다. 이미 낸 링크는 여름에도
@@ -326,7 +329,13 @@ route is the screen, and the admin panel's tab is remembered in `sessionStorage`
 `ArchiveSection.tsx`: the sheet rolls over to the next 학기 — or the gap between two, shown
 with the gap's own full Sunday set — the day a term ends, and every finished 학기/전환 기간,
 학년도 and calendar year is downloadable as an Excel workbook built from the log at click
-time, so clearing attendance clears the archives too). **Status marks are the hiding rule**
+time, so clearing attendance clears the archives too). **출석부 탭은 표 하나만 그린다** — 시간순 '기록' 화면(`LogView`)과 표/기록 전환은 없앴다:
+표가 이미 같은 사실을 담고 있고(누가 어느 주일에 왔나) 기록은 그것을 한 번 더 늘어놓을 뿐이라,
+둘을 같이 두면 어느 쪽이 정본인지가 흐려진다. 한 줄 단위로 봐야 할 때는 내보내기의 엑셀(전체
+기록 시트)이 그 자리를 대신한다. 장년부는 원래 표뿐이었으므로 `showsAttendanceLog`도 같이
+없앴다.
+
+**Status marks are the hiding rule**
 (`web/src/lib/status.ts` is the single reader): a mark with **no end date** — 졸업, 타교회 정착,
 한국 귀국, 이주 … — or any 귀국/이주/졸업 note takes the member **off the roster everywhere**.
 The split happens once, in `useRoster`'s `splitRoster` (same place staff are split off), so

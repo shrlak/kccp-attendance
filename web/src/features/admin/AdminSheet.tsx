@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import { useRoster } from './useRoster'
@@ -30,33 +30,28 @@ import { GroupFilter } from './GroupFilter'
 import { ExportMenu } from './ExportMenu'
 import { ArchiveSection } from './ArchiveSection'
 import { StatsBar } from './StatsBar'
-import { IconKey } from './IconKey'
 import { Dialog } from '../../components/ui/Dialog'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
-import { Tag } from '../../components/ui/Tag'
 import { useToast } from '../../components/ui/Toast'
-import { Plus, Trash2, AlertTriangle, Search, Calendar, ClipboardList, Check } from '../../components/ui/Icon'
+import { Plus, Trash2, AlertTriangle, Search, Calendar, Check } from '../../components/ui/Icon'
 import { refreshRoster } from '../../lib/live'
 import { useAppConfig, usePartition } from '../../lib/useAppConfig'
-import { showsAttendanceLog } from '../../lib/partition'
 
-// Attendance spreadsheet: the Excel-style 출석부 grid (an on-screen replica of the exported
-// "Attendance" sheet — color-coded 동산 blocks, O/X cells, 예배 총 출석 + 총 출석 rows) or a
-// reverse-chronological log, plus a bulk attendance entry (any admin except pastor).
+// Attendance spreadsheet: the Excel-style 출석부 grid — an on-screen replica of the exported
+// "Attendance" sheet (color-coded 동산 blocks, O/X cells, 예배 총 출석 + 총 출석 rows) — plus a
+// bulk attendance entry (any admin except pastor).
+//
+// 시간순 '기록' 화면은 없앴다. 표가 이미 같은 사실을 담고 있고(누가 어느 주일에 왔나) 기록은
+// 그것을 한 번 더 늘어놓을 뿐이라, 두 화면을 같이 두면 어느 쪽이 정본인지가 흐려진다. 한 줄
+// 단위로 봐야 할 때는 내보내기의 엑셀(전체 기록 시트)이 그 자리를 대신한다.
 export function AdminSheet() {
   const { t, i18n } = useTranslation()
-  const [view, setView] = useState<'grid' | 'log'>('grid')
   const [bulk, setBulk] = useState(false)
   const [clearing, setClearing] = useState(false)
   const [filter, setFilter] = useState<Filter>(NO_FILTER)
   const { data, isLoading, isError } = useRoster(true)
   const { data: cfg } = useAppConfig()
-  const partition = usePartition()
-  // 장년부는 표 하나로만 본다 — 기록(시간순) 화면이 없다.
-  const hasLog = showsAttendanceLog(partition)
-  // 기록 화면이 없는 부에서는 view가 'log'로 남아 있어도 표를 그린다.
-  const showLog = hasLog && view === 'log'
 
   if (isLoading) return (
     <div className="fx-fade space-y-3">
@@ -81,7 +76,6 @@ export function AdminSheet() {
   // 동산모임 출석 (구글 시트 연동이 들어오기 전에는 비어 있다). 예배 출석과 같은 필터를
   // 거쳐야 부서/동산을 좁혔을 때 두 값이 같은 사람들의 것으로 남는다.
   const fDongsanLog = filterLog(data.dongsanLog ?? [], filter)
-  const log = [...fLog].sort((a, b) => b.ts - a.ts)
   const canBulk = data.role !== 'pastor'
   // 아카이브만은 숨긴 멤버까지 되돌려 넣는다: 이미 끝난 학기의 출석부는 그때 실제로 있던
   // 사람이 다 들어 있어야 하는 기록이고, 그 안에서 누구를 넣고 뺄지는 buildAttendanceModel의
@@ -92,19 +86,7 @@ export function AdminSheet() {
     <>
       <StatsBar stats={computeStats(members, fLog, today)} />
       <GroupFilter members={data.members} value={filter} onChange={setFilter} />
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        {hasLog ? (
-          <div className="segmented">
-            <Toggle active={view === 'grid'} onClick={() => setView('grid')}>
-              {t('admin.sheet.grid')}
-            </Toggle>
-            <Toggle active={view === 'log'} onClick={() => setView('log')}>
-              {t('admin.sheet.log')}
-            </Toggle>
-          </div>
-        ) : (
-          <div />
-        )}
+      <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
         <div className="flex flex-wrap gap-2">
           <ExportMenu members={members} log={fLog} filter={filter} />
           {canBulk && (
@@ -121,20 +103,15 @@ export function AdminSheet() {
           )}
         </div>
       </div>
-      {showLog && <IconKey items={['firstVisit']} />}
-      {!showLog ? (
-        <GridView
-          members={members}
-          log={fLog}
-          dongsanLog={fDongsanLog}
-          lang={lang}
-          today={today}
-          filter={filter}
-          semesterDates={configCalendar(cfg)}
-        />
-      ) : (
-        <LogView log={log} empty={t('admin.sheet.empty')} />
-      )}
+      <GridView
+        members={members}
+        log={fLog}
+        dongsanLog={fDongsanLog}
+        lang={lang}
+        today={today}
+        filter={filter}
+        semesterDates={configCalendar(cfg)}
+      />
       {/* Finished 학기 / 전환 기간 / 연도 출석부, downloadable — the tab's closing section. */}
       <ArchiveSection
         members={archiveMembers}
@@ -507,48 +484,5 @@ function GridView({
         })}
       </div>
     </div>
-  )
-}
-
-function LogView({ log, empty }: { log: LogEntry[]; empty: string }) {
-  const { t } = useTranslation()
-  if (log.length === 0) return (
-    <div className="fx-rise grid place-items-center rounded-2xl border border-dashed border-border py-14 text-center">
-      <div className="grid size-14 place-items-center rounded-full bg-fill text-subtle"><ClipboardList className="size-6" aria-hidden /></div>
-      <p className="mt-4 text-sm font-semibold text-muted">{empty}</p>
-    </div>
-  )
-  return (
-    <ul className="fx-stagger inset-list text-sm">
-      {log.map((e) => (
-        <li key={`${e.name}-${e.ts}`} className="inset-row min-h-12 justify-between gap-3 py-2.5">
-          <span className="flex items-center gap-2 font-medium text-text">
-            {e.name}
-            {e.firstVisit && (
-              <Tag tone="gold" className="text-[10px]">{t('admin.iconKey.firstVisit')}</Tag>
-            )}
-          </span>
-          <span className="tabular-nums text-xs text-subtle">
-            {e.date} · {e.time}
-          </span>
-        </li>
-      ))}
-    </ul>
-  )
-}
-
-function Toggle({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
-  return (
-    <button
-      type="button"
-      aria-pressed={active}
-      onClick={onClick}
-      className={
-        'min-h-9 rounded-full px-4 py-1.5 text-xs font-semibold transition-[background-color,color,box-shadow] duration-200 [transition-timing-function:var(--ease-out-soft)] ' +
-        (active ? 'bg-surface text-primary shadow-[var(--shadow-sm)]' : 'text-muted hover:text-text')
-      }
-    >
-      {children}
-    </button>
   )
 }
