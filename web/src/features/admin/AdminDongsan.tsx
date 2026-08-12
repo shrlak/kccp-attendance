@@ -7,6 +7,7 @@ import { Input } from '../../components/ui/Input'
 import { Sprout, Trash2, Plus, AlertTriangle, Save } from '../../components/ui/Icon'
 import { renameAt, addDongsan, removeAt, cleanNames, summerDongsanList } from './dongsan'
 import { DongsanLeadersEditor } from './DongsanLeaders'
+import { DongsanLinksSection } from './DongsanLinks'
 import { useAppConfig, usePartition, usePartitionT } from '../../lib/useAppConfig'
 import { groupsOfPartition, summerAppliesTo, type Partition } from '../../lib/partition'
 
@@ -47,6 +48,11 @@ export function AdminDongsan() {
         <div className="pt-8 lg:pl-8 lg:pt-0">
           <DongsanLeadersEditor />
         </div>
+      </div>
+
+      {/* 동산지기에게 건네는 출석 링크. 편성(위)이 정해진 뒤에 나오는 것이므로 그 아래 둔다. */}
+      <div className="mt-8 border-t border-border pt-8">
+        <DongsanLinksSection names={loaded} summer={summer} partition={partition} />
       </div>
     </div>
   )

@@ -17,6 +17,7 @@ beforeAll(async () => {
     import('../features/admin/AdminShell'),
     import('../features/kiosk/KioskShell'),
     import('../features/share/ShareTargetScreen'),
+    import('../features/dongsan/DongsanBoardScreen'),
   ])
 })
 beforeEach(() => { queryClient.clear() })
@@ -61,6 +62,15 @@ describe('routes', () => {
   it('opens /share without any login', async () => {
     renderAt('/share')
     expect(await screen.findByRole('button', { name: '카드 사진 선택' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Google로 로그인' })).not.toBeInTheDocument()
+  })
+
+  // 동산지기가 받는 링크도 로그인을 지나지 않는다 — 토큰이 신원이다. (토큰을 풀어 줄 서버가
+  // 여기에는 없으므로 명단까지는 못 간다. 확인하려는 것은 이 주소가 로그인 문이 아니라 동산
+  // 화면으로 간다는 것 — 화면이 어떻게 채워지는지는 DongsanBoardScreen.test.tsx가 본다.)
+  it('opens /dongsan/:token without any login', async () => {
+    renderAt('/dongsan/tok123')
+    expect(await screen.findByRole('heading', { name: '동산 출석' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Google로 로그인' })).not.toBeInTheDocument()
   })
 

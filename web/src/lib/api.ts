@@ -758,3 +758,61 @@ export const rotateSheetSyncToken = () =>
 // 사람 수가 많은 시트에서 끊긴다.
 export const runSheetSync = (sourceId?: string) =>
   api<{ lastRun: SheetSyncRun }>('POST', '/api/admin/sheet-sync/run', { sourceId }, undefined, 60_000)
+
+// ── 동산 리더 링크 ────────────────────────────────────────────────────────────
+// 리더가 자기 동산의 **동산모임 출석만** 적는 화면(/dongsan/:token)이 쓰는 손잡이. 로그인이
+// 아니라 링크가 신원이라, 여기서 나가는 요청에는 관리자 비밀번호도 구글 토큰도 실리지 않는다.
+
+export interface DongsanBoardMember {
+  id: string
+  name: string
+  group: string
+  // 상태 표기 — lib/status.ts가 읽는 그 칸들 그대로. 귀국·이주처럼 명단에서 빠진 사람이
+  // 리더 화면에도 뜨지 않도록, 같은 규칙을 같은 코드로 적용하기 위해 실어 보낸다.
+  status_marks?: { note: string; start: string | null; end: string | null }[] | null
+  status_note?: string | null
+  status_start?: string | null
+  status_end?: string | null
+}
+
+export interface DongsanBoard {
+  partition: Partition
+  /** 이 링크가 가리키는 부서. 여름 합동이면 빈 문자열. */
+  group: string
+  subgroup: string
+  /** 적을 수 있는 주일들 (오래된 것부터). 서버가 정한다. */
+  dates: string[]
+  members: DongsanBoardMember[]
+  /** 출석한 칸들 — `${memberId}|${date}`. */
+  marks: string[]
+}
+
+export const getDongsanBoard = (token: string) =>
+  api<DongsanBoard>('GET', `/api/dongsan/board?token=${encodeURIComponent(token)}`)
+
+export const markDongsan = (token: string, memberId: string, date: string, present: boolean) =>
+  api<{ status: string; present: boolean }>(
+    'POST',
+    '/api/dongsan/mark',
+    { memberId, date, present },
+    { 'X-Dongsan-Token': token },
+  )
+
+export interface DongsanLink {
+  token: string
+  group: string
+  subgroup: string
+  createdAt: number
+}
+
+export const getDongsanLinks = () => api<{ links: DongsanLink[] }>('GET', '/api/admin/dongsan-links')
+
+export const createDongsanLink = (group: string, subgroup: string) =>
+  api<{ links: DongsanLink[]; created: DongsanLink | null }>('POST', '/api/admin/dongsan-links', {
+    action: 'create',
+    group,
+    subgroup,
+  })
+
+export const revokeDongsanLink = (token: string) =>
+  api<{ links: DongsanLink[] }>('POST', '/api/admin/dongsan-links', { action: 'revoke', token })

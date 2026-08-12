@@ -4,6 +4,7 @@ import { ADULT_GROUP, ADULT_SCHEMA, canChoosePartition, canViewLoginLog, dbOf, i
 import { DEFAULT_SEMESTER_DATES, isSummerTerm, lastEndedTermKey, mergeSchedule, rollSchedule, sameSchedule, scheduleOf, scheduleToDates, subgroupSnapshot, trimHistory, validSchedule } from "./term.ts";
 import { availableCardModels, buildCardRequest, cardModelChain, parseCardResponse } from "./gemini.ts";
 import { csvUrl, matchPerson, mergeSheetMarks, nameCounts, normalizeMarks, parseAttendanceSheet, parseSheetUrl, sameMarks, type ParsedSheet } from "./sheetSync.ts";
+import { findLink, findLinkFor, newLinkToken, parseLinks, recentSundays, type DongsanLink } from "./dongsanLink.ts";
 // Decrypt-side of the weekly R2 backup pipeline (see scripts/backup/). age-encryption is
 // FiloSottile's own pure-JS port of `age` (no native/subprocess dependency, which Deno
 // edge functions can't shell out to anyway); postgres.js's .unsafe() with no parameters
@@ -21,7 +22,7 @@ import { getSignedUrl } from "npm:@aws-sdk/s3-request-presigner@3.1090.0";
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type,X-Device-Id,X-Admin-Password,X-Geo-Lat,X-Geo-Lon,X-Geo-Acc,X-Partition,X-Sync-Token,Authorization,apikey",
+  "Access-Control-Allow-Headers": "Content-Type,X-Device-Id,X-Admin-Password,X-Geo-Lat,X-Geo-Lon,X-Geo-Acc,X-Partition,X-Sync-Token,X-Dongsan-Token,Authorization,apikey",
 };
 function localDate() { return new Date().toLocaleDateString("en-CA",{timeZone:"America/New_York"}); }
 function localTime() { return new Date().toLocaleTimeString("en-US",{timeZone:"America/New_York",hour:"2-digit",minute:"2-digit",second:"2-digit"}); }
@@ -578,6 +579,41 @@ async function applySheet(pdb: any, source: SyncSource, parsed: ParsedSheet, out
   }
 }
 
+// ── 동산 리더 링크 ───────────────────────────────────────────────────────────────────
+// 동산지기가 자기 동산의 **동산모임 출석만** 적는 자리(웹 /dongsan/<token>). 로그인이 아니라
+// 링크가 신원이고, 링크 하나는 동산 하나를 가리킨다 — 왜 그런지는 20260817 마이그레이션에.
+//
+// 시트 연동과 같은 표에 같은 종류(kind='dongsan')로 쌓이되 source가 다르다: 'link'는 사람이
+// 이 화면에서 고른 것, 'sheet'는 시트에서 읽어 온 것. 둘 다 "동산 출석을 적는 장치"가 넣은
+// 행이라, 이 화면에서 X를 고르면 **둘 다** 지운다 — 어느 쪽이 넣었든 리더 눈에는 O 하나였고,
+// 지웠는데 남아 있으면 고장으로 보인다. source가 비어 있는 행(키오스크·관리자가 만든 예배
+// 출석)은 애초에 kind가 달라 여기 걸리지도 않는다. 한 동산에 시트와 링크를 같이 쓰면 다음
+// 동기화에서 시트가 자기 값을 도로 넣으므로, 그 동산은 둘 중 하나만 쓴다.
+const LINK_SOURCE="link";
+// 화면에 놓는 주일 수. 지난 두 달이면 밀린 주를 채우기에 넉넉하고, 그보다 멀리 거슬러
+// 고치는 일은 관리자의 출석부 탭이 할 일이다.
+const LINK_WEEKS=8;
+
+// 토큰이 어느 부의 어느 동산인가. 두 부의 config를 다 열어 보는 것은 시트 연동 토큰과 같은
+// 이유다 — 링크에는 부가 적혀 있지 않고, 적혀 있어도 그것을 믿을 수 없다.
+async function resolveDongsanLink(sb: SB, token: string): Promise<{part:Partition;link:DongsanLink}|null> {
+  if(!token) return null;
+  const [youthCfg,adultCfg]=await Promise.all([getCfg(sb,"youth"),getCfg(sb,"adult")]);
+  const y=findLink(parseLinks(youthCfg?.dongsan_links),token);
+  if(y) return {part:"youth",link:y};
+  const a=findLink(parseLinks(adultCfg?.dongsan_links),token);
+  if(a) return {part:"adult",link:a};
+  return null;
+}
+
+// 이 링크가 가리키는 동산의 명단. group이 비어 있으면 부서를 가리지 않는다(여름 합동).
+// deno-lint-ignore no-explicit-any
+function dongsanMemberQuery(pdb: any, link: DongsanLink, select: string) {
+  let q=pdb.from("members").select(select).eq("subgroup",link.subgroup);
+  if(link.group) q=q.eq("group_name",link.group);
+  return q;
+}
+
 // R2 access for the db-backup list/download/restore endpoints (scripts/backup/ writes
 // here on its own schedule; these just read). Returns null when the edge-function-side R2
 // secrets haven't been configured yet, so callers can fail with a clear setup message
@@ -1051,6 +1087,102 @@ Deno.serve(async (req: Request) => {
       await db(sb,part).from("config").update({sheet_sync:{...syncSettings(cfg),lastRun}}).eq("id",1);
       actingPartition=part; // 자동 백업이 이 부의 줄기로 나가도록
       return ok({status:"ok",outcomes});
+    }
+
+    // ── 동산 리더 링크 ───────────────────────────────────────────────────────────────
+    // 로그인 없이 링크로 들어온다. 나가는 것은 그 동산의 이름들과 그들의 동산모임 O/X뿐이다 —
+    // 연락처도, 예배 출석도, 다른 동산도 이 문으로는 나가지 않는다.
+    if(req.method==="GET"&&p==="/api/dongsan/board") {
+      const found=await resolveDongsanLink(sb,url.searchParams.get("token")||"");
+      if(!found) return fail(404,"이 링크는 더 이상 쓸 수 없습니다");
+      const {part,link}=found;
+      const pdb=db(sb,part);
+      const {data:mem}=await dongsanMemberQuery(pdb,link,"id,name,group_name,status_marks,status_note,status_start,status_end");
+      const members=((mem||[]) as any[]).sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),"ko"));
+      const dates=recentSundays(localDate(),LINK_WEEKS);
+      const ids=members.map((m)=>m.id);
+      const {data:logs}=ids.length
+        ? await pdb.from("attendance_log").select("member_id,date").eq("kind","dongsan")
+            .in("member_id",ids).gte("date",dates[0]).lte("date",dates[dates.length-1])
+        : {data:[] as any[]};
+      return ok({partition:part,group:link.group,subgroup:link.subgroup,dates,
+        members:members.map((m)=>({id:m.id,name:m.name,group:m.group_name||"",
+          status_marks:m.status_marks??null,status_note:m.status_note??null,
+          status_start:m.status_start??null,status_end:m.status_end??null})),
+        // "누가 어느 주일에 왔나"만 실어 보낸다 — 행 id도 기기 번호도 리더에게는 쓸 데가 없다.
+        marks:((logs||[]) as any[]).map((r)=>`${r.member_id}|${r.date}`)});
+    }
+
+    if(req.method==="POST"&&p==="/api/dongsan/mark") {
+      const found=await resolveDongsanLink(sb,req.headers.get("x-dongsan-token")||String(body.token||""));
+      if(!found) return fail(404,"이 링크는 더 이상 쓸 수 없습니다");
+      const {part,link}=found;
+      const pdb=db(sb,part);
+      const date=String(body.date||"");
+      // 화면이 보낸 날짜를 그대로 쓰지 않는다 — 적을 수 있는 주일은 서버가 정한다.
+      if(!recentSundays(localDate(),LINK_WEEKS).includes(date)) return fail(400,"적을 수 있는 주일이 아닙니다");
+      const memberId=String(body.memberId||"");
+      // 그리고 그 사람이 정말 이 동산의 사람인지도 표에 물어본다. 링크가 가리키는 범위 밖으로
+      // 한 칸이라도 나가면 이 문은 "우리 동산 출석부"가 아니라 명단 전체의 쓰기 권한이 된다.
+      const {data:m}=await dongsanMemberQuery(pdb,link,"id,name,group_name,subgroup,member_role").eq("id",memberId).maybeSingle();
+      if(!m) return fail(404,"이 동산의 명단에 없는 사람입니다");
+      const present=body.present===true;
+      const {data:existing}=await pdb.from("attendance_log").select("id,source")
+        .eq("kind","dongsan").eq("member_id",memberId).eq("date",date);
+      const rows=(existing||[]) as any[];
+      if(present) {
+        // 이미 있으면 그대로 둔다 (시트가 넣어 둔 것이든 지난번에 이 화면에서 고른 것이든).
+        if(!rows.length) {
+          const {data:dev}=await pdb.from("devices").select("id").eq("member_id",memberId).limit(1);
+          const devId=((dev||[]) as any[])[0]?.id||`LINK-${Date.now()}`;
+          const {error}=await pdb.from("attendance_log").insert({
+            device_id:devId,member_id:memberId,name:m.name,group_name:m.group_name||"",subgroup:m.subgroup||"",
+            date,time_str:localTime(),ts:Date.now(),kind:"dongsan",source:LINK_SOURCE,
+            is_manual:true,admin_added:true,member_role:m.member_role||null});
+          if(error) return fail(500,"출석을 넣지 못했습니다");
+        }
+      } else {
+        const removable=rows.filter((r)=>r.source).map((r)=>r.id);
+        if(removable.length) {
+          const {error}=await pdb.from("attendance_log").delete().in("id",removable);
+          if(error) return fail(500,"출석을 되돌리지 못했습니다");
+        }
+      }
+      actingPartition=part; // 자동 백업이 이 부의 줄기로 나가도록
+      return ok({status:"ok",present});
+    }
+
+    // 링크를 내고 거두는 쪽은 super_admin만 (동산 탭).
+    if(req.method==="GET"&&p==="/api/admin/dongsan-links") {
+      const role=await auth();
+      if(role?.role!=="super_admin") return fail(403,"Not authorized");
+      const cfg=await getCfg(sb,actingPartition);
+      return ok({links:parseLinks(cfg?.dongsan_links)});
+    }
+
+    if(req.method==="POST"&&p==="/api/admin/dongsan-links") {
+      const role=await auth();
+      if(role?.role!=="super_admin") return fail(403,"Not authorized");
+      const cfg=await getCfg(sb,actingPartition);
+      const links=parseLinks(cfg?.dongsan_links);
+      const action=String(body.action||"");
+      let next=links; let made: DongsanLink|null=null;
+      if(action==="create") {
+        const subgroup=String(body.subgroup||"").trim();
+        if(!subgroup) return fail(400,"동산을 골라 주세요");
+        const group=String(body.group||"");
+        if(group&&partitionOfGroup(group)!==actingPartition) return fail(400,"이 부의 부서가 아닙니다");
+        // 같은 동산을 두 번 내지 않는다 — 그 동산의 링크는 하나뿐이어야 거둘 때도 하나만 거둔다.
+        made=findLinkFor(links,group,subgroup);
+        if(!made) { made={token:newLinkToken(),group,subgroup,createdAt:Date.now()}; next=[...links,made]; }
+      }
+      else if(action==="revoke") next=links.filter((l)=>l.token!==String(body.token||""));
+      else return fail(400,"Unknown action");
+      if(next!==links) {
+        await db(sb,actingPartition).from("config").update({dongsan_links:next,updated_at:new Date().toISOString()}).eq("id",1);
+        await addAudit(adb,"dongsan-link",xDev,`${action} | ${made?made.subgroup:String(body.subgroup||"")}`,actingPartition);
+      }
+      return ok({links:next,created:made});
     }
 
     // Settings (super-admin only): group colors, semester dates. 여름 모드는 더 이상 설정이

@@ -102,6 +102,23 @@ C열 `예배 총 출석`은 시트가 스스로 센 값이다. 우리가 센 것
   등록되지 않은 스프레드시트 id는 무시한다 — 키를 쥐었다고 아무 시트나 부어 넣을 수 없다.
 - 키가 샜다고 생각되면 설정 화면에서 **키 새로 발급**. 시트의 스크립트에도 새 키를 넣어야 한다.
 
+## 시트가 없는 학기에는 — 동산 리더 링크
+
+시트를 만들지 않고도 동산지기가 출석을 적을 수 있다. 관리자 → **동산 탭 → 동산 리더 링크**에서
+동산마다 링크를 하나 내고 그 동산지기에게 건네면, 그 링크는 로그인 없이 열리고 **그 동산의
+동산모임 출석만** 보여준다 — 주일을 고르고 사람마다 O/X를 고르면 즉시 저장된다.
+
+|                    |구글 시트|동산 리더 링크|
+|---|---|---|
+|무엇을 적나|예배 + 동산모임|**동산모임만**|
+|누가|동산지기 (시트 편집 권한)|동산지기 (링크를 받은 사람)|
+|범위|시트 한 장 = 여러 동산|링크 하나 = **동산 하나**|
+|되돌리기|시트에서 O→X|화면에서 O→X|
+
+**한 동산에 둘을 같이 쓰지 않는다.** 시트가 등록돼 있으면 다음 동기화에서 시트의 값이 다시
+들어오므로, 그 학기에는 시트 아니면 링크 하나만 쓴다. 링크를 폐기하면 그 주소는 바로 닫히고,
+이미 적힌 출석은 그대로 남는다.
+
 ## 코드가 어디 있나
 
 |파일|하는 일|
@@ -111,5 +128,9 @@ C열 `예배 총 출석`은 시트가 스스로 센 값이다. 우리가 센 것
 |`supabase/functions/attendance-api/index.ts`|`/api/sheet/sync`, `/api/admin/sheet-sync*`|
 |`web/src/features/admin/SheetSyncSection.tsx`|설정 탭의 연동 화면|
 |`supabase/migrations/20260816_attendance_kind_and_sheet_sync.sql`|`attendance_log.kind`/`source`, `config.sheet_sync`|
+|`supabase/functions/attendance-api/dongsanLink.ts`|리더 링크의 순수한 부분 (토큰·주일, 테스트 있음)|
+|`web/src/features/dongsan/DongsanBoardScreen.tsx`|리더가 여는 화면 (`/dongsan/:token`)|
+|`web/src/features/admin/DongsanLinks.tsx`|동산 탭의 링크 발급·폐기|
+|`supabase/migrations/20260817_dongsan_leader_links.sql`|`config.dongsan_links`|
 
 테스트: `deno test supabase/functions/attendance-api/sheetSync.test.ts`

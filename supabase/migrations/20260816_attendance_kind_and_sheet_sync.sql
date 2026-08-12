@@ -87,3 +87,30 @@ COMMENT ON COLUMN public.config.sheet_sync IS
   '구글 시트 동산 출석 연동 — {token, sources:[{id,gid,title,group}], lastRun:{…}}. 토큰은 여기 밖으로 나가지 않는다';
 COMMENT ON COLUMN adult.config.sheet_sync IS
   '구글 시트 동산 출석 연동 — {token, sources:[{id,gid,title,group}], lastRun:{…}}. 토큰은 여기 밖으로 나가지 않는다';
+
+-- ── 지금 쓰는 시트 하나를 미리 붙여 둔다 ──────────────────────────────────────────────
+-- 대학·청년부가 이번 여름에 실제로 쓰고 있는 그 시트다(2026 여름동산 출석). 여름학기는
+-- 대학부·청년부가 합동이라 한 장에 두 부서가 섞여 있으므로 group은 빈 문자열 = 합동이다.
+-- 봄·가을처럼 부서마다 시트가 갈리는 학기의 링크는 **여기에 넣지 않는다** — 가을 시트는
+-- 아직 없고, 없는 링크를 미리 만들어 두면 동기화가 매번 읽지 못하는 시트를 두드리게 된다.
+-- 학기가 바뀌어 링크가 나오면 설정 → 구글 시트 연동에서 부서를 골라 붙이면 된다.
+--
+-- 이미 사람이 무언가 붙여 두었으면(sources가 비어 있지 않으면) 손대지 않는다 — 이 시드는
+-- 첫 설정을 대신할 뿐이고, 관리자가 지운 시트를 마이그레이션이 되살려서는 안 된다.
+-- 토큰도 없을 때만 낸다(Apps Script에 붙여넣을 그 열쇠).
+UPDATE public.config
+SET sheet_sync = jsonb_build_object(
+      'token', COALESCE(NULLIF(sheet_sync->>'token', ''),
+                        replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', '')),
+      'sources', jsonb_build_array(jsonb_build_object(
+        'id',    '1h-yZx96AZ1ikKMP726B9iJUUfvHdCgrfqlKG4yCCw-I',
+        'gid',   '',
+        'title', '2026 대청부 여름동산 출석',
+        'group', '')),
+      'lastRun', COALESCE(sheet_sync->'lastRun', 'null'::jsonb))
+WHERE id = 1
+  -- 배열일 때만 길이를 묻는다 — sources가 없거나(기본값 '{}') json null이면 jsonb_array_length가
+  -- 그대로 터지므로, 모양부터 확인하고 비어 있는 것으로 친다.
+  AND jsonb_array_length(
+        CASE WHEN jsonb_typeof(sheet_sync->'sources') = 'array' THEN sheet_sync->'sources' ELSE '[]'::jsonb END
+      ) = 0;
