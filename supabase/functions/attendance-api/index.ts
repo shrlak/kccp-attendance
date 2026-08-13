@@ -1140,6 +1140,14 @@ Deno.serve(async (req: Request) => {
       else if(action==="add-source") {
         const parsedUrl=parseSheetUrl(String(body.url||""));
         if(!parsedUrl) return fail(400,"구글 시트 링크가 아닙니다");
+        // 한 스프레드시트 안에서 **학기마다 · 부서마다 탭(페이지)이 따로**인 것이 이 교회의
+        // 시트 모양이다. 그래서 소스의 열쇠는 (스프레드시트 id, gid) 두 칸이고, gid가 비면
+        // "첫 번째 탭"을 뜻한다. 같은 파일의 두 번째 탭을 붙이는데 주소에 #gid=가 빠져 있으면
+        // 조용히 첫 탭(=지난 학기)을 가리키게 되므로 — 그러면 이번 학기 출석이 영영 들어오지
+        // 않는다 — 받지 않고 이유를 말한다. 주소창에서 그 탭을 열고 복사하면 #gid=가 붙는다.
+        if(!parsedUrl.gid&&s.sources.some((x)=>x.id===parsedUrl.id)) {
+          return fail(400,"이 스프레드시트는 이미 붙어 있습니다 — 다른 탭이라면 그 탭을 연 상태의 주소(#gid=…)를 복사해 주세요");
+        }
         // 부서는 시트 안에 없다 — 봄·가을처럼 부서마다 시트가 따로일 때만 값이 있고,
         // 여름 합동 시트는 비어 있다. 이 부에 없는 부서 이름은 받지 않는다.
         const group=String(body.group||"");
