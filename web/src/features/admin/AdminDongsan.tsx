@@ -50,9 +50,12 @@ export function AdminDongsan() {
         </div>
       </div>
 
-      {/* 동산지기에게 건네는 출석 링크. 편성(위)이 정해진 뒤에 나오는 것이므로 그 아래 둔다. */}
+      {/* 동산지기에게 건네는 출석 링크. 편성(위)이 정해진 뒤에 나오는 것이므로 그 아래 둔다.
+          학기를 따라 저절로 나고 지므로 여름학기 여부도 여기서 넘기지 않는다 — 어느 자리에
+          링크가 있는지는 서버가 정하고(시트가 담당하는 부서에는 내지 않는다) 그 결과가
+          내려온다. */}
       <div className="mt-8 border-t border-border pt-8">
-        <DongsanLinksSection summer={summer} partition={partition} />
+        <DongsanLinksSection partition={partition} />
       </div>
     </div>
   )

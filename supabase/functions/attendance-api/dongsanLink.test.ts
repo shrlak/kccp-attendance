@@ -1,11 +1,11 @@
-import { assertEquals, assertNotEquals } from "jsr:@std/assert@1";
-import { addIsoDays, findLink, findLinkFor, isGroupLink, newLinkToken, parseLinks, recentSundays } from "./dongsanLink.ts";
+import { assertEquals, assertNotEquals, assertStringIncludes } from "jsr:@std/assert@1";
+import { addIsoDays, findLink, findLinkFor, isGroupLink, linkSlug, newLinkToken, parseLinks, reconcileTermLinks, recentSundays, type DongsanLink } from "./dongsanLink.ts";
 
 Deno.test("저장된 링크를 읽는다 — 모양이 어긋난 줄은 버린다", () => {
   const links = parseLinks([
     { token: "aaa", group: "대학부", subgroup: "호연선규", createdAt: 1723000000000 },
     { token: "bbb", subgroup: "건영동산" }, // group 없음 = 합동 동산, createdAt 없음
-    { token: "ccc", group: "청년부" }, // subgroup 없음 = 부서 전체를 담는 링크
+    { token: "ccc", group: "청년부", term: "2026-fall" }, // subgroup 없음 = 부서 전체를 담는 링크
     { token: "", subgroup: "빈 토큰" }, // 버린다
     { token: "ddd" }, // 동산도 부서도 없다 = 부 전체를 여는 열쇠 — 버린다
     { token: "eee", group: "", subgroup: "" }, // 같은 이유로 버린다
@@ -13,9 +13,9 @@ Deno.test("저장된 링크를 읽는다 — 모양이 어긋난 줄은 버린�
     "문자열",
   ]);
   assertEquals(links, [
-    { token: "aaa", group: "대학부", subgroup: "호연선규", createdAt: 1723000000000 },
-    { token: "bbb", group: "", subgroup: "건영동산", createdAt: 0 },
-    { token: "ccc", group: "청년부", subgroup: "", createdAt: 0 },
+    { token: "aaa", group: "대학부", subgroup: "호연선규", term: "", createdAt: 1723000000000 },
+    { token: "bbb", group: "", subgroup: "건영동산", term: "", createdAt: 0 },
+    { token: "ccc", group: "청년부", subgroup: "", term: "2026-fall", createdAt: 0 },
   ]);
   assertEquals(parseLinks(undefined), []);
   assertEquals(parseLinks({ token: "aaa" }), []);
@@ -62,8 +62,74 @@ Deno.test("같은 동산에는 링크가 하나뿐이다", () => {
 Deno.test("토큰은 매번 다르다", () => {
   const a = newLinkToken(), b = newLinkToken();
   assertNotEquals(a, b);
-  assertEquals(a.length, 36);
+  assertEquals(a.length, 24);
   assertEquals(/^[0-9a-f]+$/.test(a), true);
+});
+
+Deno.test("주소에 학기와 연도와 부서가 적힌다", () => {
+  assertEquals(linkSlug("2026-fall", "대학부"), "2026-fall-college");
+  assertEquals(linkSlug("2026-fall", "청년부"), "2026-fall-young");
+  assertEquals(linkSlug("2026-fall", ""), "2026-fall"); // 부서 없는 링크는 학기만
+  const token = newLinkToken("2026-fall", "청년부");
+  assertStringIncludes(token, "2026-fall-young-");
+  // 이름표 뒤에 붙는 무작위 부분이 여전히 열쇠다 (12바이트 = 24자).
+  assertEquals(token.slice("2026-fall-young-".length).length, 24);
+  assertNotEquals(newLinkToken("2026-fall", "청년부"), token);
+});
+
+// ── 학기를 따라 나고 지는 부서 링크 ──────────────────────────────────────────────────
+
+function links(...rows: Partial<DongsanLink>[]): DongsanLink[] {
+  return parseLinks(rows);
+}
+// 토큰이 정해져 있어야 결과를 눈으로 확인할 수 있다.
+const mint = (term: string, group: string) => `${linkSlug(term, group)}-tok`;
+
+Deno.test("학기가 시작하면 부서마다 링크가 저절로 난다", () => {
+  const plan = reconcileTermLinks([], { term: "2026-fall", groups: ["대학부", "청년부"], now: 7, mint });
+  assertEquals(plan.created.map((l) => l.token), ["2026-fall-college-tok", "2026-fall-young-tok"]);
+  assertEquals(plan.next.map((l) => l.term), ["2026-fall", "2026-fall"]);
+  assertEquals(plan.revoked, []);
+  // 이미 그 학기의 링크가 있으면 아무것도 하지 않는다 — 매 요청에 불러도 주소가 바뀌지 않는다.
+  const again = reconcileTermLinks(plan.next, { term: "2026-fall", groups: ["대학부", "청년부"], now: 8, mint });
+  assertEquals(again.created, []);
+  assertEquals(again.revoked, []);
+  assertEquals(again.next, plan.next);
+});
+
+Deno.test("학기가 끝나면 지난 학기 링크는 폐기되고 새 학기 링크가 난다", () => {
+  const stored = links(
+    { token: "2026-summer-college-tok", group: "대학부", term: "2026-summer" },
+    { token: "2026-summer-young-tok", group: "청년부", term: "2026-summer" },
+  );
+  const plan = reconcileTermLinks(stored, { term: "2026-fall", groups: ["대학부", "청년부"], now: 7, mint });
+  assertEquals(plan.revoked.map((l) => l.token), ["2026-summer-college-tok", "2026-summer-young-tok"]);
+  assertEquals(plan.next.map((l) => l.token), ["2026-fall-college-tok", "2026-fall-young-tok"]);
+});
+
+Deno.test("학기 사이에는 부서 링크가 하나도 남지 않는다", () => {
+  const stored = links({ token: "2026-fall-college-tok", group: "대학부", term: "2026-fall" });
+  const plan = reconcileTermLinks(stored, { term: "", groups: [], now: 7, mint });
+  assertEquals(plan.next, []);
+  assertEquals(plan.revoked.length, 1);
+});
+
+Deno.test("시트가 담당하는 부서에는 링크를 내지 않는다", () => {
+  // groups에서 빠진 부서 = 그 부서의 동산 출석은 구글 시트가 갖고 온다.
+  const stored = links({ token: "2026-fall-college-tok", group: "대학부", term: "2026-fall" });
+  const plan = reconcileTermLinks(stored, { term: "2026-fall", groups: ["청년부"], now: 7, mint });
+  assertEquals(plan.created.map((l) => l.group), ["청년부"]);
+  assertEquals(plan.revoked.map((l) => l.group), ["대학부"]);
+});
+
+Deno.test("동산 하나짜리 옛 링크는 규칙 바깥이라 그대로 남는다", () => {
+  const stored = links(
+    { token: "old", group: "", subgroup: "건영동산" },
+    { token: "stale-group", group: "대학부" }, // 학기가 적히기 전의 부서 링크 — 새 것으로 갈린다
+  );
+  const plan = reconcileTermLinks(stored, { term: "2026-fall", groups: ["대학부"], now: 7, mint });
+  assertEquals(plan.next.map((l) => l.token), ["old", "2026-fall-college-tok"]);
+  assertEquals(plan.revoked.map((l) => l.token), ["stale-group"]);
 });
 
 Deno.test("주일만 고를 수 있다 — 오늘부터 거슬러 8주", () => {
