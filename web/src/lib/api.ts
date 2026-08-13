@@ -708,6 +708,13 @@ export interface SheetSource {
   title: string
   /** 이 시트가 어느 부서의 것인가. 여름 합동 시트처럼 부서가 섞여 있으면 빈 문자열. */
   group: string
+  /**
+   * 이 시트가 어느 학기의 것인가 ("2026-summer", 붙인 날의 학기). 동산 시트는 학기마다 새로
+   * 만드는 물건이라, 지난 학기 시트는 등록된 채 남아 있어도 **이번 학기의 그 부서를 담당하지
+   * 않는다** — 그래야 여름 시트 한 장이 가을 리더 링크를 영영 막지 않는다. 동기화 자체는
+   * 학기와 무관하게 계속 돈다.
+   */
+  term: string
 }
 
 /** 시트 한 장을 읽고 난 결과. 관리자 화면에 그대로 보여준다. */
@@ -730,7 +737,8 @@ export interface SheetSyncOutcome {
 
 export interface SheetSyncRun {
   at: number
-  by: 'admin' | 'sheet'
+  /** 누가 돌렸나: 관리자의 '지금 동기화' · Apps Script의 두드림 · 서버가 스스로 당긴 것. */
+  by: 'admin' | 'sheet' | 'auto'
   outcomes: SheetSyncOutcome[]
 }
 
@@ -805,17 +813,33 @@ export interface DongsanLink {
   token: string
   group: string
   subgroup: string
+  /** 이 링크가 사는 학기 ("2026-fall"). 빈 값이면 학기에 매이지 않은 링크. */
+  term: string
   createdAt: number
 }
 
-export const getDongsanLinks = () => api<{ links: DongsanLink[] }>('GET', '/api/admin/dongsan-links')
+// 링크 자리를 어떻게 그릴지는 서버가 정한 사실 위에서 갈린다 — 지금이 어느 학기인가(term),
+// 어느 부서를 시트가 담당하는가(sheetGroups), 이 부의 링크가 학기를 따라 자동으로 나고 지는가
+// (auto: 대학·청년부만. 장년부에는 학기가 없어 사람이 내고 거둔다). 규칙을 화면에 옮겨 적으면
+// 서버와 어긋나므로 받아서 쓴다.
+export interface DongsanLinksState {
+  links: DongsanLink[]
+  term: string
+  sheetGroups: string[]
+  auto: boolean
+}
+
+export const getDongsanLinks = () => api<DongsanLinksState>('GET', '/api/admin/dongsan-links')
 
 // 링크는 부서 하나짜리뿐이다 — 그 부서의 동산을 다 담는다 (DongsanLinks.tsx의 이유 참고).
+// 학기가 있는 부에서는 이 길을 쓸 일이 없다 (학기가 시작할 때 서버가 알아서 낸다).
 export const createDongsanLink = (group: string) =>
-  api<{ links: DongsanLink[]; created: DongsanLink | null }>('POST', '/api/admin/dongsan-links', {
+  api<DongsanLinksState & { created: DongsanLink | null }>('POST', '/api/admin/dongsan-links', {
     action: 'create',
     group,
   })
 
+// 학기 중인 부서 링크를 폐기하면 그 자리에 **새 주소가 곧바로 난다** (서버가 규칙을 다시
+// 세운다). 새어 나간 주소를 죽이는 것이 목적이지 그 부서를 학기 도중에 닫는 것이 아니다.
 export const revokeDongsanLink = (token: string) =>
-  api<{ links: DongsanLink[] }>('POST', '/api/admin/dongsan-links', { action: 'revoke', token })
+  api<DongsanLinksState>('POST', '/api/admin/dongsan-links', { action: 'revoke', token })

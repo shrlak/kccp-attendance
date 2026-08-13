@@ -145,6 +145,15 @@ export function seasonName(season: Season, partition: Partition, lang: 'ko' | 'e
   return season === 'spring' ? 'Spring' : season === 'summer' ? 'Summer' : 'Fall'
 }
 
+// 저장된 학기 키("2026-fall")의 이름표. 이 키는 아카이브·동산 스냅숏·리더 링크·시트 등록이
+// 모두 같은 형식으로 들고 있는 값이라, 읽는 자리마다 쪼개 쓰지 않고 여기서 한 번에 옮긴다.
+// 모양이 어긋난 값은 그대로 돌려준다 (없는 학기를 지어내는 것보다 낫다).
+export function termKeyLabel(term: string, partition: Partition, lang: 'ko' | 'en' = 'ko'): string {
+  const [year, season] = term.split('-')
+  if (!/^\d{4}$/.test(year || '') || !['spring', 'summer', 'fall'].includes(season || '')) return term
+  return seasonLabel(Number(year), season as Season, lang, partition)
+}
+
 // 한 토막의 이름표: "2026 여름 학기" / "Summer 2026", 장년부는 "2026 상반기" / "First half 2026".
 export function seasonLabel(year: number, season: Season, lang: 'ko' | 'en' = 'ko', partition: Partition = 'youth'): string {
   const name = seasonName(season, partition, lang)

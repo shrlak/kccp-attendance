@@ -15,7 +15,7 @@ import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
 import { Tag } from '../../components/ui/Tag'
-import { groupsOfPartition } from '../../lib/partition'
+import { groupsOfPartition, termKeyLabel } from '../../lib/partition'
 import { usePartition } from '../../lib/useAppConfig'
 
 // 동산이 출석을 적는 구글 시트를 출석부에 붙이는 곳.
@@ -25,7 +25,8 @@ import { usePartition } from '../../lib/useAppConfig'
 // 그래서 학기마다 새 시트가 나도 여기에 링크를 하나 더 붙이면 끝이고, 읽는 규칙이 바뀌어도
 // 시트를 손댈 일이 없다.
 export function SheetSyncSection() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const lang = (i18n.resolvedLanguage || i18n.language || 'ko').startsWith('en') ? 'en' : 'ko'
   const toast = useToast()
   const qc = useQueryClient()
   const partition = usePartition()
@@ -101,6 +102,9 @@ export function SheetSyncSection() {
               <div className="truncate font-mono text-xs text-muted">{s.id}{s.gid ? ` · gid ${s.gid}` : ''}</div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
+              {/* 어느 학기의 시트인가. 이번 학기의 시트만 그 부서를 '담당'하고, 담당하는 동안은
+                  그 부서의 동산 리더 링크가 나지 않는다 (둘로 적으면 시트가 덮어쓴다). */}
+              {!!s.term && <Tag tone="muted">{termKeyLabel(s.term, partition, lang)}</Tag>}
               <Tag tone={s.group ? 'primary' : 'muted'}>{s.group || t('admin.sheetSync.groupCombined')}</Tag>
               <Button
                 variant="ghost"
@@ -179,7 +183,7 @@ export function SheetSyncSection() {
             <span className="text-xs text-muted">
               {new Date(data.lastRun.at).toLocaleString('ko-KR', { timeZone: 'America/New_York' })}
               {' · '}
-              {t(data.lastRun.by === 'sheet' ? 'admin.sheetSync.bySheet' : 'admin.sheetSync.byAdmin')}
+              {t(`admin.sheetSync.by${data.lastRun.by === 'sheet' ? 'Sheet' : data.lastRun.by === 'auto' ? 'Auto' : 'Admin'}`)}
             </span>
           </div>
           {data.lastRun.outcomes.map((o) => <OutcomeCard key={o.sourceId} outcome={o} />)}

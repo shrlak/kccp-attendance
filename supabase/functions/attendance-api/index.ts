@@ -1,10 +1,10 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { ADULT_GROUP, ADULT_SCHEMA, canChoosePartition, canViewLoginLog, dbOf, inScope, inScopeGroup, partitionOfGroup, resolveAdmin, scopeFilter, type Partition, type Role, type Scope } from "./auth.ts";
-import { DEFAULT_SEMESTER_DATES, isSummerTerm, lastEndedTermKey, mergeSchedule, rollSchedule, sameSchedule, scheduleOf, scheduleToDates, subgroupSnapshot, trimHistory, validSchedule } from "./term.ts";
+import { currentSeason, DEFAULT_SEMESTER_DATES, isSummerTerm, lastEndedTermKey, mergeSchedule, rollSchedule, sameSchedule, scheduleOf, scheduleToDates, subgroupSnapshot, trimHistory, validSchedule } from "./term.ts";
 import { availableCardModels, buildCardRequest, cardModelChain, parseCardResponse } from "./gemini.ts";
 import { csvUrl, matchPerson, mergeSheetMarks, nameCounts, normalizeMarks, parseAttendanceSheet, parseSheetUrl, sameMarks, type ParsedSheet } from "./sheetSync.ts";
-import { findLink, findLinkFor, newLinkToken, parseLinks, recentSundays, type DongsanLink } from "./dongsanLink.ts";
+import { findLink, findLinkFor, newLinkToken, parseLinks, recentSundays, reconcileTermLinks, type DongsanLink } from "./dongsanLink.ts";
 // Decrypt-side of the weekly R2 backup pipeline (see scripts/backup/). age-encryption is
 // FiloSottile's own pure-JS port of `age` (no native/subprocess dependency, which Deno
 // edge functions can't shell out to anyway); postgres.js's .unsafe() with no parameters
@@ -84,6 +84,10 @@ function defaultDongsanNames(part: Partition): Record<string,string[]> {
 }
 function defaultGroupColors(part: Partition): Record<string,string> {
   return part==="adult"?{[ADULT_GROUP]:"#10B981"}:{"대학부":"#E0A800","청년부":"#3B82F6"};
+}
+// 이 부에 사람을 둘 수 있는 부서들. 웹의 짝은 partition.ts groupsOfPartition().
+function groupsOf(part: Partition): string[] {
+  return part==="adult"?[ADULT_GROUP]:["대학부","청년부"];
 }
 // 부서 이름을 키로 갖는 지도(동산/셀 이름·동산지기·부서 색)에서 이 부에 속한 키만 남긴다.
 // 스키마가 이미 갈라 놓았지만, 오래된 탭이 남의 부서 키를 실어 보내는 것까지 막아 둔다.
@@ -271,6 +275,84 @@ async function rolloverDongsan(sb: SB, cfg: any, part: Partition="youth") {
                :" 학기 종료 — 셀 편성 보존, 스냅숏만 저장 ("+Object.keys(subgroups).length+"명)"),part);
   return {...cfg,...upd};
 }
+// ── 학기를 따라 나고 지는 동산 리더 링크 ─────────────────────────────────────────────
+// 학기가 시작하면 부서마다 링크가 저절로 나고, 학기가 끝나면 저절로 폐기된다. 규칙 자체는
+// dongsanLink.ts reconcileTermLinks()가 쥐고 있고 여기는 그 규칙에 오늘의 사실을 먹인다:
+// 지금이 어느 학기인가, 그리고 어느 부서를 시트가 이미 담당하고 있는가.
+//
+// 학기 종료 롤오버와 같은 자리(/api/roster)에서 돈다 — 관리자가 화면을 열 때마다 지나가는
+// 길이고, 바뀐 게 없으면 아무것도 쓰지 않으므로 매 요청에 불러도 된다.
+
+// 지금 진행 중인 학기의 키("2026-fall"). 학기 사이(전환 기간)이거나 학기라는 것이 없는 부면 "".
+// deno-lint-ignore no-explicit-any
+function currentTermKey(cfg: any, part: Partition): string {
+  if(!USES_SEMESTERS.includes(part)) return "";
+  const today=localDate();
+  const season=currentSeason(today,cfg?.semester_dates,cfg?.semester_schedule);
+  return season?`${today.slice(0,4)}-${season}`:"";
+}
+
+// 구글 시트가 **이번 학기에** 담당하고 있는 부서들. 같은 동산을 시트와 링크로 함께 적으면 다음
+// 동기화가 링크로 적은 값을 덮어쓰므로, 시트가 붙어 있는 부서에는 링크를 내지 않는다. 부서 칸이
+// 비어 있는 시트(여름 합동처럼 한 장이 두 부서를 다 담는 것)는 이 부의 부서를 전부 덮는다.
+//
+// **이번 학기의 시트만 센다.** 지난 학기 시트는 등록된 채 남아 있어도 이번 학기를 담당하지
+// 않는다 — 그러지 않으면 여름 시트 한 장이 가을 리더 링크를 영영 막는다. 학기가 없는 부(장년부)
+// 는 양쪽 다 빈 문자열이라 이 조건이 저절로 통과한다.
+// deno-lint-ignore no-explicit-any
+function sheetCoveredGroups(cfg: any, part: Partition): string[] {
+  const groups=groupsOf(part);
+  const term=currentTermKey(cfg,part);
+  const sources=syncSettings(cfg).sources.filter((s)=>s.term===term);
+  if(!sources.length) return [];
+  if(sources.some((s)=>!s.group)) return groups;
+  return groups.filter((g)=>sources.some((s)=>s.group===g));
+}
+
+// 링크가 담당하는 부서들 = 이 부의 부서 중 시트가 가져가지 않은 것.
+// deno-lint-ignore no-explicit-any
+function linkGroups(cfg: any, part: Partition): string[] {
+  const covered=sheetCoveredGroups(cfg,part);
+  return groupsOf(part).filter((g)=>!covered.includes(g));
+}
+
+// 저장된 링크를 규칙 그대로 다시 세운다. force면 바뀐 게 없어도 한 번 쓴다 — 부르는 쪽이
+// 방금 손으로 고친 목록(폐기 등)을 같은 왕복에 함께 저장하려고 쓴다.
+//
+// **장년부에는 학기가 없다** (USES_SEMESTERS). 셀 링크는 사람이 내고 사람이 거두므로 여기서
+// 자동으로 만들지도 폐기하지도 않는다 — 있지도 않은 학기 경계로 남의 링크를 끊지 않는다.
+// deno-lint-ignore no-explicit-any
+async function syncTermLinks(sb: SB, cfg: any, part: Partition, force=false) {
+  const links=parseLinks(cfg?.dongsan_links);
+  const auto=USES_SEMESTERS.includes(part);
+  const plan=auto
+    ? reconcileTermLinks(links,{term:currentTermKey(cfg,part),groups:linkGroups(cfg,part),now:Date.now()})
+    : {next:links,created:[] as DongsanLink[],revoked:[] as DongsanLink[]};
+  if(!force&&!plan.created.length&&!plan.revoked.length) return cfg;
+  const pdb=db(sb,part);
+  await pdb.from("config").update({dongsan_links:plan.next,updated_at:new Date().toISOString()}).eq("id",1);
+  // 자동으로 나고 진 것은 감사 기록에 남는다 — 어느 날 링크가 열리지 않는다는 말을 들었을 때
+  // "그 학기가 끝나서 걷혔다"를 찾아볼 수 있어야 하므로.
+  if(plan.created.length||plan.revoked.length) {
+    const spot=(l: DongsanLink)=>`${l.term||"기한없음"} ${l.group||l.subgroup}`;
+    await addAudit(pdb,"dongsan-link","system",
+      `학기 자동 정리 | 발급 ${plan.created.map(spot).join(", ")||"없음"} | 폐기 ${plan.revoked.map(spot).join(", ")||"없음"}`,part);
+  }
+  return {...cfg,dongsan_links:plan.next};
+}
+
+// 동산 탭이 링크 자리를 그리는 데 필요한 전부. 규칙(어느 부서에 링크가 있고 어디에 없는가)은
+// 서버 것이므로 화면에 옮겨 적지 않는다 — 화면은 받은 것을 그린다.
+// deno-lint-ignore no-explicit-any
+function linksPayload(cfg: any, part: Partition) {
+  return {
+    links:parseLinks(cfg?.dongsan_links),
+    term:currentTermKey(cfg,part),
+    sheetGroups:sheetCoveredGroups(cfg,part),
+    auto:USES_SEMESTERS.includes(part),
+  };
+}
+
 async function isAdmin(sb: SB, did: string) {
   const cfg=await getCfg(sb); const ads: any[]=cfg.admin_devices||[];
   if(!ads.length) return true;
@@ -413,7 +495,12 @@ async function addAudit(pdb: any, action: string, adminId: string, details: any,
 // source가 비어 있으므로 손대지 않는다. 시트가 사람의 실제 체크인을 지우는 일은 없다.
 const SHEET_SOURCE="sheet";
 
-interface SyncSource { id: string; gid: string; title: string; group: string }
+// 시트에도 학기가 적힌다 (`term`, 붙인 날의 학기). 동산 시트는 학기마다 새로 만드는 물건이라,
+// 지난 학기 시트가 등록된 채 남아 있다고 해서 **이번 학기의 그 부서를 시트가 담당하는 것은
+// 아니기 때문**이다 — 그 구분이 없으면 여름 시트 한 장이 가을 리더 링크를 영영 막는다.
+// 동기화 자체는 학기와 무관하게 돈다 (지난 학기 시트를 다시 읽어도 그 학기 날짜에 같은 값이
+// 들어갈 뿐이다). 학기를 보는 것은 sheetCoveredGroups 하나다.
+interface SyncSource { id: string; gid: string; title: string; group: string; term: string }
 interface SyncSettings { token: string; sources: SyncSource[]; lastRun: unknown }
 
 // deno-lint-ignore no-explicit-any
@@ -423,7 +510,7 @@ function syncSettings(cfg: any): SyncSettings {
     // deno-lint-ignore no-explicit-any
     .filter((x: any)=>x&&typeof x.id==="string"&&x.id)
     // deno-lint-ignore no-explicit-any
-    .map((x: any)=>({id:String(x.id),gid:String(x.gid||""),title:String(x.title||""),group:String(x.group||"")}));
+    .map((x: any)=>({id:String(x.id),gid:String(x.gid||""),title:String(x.title||""),group:String(x.group||""),term:String(x.term||"")}));
   return {token:typeof s.token==="string"?s.token:"",sources,lastRun:s.lastRun??null};
 }
 
@@ -450,7 +537,9 @@ interface SyncOutcome {
 // 돌아오면 아직 공개가 아니라는 뜻이므로 그렇게 알려 준다 (raw HTML을 파싱하다 0명으로
 // 조용히 끝나는 것보다 낫다).
 async function fetchSheetCsv(source: SyncSource): Promise<string> {
-  const res=await fetch(csvUrl(source.id,source.gid),{redirect:"follow"});
+  // 시간 제한을 둔다 — 이제 이 읽기는 사람이 버튼을 눌러서만이 아니라 서버가 스스로도 시작하고,
+  // 구글이 답하지 않으면 그 아이솔레이트가 그대로 붙잡힌다.
+  const res=await fetch(csvUrl(source.id,source.gid),{redirect:"follow",signal:AbortSignal.timeout(20_000)});
   const body=await res.text();
   if(!res.ok) throw new Error(`시트를 읽지 못했습니다 (HTTP ${res.status}). 링크와 공유 설정을 확인해 주세요.`);
   const looksHtml=(res.headers.get("content-type")||"").includes("text/html")||body.trimStart().startsWith("<");
@@ -596,14 +685,22 @@ const LINK_WEEKS=8;
 
 // 토큰이 어느 부의 어느 동산인가. 두 부의 config를 다 열어 보는 것은 시트 연동 토큰과 같은
 // 이유다 — 링크에는 부가 적혀 있지 않고, 적혀 있어도 그것을 믿을 수 없다.
+// 학기가 지난 링크는 열리지 않는다. 걷어 내는 일은 syncTermLinks가 하지만 그것은 관리자가
+// 화면을 열 때 도는 시계라, 아무도 열지 않은 채 학기가 끝났다면 아직 config에 남아 있을 수
+// 있다. 여는 문에서 한 번 더 물어 두면 "학기가 끝나면 폐지된다"가 시계와 무관하게 성립한다.
+// term이 빈 링크(동산별로 내던 것 · 장년부의 셀 링크)는 학기에 매이지 않으므로 그대로 열린다.
 async function resolveDongsanLink(sb: SB, token: string): Promise<{part:Partition;link:DongsanLink}|null> {
   if(!token) return null;
   const [youthCfg,adultCfg]=await Promise.all([getCfg(sb,"youth"),getCfg(sb,"adult")]);
   const y=findLink(parseLinks(youthCfg?.dongsan_links),token);
-  if(y) return {part:"youth",link:y};
+  if(y) return inTerm(y,youthCfg,"youth")?{part:"youth",link:y}:null;
   const a=findLink(parseLinks(adultCfg?.dongsan_links),token);
-  if(a) return {part:"adult",link:a};
+  if(a) return inTerm(a,adultCfg,"adult")?{part:"adult",link:a}:null;
   return null;
+}
+// deno-lint-ignore no-explicit-any
+function inTerm(link: DongsanLink, cfg: any, part: Partition): boolean {
+  return !link.term||link.term===currentTermKey(cfg,part);
 }
 
 // 이 링크가 가리키는 자리의 명단. 두 칸이 각자 좁힌다:
@@ -698,6 +795,50 @@ async function maybeAutoBackup(sb:any,p:string,part:Partition): Promise<void> {
 // backup dispatch. EdgeRuntime.waitUntil keeps the isolate alive until it settles.
 function scheduleAutoBackup(sb:any,p:string,part:Partition): void {
   const task=maybeAutoBackup(sb,p,part).catch((e)=>console.error("auto-backup error",e));
+  try{(globalThis as any).EdgeRuntime?.waitUntil?.(task);}catch(_){/* best effort */}
+}
+
+// ── 시트를 서버가 스스로 당긴다 (Apps Script 없이) ───────────────────────────────────
+// 원래 동기화는 시트가 두드려야 돌았다 — 스프레드시트에 붙인 Apps Script가 편집을 보고
+// /api/sheet/sync를 부르는 방식. 그 스크립트는 **파일마다 사람이 들어가 붙여넣고 권한을
+// 허용해야** 하고, 없거나 권한이 풀리면 조용히 멈춘다. 그래서 반대로도 돌린다: 앱이 이미
+// 15초마다 부르는 길(/api/roster)에 얹어 **쿨다운마다 한 번 서버가 읽는다.**
+//
+// 자동 백업과 같은 장치다: 조건부 UPDATE 하나가 청구권이라 여러 아이솔레이트가 동시에 읽지
+// 않고, 화면은 기다리지 않는다(EdgeRuntime.waitUntil). 읽은 결과는 다음 /api/roster에 실려
+// 온다 — 화면은 15초마다 다시 부르므로 저절로 따라온다.
+//
+// 시트를 하나도 붙이지 않은 부에서는 청구조차 하지 않는다. Apps Script를 붙여 둔 시트는
+// 예전처럼 편집 즉시 반영되고, 둘이 겹쳐도 같은 값을 다시 쓸 뿐이라 어긋나지 않는다.
+// cfg는 부르는 쪽이 이미 손에 쥔 것을 넘겨받는다 — /api/roster는 이 앱에서 제일 자주 오는
+// 요청이라, 쿨다운 안이라 아무것도 하지 않을 때조차 설정을 한 번 더 읽으면 그 왕복이 하루에
+// 수천 번이 된다. 그래서 붙어 있는 시트가 없으면 문장 하나도 나가지 않는다.
+// deno-lint-ignore no-explicit-any
+async function maybeSheetPull(sb: SB, part: Partition, cfg: any): Promise<void> {
+  const cooldownMin=Number(Deno.env.get("SHEET_PULL_COOLDOWN_MIN")||"10");
+  if(!(Number.isFinite(cooldownMin)&&cooldownMin>0)) return; // 0/이상한 값이면 자동 당기기를 끈다
+  const pdb=db(sb,part);
+  if(!syncSettings(cfg).sources.length) return; // 붙어 있는 시트가 없으면 읽을 것도 없다
+  const claimCol="last_sheet_sync_at";
+  const cutoff=new Date(Date.now()-cooldownMin*60_000).toISOString();
+  const {data:claimed}=await pdb.from("config").update({[claimCol]:new Date().toISOString()})
+    .eq("id",1).or(`${claimCol}.is.null,${claimCol}.lt.${cutoff}`).select("id");
+  if(!claimed?.length) return; // 쿨다운 안이거나, 다른 요청이 청구권을 쥐었다
+  const outcomes=await runSheetSync(sb,part,cfg);
+  // lastRun을 쓰기 직전에 설정을 다시 읽는다 — 읽는 동안 관리자가 시트를 붙였다 뗐을 수 있고,
+  // 그때 손에 쥐고 있던 옛 설정을 그대로 덮어쓰면 그 편집이 사라진다.
+  const fresh=await getCfg(sb,part);
+  await pdb.from("config").update({sheet_sync:{...syncSettings(fresh),lastRun:{at:Date.now(),by:"auto",outcomes}}}).eq("id",1);
+  // 이 길은 GET(/api/roster)에 얹혀 있어서 자동 백업의 그물(비-GET 요청)에 걸리지 않는다.
+  // 그런데 방금 출석이 바뀌었으므로 "데이터가 바뀌면 백업한다"가 여기서도 성립해야 한다.
+  // 실제로 무언가 바뀐 실행에서만 부른다 (백업 쪽 쿨다운이 또 한 번 걸러 준다).
+  if(outcomes.some((o)=>o.added||o.removed||o.marked)) await maybeAutoBackup(sb,"/api/sheet/auto-pull",part);
+}
+// 응답은 시트 읽기를 기다리지 않는다 (구글 왕복 + 쓰기라 초 단위다). waitUntil이 아이솔레이트를
+// 붙잡아 두므로 응답을 보낸 뒤에도 끝까지 돈다.
+// deno-lint-ignore no-explicit-any
+function scheduleSheetPull(sb: SB, part: Partition, cfg: any): void {
+  const task=maybeSheetPull(sb,part,cfg).catch((e)=>console.error("sheet auto-pull error",e));
   try{(globalThis as any).EdgeRuntime?.waitUntil?.(task);}catch(_){/* best effort */}
 }
 
@@ -971,8 +1112,12 @@ Deno.serve(async (req: Request) => {
       const part=role.partition;
       const baseCfg=part==="adult"?adultCfg:youthCfg;
       // Every admin page load is also the clock that retires a finished 학기's 동산 편성
-      // (no-op except on the first request after a term ends) — for this 부 only.
-      const cfg=await rolloverDongsan(sb,await maybeRollSchedule(sb,baseCfg,part),part);
+      // (no-op except on the first request after a term ends) — for this 부 only. 같은 시계가
+      // 동산 리더 링크도 학기에 맞춰 내고 걷는다 (syncTermLinks).
+      const cfg=await syncTermLinks(sb,await rolloverDongsan(sb,await maybeRollSchedule(sb,baseCfg,part),part),part);
+      // 같은 시계가 구글 시트도 당겨 온다 (쿨다운마다 한 번, 응답은 기다리지 않는다). 이번에
+      // 읽은 것은 다음 요청에 실려 온다 — 화면이 15초마다 다시 부르므로 저절로 따라온다.
+      scheduleSheetPull(sb,part,cfg);
       const summer=summerNow(cfg,part);
       const scope=scopeFilter(role,summer);
       const mq:any=scopeQuery(adb.from("members").select("*").order("name",{ascending:true}),scope);
@@ -1044,11 +1189,22 @@ Deno.serve(async (req: Request) => {
       else if(action==="add-source") {
         const parsedUrl=parseSheetUrl(String(body.url||""));
         if(!parsedUrl) return fail(400,"구글 시트 링크가 아닙니다");
+        // 한 스프레드시트 안에서 **학기마다 · 부서마다 탭(페이지)이 따로**인 것이 이 교회의
+        // 시트 모양이다. 그래서 소스의 열쇠는 (스프레드시트 id, gid) 두 칸이고, gid가 비면
+        // "첫 번째 탭"을 뜻한다. 같은 파일의 두 번째 탭을 붙이는데 주소에 #gid=가 빠져 있으면
+        // 조용히 첫 탭(=지난 학기)을 가리키게 되므로 — 그러면 이번 학기 출석이 영영 들어오지
+        // 않는다 — 받지 않고 이유를 말한다. 주소창에서 그 탭을 열고 복사하면 #gid=가 붙는다.
+        if(!parsedUrl.gid&&s.sources.some((x)=>x.id===parsedUrl.id)) {
+          return fail(400,"이 스프레드시트는 이미 붙어 있습니다 — 다른 탭이라면 그 탭을 연 상태의 주소(#gid=…)를 복사해 주세요");
+        }
         // 부서는 시트 안에 없다 — 봄·가을처럼 부서마다 시트가 따로일 때만 값이 있고,
         // 여름 합동 시트는 비어 있다. 이 부에 없는 부서 이름은 받지 않는다.
         const group=String(body.group||"");
         if(group&&partitionOfGroup(group)!==actingPartition) return fail(400,"이 부의 부서가 아닙니다");
-        const source: SyncSource={id:parsedUrl.id,gid:parsedUrl.gid,title:String(body.title||"").slice(0,120),group};
+        // 붙인 날의 학기가 이 시트의 학기다 — 동산 시트는 학기마다 새로 만드는 물건이라,
+        // 그 학기가 지나면 이 시트는 더 이상 그 부서를 담당하지 않는다(sheetCoveredGroups).
+        const source: SyncSource={id:parsedUrl.id,gid:parsedUrl.gid,title:String(body.title||"").slice(0,120),group,
+          term:currentTermKey(cfg,actingPartition)};
         next.sources=[...s.sources.filter((x)=>x.id!==source.id||x.gid!==source.gid),source];
         if(!next.token) next.token=newSyncToken(); // 첫 시트를 붙일 때 열쇠도 같이 난다
       }
@@ -1162,11 +1318,14 @@ Deno.serve(async (req: Request) => {
     }
 
     // 링크를 내고 거두는 쪽은 super_admin만 (동산 탭).
+    //
+    // 여는 김에 규칙을 한 번 세운다 — 이 탭이 링크를 보여주는 자리이므로, 학기가 막 바뀐
+    // 직후에 열더라도 화면에 있는 것이 곧 실제 상태여야 한다.
     if(req.method==="GET"&&p==="/api/admin/dongsan-links") {
       const role=await auth();
       if(role?.role!=="super_admin") return fail(403,"Not authorized");
-      const cfg=await getCfg(sb,actingPartition);
-      return ok({links:parseLinks(cfg?.dongsan_links)});
+      const cfg=await syncTermLinks(sb,await getCfg(sb,actingPartition),actingPartition);
+      return ok(linksPayload(cfg,actingPartition));
     }
 
     if(req.method==="POST"&&p==="/api/admin/dongsan-links") {
@@ -1175,6 +1334,7 @@ Deno.serve(async (req: Request) => {
       const cfg=await getCfg(sb,actingPartition);
       const links=parseLinks(cfg?.dongsan_links);
       const action=String(body.action||"");
+      const term=currentTermKey(cfg,actingPartition);
       let next=links; let made: DongsanLink|null=null;
       if(action==="create") {
         // **부서 링크만 낸다** — 대학부 하나, 청년부 하나. 그 부서의 동산이 다 담기고, 화면이
@@ -1187,16 +1347,19 @@ Deno.serve(async (req: Request) => {
         const group=String(body.group||"");
         if(!group) return fail(400,"부서를 골라 주세요");
         if(partitionOfGroup(group)!==actingPartition) return fail(400,"이 부의 부서가 아닙니다");
+        // 시트가 담당하는 부서에는 내지 않는다 — 냈다가는 다음 동기화가 링크로 적은 값을
+        // 덮어쓰고, 학기 정리(syncTermLinks)가 그 링크를 곧바로 다시 걷는다.
+        if(sheetCoveredGroups(cfg,actingPartition).includes(group)) return fail(400,"이 부서의 동산 출석은 구글 시트가 담당합니다");
+        // 학기가 있는 부에서는 링크가 학기에 매인다. 학기 사이에 낸 링크는 어느 학기의 것도
+        // 아니라 학기 정리가 곧바로 걷어 가므로, 그럴 바에는 낼 수 없다고 말한다.
+        if(USES_SEMESTERS.includes(actingPartition)&&!term) return fail(400,"학기 중에만 링크를 낼 수 있습니다");
         // 같은 부서를 두 번 내지 않는다 — 링크가 하나뿐이어야 거둘 때도 하나만 거둔다.
         made=findLinkFor(links,group,"");
-        if(!made) { made={token:newLinkToken(),group,subgroup:"",createdAt:Date.now()}; next=[...links,made]; }
+        if(!made) { made={token:newLinkToken(term,group),group,subgroup:"",term,createdAt:Date.now()}; next=[...links,made]; }
       }
       else if(action==="revoke") next=links.filter((l)=>l.token!==String(body.token||""));
       else return fail(400,"Unknown action");
       if(next!==links) {
-        await db(sb,actingPartition).from("config").update({dongsan_links:next,updated_at:new Date().toISOString()}).eq("id",1);
-        // 감사 기록에는 어느 자리의 링크인지가 남아야 한다 — 부서 링크는 동산 칸이 비어 있으므로
-        // 부서 이름으로 적힌다 ('대학부 전체').
         // 감사 기록에는 어느 자리의 링크인지가 남는다. 지금 내는 것은 부서 링크뿐이지만,
         // 폐기는 동산별로 내던 시절의 링크에도 걸리므로 그쪽 이름도 그대로 적는다.
         const gone=links.find((l)=>l.token===String(body.token||""));
@@ -1205,7 +1368,12 @@ Deno.serve(async (req: Request) => {
           :String(body.token||"").slice(0,8);
         await addAudit(adb,"dongsan-link",xDev,`${action} | ${spot}`,actingPartition);
       }
-      return ok({links:next,created:made});
+      // 손으로 고친 목록도 학기 정리를 거쳐 한 번에 저장된다. 그래서 **학기 중에 부서 링크를
+      // 폐기하면 그 자리에 새 주소가 곧바로 난다** — 폐기의 목적은 새어 나간 주소를 죽이는
+      // 것이지 그 부서를 학기 도중에 닫아 두는 것이 아니다. 학기에 매이지 않은 링크(동산별로
+      // 내던 것 · 장년부의 셀 링크)는 규칙 바깥이라 폐기하면 그대로 없어진다.
+      const after=await syncTermLinks(sb,{...cfg,dongsan_links:next},actingPartition,next!==links);
+      return ok({...linksPayload(after,actingPartition),created:made});
     }
 
     // Settings (super-admin only): group colors, semester dates. 여름 모드는 더 이상 설정이
