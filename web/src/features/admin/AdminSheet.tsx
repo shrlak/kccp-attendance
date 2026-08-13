@@ -302,9 +302,19 @@ const DARK = '#1f2937'
 
 // Fixed column widths (px), shared by every 동산 block so all tables end up the exact
 // same overall width regardless of name/label lengths: 이름 · 예배 총 출석 · one per date.
+// 날짜 칸은 헤더의 MM/DD/YYYY(시트와 같은 표기)가 이 글자 크기·좌우 여백에서 실제로
+// 차지하는 만큼이다 — 이보다 좁게 적어 두면 표가 그 값을 지키지 못하고 저 혼자 넓어진다.
 const NAME_COL = 160
 const TOTAL_COL = 120
-const DATE_COL = 72
+const DATE_COL = 112
+
+// `table-layout: fixed`는 표의 너비가 정해져 있을 때만 colgroup의 값을 지킨다. 너비를
+// 비워 두면 브라우저가 내용에 맞춰 다시 재므로, 긴 이름 하나가 그 블록의 이름 칸을 넓혀
+// 셀마다 표 너비가 어긋났다 (칸이 서로 안 맞던 원인). 그래서 열 너비의 합을 표에 직접
+// 적어 준다 — 모든 블록이 같은 수의 날짜 열을 그리므로 값도 하나로 같다.
+function tableWidth(dates: number): number {
+  return NAME_COL + TOTAL_COL + dates * DATE_COL
+}
 
 function GridView({
   members,
@@ -395,7 +405,7 @@ function GridView({
               <h3 className="mb-1.5 inline-block rounded px-3 py-1 text-base font-bold" style={{ background: medium, color: DARK }}>
                 {s.subgroup}
               </h3>
-              <table className="table-fixed border-collapse bg-white">
+              <table className="table-fixed border-collapse bg-white" style={{ width: tableWidth(model.dateLabels.length) }}>
                 <colgroup>
                   <col style={{ width: NAME_COL }} />
                   <col style={{ width: TOTAL_COL }} />
