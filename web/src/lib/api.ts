@@ -737,7 +737,8 @@ export interface SheetSyncOutcome {
 
 export interface SheetSyncRun {
   at: number
-  by: 'admin' | 'sheet'
+  /** 누가 돌렸나: 관리자의 '지금 동기화' · Apps Script의 두드림 · 서버가 스스로 당긴 것. */
+  by: 'admin' | 'sheet' | 'auto'
   outcomes: SheetSyncOutcome[]
 }
 

@@ -537,7 +537,9 @@ interface SyncOutcome {
 // 돌아오면 아직 공개가 아니라는 뜻이므로 그렇게 알려 준다 (raw HTML을 파싱하다 0명으로
 // 조용히 끝나는 것보다 낫다).
 async function fetchSheetCsv(source: SyncSource): Promise<string> {
-  const res=await fetch(csvUrl(source.id,source.gid),{redirect:"follow"});
+  // 시간 제한을 둔다 — 이제 이 읽기는 사람이 버튼을 눌러서만이 아니라 서버가 스스로도 시작하고,
+  // 구글이 답하지 않으면 그 아이솔레이트가 그대로 붙잡힌다.
+  const res=await fetch(csvUrl(source.id,source.gid),{redirect:"follow",signal:AbortSignal.timeout(20_000)});
   const body=await res.text();
   if(!res.ok) throw new Error(`시트를 읽지 못했습니다 (HTTP ${res.status}). 링크와 공유 설정을 확인해 주세요.`);
   const looksHtml=(res.headers.get("content-type")||"").includes("text/html")||body.trimStart().startsWith("<");
@@ -793,6 +795,50 @@ async function maybeAutoBackup(sb:any,p:string,part:Partition): Promise<void> {
 // backup dispatch. EdgeRuntime.waitUntil keeps the isolate alive until it settles.
 function scheduleAutoBackup(sb:any,p:string,part:Partition): void {
   const task=maybeAutoBackup(sb,p,part).catch((e)=>console.error("auto-backup error",e));
+  try{(globalThis as any).EdgeRuntime?.waitUntil?.(task);}catch(_){/* best effort */}
+}
+
+// ── 시트를 서버가 스스로 당긴다 (Apps Script 없이) ───────────────────────────────────
+// 원래 동기화는 시트가 두드려야 돌았다 — 스프레드시트에 붙인 Apps Script가 편집을 보고
+// /api/sheet/sync를 부르는 방식. 그 스크립트는 **파일마다 사람이 들어가 붙여넣고 권한을
+// 허용해야** 하고, 없거나 권한이 풀리면 조용히 멈춘다. 그래서 반대로도 돌린다: 앱이 이미
+// 15초마다 부르는 길(/api/roster)에 얹어 **쿨다운마다 한 번 서버가 읽는다.**
+//
+// 자동 백업과 같은 장치다: 조건부 UPDATE 하나가 청구권이라 여러 아이솔레이트가 동시에 읽지
+// 않고, 화면은 기다리지 않는다(EdgeRuntime.waitUntil). 읽은 결과는 다음 /api/roster에 실려
+// 온다 — 화면은 15초마다 다시 부르므로 저절로 따라온다.
+//
+// 시트를 하나도 붙이지 않은 부에서는 청구조차 하지 않는다. Apps Script를 붙여 둔 시트는
+// 예전처럼 편집 즉시 반영되고, 둘이 겹쳐도 같은 값을 다시 쓸 뿐이라 어긋나지 않는다.
+// cfg는 부르는 쪽이 이미 손에 쥔 것을 넘겨받는다 — /api/roster는 이 앱에서 제일 자주 오는
+// 요청이라, 쿨다운 안이라 아무것도 하지 않을 때조차 설정을 한 번 더 읽으면 그 왕복이 하루에
+// 수천 번이 된다. 그래서 붙어 있는 시트가 없으면 문장 하나도 나가지 않는다.
+// deno-lint-ignore no-explicit-any
+async function maybeSheetPull(sb: SB, part: Partition, cfg: any): Promise<void> {
+  const cooldownMin=Number(Deno.env.get("SHEET_PULL_COOLDOWN_MIN")||"10");
+  if(!(Number.isFinite(cooldownMin)&&cooldownMin>0)) return; // 0/이상한 값이면 자동 당기기를 끈다
+  const pdb=db(sb,part);
+  if(!syncSettings(cfg).sources.length) return; // 붙어 있는 시트가 없으면 읽을 것도 없다
+  const claimCol="last_sheet_sync_at";
+  const cutoff=new Date(Date.now()-cooldownMin*60_000).toISOString();
+  const {data:claimed}=await pdb.from("config").update({[claimCol]:new Date().toISOString()})
+    .eq("id",1).or(`${claimCol}.is.null,${claimCol}.lt.${cutoff}`).select("id");
+  if(!claimed?.length) return; // 쿨다운 안이거나, 다른 요청이 청구권을 쥐었다
+  const outcomes=await runSheetSync(sb,part,cfg);
+  // lastRun을 쓰기 직전에 설정을 다시 읽는다 — 읽는 동안 관리자가 시트를 붙였다 뗐을 수 있고,
+  // 그때 손에 쥐고 있던 옛 설정을 그대로 덮어쓰면 그 편집이 사라진다.
+  const fresh=await getCfg(sb,part);
+  await pdb.from("config").update({sheet_sync:{...syncSettings(fresh),lastRun:{at:Date.now(),by:"auto",outcomes}}}).eq("id",1);
+  // 이 길은 GET(/api/roster)에 얹혀 있어서 자동 백업의 그물(비-GET 요청)에 걸리지 않는다.
+  // 그런데 방금 출석이 바뀌었으므로 "데이터가 바뀌면 백업한다"가 여기서도 성립해야 한다.
+  // 실제로 무언가 바뀐 실행에서만 부른다 (백업 쪽 쿨다운이 또 한 번 걸러 준다).
+  if(outcomes.some((o)=>o.added||o.removed||o.marked)) await maybeAutoBackup(sb,"/api/sheet/auto-pull",part);
+}
+// 응답은 시트 읽기를 기다리지 않는다 (구글 왕복 + 쓰기라 초 단위다). waitUntil이 아이솔레이트를
+// 붙잡아 두므로 응답을 보낸 뒤에도 끝까지 돈다.
+// deno-lint-ignore no-explicit-any
+function scheduleSheetPull(sb: SB, part: Partition, cfg: any): void {
+  const task=maybeSheetPull(sb,part,cfg).catch((e)=>console.error("sheet auto-pull error",e));
   try{(globalThis as any).EdgeRuntime?.waitUntil?.(task);}catch(_){/* best effort */}
 }
 
@@ -1069,6 +1115,9 @@ Deno.serve(async (req: Request) => {
       // (no-op except on the first request after a term ends) — for this 부 only. 같은 시계가
       // 동산 리더 링크도 학기에 맞춰 내고 걷는다 (syncTermLinks).
       const cfg=await syncTermLinks(sb,await rolloverDongsan(sb,await maybeRollSchedule(sb,baseCfg,part),part),part);
+      // 같은 시계가 구글 시트도 당겨 온다 (쿨다운마다 한 번, 응답은 기다리지 않는다). 이번에
+      // 읽은 것은 다음 요청에 실려 온다 — 화면이 15초마다 다시 부르므로 저절로 따라온다.
+      scheduleSheetPull(sb,part,cfg);
       const summer=summerNow(cfg,part);
       const scope=scopeFilter(role,summer);
       const mq:any=scopeQuery(adb.from("members").select("*").order("name",{ascending:true}),scope);

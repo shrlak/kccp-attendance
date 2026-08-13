@@ -183,7 +183,7 @@ export function SheetSyncSection() {
             <span className="text-xs text-muted">
               {new Date(data.lastRun.at).toLocaleString('ko-KR', { timeZone: 'America/New_York' })}
               {' · '}
-              {t(data.lastRun.by === 'sheet' ? 'admin.sheetSync.bySheet' : 'admin.sheetSync.byAdmin')}
+              {t(`admin.sheetSync.by${data.lastRun.by === 'sheet' ? 'Sheet' : data.lastRun.by === 'auto' ? 'Auto' : 'Admin'}`)}
             </span>
           </div>
           {data.lastRun.outcomes.map((o) => <OutcomeCard key={o.sourceId} outcome={o} />)}
