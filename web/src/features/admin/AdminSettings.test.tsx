@@ -15,14 +15,20 @@ const semesterDates = {
 }
 
 function stubConfig(summerMode: boolean, semesterSchedule: unknown[] = []) {
+  const config = { summerMode, semesterDates, semesterSchedule, groupColors: {} }
   vi.stubGlobal(
     'fetch',
-    vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({ summerMode, semesterDates, semesterSchedule, groupColors: {}, limit: 250, used: 0, remaining: 250 }),
-        { status: 200 },
-      ),
-    ),
+    vi.fn().mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input)
+      const body = url.endsWith('/api/config')
+        ? config
+        : url.endsWith('/api/admin/card-scan-usage')
+          ? { limit: 250, used: 0, remaining: 250 }
+          : { sources: [], token: '', pingUrl: null, lastRun: null }
+      // fetch always returns a fresh Response. Reusing one instance across these three
+      // concurrent queries makes only the first .json() call succeed.
+      return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }))
+    }),
   )
 }
 

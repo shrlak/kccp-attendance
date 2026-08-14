@@ -159,6 +159,34 @@ describe('AdminMembers — 상단 도구줄 고정', () => {
 })
 
 describe('AdminMembers — 여러 명 삭제', () => {
+  it('숨긴 멤버를 펼쳐 선택하면 일반 멤버와 함께 삭제한다', async () => {
+    ;(deleteMembers as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ok', deleted: 2 })
+    const today = easternNow().date
+    rosterData.data = roster([
+      member('m1', '김호연'),
+      member('m2', '졸업한멤버', {
+        status_marks: [{ note: '졸업', start: addIsoDays(today, -10), end: null }],
+      }),
+    ])
+    renderWithProviders(<AdminMembers />)
+
+    await userEvent.click(screen.getByRole('button', { name: /여러 명 선택/ }))
+    await userEvent.click(screen.getByRole('button', { name: /김호연/ }))
+    await userEvent.click(screen.getByRole('button', { name: /숨긴 멤버/ }))
+    await userEvent.click(screen.getByRole('button', { name: /졸업한멤버/ }))
+
+    expect(screen.getByText('2명 선택')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: '선택 삭제' }))
+
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveTextContent('김호연')
+    expect(dialog).toHaveTextContent('졸업한멤버')
+    expect(dialog).toHaveTextContent('기존 출석 기록은 남아 있습니다')
+
+    await userEvent.click(screen.getByRole('button', { name: '2명 삭제' }))
+    await waitFor(() => expect(deleteMembers).toHaveBeenCalledWith(['m1', 'm2']))
+  })
+
   it('confirms the selected names, keeps attendance records, and deletes them together', async () => {
     ;(deleteMembers as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ok', deleted: 2 })
     rosterData.data = roster([
