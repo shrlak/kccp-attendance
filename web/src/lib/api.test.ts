@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { api, configFor, getLoginPosition, GEO_LOGIN_WAIT_MS } from './api'
+import { api, configFor, deleteMembers, getLoginPosition, GEO_LOGIN_WAIT_MS } from './api'
 import { getDeviceId } from './device'
 
 beforeEach(() => {
@@ -36,6 +36,22 @@ describe('api', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ error: 'Not authorized' }), { status: 403 })))
     await expect(api('GET', '/api/data')).rejects.toThrow('Not authorized')
+  })
+})
+
+describe('deleteMembers', () => {
+  it('sends every selected member id to the bulk-delete endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ status: 'ok', deleted: 2 }), { status: 200 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await deleteMembers(['m1', 'm2'])
+
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(String(url)).toContain('/api/admin/members/delete')
+    expect(init.method).toBe('POST')
+    expect(JSON.parse(init.body)).toEqual({ memberIds: ['m1', 'm2'] })
   })
 })
 

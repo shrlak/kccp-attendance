@@ -1,5 +1,6 @@
-import { render, screen } from '@testing-library/react'
-import { describe, it, expect, vi, beforeAll } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest'
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query'
 import { i18n } from '../../lib/i18n'
 import { ToastProvider } from '../../components/ui/Toast'
@@ -18,6 +19,10 @@ vi.mock('./useRoster', async (orig) => ({
   ...(await orig<typeof import('./useRoster')>()),
   useRoster: () => rosterData,
 }))
+vi.mock('../../lib/api', async (orig) => ({
+  ...(await orig<typeof import('../../lib/api')>()),
+  deleteMembers: vi.fn(),
+}))
 
 // Build the fixture through the app's own split, so 숨긴 멤버 tests exercise the real rule
 // rather than a hand-written hiddenMembers list.
@@ -30,9 +35,11 @@ const roster = (members: Member[]): RosterData =>
     log: [],
   } as unknown as RosterResponse)
 
+import { deleteMembers } from '../../lib/api'
 import { AdminMembers } from './AdminMembers'
 
 beforeAll(async () => { await i18n.init() })
+beforeEach(() => { vi.clearAllMocks() })
 
 function renderWithProviders(ui: React.ReactElement) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -133,7 +140,7 @@ describe('AdminMembers — 상단 도구줄 고정', () => {
     // 세 컨트롤이 모두 그 안에 들어 있어야 같이 따라온다.
     expect(bar!.querySelector('input[placeholder]')).toBeTruthy()
     expect([...bar!.querySelectorAll('button')].map((b) => b.textContent)).toEqual(
-      expect.arrayContaining([expect.stringContaining('동산 이동'), expect.stringContaining('병합')]),
+      expect.arrayContaining([expect.stringContaining('여러 명 선택'), expect.stringContaining('병합')]),
     )
   })
 
@@ -142,11 +149,37 @@ describe('AdminMembers — 상단 도구줄 고정', () => {
     rosterData.data = roster([member('m1', '김호연'), member('m2', '이하늘')])
     const { container } = renderWithProviders(<AdminMembers />)
 
-    await userEvent.click(screen.getByRole('button', { name: /동산 이동/ }))
+    await userEvent.click(screen.getByRole('button', { name: /여러 명 선택/ }))
     const bar = container.querySelector('.sticky')!
     expect(bar.textContent).toContain('선택')
     expect([...bar.querySelectorAll('button')].map((b) => b.textContent)).toEqual(
       expect.arrayContaining([expect.stringContaining('이 동산으로'), expect.stringContaining('동산에서 빼기')]),
     )
+  })
+})
+
+describe('AdminMembers — 여러 명 삭제', () => {
+  it('confirms the selected names, keeps attendance records, and deletes them together', async () => {
+    ;(deleteMembers as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ok', deleted: 2 })
+    rosterData.data = roster([
+      member('m1', '김호연'),
+      member('m2', '이하늘'),
+      member('m3', '박사랑'),
+    ])
+    renderWithProviders(<AdminMembers />)
+
+    await userEvent.click(screen.getByRole('button', { name: /여러 명 선택/ }))
+    await userEvent.click(screen.getByRole('button', { name: /김호연/ }))
+    await userEvent.click(screen.getByRole('button', { name: /이하늘/ }))
+    await userEvent.click(screen.getByRole('button', { name: '선택 삭제' }))
+
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveTextContent('김호연')
+    expect(dialog).toHaveTextContent('이하늘')
+    expect(dialog).toHaveTextContent('기존 출석 기록은 남아 있습니다')
+
+    await userEvent.click(screen.getByRole('button', { name: '2명 삭제' }))
+    await waitFor(() => expect(deleteMembers).toHaveBeenCalledWith(['m1', 'm2']))
+    expect(await screen.findByText('2명이 삭제되었습니다')).toBeInTheDocument()
   })
 })
