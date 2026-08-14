@@ -320,6 +320,11 @@ export const getRoster = () => api<RosterResponse>('GET', '/api/roster')
 export const bulkSetSubgroup = (memberIds: string[], subgroup: string) =>
   api<{ status: string; updated: number }>('POST', '/api/admin/members/bulk-subgroup', { memberIds, subgroup })
 
+// Remove several members from the roster in one scoped request. The server deletes their
+// member/device/role rows but intentionally keeps historical attendance records.
+export const deleteMembers = (memberIds: string[]) =>
+  api<{ status: string; deleted: number }>('POST', '/api/admin/members/delete', { memberIds })
+
 // ── Clear all attendance (super clears directly; others request → super approves) ─────
 export interface ClearRequest {
   requestedBy: string
@@ -531,8 +536,8 @@ export const updateMember = (memberId: string, fields: MemberEdit) =>
 export const mergeMembers = (fromId: string, toId: string) =>
   api<{ status: string }>('POST', '/api/admin/merge', { fromId, toId })
 
-// Delete a member entirely (their devices + attendance rows go too). Scoped + audited
-// server-side; pastor read-only. Irreversible.
+// Delete a member and their linked devices/role while preserving historical attendance.
+// Scoped + audited server-side; pastor read-only.
 export const deleteMember = (memberId: string) =>
   api<{ status: string }>('POST', '/api/admin/member/delete', { memberId })
 

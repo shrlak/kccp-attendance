@@ -5,6 +5,7 @@ import { currentSeason, DEFAULT_SEMESTER_DATES, isSummerTerm, lastEndedTermKey, 
 import { availableCardModels, buildCardRequest, cardModelChain, parseCardResponse } from "./gemini.ts";
 import { csvUrl, matchPerson, mergeSheetMarks, nameCounts, normalizeMarks, parseAttendanceSheet, parseSheetUrl, sameMarks, type ParsedSheet } from "./sheetSync.ts";
 import { findLink, findLinkFor, newLinkToken, parseLinks, recentSundays, reconcileTermLinks, type DongsanLink } from "./dongsanLink.ts";
+import { deleteMembersKeepingAttendance } from "./memberDelete.ts";
 // Decrypt-side of the weekly R2 backup pipeline (see scripts/backup/). age-encryption is
 // FiloSottile's own pure-JS port of `age` (no native/subprocess dependency, which Deno
 // edge functions can't shell out to anyway); postgres.js's .unsafe() with no parameters
@@ -1869,26 +1870,28 @@ Deno.serve(async (req: Request) => {
       return ok({status:"ok"});
     }
 
-    // Delete a member entirely: removes their attendance rows + the member (devices and
-    // member_roles cascade via FK). Scoped (a leader may only delete members in their own
-    // 동산); pastor read-only; audited. Irreversible.
-    if(req.method==="POST"&&p==="/api/admin/member/delete") {
+    // Delete one or several members from the current roster. devices + member_roles cascade,
+    // while attendance_log.member_id becomes NULL and its denormalized name/date/placement
+    // remain as historical attendance. Every requested member must be in scope; pastor is
+    // read-only; the whole operation is written as one audit entry.
+    if(req.method==="POST"&&(p==="/api/admin/member/delete"||p==="/api/admin/members/delete")) {
       const role=await auth();
       if(!role) return fail(401,"Not authorized");
       if(role.role==="pastor") return fail(403,"Read-only");
-      const {memberId}=body; if(!memberId) return fail(400,"memberId required");
-      const {data:m}=await adb.from("members").select("name,group_name,subgroup").eq("id",memberId).single();
-      if(!m) return fail(404,"Member not found");
+      const rawIds=p==="/api/admin/members/delete"?body.memberIds:[body.memberId];
+      if(!Array.isArray(rawIds)||!rawIds.length||rawIds.some((id:any)=>typeof id!=="string"||!id.trim())) return fail(400,"memberIds required");
+      const memberIds=[...new Set(rawIds.map((id:string)=>id.trim()))];
+      const {data:members,error:membersError}=await adb.from("members").select("id,name,group_name,subgroup").in("id",memberIds);
+      if(membersError) return fail(500,membersError.message);
+      if(!members||members.length!==memberIds.length) return fail(404,"Member not found");
       {
         const scope=scopeFilter(role,summerNow(await getCfg(sb,actingPartition),role.partition));
-        if(!inScope(scope,m.group_name,m.subgroup)) return fail(403,"Out of scope");
+        if(members.some((m:any)=>!inScope(scope,m.group_name,m.subgroup))) return fail(403,"Out of scope");
       }
-      // attendance_log.member_id is ON DELETE SET NULL, so the member's rows would orphan
-      // (and keep counting) — delete them explicitly. devices + member_roles cascade.
-      await adb.from("attendance_log").delete().eq("member_id",memberId);
-      await adb.from("members").delete().eq("id",memberId);
-      await addAudit(adb,"member-delete",xDev,m.name+" ("+memberId+")",role.partition);
-      return ok({status:"ok"});
+      try{await deleteMembersKeepingAttendance(adb,memberIds);}catch(e:any){return fail(500,e?.message||"Delete failed");}
+      const detail=members.map((m:any)=>m.name+" ("+m.id+")").join(", ");
+      await addAudit(adb,memberIds.length===1?"member-delete":"members-delete",xDev,detail,role.partition);
+      return ok({status:"ok",deleted:memberIds.length});
     }
 
     // Bulk 동산 (subgroup) reassignment: set or clear the 동산 for many members at once.

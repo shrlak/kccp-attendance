@@ -223,6 +223,7 @@ describe('EditModal — member delete', () => {
     // First click only reveals the irreversible confirm — no API call yet.
     await userEvent.click(screen.getByRole('button', { name: '멤버 삭제' }))
     expect(deleteMember).not.toHaveBeenCalled()
+    expect(screen.getByText(/기존 출석 기록은 남아 있습니다/)).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: '삭제' }))
     expect(deleteMember).toHaveBeenCalledWith('m1')

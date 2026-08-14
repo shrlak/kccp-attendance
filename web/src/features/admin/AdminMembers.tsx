@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRoster } from './useRoster'
-import { mergeMembers, bulkSetSubgroup, getDongsanNames, type Member } from '../../lib/api'
+import { mergeMembers, bulkSetSubgroup, deleteMembers, getDongsanNames, type Member } from '../../lib/api'
 import { Dialog } from '../../components/ui/Dialog'
 import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
-import { Search, ListChecks, Merge as MergeIcon, Users, AlertTriangle, EyeOff, ChevronDown } from '../../components/ui/Icon'
+import { Search, ListChecks, Merge as MergeIcon, Users, AlertTriangle, EyeOff, ChevronDown, Trash2 } from '../../components/ui/Icon'
 import { mergeTargets, canMerge, mergeSummary, type MergeState } from './merge'
 import { groupsOf } from './filters'
 import { summerDongsanList } from './dongsan'
@@ -41,6 +41,7 @@ export function AdminMembers() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [target, setTarget] = useState('')
   const [bulkBusy, setBulkBusy] = useState(false)
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false)
   const [showHidden, setShowHidden] = useState(false)
 
   if (isLoading) return (
@@ -69,6 +70,7 @@ export function AdminMembers() {
   const members = byName(data.members)
   const hiddenMembers = byName(data.hiddenMembers)
   const staffMembers = byName(data.staffMembers)
+  const selectedMembers = data.members.filter((m) => selected.has(m.id))
   // 일괄 이동 목록: 고른 멤버의 부서에 설정된 동산만 보여준다 — 대학부를 골랐으면 대학부
   // 동산, 청년부를 골랐으면 청년부 동산. 아직 아무도 안 골랐으면 양쪽을 다 보여주고,
   // 두 부서를 섞어 골랐으면 두 부서의 동산이 함께 나온다. 여름 모드는 합동 한 벌뿐.
@@ -122,6 +124,21 @@ export function AdminMembers() {
       setBulkBusy(false)
     }
   }
+  async function applyBulkDelete() {
+    if (selectedMembers.length === 0) return
+    setBulkBusy(true)
+    try {
+      const res = await deleteMembers(selectedMembers.map((m) => m.id))
+      toast({ title: t('admin.members.bulkDelete.done', { n: res.deleted }), tone: 'ok' })
+      refreshRoster(qc)
+      setConfirmBulkDelete(false)
+      exitSelect()
+    } catch {
+      toast({ title: t('common.error'), tone: 'err' })
+    } finally {
+      setBulkBusy(false)
+    }
+  }
 
   return (
     <>
@@ -141,10 +158,10 @@ export function AdminMembers() {
             className="pl-10"
           />
         </div>
-        {data.canBulkSubgroup && (
+        {(data.canBulkSubgroup || data.role !== 'pastor') && (
           <Button variant="secondary" onClick={() => (selectMode ? exitSelect() : setSelectMode(true))}>
             <ListChecks className="size-4" aria-hidden />
-            {selectMode ? t('common.cancel') : t('admin.members.bulkMove.action')}
+            {selectMode ? t('common.cancel') : t('admin.members.selection.action')}
           </Button>
         )}
         {!selectMode && (
@@ -161,25 +178,35 @@ export function AdminMembers() {
             <ListChecks className="size-4" aria-hidden />
             {t('admin.members.bulkMove.selected', { n: selected.size })}
           </span>
-          <Select value={target} onChange={(e) => setTarget(e.target.value)} className="min-w-[8rem] flex-1">
-            <option value="">{t('admin.members.bulkMove.placeholder')}</option>
-            {dongsanOptions.map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
-            ))}
-          </Select>
-          <Button size="sm" disabled={selected.size === 0 || !target || bulkBusy} onClick={() => applyBulk(target)}>
-            {t('admin.members.bulkMove.moveTo')}
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            disabled={selected.size === 0 || bulkBusy}
-            onClick={() => applyBulk('')}
-          >
-            {t('admin.members.bulkMove.remove')}
-          </Button>
+          {data.canBulkSubgroup && (
+            <>
+              <Select value={target} onChange={(e) => setTarget(e.target.value)} className="min-w-[8rem] flex-1">
+                <option value="">{t('admin.members.bulkMove.placeholder')}</option>
+                {dongsanOptions.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </Select>
+              <Button size="sm" disabled={selected.size === 0 || !target || bulkBusy} onClick={() => applyBulk(target)}>
+                {t('admin.members.bulkMove.moveTo')}
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={selected.size === 0 || bulkBusy}
+                onClick={() => applyBulk('')}
+              >
+                {t('admin.members.bulkMove.remove')}
+              </Button>
+            </>
+          )}
+          {data.role !== 'pastor' && (
+            <Button size="sm" variant="danger" disabled={selected.size === 0 || bulkBusy} onClick={() => setConfirmBulkDelete(true)}>
+              <Trash2 className="size-4" aria-hidden />
+              {t('admin.members.bulkDelete.action')}
+            </Button>
+          )}
         </div>
       )}
       </div>
@@ -332,6 +359,35 @@ export function AdminMembers() {
           readOnly={data.role === 'pastor'}
           onClose={() => setAttendanceFor(null)}
         />
+      )}
+      {confirmBulkDelete && (
+        <Dialog
+          open
+          onOpenChange={(open) => !open && !bulkBusy && setConfirmBulkDelete(false)}
+          title={t('admin.members.bulkDelete.title', { n: selectedMembers.length })}
+        >
+          <div className="rounded-2xl border border-danger/30 bg-danger/5 p-4">
+            <p className="flex items-start gap-2 text-sm font-semibold text-danger">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
+              <span>{t('admin.members.bulkDelete.warn')}</span>
+            </p>
+            <div className="mt-3 flex max-h-36 flex-wrap gap-1.5 overflow-y-auto">
+              {selectedMembers.map((m) => (
+                <span key={m.id} className="rounded-full border border-danger/20 bg-surface px-2.5 py-1 text-xs font-semibold text-text">
+                  {m.name}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="mt-4 flex gap-2">
+            <Button variant="secondary" onClick={() => setConfirmBulkDelete(false)} disabled={bulkBusy} className="flex-1">
+              {t('common.cancel')}
+            </Button>
+            <Button variant="danger" onClick={applyBulkDelete} disabled={bulkBusy} className="flex-1">
+              {bulkBusy ? t('common.loading') : t('admin.members.bulkDelete.confirm', { n: selectedMembers.length })}
+            </Button>
+          </div>
+        </Dialog>
       )}
       {merging && <MergeModal members={data.members} onClose={() => setMerging(false)} />}
     </>
