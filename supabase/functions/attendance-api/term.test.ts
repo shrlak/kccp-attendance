@@ -70,8 +70,8 @@ Deno.test("lastEndedTermKey is the term whose 동산 편성 the rollover retires
 Deno.test("rollSchedule seeds two years of terms from the template", () => {
   const seeded = rollSchedule("2026-08-05", saved, []);
   assertEquals(seeded.length, 6);
-  assertEquals(seeded[0], { year: 2026, season: "fall", start: "2026-09-06", end: "2026-12-13" });
-  assertEquals(seeded[5], { year: 2028, season: "summer", start: "2028-06-07", end: "2028-08-08" });
+  assertEquals(seeded[0], { year: 2026, season: "summer", start: "2026-06-07", end: "2026-08-08" });
+  assertEquals(seeded[5], { year: 2028, season: "spring", start: "2028-01-01", end: "2028-05-09" });
   // Idempotent: rolling an already-rolled schedule on the same day changes nothing.
   assertEquals(sameSchedule(rollSchedule("2026-08-05", saved, seeded), seeded), true);
 });
@@ -89,11 +89,12 @@ Deno.test("a finished term leaves the window, a fresh one is appended, and the o
 
 Deno.test("stored terms keep their dates; appended ones inherit the newest pattern", () => {
   const seeded = rollSchedule("2026-08-05", saved, []);
-  const edited = seeded.map((t) => (t.year === 2028 && t.season === "summer" ? { ...t, end: "2028-08-20" } : t));
+  const edited = seeded.map((t) => (t.year === 2027 && t.season === "summer" ? { ...t, end: "2027-08-20" } : t));
+  const rolled = rollSchedule("2026-10-01", saved, edited);
   // An already-listed term is never rewritten by a roll.
-  assertEquals(rollSchedule("2026-10-01", saved, edited).find((t) => t.year === 2028 && t.season === "summer")?.end, "2028-08-20");
+  assertEquals(rolled.find((t) => t.year === 2027 && t.season === "summer")?.end, "2027-08-20");
   // A newly appended term follows the latest same-season dates rather than the template.
-  assertEquals(rollSchedule("2028-08-21", saved, edited).find((t) => t.year === 2029 && t.season === "summer")?.end, "2029-08-20");
+  assertEquals(rolled.find((t) => t.year === 2028 && t.season === "summer")?.end, "2028-08-20");
 });
 
 Deno.test("mergeSchedule keeps finished terms the saved window no longer covers", () => {

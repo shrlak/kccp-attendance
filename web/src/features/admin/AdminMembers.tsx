@@ -70,12 +70,13 @@ export function AdminMembers() {
   const members = byName(data.members)
   const hiddenMembers = byName(data.hiddenMembers)
   const staffMembers = byName(data.staffMembers)
-  const selectedMembers = data.members.filter((m) => selected.has(m.id))
+  const selectableMembers = [...data.members, ...data.hiddenMembers]
+  const selectedMembers = selectableMembers.filter((m) => selected.has(m.id))
   // 일괄 이동 목록: 고른 멤버의 부서에 설정된 동산만 보여준다 — 대학부를 골랐으면 대학부
   // 동산, 청년부를 골랐으면 청년부 동산. 아직 아무도 안 골랐으면 양쪽을 다 보여주고,
   // 두 부서를 섞어 골랐으면 두 부서의 동산이 함께 나온다. 여름 모드는 합동 한 벌뿐.
   const selectedGroups = new Set(
-    data.members.filter((m) => selected.has(m.id)).map((m) => m.group_name).filter(Boolean),
+    selectableMembers.filter((m) => selected.has(m.id)).map((m) => m.group_name).filter(Boolean),
   )
   const nameGroups = Object.keys(dongsanNames ?? {})
   const activeGroups = selectedGroups.size ? [...selectedGroups] : nameGroups
@@ -83,7 +84,7 @@ export function AdminMembers() {
     ? summerDongsanList(dongsanNames ?? {})
     : activeGroups.flatMap((g) => dongsanNames?.[g] ?? [])
   // 이미 그 부서 누군가가 속해 있는 동산도 (설정에서 빠졌더라도) 고를 수 있게 둔다.
-  const inUse = data.members
+  const inUse = selectableMembers
     .filter((m) => (selectedGroups.size ? selectedGroups.has(m.group_name) : true))
     .map((m) => m.subgroup)
   const dongsanOptions = [...new Set([...configuredDongsan, ...inUse].filter(Boolean))].sort() as string[]
@@ -301,20 +302,33 @@ export function AdminMembers() {
             <>
               <p className="mt-2 text-xs text-muted">{t('admin.members.hidden.desc')}</p>
               <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
-                {hiddenMembers.map((m) => (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => setEditing(m)}
-                    className="min-h-20 rounded-2xl border border-border bg-surface-2 p-3.5 text-left opacity-80 shadow-[var(--shadow-sm)] transition-[background-color,border-color,box-shadow,transform,opacity] duration-200 [transition-timing-function:var(--ease-out-soft)] hover:-translate-y-0.5 hover:border-primary/30 hover:opacity-100 hover:shadow-[var(--shadow)] active:translate-y-0"
-                  >
-                    <div className="break-words text-base font-semibold text-text">{m.name}</div>
-                    <div className="mt-1 text-xs text-muted">{m.group_name || '—'}</div>
-                    <span className="mt-1.5 inline-block whitespace-nowrap rounded-full bg-warning/12 px-2 py-0.5 text-[10px] font-semibold text-warning">
-                      {noteOn(m, today) ?? ''}
-                    </span>
-                  </button>
-                ))}
+                {hiddenMembers.map((m) => {
+                  const sel = selectMode && selected.has(m.id)
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => (selectMode ? toggleSel(m.id) : setEditing(m))}
+                      className={
+                        'min-h-20 rounded-2xl border p-3.5 text-left shadow-[var(--shadow-sm)] transition-[background-color,border-color,box-shadow,transform,opacity] duration-200 [transition-timing-function:var(--ease-out-soft)] hover:-translate-y-0.5 hover:border-primary/30 hover:opacity-100 hover:shadow-[var(--shadow)] active:translate-y-0 ' +
+                        (sel ? 'border-primary bg-surface ring-2 ring-primary/40' : 'border-border bg-surface-2 opacity-80')
+                      }
+                    >
+                      <div className="leading-snug">
+                        {selectMode && (
+                          <span className={'mr-2 inline-grid h-4 w-4 place-items-center rounded-full align-middle text-[10px] font-bold ' + (sel ? 'bg-primary text-primary-fg' : 'border border-border text-transparent')}>
+                            ✓
+                          </span>
+                        )}
+                        <span className="break-words text-base font-semibold text-text">{m.name}</span>
+                      </div>
+                      <div className="mt-1 text-xs text-muted">{m.group_name || '—'}</div>
+                      <span className="mt-1.5 inline-block whitespace-nowrap rounded-full bg-warning/12 px-2 py-0.5 text-[10px] font-semibold text-warning">
+                        {noteOn(m, today) ?? ''}
+                      </span>
+                    </button>
+                  )
+                })}
               </div>
             </>
           )}

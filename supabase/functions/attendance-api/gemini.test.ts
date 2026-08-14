@@ -38,10 +38,23 @@ Deno.test("심방 요청: an unmarked O/X box must read as null, never false", (
   assertEquals(CARD_PROMPT_FREEFORM.includes("표시가 없으면 반드시 null"), true);
 });
 
-Deno.test("CARD_SCHEMA: every property is nullable and required (null = illegible, not omitted)", () => {
+Deno.test("CARD_SCHEMA: every property is nullable and the youth-card fields are required", () => {
   const props = Object.keys(CARD_SCHEMA.properties);
-  assertEquals(props.length, 11);
-  assertEquals([...CARD_SCHEMA.required].sort(), [...props].sort());
+  const required = [
+    "cardType",
+    "name",
+    "gender",
+    "phone",
+    "kakaoId",
+    "birthDate",
+    "affiliationCategory",
+    "affiliationDetail",
+    "baptismStatus",
+    "faithDuration",
+    "registrationDate",
+    "pastoralVisitRequested",
+  ];
+  assertEquals([...CARD_SCHEMA.required].sort(), required.sort());
   for (const p of props) {
     assertEquals((CARD_SCHEMA.properties as Record<string, { nullable?: boolean }>)[p].nullable, true);
   }

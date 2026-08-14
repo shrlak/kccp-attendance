@@ -38,6 +38,17 @@
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
+// The pure auth/scope unit tests intentionally run without --allow-env. Production edge
+// functions grant env access, while a permission-restricted import should still be able to
+// exercise the fallback credentials and authorization helpers below.
+function readEnv(name: string): string | undefined {
+  try {
+    return Deno.env.get(name);
+  } catch {
+    return undefined;
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  SHARED TEAM PASSWORDS — change these lines to rotate them (or set the matching env
 //  vars to override without editing code). Each grants admin access from ANY device and
@@ -53,10 +64,10 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 //  사람을 가리키지 못해 그 범위를 짚을 수 없었고, 그래서 그 비밀번호로 들어온 리더는 실제로는
 //  대학·청년부 명단 전체를 보고 있었다. 리더는 구글 로그인으로 들어온다 — 그때는 members 행이
 //  잡히므로 scopeFilter가 자기 동산으로 좁힌다. (이미 기록된 지난 로그인은 그대로 남는다.)
-export const SUPER_PASSWORD = Deno.env.get("SUPER_PASSWORD") ?? "kccpadmin";
+export const SUPER_PASSWORD = readEnv("SUPER_PASSWORD") ?? "kccpadmin";
 export const WELCOMING_PASSWORD =
-  Deno.env.get("WELCOMING_PASSWORD") ?? Deno.env.get("MASTER_PASSWORD") ?? "kccpwelcome";
-export const ADULT_PASSWORD = Deno.env.get("ADULT_PASSWORD") ?? "kccpadults";
+  readEnv("WELCOMING_PASSWORD") ?? readEnv("MASTER_PASSWORD") ?? "kccpwelcome";
+export const ADULT_PASSWORD = readEnv("ADULT_PASSWORD") ?? "kccpadults";
 // Backwards-compat alias for the legacy single break-glass credential (now the welcoming
 // password). Kept so older references / env overrides keep working.
 export const MASTER_PASSWORD = WELCOMING_PASSWORD;
@@ -76,7 +87,7 @@ export const MASTER_PASSWORD = WELCOMING_PASSWORD;
 //  구글 로그인에만 적용된다. 공용 비밀번호는 그 자체가 부를 뜻하므로(ADULT_PASSWORD →
 //  장년부) 고를 것이 없고, 무엇보다 아무나 칠 수 있는 값이라 신원이 아니다.
 export const CROSS_PARTITION_EMAILS = readEmails(
-  Deno.env.get("CROSS_PARTITION_EMAILS") ?? "spencerkim1235@gmail.com",
+  readEnv("CROSS_PARTITION_EMAILS") ?? "spencerkim1235@gmail.com",
 );
 
 function readEmails(raw: string): Set<string> {
@@ -252,7 +263,7 @@ export function inScopeGroup(scope: Scope, group: string | null | undefined): bo
 //  같은 목록이다. 그래서 이 사람이 부를 건너가도 권한이 따라간다 — memberId에 걸려 있고, 그
 //  UUID는 부를 건너가도 그대로이기 때문이다 (memberPartition이 그 행이 사는 곳을 가리킨다).
 export const LOGIN_LOG_VIEWER_MEMBER_ID =
-  Deno.env.get("LOGIN_LOG_VIEWER_MEMBER_ID") ?? "e45e9708-9d44-418d-9ff5-734adf81fa68"; // 김호연
+  readEnv("LOGIN_LOG_VIEWER_MEMBER_ID") ?? "e45e9708-9d44-418d-9ff5-734adf81fa68"; // 김호연
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function canViewLoginLog(role: Role | null): boolean {
