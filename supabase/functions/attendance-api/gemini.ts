@@ -20,6 +20,14 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 // Kept for callers/tests that referenced the original single-model endpoint.
 export const GEMINI_URL = GOOGLE_URL("gemini-2.5-flash");
 
+// Gemini 3세대인가. 그 세대는 요청 모양이 다르다 — temperature/top_p/top_k는 물러났고
+// (보내면 무시되거나 거절된다), 대신 thinking_level과 media_resolution이 생겼다. 판단을
+// 모델 id의 세대 숫자로만 하므로 CARD_MODEL_CHAIN에 손으로 적어 넣은 새 id도 같이 걸린다.
+export function isGen3Model(model: string): boolean {
+  const m = /^gemini-(\d+)/.exec(model);
+  return m ? Number(m[1]) >= 3 : false;
+}
+
 export type CardProvider = "google" | "openrouter";
 
 export interface CardModel {
@@ -30,12 +38,19 @@ export interface CardModel {
 }
 
 // Free-tier vision models that can read handwriting, best-first. Google's structured
-// output makes gemini-2.5-flash the reliable default; the rest are fallbacks for when
-// it is rate-limited or returns nothing. Model ids come and go on the free pool, so
+// output makes the Gemini flash line the reliable default; the rest are fallbacks for
+// when it is rate-limited or returns nothing. Model ids come and go on the free pool, so
 // the chain is overridable at runtime with the CARD_MODEL_CHAIN env var (comma-
 // separated ids) — no code deploy needed to drop a retired model.
+// **Head of the chain is gemini-3.6-flash**: still free-tier, and a generation better at
+// exactly the two things this endpoint is bad at — handwritten Korean, and several cards
+// in one frame (each card is then a fraction of the photo). The 2.x entries stay below it
+// as fallbacks, so a bad day on the new model is a slower read, not a failed one.
 export const CARD_MODELS: CardModel[] = [
+  { id: "gemini-3.6-flash", label: "Gemini 3.6 Flash", provider: "google", model: "gemini-3.6-flash" },
+  { id: "gemini-3.5-flash", label: "Gemini 3.5 Flash", provider: "google", model: "gemini-3.5-flash" },
   { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash", provider: "google", model: "gemini-2.5-flash" },
+  { id: "gemini-3.5-flash-lite", label: "Gemini 3.5 Flash Lite", provider: "google", model: "gemini-3.5-flash-lite" },
   { id: "gemini-2.5-pro", label: "Gemini 2.5 Pro", provider: "google", model: "gemini-2.5-pro" },
   { id: "gemini-2.0-flash", label: "Gemini 2.0 Flash", provider: "google", model: "gemini-2.0-flash" },
   { id: "gemini-2.5-flash-lite", label: "Gemini 2.5 Flash Lite", provider: "google", model: "gemini-2.5-flash-lite" },
@@ -65,7 +80,13 @@ const CARD_KINDS = [
 ];
 
 const CARD_RULES_COMMON = [
-  "사진 속 카드를 모두 찾아 각 카드마다 JSON 객체 하나를 만들고, 배열로 반환하세요. 규칙:",
+  "사진 속 카드를 모두 찾아 각 카드마다 JSON 객체 하나를 만들고, 배열로 반환하세요.",
+  "먼저 사진에 카드가 몇 장 있는지 세고, **배열의 길이를 그 장수와 똑같이** 맞추세요.",
+  "책상에 여러 장을 늘어놓거나 겹쳐 놓고 한 번에 찍는 일이 흔합니다. 각도가 서로 다르거나",
+  "일부가 가려져 있어도 종이 한 장은 카드 한 장입니다.",
+  "한 장을 두 개의 객체로 쪼개지 말고, 두 장을 한 객체에 합치지도 마세요.",
+  "",
+  "규칙:",
   "1. 성별은 ( 남 / 여 ) 중 동그라미·체크된 쪽입니다.",
   "2. 체크박스·괄호 항목은 표시된 라벨 하나만 고르세요.",
   "3. 날짜는 YYYY-MM-DD로 변환하세요.",
@@ -82,6 +103,9 @@ const CARD_RULES_COMMON = [
   "8. 일부만 보이거나 기울어진 카드도 칸을 읽을 수 있으면 포함하고, 보이지 않는 칸은 null로 두세요.",
   "   카드가 아닌 배경·빈 종이·중복 촬영본은 배열에 넣지 마세요.",
   "9. 장년부 카드의 동행가족 표는 적힌 줄만 family 배열에 담고, 빈 줄은 넣지 마세요.",
+  "   동행가족은 카드가 아닙니다 — 그 카드의 family 안에만 두고, 배열에 따로 원소를 만들지 마세요.",
+  "10. 같은 카드를 두 번 담지 마세요. 다만 이름이 같아도 다른 종이에 적혀 있으면 서로 다른 카드입니다",
+  "    (가족이 나란히 적어 낸 카드가 그렇습니다) — 한 장으로 합치지 마세요.",
 ];
 
 // 장년부 링크로 들어온 사진은 장년부 카드만 받는다 — 그 링크가 그 부의 것이기 때문이다.
@@ -205,13 +229,22 @@ export function availableCardModels(chain: CardModel[], keys: Partial<Record<Car
   return chain.filter((m) => Boolean(keys[m.provider]));
 }
 
+// Does this model take the Gemini 3 knobs below? Only Google's own gen-3 endpoints do —
+// the endpoint uses this to decide whether a 400 is worth one plain-body retry.
+export function hasGen3Options(model: CardModel): boolean {
+  return model.provider === "google" && isGen3Model(model.model);
+}
+
 // The HTTP call for one model: url + headers + body, ready for fetch().
+// `plain` drops the Gemini 3-only generationConfig knobs — the retry for a deployment
+// that answers 400 because it doesn't know one of them yet.
 export function buildCardRequest(
   model: CardModel,
   image: string,
   mediaType: string,
   apiKey: string,
   only?: "adult",
+  plain = false,
 ): { url: string; headers: Record<string, string>; body: unknown } {
   if (model.provider === "openrouter") {
     return {
@@ -240,20 +273,50 @@ export function buildCardRequest(
   return {
     url: GOOGLE_URL(model.model),
     headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-    body: buildGeminiBody(image, mediaType, only),
+    body: buildGeminiBody(image, mediaType, only, model.model, plain),
   };
 }
 
-// generateContent request body: image part first, prompt second; temperature 0 +
-// responseSchema for deterministic, directly parseable JSON.
+// generateContent request body: image part first, prompt second; responseSchema for
+// directly parseable JSON.
 // `only` narrows what the model is allowed to come back with: 장년부 링크로 들어온 사진은
 // 장년부 카드만 받는다. 비워 두면 두 종류를 다 읽고 cardType으로 알려 준다.
-export function buildGeminiBody(image: string, mediaType: string, only?: "adult") {
+export function buildGeminiBody(
+  image: string,
+  mediaType: string,
+  only?: "adult",
+  model = "",
+  plain = false,
+) {
   const text = only === "adult" ? CARD_PROMPT_ADULT : CARD_PROMPT;
   return {
     contents: [{ parts: [{ inline_data: { mime_type: mediaType, data: image } }, { text }] }],
-    generationConfig: { temperature: 0, responseMimeType: "application/json", responseSchema: CARDS_SCHEMA },
+    generationConfig: geminiGenerationConfig(model, plain),
   };
+}
+
+// 세대마다 다이얼이 다르다.
+//   2.x — temperature 0으로 답을 고정한다.
+//   3.x — temperature/top_p/top_k는 물러났으므로 보내지 않는다. 대신 두 개를 켠다:
+//     · media_resolution HIGH — 사진 한 장에 카드가 여러 장이면 카드 하나가 화면의 일부라
+//       기본 해상도로는 손글씨가 뭉갠다. 이 endpoint가 가장 자주 지는 자리다.
+//     · thinking_level low — 20초 예산 안에 답이 와야 한다 (CARD_MODEL_TIMEOUT_MS).
+//       기본값(medium)은 카드 여러 장 × 스무 개 넘는 칸에서 그 예산을 넘길 수 있고,
+//       칸을 옮겨 적는 일에 긴 사고는 값을 하지 않는다.
+function geminiGenerationConfig(model: string, plain: boolean): Record<string, unknown> {
+  const cfg: Record<string, unknown> = {
+    responseMimeType: "application/json",
+    responseSchema: CARDS_SCHEMA,
+  };
+  if (!isGen3Model(model)) {
+    cfg.temperature = 0;
+    return cfg;
+  }
+  if (!plain) {
+    cfg.thinking_level = "low";
+    cfg.media_resolution = "MEDIA_RESOLUTION_HIGH";
+  }
+  return cfg;
 }
 
 // Provider response → list of cards. Null when the model gave nothing usable, which
@@ -269,12 +332,15 @@ export function parseCardResponse(model: CardModel, resp: unknown): Record<strin
 export function parseGeminiCards(resp: unknown): Record<string, unknown>[] | null {
   if (!resp || typeof resp !== "object") return null;
   const r = resp as {
-    candidates?: { content?: { parts?: { text?: string }[] } }[];
+    candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] } }[];
     promptFeedback?: { blockReason?: string };
   };
   if (r.promptFeedback?.blockReason) return null;
   const parts = r.candidates?.[0]?.content?.parts;
-  const text = parts?.map((p) => p?.text).filter((t) => typeof t === "string").join("") || "";
+  // 생각 요약(`thought: true`)은 답이 아니다 — Gemini 3부터 같은 parts 배열에 섞여 올 수
+  // 있으므로 걷어낸다. 섞인 채로 이으면 JSON 앞에 산문이 붙는다.
+  const text = parts?.filter((p) => !p?.thought).map((p) => p?.text)
+    .filter((t) => typeof t === "string").join("") || "";
   return cardsFromText(text);
 }
 

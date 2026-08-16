@@ -2,7 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { ADULT_GROUP, ADULT_SCHEMA, canChoosePartition, canViewLoginLog, dbOf, inScope, inScopeGroup, partitionOfGroup, resolveAdmin, scopeFilter, type Partition, type Role, type Scope } from "./auth.ts";
 import { currentSeason, DEFAULT_SEMESTER_DATES, isSummerTerm, lastEndedTermKey, mergeSchedule, rollSchedule, sameSchedule, scheduleOf, scheduleToDates, subgroupSnapshot, trimHistory, validSchedule } from "./term.ts";
-import { availableCardModels, buildCardRequest, cardModelChain, parseCardResponse } from "./gemini.ts";
+import { availableCardModels, buildCardRequest, cardModelChain, hasGen3Options, parseCardResponse } from "./gemini.ts";
 import { csvUrl, matchPerson, mergeSheetMarks, nameCounts, normalizeMarks, parseAttendanceSheet, parseSheetUrl, sameMarks, type ParsedSheet } from "./sheetSync.ts";
 import { findLink, findLinkFor, newLinkToken, parseLinks, recentSundays, reconcileTermLinks, type DongsanLink } from "./dongsanLink.ts";
 import { deleteMembersKeepingAttendance } from "./memberDelete.ts";
@@ -2267,21 +2267,32 @@ Deno.serve(async (req: Request) => {
       // Capped so a long chain can't outlive the client's 60s budget (4 × 20s worst case).
       for(const model of chain.slice(0,CARD_MODEL_ATTEMPTS)) {
         used=model;
-        try {
-          const rq=buildCardRequest(model,image,mediaType,keys[model.provider],expectAdult?"adult":undefined);
-          const gr=await fetch(rq.url,{method:"POST",headers:rq.headers,body:JSON.stringify(rq.body),signal:AbortSignal.timeout(CARD_MODEL_TIMEOUT_MS)});
-          if(!gr.ok) {
-            const detail=await gr.text().catch(()=>"");
-            if(gr.status===429) rateLimited=true;
-            lastError=model.label+" "+gr.status+(detail?": "+detail.slice(0,160):"");
-            continue;
+        // 두 번까지 두드린다: Gemini 3 전용 손잡이(thinking_level·media_resolution)를 그
+        // 모델이 아직 모르면 400이 온다. 그때만 그 손잡이를 뺀 몸통으로 한 번 더 — 400은
+        // 곧바로 오므로 예산을 거의 쓰지 않고, 새 다이얼 하나 때문에 세대가 통째로
+        // 건너뛰어지는 일을 막는다.
+        // (`plain=true`로 넘어가는 길은 아래 400 분기 하나뿐이다.)
+        for(const plain of [false,true]) {
+          try {
+            const rq=buildCardRequest(model,image,mediaType,keys[model.provider],expectAdult?"adult":undefined,plain);
+            const gr=await fetch(rq.url,{method:"POST",headers:rq.headers,body:JSON.stringify(rq.body),signal:AbortSignal.timeout(CARD_MODEL_TIMEOUT_MS)});
+            if(!gr.ok) {
+              const detail=await gr.text().catch(()=>"");
+              if(gr.status===429) rateLimited=true;
+              lastError=model.label+" "+gr.status+(detail?": "+detail.slice(0,160):"");
+              if(gr.status===400&&!plain&&hasGen3Options(model)) continue;
+              break;
+            }
+            cards=parseCardResponse(model,await gr.json().catch(()=>null));
+            if(cards) break;
+            lastError=model.label+": 카드를 읽지 못했습니다";
+            break;
+          } catch(e) {
+            lastError=model.label+": "+((e as Error)?.message||"request failed");
+            break;
           }
-          cards=parseCardResponse(model,await gr.json().catch(()=>null));
-          if(cards) break;
-          lastError=model.label+": 카드를 읽지 못했습니다";
-        } catch(e) {
-          lastError=model.label+": "+((e as Error)?.message||"request failed");
         }
+        if(cards) break;
       }
       // One photo can hold several cards (a stack on the table) — every card read out
       // of it comes back in `cards`; `card` stays for older cached clients.
