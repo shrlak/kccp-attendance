@@ -2,12 +2,12 @@ import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useRoster } from './useRoster'
 import { easternNow } from '../../lib/checkinWindow'
-import { todaysCheckins, weeklyComparison } from './today'
+import { todaysCheckins, weeklyComparison, countTodayKinds, filterTodayByKind, type TodayKindFilter } from './today'
 import { registeredOnDate } from './newFamily'
 import { checkinTag } from './todaySheet'
 import { filterMembers, filterLog, NO_FILTER, type Filter } from './filters'
 import { leaderDashboard } from './stats'
-import { GroupFilter } from './GroupFilter'
+import { GroupFilter, Pill } from './GroupFilter'
 import { IconKey } from './IconKey'
 import { type Member } from '../../lib/api'
 import { resolveGroupColor, hexTint } from './groupColors'
@@ -29,6 +29,8 @@ export function AdminToday() {
   const partition = usePartition()
   const [exporting, setExporting] = useState<'copy' | 'save' | null>(null)
   const [filter, setFilter] = useState<Filter>(NO_FILTER)
+  // 오늘 온 사람을 종류로 좁혀 본다 (전체 / 새가족 / 방문자 / 기존 멤버).
+  const [kind, setKind] = useState<TodayKindFilter>('all')
   const [editingMember, setEditingMember] = useState<Member | null>(null)
   const [attendanceFor, setAttendanceFor] = useState<Member | null>(null)
 
@@ -82,7 +84,11 @@ export function AdminToday() {
   }
   const members = filterMembers(data.members, filter)
   const log = filterLog(data.log, filter)
-  const todays = todaysCheckins(log, today)
+  const allTodays = todaysCheckins(log, today)
+  // 종류 칩은 부서/동산 필터 **안에서** 다시 좁힌다. 칩에 적는 수도 그 안의 수라, 고른
+  // 부서를 바꾸면 수도 같이 움직인다.
+  const kindCounts = countTodayKinds(allTodays, newMemberNames)
+  const todays = filterTodayByKind(allTodays, newMemberNames, kind)
   const wk = weeklyComparison(log, today)
   const arrow = wk.delta > 0 ? '↑' : wk.delta < 0 ? '↓' : '→'
   const arrowClass = wk.delta > 0 ? 'text-success' : wk.delta < 0 ? 'text-danger' : 'text-muted'
@@ -154,13 +160,36 @@ export function AdminToday() {
           </Button>
         </div>
       </div>
+      {/* 종류로 좁혀 보기 — 오늘 온 사람 중 새가족만, 방문자만, 기존 멤버만. 아래 목록에
+          붙는 이름표와 같은 기준(checkinTag)으로 가르므로 고른 칩과 이름표가 어긋나지
+          않는다. 수가 0인 칩도 남겨 둔다: 종류는 닫힌 집합이라 자리가 움직이면 매번 다시
+          찾게 되고, 0이라는 사실 자체가 답이기 때문 (오늘 새가족이 없다). */}
+      {allTodays.length > 0 && (
+        <div className="mb-3 flex flex-wrap gap-1.5">
+          <Pill active={kind === 'all'} onClick={() => setKind('all')}>
+            {t('admin.filter.all')} {allTodays.length}
+          </Pill>
+          <Pill active={kind === 'newFamily'} onClick={() => setKind('newFamily')}>
+            {t('admin.iconKey.newFamily')} {kindCounts.newFamily}
+          </Pill>
+          <Pill active={kind === 'visitor'} onClick={() => setKind('visitor')}>
+            {t('admin.iconKey.visitor')} {kindCounts.visitor}
+          </Pill>
+          <Pill active={kind === 'member'} onClick={() => setKind('member')}>
+            {t('admin.today.kind.member')} {kindCounts.member}
+          </Pill>
+        </div>
+      )}
       <IconKey items={['newFamily', 'visitor']} />
       {/* Today's check-ins run 4 per row from 640px up; phones in portrait keep 2, where
           four cards of name + 동산 + check-in time can't fit legibly across the screen. */}
       {todays.length === 0 ? (
         <div className="fx-rise grid place-items-center rounded-2xl border border-dashed border-border py-14 text-center">
           <div className="grid size-14 place-items-center rounded-full bg-fill text-subtle"><CalendarCheck className="size-6" aria-hidden /></div>
-          <p className="mt-4 text-sm font-semibold text-muted">{t('admin.today.none')}</p>
+          {/* 아직 아무도 안 왔다와 고른 종류가 없다는 서로 다른 말이다. */}
+          <p className="mt-4 text-sm font-semibold text-muted">
+            {t(allTodays.length > 0 ? 'admin.today.noneOfKind' : 'admin.today.none')}
+          </p>
         </div>
       ) : (
         <ul className="fx-stagger grid grid-cols-2 gap-2.5 sm:grid-cols-4">

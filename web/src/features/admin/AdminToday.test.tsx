@@ -128,3 +128,72 @@ describe('AdminToday — 새가족 / 방문자 status labels in the 오늘 tab',
     expect(regularRow).not.toHaveTextContent('방문자')
   })
 })
+
+// 오늘 온 사람이 200명이면 이름표만으로는 새가족을 찾을 수 없다 — 칩으로 좁힌다.
+// 가르는 기준은 이름표와 같은 checkinTag 하나라, 고른 칩과 붙은 이름표가 어긋나지 않는다.
+describe('AdminToday — 오늘 명단을 종류로 좁혀 보기', () => {
+  function renderMixed() {
+    const today = easternNow().date
+    const nf = { ...member('m2', '오늘등록새신자'), is_new_member: true, registration_date: today }
+    const regular = member('m1', '김지체')
+    rosterData.data = {
+      role: 'super_admin',
+      canBulkSubgroup: true,
+      canClearAttendance: true,
+      members: [nf, regular],
+      staffMembers: [],
+      log: [memberRow(nf, today, 3), memberRow(regular, today, 2), guestRow('박방문', today, 1)],
+    } as unknown as RosterResponse & { staffMembers: Member[] }
+    return renderWithProviders(<AdminToday />)
+  }
+
+  it('종류마다 그 수를 적은 칩을 낸다', () => {
+    renderMixed()
+    expect(screen.getByRole('button', { name: '전체 3' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '새가족 1' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '방문자 1' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '기존 멤버 1' })).toBeInTheDocument()
+  })
+
+  it('새가족 칩은 오늘 등록한 새가족만 남긴다', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event')
+    renderMixed()
+
+    await userEvent.click(screen.getByRole('button', { name: '새가족 1' }))
+    expect(screen.getByText('오늘등록새신자')).toBeInTheDocument()
+    expect(screen.queryByText('김지체')).not.toBeInTheDocument()
+    expect(screen.queryByText('박방문')).not.toBeInTheDocument()
+  })
+
+  it('방문자 · 기존 멤버 칩도 각자 자기 묶음만 남긴다', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event')
+    renderMixed()
+
+    await userEvent.click(screen.getByRole('button', { name: '방문자 1' }))
+    expect(screen.getByText('박방문')).toBeInTheDocument()
+    expect(screen.queryByText('오늘등록새신자')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: '기존 멤버 1' }))
+    expect(screen.getByText('김지체')).toBeInTheDocument()
+    expect(screen.queryByText('박방문')).not.toBeInTheDocument()
+  })
+
+  it('그 종류가 오늘 아무도 없으면 "아직 출석이 없습니다"가 아니라 그 사실을 말한다', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event')
+    const today = easternNow().date
+    const regular = member('m1', '김지체')
+    rosterData.data = {
+      role: 'super_admin',
+      canBulkSubgroup: true,
+      canClearAttendance: true,
+      members: [regular],
+      staffMembers: [],
+      log: [memberRow(regular, today, 2)],
+    } as unknown as RosterResponse & { staffMembers: Member[] }
+    renderWithProviders(<AdminToday />)
+
+    await userEvent.click(screen.getByRole('button', { name: '새가족 0' }))
+    expect(screen.getByText('이 종류로 온 사람이 없습니다')).toBeInTheDocument()
+    expect(screen.queryByText('아직 출석이 없습니다')).not.toBeInTheDocument()
+  })
+})

@@ -38,8 +38,8 @@ export function AdminNewFamily() {
   const [scanOpen, setScanOpen] = useState(false)
 
   if (isLoading) return (
-    <div className="fx-fade grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-      {Array.from({ length: 8 }).map((_, i) => <div key={i} className="fx-skeleton h-24 rounded-2xl" />)}
+    <div className="fx-fade grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+      {Array.from({ length: 12 }).map((_, i) => <div key={i} className="fx-skeleton h-24 rounded-2xl" />)}
     </div>
   )
   if (isError) return (
@@ -146,7 +146,11 @@ export function AdminNewFamily() {
                       {/* 이번 주일 / 지난주에 등록한 그룹만 표시 — 그 이전 등록일은 날짜만으로 충분. */}
                       <NewFamilyWeekChip week={newFamilyWeek(g.date, today)} />
                     </div>
-                    <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
+                    {/* 한 줄에 여섯 명. 등록일마다 블록이 나뉘므로 줄이 짧을수록 스크롤이
+                        길어진다 — 노트북(lg)부터 여섯 칸으로 채운다. 폰에서까지 여섯으로
+                        가르지는 않는다: 이름·부서·전화가 한 칸에 들어가지 못해 여섯 명이
+                        보이는 대신 아무것도 못 읽게 된다. */}
+                    <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
                       {g.members.map((m) => (
                         <NewFamilyCard key={m.id} member={m} onOpen={() => setEditing(m)} />
                       ))}
