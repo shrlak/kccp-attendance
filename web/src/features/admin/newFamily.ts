@@ -6,7 +6,6 @@ import {
   type CalendarLike,
 } from '../../lib/semester'
 import { ADULT_HALF_DATES, seasonsOf, type Partition, type Season } from '../../lib/partition'
-import type { Filter } from './filters'
 import { hasHidingMark } from '../../lib/status'
 
 // Season의 주인은 lib/partition.ts다 (부마다 한 해를 몇 토막으로 나누는지가 거기 있으므로).
@@ -202,27 +201,6 @@ export function matchesEduFilter(
   if (filter === 'week1') return w1 && !w2
   if (filter === 'week2') return !w1 && w2
   return !w1 && !w2 // 'none'
-}
-
-// Distinct, non-empty 새가족 교육 동산 values for a group (or across all groups when group
-// is ''), sorted — mirrors filters.ts's subgroupsOf but keyed on the separate 새가족 교육
-// 동산 field (member.new_member_dongsan) instead of the regular subgroup.
-export function eduDongsansOf(members: Member[], group: string): string[] {
-  const set = new Set(
-    members
-      .filter((m) => !group || m.group_name === group)
-      .map((m) => m.new_member_dongsan)
-      .filter((s): s is string => !!s),
-  )
-  return [...set].sort((a, b) => a.localeCompare(b))
-}
-
-// Scope members by 부서 + 새가족 교육 동산 — mirrors filters.ts's filterMembers but keyed
-// on new_member_dongsan instead of subgroup, for the 새가족 교육 탭's filter row.
-export function filterByEduDongsan(members: Member[], f: Filter): Member[] {
-  return members.filter(
-    (m) => (!f.group || m.group_name === f.group) && (!f.subgroup || m.new_member_dongsan === f.subgroup),
-  )
 }
 
 // 2026년 이전에 등록된 새가족은 목록에 올리지 않는다. 그 이전 기록은 옛 시트에서 옮겨온
