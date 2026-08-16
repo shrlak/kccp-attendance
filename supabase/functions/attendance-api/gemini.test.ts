@@ -12,6 +12,8 @@ import {
   CARD_SCHEMA,
   CARDS_SCHEMA,
   cardModelChain,
+  hasGen3Options,
+  isGen3Model,
   parseCardResponse,
   parseGeminiCards,
   parseOpenRouterCards,
@@ -28,6 +30,52 @@ Deno.test("buildGeminiBody: image part first, prompt second, structured-output c
   // A list of cards, so one photo of a stack yields every card on it.
   assertEquals(b.generationConfig.responseSchema, CARDS_SCHEMA);
   assertEquals(CARDS_SCHEMA.items, CARD_SCHEMA);
+});
+
+Deno.test("buildGeminiBody: Gemini 3 drops temperature and turns the image up", () => {
+  const cfg = buildGeminiBody("QUJD", "image/jpeg", undefined, "gemini-3.6-flash").generationConfig;
+  // 여러 장이 한 프레임에 들어온 사진에서 손글씨가 뭉개지지 않게.
+  assertEquals(cfg.media_resolution, "MEDIA_RESOLUTION_HIGH");
+  // 20초 예산 안에 답이 오도록.
+  assertEquals(cfg.thinking_level, "low");
+  // temperature/top_p/top_k는 이 세대에서 물러났다 — 보내지 않는다.
+  assertEquals("temperature" in cfg, false);
+  assertEquals(cfg.responseSchema, CARDS_SCHEMA);
+
+  // plain: 그 두 다이얼을 모르는 배포가 400을 줄 때 한 번 더 두드리는 몸통.
+  const plain = buildGeminiBody("QUJD", "image/jpeg", undefined, "gemini-3.6-flash", true).generationConfig;
+  assertEquals("media_resolution" in plain, false);
+  assertEquals("thinking_level" in plain, false);
+  assertEquals("temperature" in plain, false);
+  assertEquals(plain.responseSchema, CARDS_SCHEMA);
+
+  // 2.x는 그대로 temperature 0.
+  const gen2 = buildGeminiBody("QUJD", "image/jpeg", undefined, "gemini-2.5-flash").generationConfig;
+  assertEquals(gen2.temperature, 0);
+  assertEquals("thinking_level" in gen2, false);
+});
+
+Deno.test("isGen3Model/hasGen3Options: the generation number decides, OpenRouter never", () => {
+  assertEquals(isGen3Model("gemini-3.6-flash"), true);
+  assertEquals(isGen3Model("gemini-3.5-flash-lite"), true);
+  assertEquals(isGen3Model("gemini-4.0-flash"), true);
+  assertEquals(isGen3Model("gemini-2.5-flash"), false);
+  assertEquals(isGen3Model("gemini-2.0-flash-lite"), false);
+  assertEquals(isGen3Model("google/gemma-3-27b-it:free"), false);
+  assertEquals(hasGen3Options(cardModelChain("gemini-3.6-flash")[0]), true);
+  assertEquals(hasGen3Options(cardModelChain("gemini-2.5-flash")[0]), false);
+  // A "vendor/model" id is OpenRouter's, which has neither knob.
+  assertEquals(hasGen3Options(cardModelChain("vendor/gemini-3-vl:free")[0]), false);
+});
+
+Deno.test("한 사진 여러 장: the prompt makes the array length the card count", () => {
+  // 배열 길이 = 장수. 이 두 문장이 없으면 모델이 겹쳐 놓은 카드를 한 장으로 합친다.
+  assertEquals(CARD_PROMPT.includes("배열의 길이를 그 장수와 똑같이"), true);
+  assertEquals(CARD_PROMPT.includes("한 장을 두 개의 객체로 쪼개지 말고, 두 장을 한 객체에 합치지도 마세요."), true);
+  // 동행가족은 카드가 아니다 — 장년부 카드 한 장이 네 명으로 불어나지 않도록.
+  assertEquals(CARD_PROMPT.includes("동행가족은 카드가 아닙니다"), true);
+  // 같은 규칙이 스키마 없는 모델(OpenRouter)에도 그대로 간다.
+  assertEquals(CARD_PROMPT_FREEFORM.includes("배열의 길이를 그 장수와 똑같이"), true);
 });
 
 Deno.test("심방 요청: an unmarked O/X box must read as null, never false", () => {
@@ -70,6 +118,20 @@ Deno.test("parseGeminiCards: returns every card the photo contained, in order", 
   assertEquals(parseGeminiCards(respond(JSON.stringify(cards))), cards);
 });
 
+Deno.test("parseGeminiCards: a thought part is not part of the answer", () => {
+  const resp = {
+    candidates: [{
+      content: {
+        parts: [
+          { text: "카드 두 장이 보입니다. 왼쪽부터 읽겠습니다.", thought: true },
+          { text: '[{"name":"김철수"},{"name":"이영희"}]' },
+        ],
+      },
+    }],
+  };
+  assertEquals(parseGeminiCards(resp), [{ name: "김철수" }, { name: "이영희" }]);
+});
+
 Deno.test("parseGeminiCards: a bare object is read as a one-card list", () => {
   const card = { name: "김철수", gender: "남" };
   assertEquals(parseGeminiCards(respond(JSON.stringify(card))), [card]);
@@ -105,8 +167,12 @@ Deno.test("CARD_MODELS: unique ids, all free-tier providers we have plumbing for
     // OpenRouter's free pool is the `:free` suffix — a paid id here would bill the key.
     if (m.provider === "openrouter") assertEquals(m.model.endsWith(":free"), true);
   }
-  // Gemini 2.5 Flash stays first: structured output makes it the reliable default.
-  assertEquals(CARD_MODELS[0].id, "gemini-2.5-flash");
+  // Gemini 3.6 Flash leads: free tier, structured output, and the generation that can
+  // actually read handwriting when a photo holds several cards at once.
+  assertEquals(CARD_MODELS[0].id, "gemini-3.6-flash");
+  // The 2.x line stays below it — a bad day on the new model is a slower read, not a
+  // failed one — and it must still be inside the attempt window (4).
+  assertEquals(CARD_MODELS.slice(0, 4).some((m) => m.id === "gemini-2.5-flash"), true);
 });
 
 Deno.test("cardModelChain: defaults to the full list, CARD_MODEL_CHAIN overrides it", () => {
@@ -141,7 +207,14 @@ Deno.test("buildCardRequest: Google gets generateContent + schema, OpenRouter a 
   const google = buildCardRequest(cardModelChain("gemini-2.0-flash")[0], "QUJD", "image/jpeg", "gk");
   assertEquals(google.url.includes("/models/gemini-2.0-flash:generateContent"), true);
   assertEquals(google.headers["x-goog-api-key"], "gk");
-  assertEquals(google.body, buildGeminiBody("QUJD", "image/jpeg"));
+  assertEquals(google.body, buildGeminiBody("QUJD", "image/jpeg", undefined, "gemini-2.0-flash"));
+
+  // The chain head carries its generation's config, and `plain` is the retry body.
+  const gen3 = buildCardRequest(cardModelChain("gemini-3.6-flash")[0], "QUJD", "image/jpeg", "gk");
+  assertEquals(gen3.url.includes("/models/gemini-3.6-flash:generateContent"), true);
+  assertEquals(gen3.body, buildGeminiBody("QUJD", "image/jpeg", undefined, "gemini-3.6-flash"));
+  const retry = buildCardRequest(cardModelChain("gemini-3.6-flash")[0], "QUJD", "image/jpeg", "gk", undefined, true);
+  assertEquals(retry.body, buildGeminiBody("QUJD", "image/jpeg", undefined, "gemini-3.6-flash", true));
 
   const or = buildCardRequest(cardModelChain("qwen2.5-vl-72b")[0], "QUJD", "image/jpeg", "ok");
   assertEquals(or.url, "https://openrouter.ai/api/v1/chat/completions");
