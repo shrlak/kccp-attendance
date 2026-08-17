@@ -17,6 +17,7 @@ import { Button } from '../../components/ui/Button'
 import { Download, ChevronRight } from '../../components/ui/Icon'
 import { useToast } from '../../components/ui/Toast'
 import { prefetchExcel } from '../../app/prefetch'
+import { copyToClipboard } from '../../lib/clipboard'
 import { useAppConfig, usePartition } from '../../lib/useAppConfig'
 
 // Export control for the Sheet tab. Offers Excel (.xlsx), KakaoTalk clipboard summary,
@@ -150,30 +151,4 @@ function ExportRow({
       <ChevronRight size={17} strokeWidth={2.25} className="shrink-0 text-subtle" aria-hidden />
     </button>
   )
-}
-
-// Clipboard write with an execCommand fallback for older / insecure contexts.
-async function copyToClipboard(text: string): Promise<boolean> {
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text)
-      return true
-    }
-  } catch {
-    // fall through to the legacy path
-  }
-  try {
-    const ta = document.createElement('textarea')
-    ta.value = text
-    ta.style.position = 'fixed'
-    ta.style.opacity = '0'
-    document.body.appendChild(ta)
-    ta.focus()
-    ta.select()
-    const ok = document.execCommand('copy')
-    document.body.removeChild(ta)
-    return ok
-  } catch {
-    return false
-  }
 }

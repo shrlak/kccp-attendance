@@ -23,6 +23,7 @@
     "chart.js": "^4.5.1",
     "i18next": "^26.3.1",
     "lucide-react": "^1.17.0",
+    "qrcode-generator": "^2.0.4",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-i18next": "^17.0.8",

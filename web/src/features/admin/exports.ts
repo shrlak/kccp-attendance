@@ -3,6 +3,7 @@ import type { CalendarLike } from '../../lib/semester'
 import { buildGrid } from './sheet'
 import { semesterBounds, semesterKey, semesterSundays, transitionBounds, transitionSundays, isActiveNewFamily } from './newFamily'
 import { splitAffiliation } from './newFamilyCard'
+import { classifyKakaoId } from './contactQr'
 import { awayForRange, noteOn } from '../../lib/status'
 import { seasonLabel, unitTerms, usesSemesters, type Partition } from '../../lib/partition'
 
@@ -482,7 +483,7 @@ export function logRows(members: Member[], log: LogEntry[], lang: Lang, partitio
 // 새가족 시트의 머리줄. '동산 참여' 칸만 부서에 따라 '셀 참여'가 된다.
 export function newFamilyHeader(partition: Partition = 'youth'): string[] {
   return [
-    '이름', '등록일', '성별', '생년월일', '전화번호', '이메일',
+    '이름', '등록일', '성별', '생년월일', '전화번호', '카톡 ID', '이메일',
     '학교/직장, 학과', '세례', '주소/동네', `${unitTerms(partition, 'ko').unit} 참여`, '목사님 심방', '노트',
   ]
 }
@@ -495,17 +496,22 @@ function excelDate(iso: string | null | undefined): Date | '' {
   return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
 }
 
-// One 새가족's row across the export's 12 columns. 이메일/주소·동네 are always blank — the
-// app doesn't collect either (no such field exists anywhere in the schema/UI). 노트 is
-// the member's free-text `notes` field (the 메모 box in the edit dialog), not `faith_duration`.
+// One 새가족's row across the export's 13 columns. 주소·동네 is always blank — the app
+// doesn't collect it (no such field exists anywhere in the schema/UI). 이메일 is filled only
+// when the 카톡 ID box turns out to hold an email address, which happens often enough on the
+// paper card to be worth carrying (contactQr.ts classifyKakaoId). 노트 is the member's
+// free-text `notes` field (the 메모 box in the edit dialog), not `faith_duration`.
 export function newFamilyRow(m: Member): (string | number | Date)[] {
+  const kakao = classifyKakaoId(m.kakao_id)
   return [
     m.name || '',
     excelDate(m.registration_date),
     m.gender || '',
     excelDate(m.birth_date),
     m.phone || '',
-    '',
+    // 카톡 칸은 적힌 그대로 — 다듬으면 종이와 대조할 수 없게 된다.
+    kakao.kind === 'email' ? '' : kakao.raw,
+    kakao.kind === 'email' ? kakao.value : '',
     splitAffiliation(m.school_or_work || '').detail,
     m.baptism_status || '',
     '',
