@@ -16,10 +16,13 @@ import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
 import { Tag } from '../../components/ui/Tag'
 import { useToast } from '../../components/ui/Toast'
-import { ScanLine, Download, Search, HandHeart, Heart, Calendar, GraduationCap, AlertTriangle } from '../../components/ui/Icon'
+import { ScanLine, Download, Search, HandHeart, Heart, Calendar, GraduationCap, AlertTriangle, QrCode, Copy } from '../../components/ui/Icon'
 import { prefetchExcel } from '../../app/prefetch'
 import { EditModal, AttendanceModal } from './MemberDialogs'
 import { CardScanDialog } from './CardScanDialog'
+import { KakaoQrDialog } from './KakaoQrDialog'
+import { classifyKakaoId } from './contactQr'
+import { copyToClipboard } from '../../lib/clipboard'
 import { useAppConfig, usePartition } from '../../lib/useAppConfig'
 
 // 새가족 (new-family) tab: registration tracking — current-semester new members grouped
@@ -36,6 +39,7 @@ export function AdminNewFamily() {
   const [attendanceFor, setAttendanceFor] = useState<Member | null>(null)
   const [exportOpen, setExportOpen] = useState(false)
   const [scanOpen, setScanOpen] = useState(false)
+  const [qrOpen, setQrOpen] = useState(false)
 
   if (isLoading) return (
     <div className="fx-fade grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
@@ -91,6 +95,12 @@ export function AdminNewFamily() {
           </span>
         )}
         <div className="ml-auto flex gap-2">
+          {/* 카톡 추가 — 고른 새가족을 연락처 QR로 늘어놓는다 (KakaoQrDialog 머리말 참고).
+              읽기 전용인 목사님에게도 보인다: 연락처를 받아 가는 것은 명단을 바꾸지 않는다. */}
+          <Button variant="secondary" size="sm" onClick={() => setQrOpen(true)}>
+            <QrCode className="size-4" aria-hidden />
+            {t('admin.kakaoQr.action')}
+          </Button>
           {!readOnly && (
             <Button variant="secondary" size="sm" onClick={() => setScanOpen(true)}>
               <ScanLine className="size-4" aria-hidden />
@@ -197,6 +207,7 @@ export function AdminNewFamily() {
 
       {exportOpen && <ExportModal members={allNewFamily} today={today} onClose={() => setExportOpen(false)} />}
       {scanOpen && <CardScanDialog open onClose={() => setScanOpen(false)} />}
+      {qrOpen && <KakaoQrDialog members={allNewFamily} today={today} onClose={() => setQrOpen(false)} />}
 
       {editing && (
         <EditModal
@@ -231,8 +242,8 @@ async function exportNewFamilyExcel(members: Member[], today: string, partition:
     fill: { patternType: 'solid', fgColor: { rgb: 'FF6FA8DC' } },
     alignment: { horizontal: 'center' },
   }
-  // 이름 / 등록일 / 성별 / 생년월일 / 전화번호 / 이메일 / 학교·직장 / 세례 / 주소·동네 / 동산 참여 / 목사님 심방 / 노트
-  const colWidths = [14, 11, 7, 11, 14, 26, 22, 11, 16, 11, 11, 22].map((wch) => ({ wch }))
+  // 이름 / 등록일 / 성별 / 생년월일 / 전화번호 / 카톡 ID / 이메일 / 학교·직장 / 세례 / 주소·동네 / 동산 참여 / 목사님 심방 / 노트
+  const colWidths = [14, 11, 7, 11, 14, 18, 26, 22, 11, 16, 11, 11, 22].map((wch) => ({ wch }))
   for (const { name, aoa } of newFamilySheets(members, partition)) {
     const ws = XLSX.utils.aoa_to_sheet(aoa)
     for (let c = 0; c < newFamilyHeader(partition).length; c++) {
@@ -278,7 +289,7 @@ function ExportModal({ members, today, onClose }: { members: Member[]; today: st
     setBusy('cardsCopy')
     try {
       const { copied } = await copyNewFamilyCards(list)
-      toast({ title: t(copied ? 'admin.mergedCopy.cardsDone' : 'admin.mergedCopy.failed'), tone: copied ? 'ok' : 'err' })
+      toast({ title: t(copied ? 'admin.mergedCopy.cardsDone' : 'admin.kakaoQr.copyFailed'), tone: copied ? 'ok' : 'err' })
     } catch {
       toast({ title: t('admin.newfamily.export.cardsSaveFailed'), tone: 'err' })
     }
@@ -396,6 +407,10 @@ function ExportModal({ members, today, onClose }: { members: Member[]; today: st
 
 function NewFamilyCard({ member, onOpen }: { member: Member; onOpen: () => void }) {
   const { t } = useTranslation()
+  const toast = useToast()
+  // 카톡 아이디는 여태 이 화면에 나오지 않았다 — 보려면 사람마다 편집 창을 열어야 했고,
+  // 그러면서 손으로 옮겨 적었다. 탭 한 번으로 복사되면 그 왕복이 사라진다.
+  const kakao = classifyKakaoId(member.kakao_id)
 
   return (
     <li className="rounded-2xl border border-border bg-surface p-3.5 shadow-[var(--shadow-sm)] transition-[box-shadow,transform] duration-200 [transition-timing-function:var(--ease-out-soft)] hover:-translate-y-0.5 hover:shadow-[var(--shadow)]">
@@ -428,6 +443,21 @@ function NewFamilyCard({ member, onOpen }: { member: Member; onOpen: () => void 
           </div>
         )}
       </button>
+      {/* 카드를 여는 버튼 밖에 둔다 — 안에 넣으면 복사 탭이 편집 창까지 같이 연다.
+          고정폭 글꼴은 장식이 아니다: 아이디는 사전이 없어 l/I/1, O/0을 눈으로만 갈라야 한다. */}
+      {kakao.kind !== 'none' && (
+        <button
+          type="button"
+          onClick={() => void copyToClipboard(kakao.raw).then((ok) =>
+            toast({ title: t(ok ? 'admin.kakaoQr.idCopied' : 'admin.kakaoQr.copyFailed'), tone: ok ? 'ok' : 'err' }),
+          )}
+          className="mt-1.5 flex w-full items-center gap-1 rounded-lg bg-fill px-1.5 py-1 font-mono text-[11px] text-muted transition-colors hover:bg-fill-hover hover:text-text"
+          title={t('admin.kakaoQr.copyOne')}
+        >
+          <Copy className="size-3 shrink-0 text-subtle" aria-hidden />
+          <span className="truncate">{kakao.raw}</span>
+        </button>
+      )}
     </li>
   )
 }
