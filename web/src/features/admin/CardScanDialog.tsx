@@ -21,8 +21,10 @@ import { NewFamilyCardForm } from './NewFamilyCardForm'
 import { AdultCardForm } from './AdultCardForm'
 import { blankAdultCard, type AdultCardValue } from './adultCard'
 import { adultPayload } from './adultRegistration'
-import type { Partition } from '../../lib/partition'
+import { groupsOfPartition, type Partition } from '../../lib/partition'
+import { useAdminAuth } from '../../stores/useAdminAuth'
 import { blankCardForm, groupForAffiliation, joinAffiliation, type CardFormValue } from './newFamilyCard'
+import { UNNAMED_CARD_NAME, cardMemberName } from './cardRegistration'
 import { usePartition } from '../../lib/useAppConfig'
 import { normalizeScannedCards, type ScannedCard } from './cardExtraction'
 import { fileToCardImage } from './cardPhoto'
@@ -34,6 +36,10 @@ import { refreshRoster, broadcastAttendanceChange } from '../../lib/live'
 // taps 등록. Registration goes through the same endpoint as the kiosk 새가족 등록, with
 // an optional "오늘 출석 체크" (unchecked → skipCheckin, e.g. entering a stack of cards
 // later in the week).
+// **빈 칸은 등록을 막지 않는다** (두 부 모두): 종이는 사람이 손으로 채우는 것이라 이름이 안
+// 읽히거나 소속 네모가 안 찍힌 카드가 늘 있고, 그때 등록을 거절하면 그 사람은 어디에도 남지
+// 않는다 — 빈 칸은 나중에 멤버 탭에서 채운다. 우리가 대신 채운 칸(이름 자리표·기본 부서)은
+// 등록 버튼 위에 적어 준다. 규칙은 cardRegistration.ts.
 // Two dimensions of batching, both walked one card at a time (extract → review →
 // 등록/건너뛰기 → next): several photos can be picked at once, and a single photo can
 // hold several cards (a stack laid out on the table) — every card in it is recognized
@@ -212,28 +218,40 @@ export function CardScanDialog({
     else nextPhoto(queue, index)
   }
 
+  // 인식한 카드는 빈 칸이 있어도 등록된다 (cardRegistration.ts) — 종이의 빈 칸 때문에
+  // 사람이 명단에 없는 것보다, 우리가 채운 칸을 적어 두고 등록하는 편이 낫다. 무엇을
+  // 대신 채웠는지는 등록 버튼 위에 그대로 보여준다.
+  const autoName = !(isAdultCard ? adultCard.name : card.name).trim()
+  // 소속이 곧 부서인데(대학생 → 대학부, 나머지 → 청년부) 아무 네모도 안 찍힌 카드가 있다.
+  // 그때 넣을 부서: **적는 사람이 한 부서에 묶여 있으면 그 부서**다 (리더). 서버는 자기
+  // 부서 밖으로의 등록을 막으므로(inScopeGroup), 여기서 늘 청년부로 떨어뜨리면 대학부
+  // 리더가 소속 없는 카드를 등록할 때 403이 나고 — 빈 칸 때문에 등록이 막히는 일이 그대로
+  // 남는다. super_admin·공유 링크는 부서가 비어 있으므로 예전 규칙(청년부)으로 간다.
+  const scopedGroup = useAdminAuth((s) => s.identity?.group ?? '')
+  const fallbackGroup = groupsOfPartition(partition).includes(scopedGroup)
+    ? scopedGroup
+    : groupForAffiliation('', partition)
+  // 장년부 카드에는 소속을 묻는 칸이 없다 — 고를 부서가 하나뿐이므로.
+  const guessedGroup = !isAdultCard && !card.affiliationCategory.trim() ? fallbackGroup : ''
+
   async function submit() {
-    if (!(isAdultCard ? adultCard.name : card.name).trim()) {
-      toast({ title: t('kiosk.newMember.nameRequired'), tone: 'warn' })
-      return
-    }
-    // 소속 decides the 부서, so an unticked card can't be filed anywhere.
-    // 장년부 카드에는 그 물음이 없다 — 고를 부서가 하나뿐이므로.
-    if (!isAdultCard && !card.affiliationCategory) {
-      toast({ title: t('kiosk.newMember.affiliationRequired'), tone: 'warn' })
-      return
-    }
     setBusy(true)
     try {
+      // 이름 칸이 비어 있어도 멈추지 않는다 — 자리표를 만들어 등록한다.
+      const name = cardMemberName(isAdultCard ? adultCard.name : card.name)
       const payload: NewMemberFields = isAdultCard ? {
         ...adultPayload(adultCard),
+        name,
         skipCheckin: !checkinToday,
         // 로그인 없이 도는 링크는 서버가 신원에서 부를 알아낼 수 없으므로 직접 말해 준다.
         ...(publicMode ? { partition: 'adult' as const } : {}),
       } : {
-        name: card.name.trim(),
+        name,
         // Same mapping as the kiosk 새가족 등록: 부서 from 소속, 동산 assigned later.
-        group: groupForAffiliation(card.affiliationCategory, partition),
+        // 소속이 비었으면 위에서 정한 기본 부서 — 등록을 멈추지 않는다.
+        group: card.affiliationCategory.trim()
+          ? groupForAffiliation(card.affiliationCategory, partition)
+          : fallbackGroup,
         subgroup: '',
         gender: card.gender,
         phone: card.phone.trim(),
@@ -349,6 +367,14 @@ export function CardScanDialog({
               <NewFamilyCardForm value={card} onChange={patchCard} />
             )}
           </div>
+          {/* 빈 칸 때문에 등록이 막히지는 않지만, 우리가 대신 채운 값은 등록을 누르기 전에
+              읽을 수 있어야 한다 — 조용히 지어낸 이름·부서는 나중에 아무도 못 찾는다. */}
+          {(autoName || guessedGroup) && (
+            <ul className="mt-4 flex flex-col gap-1 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-[11px] leading-5 text-warning">
+              {autoName && <li>{t('admin.newfamily.scan.autoName', { name: UNNAMED_CARD_NAME })}</li>}
+              {guessedGroup && <li>{t('admin.newfamily.scan.autoGroup', { group: guessedGroup })}</li>}
+            </ul>
+          )}
           <div className="mt-4 inset-list">
             <label className="inset-row min-h-12 cursor-pointer justify-between gap-3">
               <span className="flex items-center gap-2 text-sm font-medium text-text">

@@ -118,6 +118,22 @@ live** at https://shrlak.github.io/kccp-attendance/.
   member with the same name + 부서 (and no conflicting phone/생년월일) and update it with the newer
   values instead of inserting a second row — device and attendance history carry over, 등록일자 keeps
   the earlier date so the sheet doesn't blank out past Sundays. Audited as `new-member-merge`.
+- **카드 인식은 빈 칸이 있어도 등록한다 — 두 부 모두** (`features/admin/cardRegistration.ts`).
+  종이는 사람이 손으로 채우는 것이라 이름이 안 읽히거나 소속 네모가 안 찍힌 카드가 늘 있는데,
+  그때 `CardScanDialog`가 등록을 거절하면 그 사람은 어디에도 남지 않고 종이는 곧 사라진다 —
+  빈 칸은 나중에 멤버 탭에서 언제든 채운다. 그래서 예전의 두 관문(이름 필수 · 소속 필수)을
+  없애고 대신 **우리가 채운 칸을 등록 버튼 위에 적어 준다** (조용히 지어낸 값은 나중에 아무도
+  못 찾는다). 채우는 규칙 둘:
+  - **이름이 비면 `이름 미기재 08-17 14:23:05`** (Eastern, 초까지). 이름은 이 시스템의 신원이라
+    (출석부·키오스크·시트 연동이 이름으로 사람을 찾는다) 빈 이름을 넣을 수 없고, **시각이
+    붙는 이유는 유일성**이다 — 서버의 중복 병합은 이름+부서로 찾으므로 자리표가 같으면 연락처
+    없는 빈 카드 두 장이 한 줄로 합쳐진다 (등록을 막지 않으려던 것이 사람을 잃는 것으로
+    돌아온다). 화면 언어와 무관하게 한글 하나로 둔다 — 저장되는 것은 UI 문구가 아니다.
+  - **소속이 비면 부서는 `적는 사람의 부서 → 청년부`** 순. 리더는 자기 부서 밖으로 등록할 수
+    없으므로(서버 `inScopeGroup`) 늘 청년부로 떨어뜨리면 대학부 리더에게는 403이 되고, 빈 칸
+    때문에 등록이 막히는 일이 그대로 남는다. 장년부 카드에는 그 물음 자체가 없다.
+  서버(`name and group required`)는 그대로 둔다 — 화면이 언제나 둘을 채워 보내므로 이 길에서는
+  걸리지 않고, 다른 경로가 실수로 빈 이름을 보내는 것은 계속 막아야 하기 때문.
 - **멤버 삭제는 출석 기록을 지우지 않는다**: 단일 `/api/admin/member/delete`와 다중
   `/api/admin/members/delete` 모두 `members` 행만 지운다. 연결 기기·권한은 CASCADE로 없어지고,
   `attendance_log.member_id`는 `ON DELETE SET NULL`이 되지만 이름·날짜·당시 부서/동산이 담긴

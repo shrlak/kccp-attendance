@@ -39,7 +39,7 @@ function renderDialog(onClose = vi.fn(), initialFiles?: File[]) {
   return onClose
 }
 
-// One photo → every card read out of it. Registration only needs 이름 + 소속.
+// One photo → every card read out of it. 빈 칸이 있어도 등록은 막히지 않는다.
 const cardsJson = (...names: string[]) => ({
   status: 'ok',
   cards: names.map((name) => ({ name, affiliationCategory: '대학생', affiliationDetail: 'Pitt' })),
@@ -214,6 +214,111 @@ describe('CardScanDialog — multi-card batch', () => {
     await userEvent.upload(screen.getByLabelText('카드 사진 선택'), file('a.jpg'))
 
     expect(await screen.findByLabelText('이름')).toHaveValue('김새가')
+  })
+})
+
+// 종이 카드는 사람이 손으로 채우는 것이라 빈 칸이 늘 있다. 인식한 카드는 어느 칸이 비어
+// 있어도 등록되고, 우리가 대신 채운 값은 등록 전에 화면에 적힌다.
+describe('CardScanDialog — 다 안 적힌 카드', () => {
+  it('이름도 소속도 없는 카드를 자리표 이름 + 기본 부서로 등록한다', async () => {
+    const { extractCard, kioskNewMember } = await import('../../lib/api')
+    ;(extractCard as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      status: 'ok',
+      // 전화만 읽힌 카드 — 이름 칸도, 소속 네모도 비어 있다.
+      cards: [{ phone: '412-555-0199' }],
+      model: 'Gemini 3.6 Flash',
+      usage: cardsJson().usage,
+    })
+    ;(kioskNewMember as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ok', memberId: 'm1' })
+    const onClose = renderDialog()
+
+    await userEvent.upload(screen.getByLabelText('카드 사진 선택'), file('a.jpg'))
+
+    expect(await screen.findByLabelText('이름')).toHaveValue('')
+    // 무엇을 대신 채우는지 등록 전에 보인다.
+    expect(screen.getByText(/이름이 비어 있어/)).toBeInTheDocument()
+    expect(screen.getByText(/소속이 비어 있어 청년부로 등록됩니다/)).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: '등록' }))
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled())
+    expect(kioskNewMember).toHaveBeenCalledTimes(1)
+    const payload = (kioskNewMember as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(payload.name).toMatch(/^이름 미기재 \d\d-\d\d \d\d:\d\d:\d\d$/)
+    expect(payload.group).toBe('청년부')
+    expect(payload.phone).toBe('(412) 555-0199')
+  })
+
+  it('이름은 있고 소속만 빈 카드는 이름을 그대로 쓴다', async () => {
+    const { extractCard, kioskNewMember } = await import('../../lib/api')
+    ;(extractCard as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      status: 'ok',
+      cards: [{ name: '김새가' }],
+      model: 'Gemini 3.6 Flash',
+      usage: cardsJson().usage,
+    })
+    ;(kioskNewMember as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ok', memberId: 'm1' })
+    renderDialog()
+
+    await userEvent.upload(screen.getByLabelText('카드 사진 선택'), file('a.jpg'))
+    await screen.findByLabelText('이름')
+
+    expect(screen.queryByText(/이름이 비어 있어/)).not.toBeInTheDocument()
+    expect(screen.getByText(/소속이 비어 있어 청년부로 등록됩니다/)).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: '등록' }))
+
+    await waitFor(() => expect(kioskNewMember).toHaveBeenCalledTimes(1))
+    expect((kioskNewMember as ReturnType<typeof vi.fn>).mock.calls[0][0]).toMatchObject({
+      name: '김새가',
+      group: '청년부',
+    })
+  })
+
+  it('한 부서만 맡은 리더는 소속이 빈 카드를 자기 부서로 넣는다', async () => {
+    // 서버는 자기 부서 밖으로의 등록을 막는다 (inScopeGroup). 소속 없는 카드를 늘 청년부로
+    // 떨어뜨리면 대학부 리더에게는 403이 되고, 빈 칸 때문에 등록이 막히는 일이 그대로 남는다.
+    const { useAdminAuth } = await import('../../stores/useAdminAuth')
+    useAdminAuth.setState({
+      status: 'authed',
+      identity: { role: 'leader', group: '대학부', subgroup: '호연선규', ministry: '' },
+    })
+    const { extractCard, kioskNewMember } = await import('../../lib/api')
+    ;(extractCard as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      status: 'ok',
+      cards: [{ name: '김새가' }],
+      model: 'Gemini 3.6 Flash',
+      usage: cardsJson().usage,
+    })
+    ;(kioskNewMember as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ok', memberId: 'm1' })
+    try {
+      renderDialog()
+
+      await userEvent.upload(screen.getByLabelText('카드 사진 선택'), file('a.jpg'))
+      await screen.findByLabelText('이름')
+      expect(screen.getByText(/소속이 비어 있어 대학부로 등록됩니다/)).toBeInTheDocument()
+
+      await userEvent.click(screen.getByRole('button', { name: '등록' }))
+
+      await waitFor(() => expect(kioskNewMember).toHaveBeenCalledTimes(1))
+      expect((kioskNewMember as ReturnType<typeof vi.fn>).mock.calls[0][0]).toMatchObject({
+        name: '김새가',
+        group: '대학부',
+      })
+    } finally {
+      useAdminAuth.setState({ status: 'idle', identity: null })
+    }
+  })
+
+  it('소속이 찍힌 카드에는 안내가 나오지 않는다', async () => {
+    const { extractCard } = await import('../../lib/api')
+    ;(extractCard as ReturnType<typeof vi.fn>).mockResolvedValueOnce(cardJson('김새가'))
+    renderDialog()
+
+    await userEvent.upload(screen.getByLabelText('카드 사진 선택'), file('a.jpg'))
+    await screen.findByLabelText('이름')
+
+    expect(screen.queryByText(/비어 있어/)).not.toBeInTheDocument()
   })
 })
 
