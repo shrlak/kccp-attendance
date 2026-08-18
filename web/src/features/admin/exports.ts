@@ -577,7 +577,9 @@ export function newFamilySheets(members: Member[]): NewFamilySheet[] {
   const header = newFamilyHeader()
   return order.map((name) => {
     const rows = [...byGroup.get(name)!].sort(byRegistrationDate)
-    const fills = header.map((_, c) => ({ r: 0, c, rgb: NEW_FAMILY_FILL.header }))
+    // 타입을 적어 준다: NEW_FAMILY_FILL이 `as const`라 그냥 두면 rgb가 그 한 색의 리터럴
+    // 타입으로 좁혀져, 아래에서 성별 색을 밀어 넣을 수 없다.
+    const fills: NewFamilySheet['fills'] = header.map((_, c) => ({ r: 0, c, rgb: NEW_FAMILY_FILL.header }))
     rows.forEach((m, i) => {
       const rgb = genderFill(m.gender)
       if (rgb) fills.push({ r: i + 1, c: GENDER_COL, rgb })
