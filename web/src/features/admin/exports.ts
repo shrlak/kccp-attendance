@@ -475,17 +475,39 @@ export function logRows(members: Member[], log: LogEntry[], lang: Lang, partitio
 }
 
 // ── 새가족 information export (Excel) ────────────────────────────────────────
-// Mirrors the church's legacy 새가족 roster spreadsheet: one row per member, split into
-// one sheet per 부서 (group_name). The DOM/XLSX.writeFile side lives in
-// AdminNewFamily.tsx (as with gridSheet/logRows above); this stays pure so it's
-// unit-testable.
+// 교회가 실제로 쓰는 '대청 새가족 리스트' 스프레드시트를 그대로 옮긴 것 — 같은 열이 같은
+// 순서로, 같은 색으로 나온다. 내보낸 줄을 그 시트에 그대로 이어 붙이는 것이 이 파일의 쓰임
+// 이라, 열이 하나만 어긋나도 사람이 손으로 옮겨 적게 된다. 한 줄에 한 사람, 부서(group_name)
+// 마다 시트 하나. XLSX.writeFile 쪽은 AdminNewFamily.tsx에 있고 여기는 순수 함수로 남는다.
 
-// 새가족 시트의 머리줄. '동산 참여' 칸만 부서에 따라 '셀 참여'가 된다.
-export function newFamilyHeader(partition: Partition = 'youth'): string[] {
+// 시트의 머리줄. 두 부가 같은 모양을 쓴다 — 동산/셀이 나오는 칸이 없어서 부서마다 달라질
+// 것이 없다.
+export function newFamilyHeader(): string[] {
   return [
-    '이름', '등록일', '성별', '생년월일', '전화번호', '카톡 ID', '이메일',
-    '학교/직장, 학과', '세례', '주소/동네', `${unitTerms(partition, 'ko').unit} 참여`, '목사님 심방', '노트',
+    '이름', '등록일', '성별', '생년월일', '전화번호', '이메일/카톡아이디',
+    '학교/직장, 학과', '세례', '목사님 심방', '노트',
   ]
+}
+
+// 시트가 칠해 놓은 색 그대로 (구글 시트 표준 팔레트). SheetJS가 받는 ARGB 문자열이다.
+export const NEW_FAMILY_FILL = {
+  header: 'FF6FA8DC', // 머리줄 파랑
+  male: 'FFCFE2F3', // 성별 '남'
+  female: 'FFF4CCCC', // 성별 '여'
+} as const
+
+// 성별 칸(열 2)의 인덱스 — 색을 칠하는 유일한 본문 칸이다.
+const GENDER_COL = 2
+
+// 성별 칸의 색. 시트가 남/여를 색으로 갈라 놓아 이름을 하나씩 읽지 않아도 눈에 들어온다.
+// 값은 '남'/'여'로 저장되지만 카드에서 온 문자열이 섞일 수 있어 포함 여부로 가른다
+// (newFamilyCard.ts의 동그라미 규칙과 같다). 비어 있으면 칠하지 않는다 — 색이 없는 것이
+// 곧 '안 적혀 있다'는 뜻이다.
+export function genderFill(gender: string | null | undefined): string | null {
+  const g = gender || ''
+  if (g.includes('남')) return NEW_FAMILY_FILL.male
+  if (g.includes('여')) return NEW_FAMILY_FILL.female
+  return null
 }
 
 // ISO "YYYY-MM-DD" -> a local Date (matches how SheetJS serializes date cells) so the
@@ -496,11 +518,15 @@ function excelDate(iso: string | null | undefined): Date | '' {
   return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
 }
 
-// One 새가족's row across the export's 13 columns. 주소·동네 is always blank — the app
-// doesn't collect it (no such field exists anywhere in the schema/UI). 이메일 is filled only
-// when the 카톡 ID box turns out to hold an email address, which happens often enough on the
-// paper card to be worth carrying (contactQr.ts classifyKakaoId). 노트 is the member's
-// free-text `notes` field (the 메모 box in the edit dialog), not `faith_duration`.
+// 한 새가족의 10개 칸. 시트와 다르게 담는 칸이 셋 있어 적어 둔다:
+//  · **이메일/카톡아이디는 한 칸이다** — 시트가 그렇게 적고(`philiplee0421`과
+//    `hakyounglee08@gmail.com`이 같은 열에 있다), 종이 카드의 그 칸에도 아이디·이메일·전화가
+//    섞여 들어오기 때문(contactQr.ts classifyKakaoId). 그래서 갈라 담지 않고 **적힌 그대로**
+//    옮긴다 — 다듬으면 종이와 대조할 수 없다. 칸이 비어 있을 때만 members.email로 메운다.
+//  · **세례 칸은 세례여부 + 신앙기간을 '; '로 잇는다** — 시트가 그렇게 적는다
+//    ("세례; 5년 이상", "유아,입교; 모태신앙"). 신앙기간이 나가는 자리는 여기뿐이다.
+//  · 노트는 메모(notes)다 — 편집 창의 그 칸이지 신앙기간이 아니다.
+// 주소·동네 열은 없앴다: 시트에 없고, 앱은 그 값을 아예 모은 적이 없어 늘 빈 칸이었다.
 export function newFamilyRow(m: Member): (string | number | Date)[] {
   const kakao = classifyKakaoId(m.kakao_id)
   return [
@@ -509,22 +535,33 @@ export function newFamilyRow(m: Member): (string | number | Date)[] {
     m.gender || '',
     excelDate(m.birth_date),
     m.phone || '',
-    // 카톡 칸은 적힌 그대로 — 다듬으면 종이와 대조할 수 없게 된다.
-    kakao.kind === 'email' ? '' : kakao.raw,
-    kakao.kind === 'email' ? kakao.value : '',
+    kakao.raw || m.email || '',
     splitAffiliation(m.school_or_work || '').detail,
-    m.baptism_status || '',
-    '',
-    m.subgroup ? 'O' : 'X',
+    [m.baptism_status, m.faith_duration].map((v) => (v || '').trim()).filter(Boolean).join('; '),
     m.pastoral_visit_requested ? 'O' : 'X',
     m.notes || '',
   ]
 }
 
+// 시트는 등록일 오름차순이다 — 새로 온 사람이 아래에 붙는 명단이라, 내보낸 줄을 맨 아래에
+// 그대로 이어 붙일 수 있다 (탭 화면의 최신순과는 반대 방향). 등록일이 없는 사람은 맨 아래로.
+function byRegistrationDate(a: Member, b: Member): number {
+  const da = a.registration_date || '9999-99-99'
+  const db = b.registration_date || '9999-99-99'
+  return da.localeCompare(db) || a.name.localeCompare(b.name)
+}
+
+export interface NewFamilySheet {
+  name: string
+  aoa: (string | number | Date)[][]
+  /** 칠할 칸들 (머리줄 전체 + 성별 칸). 색만 담고, 굵기·정렬은 쓰는 쪽이 얹는다. */
+  fills: { r: number; c: number; rgb: string }[]
+}
+
 // Split into one sheet per 부서 (group_name), matching the legacy roster's 청년부/대학부
 // tabs — only groups actually present in `members` get a sheet, in first-seen order. A
 // blank/missing group_name falls back to a placeholder name (Excel rejects blank sheet names).
-export function newFamilySheets(members: Member[], partition: Partition = 'youth'): { name: string; aoa: (string | number | Date)[][] }[] {
+export function newFamilySheets(members: Member[]): NewFamilySheet[] {
   const order: string[] = []
   const byGroup = new Map<string, Member[]>()
   for (const m of members) {
@@ -537,10 +574,16 @@ export function newFamilySheets(members: Member[], partition: Partition = 'youth
     }
     bucket.push(m)
   }
-  return order.map((name) => ({
-    name,
-    aoa: [newFamilyHeader(partition), ...byGroup.get(name)!.map(newFamilyRow)],
-  }))
+  const header = newFamilyHeader()
+  return order.map((name) => {
+    const rows = [...byGroup.get(name)!].sort(byRegistrationDate)
+    const fills = header.map((_, c) => ({ r: 0, c, rgb: NEW_FAMILY_FILL.header }))
+    rows.forEach((m, i) => {
+      const rgb = genderFill(m.gender)
+      if (rgb) fills.push({ r: i + 1, c: GENDER_COL, rgb })
+    })
+    return { name, aoa: [header, ...rows.map(newFamilyRow)], fills }
+  })
 }
 
 const WEEKDAYS_EN = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']

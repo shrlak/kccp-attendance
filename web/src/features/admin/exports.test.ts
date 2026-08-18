@@ -17,6 +17,8 @@ import {
   newFamilyHeader,
   newFamilyRow,
   newFamilySheets,
+  genderFill,
+  NEW_FAMILY_FILL,
 } from './exports'
 import { semesterSundays } from './newFamily'
 import type { Member, LogEntry } from '../../lib/api'
@@ -473,7 +475,7 @@ describe('reportHtml', () => {
 })
 
 describe('newFamilyRow', () => {
-  it('maps the 13 template columns from a fully-filled member', () => {
+  it('maps the 10 template columns from a fully-filled member', () => {
     const m: Member = {
       ...member('1', '김철수', '대학부', '1동산'),
       gender: '남',
@@ -482,6 +484,7 @@ describe('newFamilyRow', () => {
       phone: '(412) 555-1234',
       school_or_work: '대학생 · Pitt 컴퓨터공학',
       baptism_status: '세례',
+      faith_duration: '5년 이상',
       pastoral_visit_requested: true,
       kakao_id: 'park47878',
       notes: '카톡 안 함',
@@ -493,11 +496,8 @@ describe('newFamilyRow', () => {
       new Date(2004, 2, 15),
       '(412) 555-1234',
       'park47878',
-      '',
       'Pitt 컴퓨터공학', // 소속 category prefix stripped
-      '세례',
-      '',
-      'O', // subgroup set → 동산 참여
+      '세례; 5년 이상', // 시트와 같이 세례여부 + 신앙기간을 한 칸에
       'O', // pastoral_visit_requested
       '카톡 안 함', // notes (메모), not faith_duration
     ])
@@ -506,39 +506,36 @@ describe('newFamilyRow', () => {
     const row = newFamilyRow(member('2', '이영희', '청년부', ''))
     expect(row[1]).toBe('') // no registration_date
     expect(row[3]).toBe('') // no birth_date
-    expect(row[5]).toBe('') // 카톡 ID — empty box
-    expect(row[6]).toBe('') // 이메일 — only filled from an email in the 카톡 box
-    expect(row[9]).toBe('') // 주소/동네 — not collected
-    expect(row[10]).toBe('X') // no subgroup
-    expect(row[11]).toBe('X') // pastoral_visit_requested falsy
-    expect(row[12]).toBe('') // notes empty
+    expect(row[5]).toBe('') // 이메일/카톡아이디 — empty box
+    expect(row[7]).toBe('') // 세례 — nothing recorded
+    expect(row[8]).toBe('X') // pastoral_visit_requested falsy
+    expect(row[9]).toBe('') // notes empty
   })
-  // 종이 카드의 '카톡 아이디' 칸에는 이메일이 적혀 오는 일이 잦다 (운영 명단에 실제로 있다).
-  // 아이디 칸에 그대로 두면 아이디로 검색해도 나오지 않으므로 이메일 열로 보낸다.
-  it('files an email written in the 카톡 아이디 box into the 이메일 column', () => {
-    const row = newFamilyRow({ ...member('3', '박지우', '청년부', ''), kakao_id: 'charles9901@naver.com' })
-    expect(row[5]).toBe('') // 카톡 ID 열은 비운다 — 아이디가 아니므로
-    expect(row[6]).toBe('charles9901@naver.com')
+  // 세례여부만, 신앙기간만 적힌 카드가 둘 다 흔하다 — 없는 쪽 때문에 '; '가 남으면 안 된다.
+  it('joins 세례여부 and 신앙기간 only when both are there', () => {
+    expect(newFamilyRow({ ...member('3', 'A'), baptism_status: '유아세례, 입교' })[7]).toBe('유아세례, 입교')
+    expect(newFamilyRow({ ...member('4', 'B'), faith_duration: '모태신앙' })[7]).toBe('모태신앙')
   })
-  // 전화번호가 적혀 있을 때는 적힌 그대로 남긴다 — 종이와 대조할 수 있어야 한다.
-  it('keeps a phone number written in the 카톡 아이디 box verbatim', () => {
-    const row = newFamilyRow({ ...member('4', '이준서', '청년부', ''), kakao_id: '010 3220 9178' })
-    expect(row[5]).toBe('010 3220 9178')
-    expect(row[6]).toBe('')
+  // 시트도 아이디와 이메일을 한 칸에 적는다 (philiplee0421 / hakyounglee08@gmail.com이 같은
+  // 열에 있다). 종이 카드의 그 칸을 다듬지 않고 그대로 옮긴다 — 다듬으면 대조할 수 없다.
+  it('carries the 카톡 아이디 box verbatim, whatever was written in it', () => {
+    expect(newFamilyRow({ ...member('5', '박지우'), kakao_id: 'charles9901@naver.com' })[5]).toBe('charles9901@naver.com')
+    expect(newFamilyRow({ ...member('6', '이준서'), kakao_id: '010 3220 9178' })[5]).toBe('010 3220 9178')
+    expect(newFamilyRow({ ...member('7', '최민흥'), kakao_id: 'KSW829207 @Naver' })[5]).toBe('KSW829207 @Naver')
+  })
+  // 칸이 비어 있을 때만 로그인/카드의 이메일로 메운다 — 아이디가 적혀 있으면 그것이 먼저다.
+  it('falls back to the member email only when the 카톡 box is empty', () => {
+    expect(newFamilyRow({ ...member('8', '한소망'), email: 'som@gmail.com' })[5]).toBe('som@gmail.com')
+    expect(newFamilyRow({ ...member('9', '한소망'), kakao_id: 'som0421', email: 'som@gmail.com' })[5]).toBe('som0421')
   })
 })
 
 describe('newFamilySheets', () => {
   it('has the template header, in column order', () => {
     expect(newFamilyHeader()).toEqual([
-      '이름', '등록일', '성별', '생년월일', '전화번호', '카톡 ID', '이메일',
-      '학교/직장, 학과', '세례', '주소/동네', '동산 참여', '목사님 심방', '노트',
+      '이름', '등록일', '성별', '생년월일', '전화번호', '이메일/카톡아이디',
+      '학교/직장, 학과', '세례', '목사님 심방', '노트',
     ])
-  })
-  // 장년부는 하위 단위를 셀이라 부른다 — 그 칸만 바뀌고 나머지 열은 그대로다.
-  it('names the 참여 column after the 부의 unit — 셀 참여 for 장년부', () => {
-    expect(newFamilyHeader('adult')[10]).toBe('셀 참여')
-    expect(newFamilyHeader('adult').length).toBe(newFamilyHeader().length)
   })
   it('splits members into one sheet per 부서, first-seen order', () => {
     const ms = [member('1', 'A', '청년부'), member('2', 'B', '대학부'), member('3', 'C', '청년부')]
@@ -550,6 +547,43 @@ describe('newFamilySheets', () => {
   })
   it('falls back to a placeholder sheet name for a blank group_name', () => {
     expect(newFamilySheets([member('1', 'A', '')])[0].name).toBe('미지정')
+  })
+  // 시트는 등록일 오름차순(새로 온 사람이 아래)이라 내보낸 줄을 그대로 이어 붙일 수 있다.
+  it('sorts each sheet by 등록일, oldest first, undated members last', () => {
+    const dated = (id: string, name: string, date?: string): Member => ({
+      ...member(id, name, '대학부'),
+      registration_date: date ?? null,
+    })
+    const sheets = newFamilySheets([dated('1', 'C', '2026-08-16'), dated('2', 'D'), dated('3', 'A', '2026-05-31')])
+    expect(sheets[0].aoa.map((r) => r[0])).toEqual(['이름', 'A', 'C', 'D'])
+  })
+})
+
+describe('newFamilySheets — 색', () => {
+  const gendered = (id: string, name: string, gender: string): Member => ({ ...member(id, name, '대학부'), gender })
+
+  it('paints the whole header row the template blue', () => {
+    const { fills } = newFamilySheets([gendered('1', 'A', '남')])[0]
+    const header = fills.filter((f) => f.r === 0)
+    expect(header.map((f) => f.c)).toEqual(newFamilyHeader().map((_, c) => c))
+    expect(new Set(header.map((f) => f.rgb))).toEqual(new Set([NEW_FAMILY_FILL.header]))
+  })
+  it('paints the 성별 cell blue for 남 and pink for 여, in row order', () => {
+    const { fills } = newFamilySheets([gendered('1', 'A', '남'), gendered('2', 'B', '여')])[0]
+    expect(fills.filter((f) => f.r > 0)).toEqual([
+      { r: 1, c: 2, rgb: NEW_FAMILY_FILL.male },
+      { r: 2, c: 2, rgb: NEW_FAMILY_FILL.female },
+    ])
+  })
+  // 색이 없는 것이 곧 '성별이 안 적혀 있다'는 뜻 — 빈 칸을 어느 쪽으로도 칠하지 않는다.
+  it('leaves the 성별 cell unpainted when gender is blank', () => {
+    const { fills } = newFamilySheets([gendered('1', 'A', '')])[0]
+    expect(fills.filter((f) => f.r > 0)).toEqual([])
+  })
+  it('reads 남/여 out of a longer string (card text), like the card renderer', () => {
+    expect(genderFill('남자')).toBe(NEW_FAMILY_FILL.male)
+    expect(genderFill('여')).toBe(NEW_FAMILY_FILL.female)
+    expect(genderFill(undefined)).toBeNull()
   })
 })
 

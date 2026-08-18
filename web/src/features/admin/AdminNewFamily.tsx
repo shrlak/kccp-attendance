@@ -10,7 +10,7 @@ import { newFamilySheets, newFamilyHeader } from './exports'
 import { toggleId } from './bulk'
 import { GroupFilter } from './GroupFilter'
 import { configCalendar, type Member } from '../../lib/api'
-import { seasonName, usesSemesters, type Partition, type Season } from '../../lib/partition'
+import { seasonName, usesSemesters, type Season } from '../../lib/partition'
 import { Dialog } from '../../components/ui/Dialog'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
@@ -231,30 +231,35 @@ export function AdminNewFamily() {
   )
 }
 
-// 새가족 정보를 회사의 레거시 로스터 스프레드시트와 같은 모양(부서별 탭, 파란 헤더, 12개
-// 열)으로 내보낸다. XLSX.writeFile이 유일한 DOM 부수효과 — 행/시트 구성은 순수 함수
-// (newFamilySheets, ./exports)에 있다.
-async function exportNewFamilyExcel(members: Member[], today: string, partition: Partition): Promise<void> {
+// 새가족 정보를 교회가 쓰는 '대청 새가족 리스트' 스프레드시트와 같은 모양(부서별 탭, 파란
+// 머리줄, 성별 색칠, 10개 열)으로 내보낸다. XLSX.writeFile이 유일한 DOM 부수효과 — 행·색
+// 구성은 순수 함수 (newFamilySheets, ./exports)에 있다.
+async function exportNewFamilyExcel(members: Member[], today: string): Promise<void> {
   const XLSX = await import('xlsx-js-style')
   const wb = XLSX.utils.book_new()
-  const headerStyle = {
-    font: { name: 'Arial', bold: true },
-    fill: { patternType: 'solid', fgColor: { rgb: 'FF6FA8DC' } },
-    alignment: { horizontal: 'center' },
-  }
-  // 이름 / 등록일 / 성별 / 생년월일 / 전화번호 / 카톡 ID / 이메일 / 학교·직장 / 세례 / 주소·동네 / 동산 참여 / 목사님 심방 / 노트
-  const colWidths = [14, 11, 7, 11, 14, 18, 26, 22, 11, 16, 11, 11, 22].map((wch) => ({ wch }))
-  for (const { name, aoa } of newFamilySheets(members, partition)) {
+  // 이름 / 등록일 / 성별 / 생년월일 / 전화번호 / 이메일·카톡아이디 / 학교·직장 / 세례 / 목사님 심방 / 노트
+  const colWidths = [14, 11, 7, 11, 14, 24, 26, 18, 11, 26].map((wch) => ({ wch }))
+  const cols = newFamilyHeader().length
+  for (const { name, aoa, fills } of newFamilySheets(members)) {
     const ws = XLSX.utils.aoa_to_sheet(aoa)
-    for (let c = 0; c < newFamilyHeader(partition).length; c++) {
-      const addr = XLSX.utils.encode_cell({ r: 0, c })
-      if (ws[addr]) ws[addr].s = headerStyle
+    // 시트는 모든 칸이 가운데 정렬이다. 등록일(열 1)·생년월일(열 3)은 템플릿과 같은 실제
+    // 날짜 셀 — 글자로 내보내면 시트에서 정렬도 계산도 되지 않는다.
+    for (let r = 0; r < aoa.length; r++) {
+      for (let c = 0; c < cols; c++) {
+        const cell = ws[XLSX.utils.encode_cell({ r, c })]
+        if (!cell) continue
+        cell.s = { alignment: { horizontal: 'center', vertical: 'center' } }
+        if ((c === 1 || c === 3) && cell.t === 'n') cell.z = 'm/d/yyyy'
+      }
     }
-    // 등록일(열 1) / 생년월일(열 3) — 템플릿과 같은 실제 날짜 셀.
-    for (let r = 1; r < aoa.length; r++) {
-      for (const c of [1, 3]) {
-        const addr = XLSX.utils.encode_cell({ r, c })
-        if (ws[addr]?.t === 'n') ws[addr].z = 'm/d/yyyy'
+    // 시트와 같은 색 — 머리줄 파랑(굵게), 성별 칸 남 연파랑 / 여 연분홍.
+    for (const f of fills) {
+      const addr = XLSX.utils.encode_cell({ r: f.r, c: f.c })
+      const cell = ws[addr] ?? (ws[addr] = { t: 's', v: '' })
+      cell.s = {
+        ...cell.s,
+        fill: { patternType: 'solid', fgColor: { rgb: f.rgb } },
+        ...(f.r === 0 ? { font: { name: 'Arial', bold: true } } : {}),
       }
     }
     ws['!cols'] = colWidths
@@ -270,8 +275,6 @@ async function exportNewFamilyExcel(members: Member[], today: string, partition:
 function ExportModal({ members, today, onClose }: { members: Member[]; today: string; onClose: () => void }) {
   const { t } = useTranslation()
   const toast = useToast()
-  // 새가족 시트의 '동산 참여' 칸은 장년부에서 '셀 참여'가 된다.
-  const partition = usePartition()
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Set<string>>(
     () => new Set(members.filter((m) => m.registration_date === today).map((m) => m.id)),
@@ -280,7 +283,8 @@ function ExportModal({ members, today, onClose }: { members: Member[]; today: st
 
   const q = search.trim().toLowerCase()
   const visible = q ? members.filter((m) => m.name.toLowerCase().includes(q)) : members
-  // Export in the tab's display order (newest registration date first).
+  // 카드·QR은 탭의 표시 순서(최신 등록 먼저) 그대로 나간다. 엑셀만은 시트에 맞춰
+  // 등록일 오름차순으로 다시 정렬한다 (exports.ts newFamilySheets).
   const chosen = () => members.filter((m) => selected.has(m.id))
 
   async function confirmCopyCards() {
@@ -314,7 +318,7 @@ function ExportModal({ members, today, onClose }: { members: Member[]; today: st
     if (!list.length) return
     setBusy('excel')
     try {
-      await exportNewFamilyExcel(list, today, partition)
+      await exportNewFamilyExcel(list, today)
       toast({ title: t('admin.newfamily.export.excelDone'), tone: 'ok' })
     } catch {
       toast({ title: t('admin.newfamily.export.excelFailed'), tone: 'err' })
