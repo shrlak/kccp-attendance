@@ -1441,32 +1441,6 @@ Deno.serve(async (req: Request) => {
       return ok({status:"ok"});
     }
 
-    // 새가족 교육 동산 names editor — read (super-admin only). A SEPARATE name list from
-    // config.dongsan_names: the temporary 동산 a newcomer is placed in during education,
-    // distinct from their eventual regular 동산. Returns config.new_member_dongsan_names,
-    // falling back to an empty per-부서 map.
-    if(req.method==="GET"&&p==="/api/admin/new-member-dongsan-names") {
-      const role=await auth();
-      if(role?.role!=="super_admin") return fail(403,"Super admin required");
-      const cfg=await getCfg(sb,actingPartition);
-      const blank: Record<string,string[]>={};
-      for(const g of Object.keys(defaultDongsanNames(role.partition))) blank[g]=[];
-      return ok({names:cfg?.new_member_dongsan_names||blank});
-    }
-
-    // 새가족 교육 동산 names editor — write (super-admin only). Same shape as
-    // /api/admin/dongsan-names but a separate column. Audited as a config-change.
-    if(req.method==="POST"&&p==="/api/admin/new-member-dongsan-names") {
-      const role=await auth();
-      if(role?.role!=="super_admin") return fail(403,"Super admin required");
-      const {names}=body;
-      if(!names||typeof names!=="object"||Array.isArray(names)) return fail(400,"names map required");
-      const mine=partitionNames(names,role.partition);
-      await adb.from("config").update({new_member_dongsan_names:mine,updated_at:new Date().toISOString()}).eq("id",1);
-      await addAudit(adb,"config-change",xDev,"새가족 교육 동산 이름 수정",role.partition);
-      return ok({status:"ok"});
-    }
-
     // 카드 사진 등록 (Gemini extract-card) usage for today's Pittsburgh calendar day.
     // The public response deliberately exposes tries left, not tries already used.
     // /api/share/... is the unauthenticated twin of each card endpoint below, used by the
@@ -1798,7 +1772,7 @@ Deno.serve(async (req: Request) => {
       if(!inScope(editScope,m.group_name,m.subgroup)) return fail(403,"Out of scope");
       // 부서를 옮기는 것도 자기 부 안에서만 (장년부 사람을 청년부로 넘길 수 없다).
       if(body.group!==undefined&&!inScopeGroup(editScope,body.group)) return fail(403,"Out of scope");
-      const COLS: Record<string,string>={name:"name",group:"group_name",subgroup:"subgroup",notes:"notes",memberRole:"member_role",gender:"gender",phone:"phone",birthDate:"birth_date",baptismStatus:"baptism_status",schoolOrWork:"school_or_work",faithDuration:"faith_duration",registrationDate:"registration_date",pastoralVisitRequested:"pastoral_visit_requested",isNewMember:"is_new_member",newMemberEduWeek1:"new_member_edu_week1",newMemberEduWeek2:"new_member_edu_week2",newMemberDongsan:"new_member_dongsan",kakaoId:"kakao_id",statusNote:"status_note",statusStart:"status_start",statusEnd:"status_end"};
+      const COLS: Record<string,string>={name:"name",group:"group_name",subgroup:"subgroup",notes:"notes",memberRole:"member_role",gender:"gender",phone:"phone",birthDate:"birth_date",baptismStatus:"baptism_status",schoolOrWork:"school_or_work",faithDuration:"faith_duration",registrationDate:"registration_date",pastoralVisitRequested:"pastoral_visit_requested",isNewMember:"is_new_member",newMemberEduWeek1:"new_member_edu_week1",newMemberEduWeek2:"new_member_edu_week2",kakaoId:"kakao_id",statusNote:"status_note",statusStart:"status_start",statusEnd:"status_end"};
       const DATE_COLS=new Set(["birth_date","registration_date","status_start","status_end","visit_date"]);
       const upd: any={updated_at:new Date().toISOString()};
       for(const [k,col] of Object.entries(COLS)){ if(body[k]!==undefined) upd[col]=DATE_COLS.has(col)?(body[k]||null):body[k]; }

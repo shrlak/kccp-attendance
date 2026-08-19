@@ -39,9 +39,6 @@ type AttendFilter = 'all' | 'today' | 'notToday'
 // the 4-way completion filter (1주차/2주차/둘 다/안 들음), the 오늘 출석 filter, and the
 // per-member 1·2주차 checkboxes. Visible to every admin; pastor is read-only like every
 // other member-editing surface.
-// **새가족 교육 동산은 이 탭에 없다** — 배정 칸도, 그 이름 목록 편집기도, 그것으로 거르는
-// 필터도. 이름 목록은 동산 탭(super_admin)으로 옮겼고, 사람에게 붙이는 일은 멤버 카드의
-// 편집 창이 그대로 맡는다. 이 탭은 교육 진도만 본다.
 export function AdminNewFamilyEdu() {
   const { t } = useTranslation()
   const { data, isLoading, isError } = useRoster(true)

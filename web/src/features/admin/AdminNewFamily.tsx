@@ -27,7 +27,7 @@ import { useAppConfig, usePartition } from '../../lib/useAppConfig'
 
 // 새가족 (new-family) tab: registration tracking — current-semester new members grouped
 // by 등록일, a monthly-registrations roll-up, card-photo registration, and export.
-// Education tracking (1·2주차, 새가족 교육 동산) lives on the dedicated 새가족 교육 tab.
+// Education tracking (1·2주차) lives on the dedicated 새가족 교육 tab.
 // Visible to every admin.
 export function AdminNewFamily() {
   const { t, i18n } = useTranslation()
@@ -419,9 +419,9 @@ function NewFamilyCard({ member, onOpen }: { member: Member; onOpen: () => void 
   return (
     <li className="rounded-2xl border border-border bg-surface p-3.5 shadow-[var(--shadow-sm)] transition-[box-shadow,transform] duration-200 [transition-timing-function:var(--ease-out-soft)] hover:-translate-y-0.5 hover:shadow-[var(--shadow)]">
       {/* Tap the card to open the member's full info/editor (feature parity with 멤버 탭).
-          Education tracking (1·2주차, 새가족 교육 동산) lives on the 새가족 교육 탭 — this
-          card stays focused on registration info, with a read-only glance at their
-          education status. */}
+          Education tracking (1·2주차) lives on the 새가족 교육 탭 — this card stays
+          focused on registration info, with a read-only glance at their education
+          status. */}
       <button type="button" onClick={onOpen} className="block w-full text-left">
         <div className="flex items-center gap-1.5 text-sm font-semibold text-text">
           {member.name}
@@ -430,11 +430,6 @@ function NewFamilyCard({ member, onOpen }: { member: Member; onOpen: () => void 
           )}
         </div>
         <div className="mt-0.5 text-xs text-muted">{[member.group_name, member.subgroup].filter(Boolean).join(' · ') || '—'}</div>
-        {member.new_member_dongsan && (
-          <div className="text-xs text-info">
-            {t('admin.newfamily.eduDongsanTag')} {member.new_member_dongsan}
-          </div>
-        )}
         {member.phone && <div className="text-xs text-subtle">{member.phone}</div>}
         {(member.new_member_edu_week1 || member.new_member_edu_week2) && (
           <div className="mt-1.5 flex gap-1">

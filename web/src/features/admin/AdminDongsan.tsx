@@ -3,8 +3,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   getDongsanNames,
   updateDongsanNames,
-  getNewMemberDongsanNames,
-  updateNewMemberDongsanNames,
   type DongsanNames,
 } from '../../lib/api'
 import { useToast } from '../../components/ui/Toast'
@@ -20,9 +18,6 @@ import { groupsOfPartition, summerAppliesTo, type Partition } from '../../lib/pa
 // 동산 admin tab (super-admin only): edit 동산 names + 동산지기/부동산지기. In summer mode the
 // names editor collapses to ONE combined set of 동산 (no 대학부/청년부 split) which is written
 // to both KM departments, matching how summer mode merges them everywhere else.
-// 새가족 교육 동산 이름도 여기 있다 (아래) — 이름 목록은 다 같은 종류의 설정이고 둘 다
-// super_admin 전용이라, 이름을 고치는 자리는 이 탭 하나로 모은다. 새가족 교육은
-// 대학·청년부의 것이므로 장년부 패널에는 그 묶음이 나오지 않는다.
 export function AdminDongsan() {
   const t = usePartitionT()
   const qc = useQueryClient()
@@ -30,13 +25,6 @@ export function AdminDongsan() {
   const { data: loaded } = useQuery({ queryKey: ['dongsanNames'], queryFn: getDongsanNames })
   const partition = usePartition()
   const summer = !!cfg?.summerMode && summerAppliesTo(partition)
-  // 새가족 교육 동산 — 대학·청년부에만 있는 목록이라 장년부에서는 묻지도 않는다.
-  const showsEduDongsan = partition === 'youth'
-  const { data: eduNames } = useQuery({
-    queryKey: ['newMemberDongsanNames'],
-    queryFn: getNewMemberDongsanNames,
-    enabled: showsEduDongsan,
-  })
 
   if (!loaded) return <p className="text-sm text-muted">{t('common.loading')}</p>
 
@@ -69,28 +57,6 @@ export function AdminDongsan() {
           학기를 따라 저절로 나고 지므로 여름학기 여부도 여기서 넘기지 않는다 — 어느 자리에
           링크가 있는지는 서버가 정하고(시트가 담당하는 부서에는 내지 않는다) 그 결과가
           내려온다. */}
-      {/* 새가족 교육 동산 이름 — 위의 동산과는 다른 목록이다 (새가족 교육 기간 동안만 쓰는
-          임시 편성). 사람에게 붙이는 일은 멤버 편집 창이 맡고, 여기서는 고를 수 있는
-          이름만 정한다. 목록이 아직 안 와도 편집기는 그린다 — 빈 맵을 받으면 부서별 입력
-          줄을 스스로 만든다. */}
-      {showsEduDongsan && (
-        // 이름 한 칸짜리 목록이라 위의 동산 이름과 같은 좁은 폭으로 — 화면을 가로지르는
-        // 입력칸은 읽기도 누르기도 나쁘다.
-        <div className="mt-8 max-w-md border-t border-border pt-8">
-          <DongsanNamesEditor
-            loaded={eduNames ?? {}}
-            summer={summer}
-            partition={partition}
-            title={t('admin.settings.newMemberDongsanNames')}
-            desc={t('admin.settings.newMemberDongsanNamesDesc')}
-            onSave={async (next) => {
-              await updateNewMemberDongsanNames(next)
-              await qc.invalidateQueries({ queryKey: ['newMemberDongsanNames'] })
-            }}
-          />
-        </div>
-      )}
-
       <div className="mt-8 border-t border-border pt-8">
         <DongsanLinksSection partition={partition} />
       </div>
@@ -99,9 +65,7 @@ export function AdminDongsan() {
 }
 
 // A 동산-names list editor (add/rename/remove per 부서, or one combined list in summer
-// mode) — shared by the regular 동산 tab (its own title/desc heading) and the 새가족 교육
-// tab's separate 새가족 교육 동산 names (title/desc omitted there — it's embedded in a
-// Dialog that already supplies its own title).
+// mode), under its own title/desc heading.
 export function DongsanNamesEditor({
   loaded,
   summer,
@@ -114,8 +78,8 @@ export function DongsanNamesEditor({
   summer: boolean
   // 어느 부의 편집기인가 — 저장돼 있는 이름이 하나도 없어도 이 부의 부서 줄은 깔아 둔다.
   partition: Partition
-  title?: string
-  desc?: string
+  title: string
+  desc: string
   onSave: (next: DongsanNames) => Promise<void>
 }) {
   const t = usePartitionT()
@@ -158,15 +122,13 @@ export function DongsanNamesEditor({
 
   return (
     <div>
-      {title && (
-        <div className="flex items-center gap-2.5">
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-success/12 text-success">
-            <Sprout size={18} strokeWidth={2} aria-hidden />
-          </span>
-          <h2 className="font-display text-xl font-bold tracking-tight text-text">{title}</h2>
-        </div>
-      )}
-      {desc && <p className={`text-sm text-muted ${title ? 'mb-4 mt-2' : 'mb-4'}`}>{desc}</p>}
+      <div className="flex items-center gap-2.5">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-success/12 text-success">
+          <Sprout size={18} strokeWidth={2} aria-hidden />
+        </span>
+        <h2 className="font-display text-xl font-bold tracking-tight text-text">{title}</h2>
+      </div>
+      <p className="mb-4 mt-2 text-sm text-muted">{desc}</p>
 
       {empty && (
         <p className="mb-4 rounded-xl border border-dashed border-border px-3 py-2 text-xs text-muted">
