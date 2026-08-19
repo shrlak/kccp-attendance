@@ -2,7 +2,6 @@ import { useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   getDongsanNames,
-  getNewMemberDongsanNames,
   updateMember,
   deleteMember,
   addMemberAttendance,
@@ -75,9 +74,6 @@ export function EditModal({
   const { data: cfg } = useAppConfig()
   const partition = usePartition()
   const { data: dongsanNames } = useQuery({ queryKey: ['dongsanNames'], queryFn: getDongsanNames })
-  // 새가족 교육 동산: a separate, education-only 동산 list (config › 동산 tab has its own
-  // editor for this) — distinct from the member's eventual regular 동산 above.
-  const { data: eduDongsanNames } = useQuery({ queryKey: ['newMemberDongsanNames'], queryFn: getNewMemberDongsanNames })
   // The card carries everything printed on the 새가족 등록 카드; `f` keeps the
   // system-only fields (부서/동산/역할/메모/새가족 flag/상태 표기).
   const [card, setCard] = useState<CardFormValue>(() => cardFormFromMember(member))
@@ -91,7 +87,6 @@ export function EditModal({
     isNewMember: member.is_new_member,
     notes: member.notes,
     statusMarks: statusMarks(member),
-    newMemberDongsan: member.new_member_dongsan ?? '',
   })
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -110,12 +105,6 @@ export function EditModal({
     : [...(dongsanNames?.[f.group ?? ''] ?? [])]
   const currentDongsan = f.subgroup ?? ''
   if (currentDongsan && !dongsanOptions.includes(currentDongsan)) dongsanOptions.push(currentDongsan)
-  // Same pattern for the separate 새가족 교육 동산 list.
-  const eduDongsanOptions = cfg?.summerMode
-    ? summerDongsanList(eduDongsanNames ?? {})
-    : [...(eduDongsanNames?.[f.group ?? ''] ?? [])]
-  const currentEduDongsan = f.newMemberDongsan ?? ''
-  if (currentEduDongsan && !eduDongsanOptions.includes(currentEduDongsan)) eduDongsanOptions.push(currentEduDongsan)
   const patchCard = (patch: Partial<CardFormValue>) => setCard((cur) => ({ ...cur, ...patch }))
   const patchAdultCard = (patch: Partial<AdultCardValue>) => setAdultCard((cur) => ({ ...cur, ...patch }))
 
@@ -355,20 +344,6 @@ export function EditModal({
             ))}
           </Select>
         </Field>
-        {/* 새가족 교육 동산은 대학·청년부의 2주 교육 과정에 딸린 칸이다 — 장년부 패널에는
-            그 탭 자체가 없으므로 이 칸도 두지 않는다. */}
-        {f.isNewMember && partition !== 'adult' && (
-          <Field label={t('admin.members.eduDongsan')}>
-            <Select value={currentEduDongsan} onChange={(e) => set('newMemberDongsan', e.target.value)}>
-              <option value="">—</option>
-              {eduDongsanOptions.map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
-            </Select>
-          </Field>
-        )}
         <Field label={t('admin.members.notes')}>
           <textarea
             value={f.notes ?? ''}

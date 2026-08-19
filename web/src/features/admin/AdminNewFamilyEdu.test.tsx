@@ -17,14 +17,9 @@ vi.mock('./useRoster', async (orig) => ({
   useRoster: () => rosterData,
 }))
 
-// 새가족 교육 동산 이름 목록. 이 탭은 이제 그것을 다루지 않으므로, 이 mock은 **부르지
-// 않는다는 것**을 검증하는 데 쓰인다 (그 목록은 동산 탭이 맡는다).
-const getNewMemberDongsanNames = vi.fn().mockResolvedValue({ 대학부: [], 청년부: [] })
 vi.mock('../../lib/api', async (orig) => ({
   ...(await orig<typeof import('../../lib/api')>()),
   getConfig: vi.fn().mockResolvedValue({ groupColors: {} }),
-  getNewMemberDongsanNames: () => getNewMemberDongsanNames(),
-  updateNewMemberDongsanNames: vi.fn().mockResolvedValue({ status: 'ok' }),
 }))
 
 import { AdminNewFamilyEdu } from './AdminNewFamilyEdu'
@@ -54,20 +49,6 @@ function renderAs(role: string, members: Member[] = [member('m1', '새가족하�
     </QueryClientProvider>,
   )
 }
-
-// 이 탭은 교육 진도만 본다. 배정 칸도, 이름 목록 편집기도, 그것으로 거르는 필터도 없다 —
-// 이름은 동산 탭에서 정하고, 사람에게 붙이는 일은 멤버 편집 창이 맡는다.
-describe('AdminNewFamilyEdu — 새가족 교육 동산은 이 탭에 없다', () => {
-  it('배정 칸도 이름 설정 버튼도 없고, super_admin이어도 그 목록을 묻지 않는다', () => {
-    getNewMemberDongsanNames.mockClear()
-    renderAs('super_admin')
-
-    expect(screen.queryByRole('button', { name: /새가족 교육 동산 이름/ })).not.toBeInTheDocument()
-    expect(screen.queryByLabelText('새가족 교육 동산')).not.toBeInTheDocument()
-    // 목록을 아예 부르지 않는다 — 화면에 쓸 곳이 없으므로.
-    expect(getNewMemberDongsanNames).not.toHaveBeenCalled()
-  })
-})
 
 // 새가족 교육은 주일에 그 자리에 있는 사람과 하는 일이라, "오늘 누가 와 있나"가 먼저다.
 describe('AdminNewFamilyEdu — 오늘 출석으로 가르기', () => {

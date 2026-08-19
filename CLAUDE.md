@@ -418,12 +418,23 @@ live** at https://shrlak.github.io/kccp-attendance/.
   rewrite them. Do not put the model id in commits/PRs/code.
 
 ## Status
+- **새가족 교육 동산은 없앴다** (교육 기간에만 쓰던 임시 동산 배정). 동산이 두 벌이면 "이 사람의
+  동산"이 어느 쪽인지가 화면마다 갈리는데, 실제로 쓰이는 것은 `members.subgroup` 하나였다 —
+  교육용 이름 목록은 동산 탭에서만 정할 수 있었고, 붙인 값이 나가는 곳은 새가족 카드 타일의 작은
+  줄 하나뿐이라 출석부·통계·엑셀·시트 연동 어디에도 들어가지 않았다. 지운 것: 멤버 편집 창의
+  칸, 동산 탭의 이름 목록 편집기, 새가족 카드의 교육동산 줄, `/api/admin/new-member-dongsan-names`
+  두 경로, `MemberEdit.newMemberDongsan`(멤버 수정 COLS에서도 빠져 이제 무시된다), 그 i18n 키들.
+  **DB 컬럼 둘(`members.new_member_dongsan` · `config.new_member_dongsan_names`)은 두 스키마
+  모두 그대로 둔다** — `config.summer_mode`와 같은 처리다. 백업이 `pg_dump --data-only
+  --column-inserts`라 컬럼을 지우면 그 이전 덤프의 INSERT가 전부 깨지고(복원은 그 SQL을 그대로
+  흘려 넣는다), 읽는 코드가 없는 컬럼은 아무 데도 새지 않는다.
+
 **장년부 also runs on this system** (`kccpadults`): the same panel, scoped to its own 부 — 오늘 ·
 출석부 · 멤버 · 통계 · 새가족 · 방문자 · 관리자 · 동산 · 설정 · 키오스크, all of it. **새가족 교육
 is deliberately absent** there (it tracks 대학·청년부's two-week course). Its kiosk draws one 부서
 block instead of two and drops the 부서만 보기 chips (nothing to choose between); its 새가족 카드
 files everyone under 장년부 instead of guessing 대학부/청년부 from 소속; its 설정 탭 has no 여름
-모드 row; and its 멤버 dialog drops the 새가족 교육 동산 field. **그 부서에서 동산은 "셀"이고,
+모드 row. **그 부서에서 동산은 "셀"이고,
 셀 이름은 고정** — 학기가 끝나도 지워지지 않고 셀장·부셀장만 바뀐다. The panel header names the 부 on every screen, because that label is the only visible
 difference between the two.
 

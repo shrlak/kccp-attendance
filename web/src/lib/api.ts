@@ -225,9 +225,6 @@ export interface Member {
   registration_date?: string | null
   new_member_edu_week1?: boolean
   new_member_edu_week2?: boolean
-  // 새가족 교육 동산: a temporary 동산 assignment used only during newcomer education,
-  // separate from the member's eventual regular 동산 (subgroup above).
-  new_member_dongsan?: string
   pastoral_visit_requested?: boolean | null
   // 새가족 등록 카드 fields (stored on members; /api/roster returns them via select *).
   baptism_status?: string
@@ -372,15 +369,6 @@ export const getDongsanNames = () =>
 export const updateDongsanNames = (names: DongsanNames) =>
   api<{ status: string }>('POST', '/api/admin/dongsan-names', { names })
 
-// 새가족 교육 동산 names, keyed by group — a SEPARATE list from getDongsanNames, used only
-// for a newcomer's temporary education-track 동산 (Member.new_member_dongsan). Same shape
-// and summer-mode 합동 behavior as the regular 동산 names.
-export const getNewMemberDongsanNames = () =>
-  api<{ names: DongsanNames }>('GET', '/api/admin/new-member-dongsan-names').then((r) => r.names)
-
-export const updateNewMemberDongsanNames = (names: DongsanNames) =>
-  api<{ status: string }>('POST', '/api/admin/new-member-dongsan-names', { names })
-
 // ── 동산지기 / 부동산지기 display roles ────────────────────────────────────
 // The 동산지기 (leader, 👑) + 부동산지기 (sub-leaders, ⭐) per 동산. This is a display
 // badge system distinct from the `leader` admin role (which controls data scope). The
@@ -500,7 +488,6 @@ export interface MemberEdit {
   registrationDate?: string | null
   newMemberEduWeek1?: boolean
   newMemberEduWeek2?: boolean
-  newMemberDongsan?: string
   // 새가족 등록 카드 fields (the member-update endpoint maps them in its COLS table).
   baptismStatus?: string
   schoolOrWork?: string

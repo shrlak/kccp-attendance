@@ -22,7 +22,6 @@ const PERSIST_KEYS = new Set([
   'config',
   'dongsanLeaders',
   'dongsanNames',
-  'newMemberDongsanNames',
   'adminRoles',
 ])
 
