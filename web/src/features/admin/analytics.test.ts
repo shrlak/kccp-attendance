@@ -167,13 +167,38 @@ describe('newFamilyTrend', () => {
   it('counts 새가족 attendees per date alongside the date total', () => {
     const log = [eid(a, '2026-06-07'), eid(b, '2026-06-07'), eid(old, '2026-06-07'), eid(a, '2026-05-31')]
     expect(newFamilyTrend([a, b, old], log)).toEqual([
-      { date: '2026-05-31', count: 1, total: 1 },
-      { date: '2026-06-07', count: 2, total: 3 },
+      { date: '2026-05-31', count: 1, newFamily: 1, total: 1 },
+      { date: '2026-06-07', count: 2, newFamily: 2, total: 3 },
     ])
   })
   it('falls back to the name for rows with no memberId', () => {
     const log = [e('A', '2026-06-07'), e('기존', '2026-06-07')]
-    expect(newFamilyTrend([a, old], log)).toEqual([{ date: '2026-06-07', count: 1, total: 2 }])
+    expect(newFamilyTrend([a, old], log)).toEqual([{ date: '2026-06-07', count: 1, newFamily: 1, total: 2 }])
+  })
+
+  // 교육 단계로 가르기 — 새가족 교육 탭의 네 갈래와 같은 규칙.
+  const done = nf('이수', '2026-05-31', true)
+  const w1 = { ...nf('1주차', '2026-05-31'), new_member_edu_week1: true }
+  const w2 = { ...nf('2주차', '2026-05-31'), new_member_edu_week2: true }
+  const none = nf('미수강', '2026-05-31')
+  const cohortMembers = [done, w1, w2, none, old]
+  const cohortLog = [eid(done, '2026-06-07'), eid(w1, '2026-06-07'), eid(w2, '2026-06-07'), eid(none, '2026-06-07'), eid(old, '2026-06-07')]
+
+  it('splits by education stage, keeping the 새가족 총계 and the date total beside it', () => {
+    for (const [edu, name] of [['both', '이수'], ['week1', '1주차'], ['week2', '2주차'], ['none', '미수강']] as const) {
+      expect(newFamilyTrend(cohortMembers, cohortLog, edu), name).toEqual([
+        { date: '2026-06-07', count: 1, newFamily: 4, total: 5 },
+      ])
+    }
+  })
+  it('counts every 새가족 with the default (all)', () => {
+    expect(newFamilyTrend(cohortMembers, cohortLog)).toEqual([{ date: '2026-06-07', count: 4, newFamily: 4, total: 5 }])
+  })
+  it('never lets a plain member fall into 미수강 — the stages live inside 새가족', () => {
+    // 기존 멤버도 교육 칸이 비어 있지만 새가족이 아니므로 어느 갈래에도 들어가지 않는다.
+    expect(newFamilyTrend([none, old], [eid(none, '2026-06-07'), eid(old, '2026-06-07')], 'none')).toEqual([
+      { date: '2026-06-07', count: 1, newFamily: 1, total: 2 },
+    ])
   })
 })
 

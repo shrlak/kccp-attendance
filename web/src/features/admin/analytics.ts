@@ -1,6 +1,7 @@
 import type { Member, LogEntry } from '../../lib/api'
 import { groupsOf } from './filters'
 import { onBreak } from '../../lib/status'
+import { matchesEduFilter, type EduFilter } from './newFamily'
 
 // ── Pure, immutable aggregation helpers for the Analytics tab ──────────────
 // All functions take the already-scoped/filtered roster (members + log) and never
@@ -203,19 +204,32 @@ export function newFamilyRegistrations(members: Member[]): NewFamilyRegPoint[] {
 
 export interface NewFamilyTrendPoint {
   date: string
-  count: number // 그 주일에 출석한 새가족 (이름 기준 중복 제거)
+  count: number // 그 주일에 출석한 새가족 중 고른 교육 단계에 해당하는 사람
+  newFamily: number // 그 주일에 출석한 새가족 전부 — 단계를 골랐을 때의 배경 선
   total: number // 그 주일 전체 출석 인원
 }
 
-// 주일마다 출석한 새가족 수. 전체 출석도 같이 들고 오는 이유는 **비중은 새가족 숫자만으로는
-// 나오지 않기** 때문이다 — 20명 중 5명과 200명 중 5명은 다른 사실이다.
-export function newFamilyTrend(members: Member[], log: LogEntry[]): NewFamilyTrendPoint[] {
+// 주일마다 출석한 새가족 수. `edu`로 **새가족 교육 단계별로 갈라 볼 수 있다** (수강 완료 ·
+// 1주차만 · 2주차만 · 미수강 — 새가족 교육 탭의 그 네 갈래와 같은 `matchesEduFilter`를 쓴다).
+// 갈랐을 때도 새가족 전체(`newFamily`)와 그날 전체 출석(`total`)을 같이 들고 오는 이유는
+// **한 갈래의 숫자만으로는 아무것도 알 수 없기** 때문이다 — 미수강 3명은 새가족이 4명일 때와
+// 40명일 때가 다른 사실이고, 비중은 그날 전체 출석이 있어야 나온다.
+//
+// 주의: `new_member_edu_week1/2`는 **날짜 없는 참/거짓**이라, 갈래는 언제나 *지금* 상태다.
+// 지난달에 아직 미수강이던 사람도 이번 주에 이수를 찍으면 그 달까지 '수강 완료'로 그려진다 —
+// 교육을 마친 사람들이 어떻게 오고 있나를 보는 선이지, 그때 그 사람의 단계가 아니다.
+export function newFamilyTrend(members: Member[], log: LogEntry[], edu: EduFilter = 'all'): NewFamilyTrendPoint[] {
   const isNewFamily = newFamilyMatcher(members)
+  const inCohort = newFamilyMatcher(members.filter((m) => matchesEduFilter(m, edu)))
   return distinctDates(log).map((date) => {
     const onDate = log.filter((e) => e.date === date)
+    const newFamily = onDate.filter(isNewFamily)
     return {
       date,
-      count: new Set(onDate.filter(isNewFamily).map((e) => e.name)).size,
+      // inCohort는 newFamilyMatcher로 만들었으므로 이미 새가족 안쪽이다 — 교육 칸이 비어 있는
+      // 일반 멤버가 '미수강'으로 딸려 들어오지 않는다.
+      count: new Set(onDate.filter(inCohort).map((e) => e.name)).size,
+      newFamily: new Set(newFamily.map((e) => e.name)).size,
       total: new Set(onDate.map((e) => e.name)).size,
     }
   })

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Chart as ChartType, ChartConfiguration, Plugin } from 'chart.js'
 import { useTheme } from '../../stores/useTheme'
@@ -7,6 +7,8 @@ import { trendSeries, groupSeries, newFamilyRegistrations, newFamilyTrend } from
 import { type Member, type LogEntry } from '../../lib/api'
 import { resolveGroupColor } from './groupColors'
 import { Activity, BarChart3, Sprout, UserPlus } from '../../components/ui/Icon'
+import { Pill } from './GroupFilter'
+import { type EduFilter } from './newFamily'
 import { useAppConfig } from '../../lib/useAppConfig'
 
 // Inline plugin that prints each datapoint's value just above its dot on the trend
@@ -172,12 +174,25 @@ const NEW_FAMILY_TINT = 'rgba(46,158,99,0.14)'
 
 // 새가족만 따로 본 두 그래프 — 월별 등록(막대)과 주일별 새가족 출석(선). 둘 다 값이 점/막대
 // 위에 적히므로 그래프에서 바로 숫자를 읽을 수 있다.
-export function NewFamilyCharts({ members, log }: { members: Member[]; log: LogEntry[] }) {
+export function NewFamilyCharts({
+  members,
+  log,
+  showEdu,
+}: {
+  members: Member[]
+  log: LogEntry[]
+  showEdu: boolean
+}) {
   const { t } = useTranslation()
+  // 새가족 출석 추이를 새가족 교육 단계로 갈라 본다. 장년부에는 그 교육이 없으므로 칩도 없고
+  // 언제나 '전체'다.
+  const [edu, setEdu] = useState<EduFilter>('all')
+  const cohort = showEdu ? edu : 'all'
   // 최근 12개월만 그린다. 그 앞은 아래 월별 표가 그대로 들고 있고, 막대가 스무 개를 넘으면
   // x축 이름이 겹쳐 읽히지 않는다.
   const regs = useMemo(() => newFamilyRegistrations(members).slice(-12), [members])
-  const trend = useMemo(() => newFamilyTrend(members, log), [members, log])
+  const trend = useMemo(() => newFamilyTrend(members, log, cohort), [members, log, cohort])
+  const cohortLabel = cohort === 'all' ? t('admin.analytics.nfAttendance') : t(`admin.newfamily.eduFilter.${cohort}`)
 
   const regBuild = useCallback(
     (tick: string, grid: string): ChartConfiguration => ({
@@ -216,7 +231,7 @@ export function NewFamilyCharts({ members, log }: { members: Member[]; log: LogE
         labels: trend.map((p) => shortDate(p.date)),
         datasets: [
           {
-            label: t('admin.analytics.nfAttendance'),
+            label: cohortLabel,
             data: trend.map((p) => p.count),
             borderColor: NEW_FAMILY_COLOR,
             backgroundColor: NEW_FAMILY_TINT,
@@ -224,6 +239,22 @@ export function NewFamilyCharts({ members, log }: { members: Member[]; log: LogE
             fill: true,
             pointRadius: 3,
           },
+          // 한 단계만 골랐을 때 그 뒤에 새가족 전체를 흐린 점선으로 깔아 준다 — 미수강 3명은
+          // 새가족이 4명일 때와 40명일 때가 다른 사실이라, 고른 선만으로는 읽을 수 없다.
+          ...(cohort === 'all'
+            ? []
+            : [
+                {
+                  label: t('admin.analytics.nfAllNewFamily'),
+                  data: trend.map((p) => p.newFamily),
+                  borderColor: tick,
+                  borderDash: [4, 4],
+                  borderWidth: 1.5,
+                  tension: 0.25,
+                  fill: false,
+                  pointRadius: 0,
+                },
+              ]),
         ],
       },
       options: {
@@ -231,16 +262,18 @@ export function NewFamilyCharts({ members, log }: { members: Member[]; log: LogE
         maintainAspectRatio: false,
         layout: { padding: { top: 16 } },
         plugins: {
-          legend: { display: false },
-          // 점 위에 적히는 것은 새가족 수뿐이라, 그날 전체 출석 대비 비중은 눌렀을 때 나온다 —
+          // 선이 둘일 때만 범례를 켠다 — 하나뿐이면 제목이 이미 그 이름이다.
+          legend: { display: cohort !== 'all', labels: { color: tick, boxHeight: 1 } },
+          // 점 위에 적히는 것은 인원수뿐이라, 그날 전체 출석 대비 비중은 눌렀을 때 나온다 —
           // 20명 중 5명과 200명 중 5명은 같은 5가 아니다.
           tooltip: {
             callbacks: {
-              label: (item: { dataIndex: number }) => {
+              label: (item: { dataIndex: number; datasetIndex: number }) => {
                 const p = trend[item.dataIndex]
                 if (!p) return ''
+                if (item.datasetIndex === 1) return `${t('admin.analytics.nfAllNewFamily')} ${p.newFamily}`
                 const share = p.total === 0 ? 0 : Math.round((p.count / p.total) * 100)
-                return `${t('admin.analytics.nfAttendance')} ${p.count} / ${p.total} (${share}%)`
+                return `${cohortLabel} ${p.count} / ${p.total} (${share}%)`
               },
             },
           },
@@ -252,7 +285,7 @@ export function NewFamilyCharts({ members, log }: { members: Member[]; log: LogE
       },
       plugins: [pointValueLabels(tick)],
     }),
-    [trend, t],
+    [trend, t, cohort, cohortLabel],
   )
 
   if (regs.length === 0 && trend.length === 0) return null
@@ -266,7 +299,11 @@ export function NewFamilyCharts({ members, log }: { members: Member[]; log: LogE
         </Panel>
       )}
       {trend.length > 0 && (
-        <Panel title={t('admin.analytics.nfAttendTrend')} icon={<Sprout size={16} strokeWidth={2} aria-hidden />}>
+        <Panel
+          title={t('admin.analytics.nfAttendTrend')}
+          icon={<Sprout size={16} strokeWidth={2} aria-hidden />}
+          toolbar={showEdu ? <EduPills value={edu} onChange={setEdu} /> : undefined}
+        >
           <ChartCanvas build={trendBuild} />
         </Panel>
       )}
@@ -274,13 +311,46 @@ export function NewFamilyCharts({ members, log }: { members: Member[]; log: LogE
   )
 }
 
-export function Panel({ title, icon, children }: { title: string; icon: ReactNode; children: ReactNode }) {
+// 새가족 교육 단계 칩. 갈래와 문구는 새가족 교육 탭의 것을 그대로 쓴다 — 같은 네 갈래를
+// 두 화면이 다르게 부르면 "1주차만"이 어디서는 다른 뜻인가 싶어진다.
+const EDU_COHORTS: EduFilter[] = ['both', 'week1', 'week2', 'none']
+
+function EduPills({ value, onChange }: { value: EduFilter; onChange: (v: EduFilter) => void }) {
+  const { t } = useTranslation()
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      <Pill active={value === 'all'} onClick={() => onChange('all')}>
+        {t('admin.filter.all')}
+      </Pill>
+      {EDU_COHORTS.map((key) => (
+        <Pill key={key} active={value === key} onClick={() => onChange(key)}>
+          {t(`admin.newfamily.eduFilter.${key}`)}
+        </Pill>
+      ))}
+    </div>
+  )
+}
+
+// `toolbar`는 제목 줄과 그래프 상자 **사이**에 놓인다 — 제목 오른쪽에 붙이면 칩 다섯 개가
+// 좁은 화면에서 제목을 밀어낸다.
+export function Panel({
+  title,
+  icon,
+  toolbar,
+  children,
+}: {
+  title: string
+  icon: ReactNode
+  toolbar?: ReactNode
+  children: ReactNode
+}) {
   return (
     <div className="surface-panel p-5">
-      <div className="mb-4 flex items-center gap-2 border-b border-border pb-3">
+      <div className={'flex items-center gap-2 border-b border-border pb-3 ' + (toolbar ? 'mb-3' : 'mb-4')}>
         <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">{icon}</span>
         <h3 className="font-display text-base font-bold tracking-tight text-text">{title}</h3>
       </div>
+      {toolbar && <div className="mb-3">{toolbar}</div>}
       <div className="relative h-56">{children}</div>
     </div>
   )

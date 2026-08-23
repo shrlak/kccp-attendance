@@ -70,6 +70,8 @@ function NewFamilySection({ members, log }: { members: Member[]; log: LogEntry[]
   const term = semesterBounds(today, configCalendar(cfg), partition)
   const totals = newFamilyTotals(members, log, term)
   const rows = newFamilyMonthly(members, log)
+  // 장년부에는 새가족 교육이 없다 — 이수 타일도, 출석 추이의 단계별 칩도 그 부에서는 뜻이 없다.
+  const showEdu = partition !== 'adult'
 
   return (
     <section className="fx-rise mt-6">
@@ -91,8 +93,8 @@ function NewFamilySection({ members, log }: { members: Member[]; log: LogEntry[]
         </section>
       ) : (
         <>
-          <NewFamilyTiles totals={totals} showEdu={partition !== 'adult'} />
-          <NewFamilyCharts members={members} log={log} />
+          <NewFamilyTiles totals={totals} showEdu={showEdu} />
+          <NewFamilyCharts members={members} log={log} showEdu={showEdu} />
           <div className="mt-5">
             <NewFamilyMonthlyTable rows={rows} />
           </div>
