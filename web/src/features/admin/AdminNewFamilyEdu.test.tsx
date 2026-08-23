@@ -86,3 +86,34 @@ describe('AdminNewFamilyEdu — 오늘 출석으로 가르기', () => {
     expect(screen.getByText('오늘안온새가족').closest('li')).not.toHaveTextContent('오늘 출석')
   })
 })
+
+// 교육을 다 마친 사람이 목록에서 사라지면 '수강 완료'로 걸러도 아무도 안 나온다 — 정작 누가
+// 이수했는지를 이 탭에서 볼 수 없었다. 그래서 이수는 더 이상 목록에서 사람을 내리지 않는다.
+describe('AdminNewFamilyEdu — 수강 완료도 목록에 남는다', () => {
+  const done = { ...member('m1', '이수완료'), new_member_edu_week1: true, new_member_edu_week2: true }
+  // 지난 학기에 등록하고 두 주를 다 마친 사람 — 예전 규칙이라면 사라졌을 자리.
+  const oldDone = {
+    ...member('m2', '지난학기이수완료'),
+    registration_date: '2026-01-05',
+    new_member_edu_week1: true,
+    new_member_edu_week2: true,
+  }
+  const none = member('m3', '교육전')
+
+  it('교육을 마친 사람도 그대로 보인다 — 지난 학기 등록이어도', () => {
+    renderAs('super_admin', [done, oldDone, none])
+
+    expect(screen.getByText('이수완료')).toBeInTheDocument()
+    expect(screen.getByText('지난학기이수완료')).toBeInTheDocument()
+  })
+
+  it("'수강 완료'로 걸러면 이수한 사람들이 나온다", async () => {
+    const { default: userEvent } = await import('@testing-library/user-event')
+    renderAs('super_admin', [done, oldDone, none])
+
+    await userEvent.click(screen.getByRole('button', { name: '수강 완료' }))
+    expect(screen.getByText('이수완료')).toBeInTheDocument()
+    expect(screen.getByText('지난학기이수완료')).toBeInTheDocument()
+    expect(screen.queryByText('교육전')).not.toBeInTheDocument()
+  })
+})
