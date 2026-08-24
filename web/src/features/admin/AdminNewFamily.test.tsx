@@ -60,20 +60,18 @@ describe('AdminNewFamily 학기 분리', () => {
     expect(within(term('2026 봄학기')).getByText('봄학기미이수')).toBeInTheDocument()
     // 두 사람이 서로의 섹션에 섞이지 않는다.
     expect(within(term('2026 여름학기')).queryByText('봄학기미이수')).toBeNull()
-    // 넘어온 학기에만 붙는 배지.
-    expect(screen.getByText('교육 미완료')).toBeInTheDocument()
     expect(screen.getByText('이전 학기 1명')).toBeInTheDocument()
   })
 
-  it('drops an earlier term 새가족 once both education weeks are done', async () => {
+  it('keeps an earlier term 새가족 listed after both education weeks are done', async () => {
     await renderTab([
       member('이번학기', '2026-06-07'),
       member('봄학기이수완료', '2026-02-01', { new_member_edu_week1: true, new_member_edu_week2: true }),
     ])
 
     expect(within(term('2026 여름학기')).getByText('이번학기')).toBeInTheDocument()
-    expect(screen.queryByRole('region', { name: '2026 봄학기' })).toBeNull()
-    expect(screen.queryByText('교육 미완료')).toBeNull()
+    // 교육을 마쳐도 자기 등록 학기 섹션에 그대로 남는다 — 새가족 표시를 해제해야 내려간다.
+    expect(within(term('2026 봄학기')).getByText('봄학기이수완료')).toBeInTheDocument()
   })
 
   it('keeps this term’s 새가족 listed even after they finish the education', async () => {

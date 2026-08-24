@@ -65,9 +65,10 @@ export function AdminNewFamilyEdu() {
   const today = easternNow().date
   // 부서·동산으로 좁힌다 — 다른 탭과 같은 GroupFilter, 같은 filterMembers.
   const scopedMembers = filterMembers(data.members, filter)
-  // 이번 학기 새가족 + 아직 교육이 끝나지 않아 이전 학기에서 넘어온 새가족 — 교육을 마쳐
-  // 목록에서 내려가려면 여기서 체크할 수 있어야 하므로 새가족 탭과 같은 기준으로 뽑는다.
-  const inScope = visibleNewFamily(scopedMembers, today, configCalendar(cfg))
+  // 새가족 표시가 붙어 있는 사람 전부 — 새가족 탭과 같은 기준. **교육을 다 마쳐도 남는다**:
+  // 이수한 사람이 목록 밖으로 나가 버리면 '수강 완료'로 걸러도 아무도 안 나와서, 정작 누가
+  // 이수했는지를 이 탭에서 볼 수 없었다.
+  const inScope = visibleNewFamily(scopedMembers)
   // 오늘 온 사람 — 예배 출석 줄에서 id로 되찾는다 (이름은 예전 줄을 위한 대비책).
   const present = presentToday(data.log, today)
   const byEdu = eduFilter === 'all' ? inScope : inScope.filter((m) => matchesEduFilter(m, eduFilter))

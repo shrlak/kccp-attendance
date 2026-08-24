@@ -140,7 +140,6 @@ export function AdminNewFamily() {
                     {s.year} {termName(s.season)}
                   </span>
                   <span className="rounded-full bg-fill px-2 py-0.5 text-[11px] font-semibold tabular-nums text-muted">{s.total}</span>
-                  <Tag tone="warning" className="text-[10px]">{t('admin.newfamily.eduIncomplete')}</Tag>
                 </div>
               )}
               <div className="flex flex-col gap-6">
