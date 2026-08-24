@@ -165,6 +165,37 @@ describe('visibleNewFamily', () => {
   })
 })
 
+// 실제로 사람이 사라졌던 배치 — 프로덕션의 학기 일정(여름 06-07~08-02, 가을 09-06~12-13)에서
+// 8월 16일에 등록한 새가족은 **어느 학기 구간에도 들어 있지 않다** (여름은 이미 끝났고 가을은
+// 아직 시작 전이다). 예전 규칙은 그 틈의 등록을 "이번 학기가 아님 → 지난 학기 사람"으로 읽어,
+// 교육 두 주를 마치는 순간 두 탭에서 함께 내려버렸다. 김시우·신서윤이 그 경우였다.
+describe('학기 사이 틈에 등록한 새가족 (regression)', () => {
+  const GAP_CALENDAR: SemesterDates = {
+    spring: { start: '01-01', end: '05-09' },
+    summer: { start: '06-07', end: '08-02' },
+    fall: { start: '09-06', end: '12-13' },
+  }
+  const educated = (id: string): Member => ({
+    ...m(id, true, '2026-08-16'),
+    new_member_edu_week1: true,
+    new_member_edu_week2: true,
+  })
+
+  it('교육을 다 마쳐도 목록에 남고 수강 완료로 걸러진다', () => {
+    const list = visibleNewFamily([educated('김시우'), educated('신서윤')])
+    expect(list.map((x) => x.id).sort()).toEqual(['김시우', '신서윤'])
+    expect(list.filter((x) => matchesEduFilter(x, 'both')).map((x) => x.id).sort()).toEqual(['김시우', '신서윤'])
+  })
+
+  it('새가족 탭에서는 자기 등록일 블록에, 이번 학기 묶음 안에 뜬다', () => {
+    const groups = newFamilyBySemester([educated('김시우')], '2026-08-24', GAP_CALENDAR)
+    expect(groups.map((g) => g.key)).toEqual(['2026-summer'])
+    expect(groups[0].current).toBe(true)
+    // 학기 구간(…08-02) 밖의 날짜지만 등록일 그대로 자기 블록을 갖는다.
+    expect(groups[0].dates.map((g) => g.date)).toEqual(['2026-08-16'])
+  })
+})
+
 describe('groupByDate', () => {
   it('splits an ordered list into runs of the same 등록일, undated trailing', () => {
     const list = [m('a1', true, '2026-06-07'), m('a2', true, '2026-06-07'), m('b1', true, '2026-05-31'), m('none', true, null)]
