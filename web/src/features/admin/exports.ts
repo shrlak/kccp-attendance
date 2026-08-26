@@ -339,6 +339,23 @@ export function cssColor(argb: string): string {
   return `#${argb.slice(2)}`
 }
 
+// 내보내는 엑셀의 글자 크기. 시트의 기본값은 11pt인데 출석부는 한 줄에 주일이 스무 칸까지
+// 가는 표라, 그대로 두면 열 너비가 밀려 한 화면에 안 들어간다. 교회가 쓰는 원본 시트도 10pt다.
+export const EXPORT_FONT_SIZE = 10
+
+// 다 만들어진 워크시트의 모든 칸에 글자 크기만 얹는다. **시트를 다 꾸민 뒤 마지막에** 부른다 —
+// 색·정렬·굵기를 넣는 쪽은 `cell.s`를 통째로 갈아 끼우므로, 먼저 부르면 크기가 지워진다.
+// 여기서는 반대로 이미 있는 font를 펼쳐 담아 머리줄의 Arial/굵게가 살아남는다.
+// `!merges`/`!cols` 같은 시트 속성은 칸이 아니므로 건너뛴다.
+export function applyFontSize(ws: Record<string, unknown>, sz: number = EXPORT_FONT_SIZE): void {
+  for (const addr of Object.keys(ws)) {
+    if (addr.startsWith('!')) continue
+    const cell = ws[addr] as { s?: { font?: Record<string, unknown> } } | undefined
+    if (!cell || typeof cell !== 'object') continue
+    cell.s = { ...cell.s, font: { ...cell.s?.font, sz } }
+  }
+}
+
 // Sheet 1 - "Attendance". Reproduces the church's legacy spreadsheet: members are split
 // into 동산 (subgroup) blocks; each block has a single date-header row, O = present / X =
 // absent cells — with status marks (한국 귀국 / 이주 / 새가족 …) as grey merged note cells,

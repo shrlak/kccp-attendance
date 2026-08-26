@@ -18,6 +18,8 @@ import {
   newFamilyRow,
   newFamilySheets,
   genderFill,
+  applyFontSize,
+  EXPORT_FONT_SIZE,
   NEW_FAMILY_FILL,
 } from './exports'
 import { semesterSundays } from './newFamily'
@@ -88,6 +90,42 @@ describe('blockColors / cssColor', () => {
     expect(blockColors(3).medium).toBe('FFEA9999') // red
     expect(blockColors(4)).toEqual(blockColors(0)) // wraps
     expect(cssColor('FFB6D7A8')).toBe('#B6D7A8')
+  })
+})
+
+describe('applyFontSize', () => {
+  it('모든 칸에 크기를 얹고 시트 속성(!)은 건너뛴다', () => {
+    const ws: Record<string, unknown> = {
+      '!ref': 'A1:B1',
+      '!merges': [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }],
+      A1: { t: 's', v: '이름' },
+      B1: { t: 'n', v: 3 },
+    }
+    applyFontSize(ws)
+    expect(EXPORT_FONT_SIZE).toBe(10)
+    expect((ws.A1 as { s: { font: { sz: number } } }).s.font.sz).toBe(10)
+    expect((ws.B1 as { s: { font: { sz: number } } }).s.font.sz).toBe(10)
+    expect(ws['!ref']).toBe('A1:B1')
+    expect(Array.isArray(ws['!merges'])).toBe(true)
+  })
+
+  it('이미 얹힌 색·정렬·굵기를 지우지 않는다', () => {
+    const ws: Record<string, unknown> = {
+      A1: {
+        t: 's',
+        v: '이름',
+        s: {
+          fill: { patternType: 'solid', fgColor: { rgb: 'FF6FA8DC' } },
+          alignment: { horizontal: 'center' },
+          font: { name: 'Arial', bold: true },
+        },
+      },
+    }
+    applyFontSize(ws)
+    const s = (ws.A1 as { s: { fill: unknown; alignment: unknown; font: Record<string, unknown> } }).s
+    expect(s.font).toEqual({ name: 'Arial', bold: true, sz: 10 })
+    expect(s.alignment).toEqual({ horizontal: 'center' })
+    expect(s.fill).toEqual({ patternType: 'solid', fgColor: { rgb: 'FF6FA8DC' } })
   })
 })
 

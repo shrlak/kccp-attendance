@@ -5,6 +5,7 @@ import type { Partition } from '../../lib/partition'
 import type { Member, LogEntry } from '../../lib/api'
 import type { CalendarLike } from '../../lib/semester'
 import type { Filter } from './filters'
+import { applyFontSize } from './exports'
 import type { Lang } from './exports'
 import { semesterBounds, transitionBounds } from './newFamily'
 import {
@@ -68,9 +69,13 @@ export function ArchiveSection({
           const cell = ws[addr] ?? (ws[addr] = { t: 's', v: '' })
           cell.s = { fill: { patternType: 'solid', fgColor: { rgb: f.rgb } } }
         }
+        // 색을 다 얹은 뒤 마지막에 글자 크기 (위의 `cell.s = {...}`가 통째로 갈아 끼운다).
+        applyFontSize(ws)
         XLSX.utils.book_append_sheet(wb, ws, sheet.name)
       }
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(full), 'Full Log')
+      const fullWs = XLSX.utils.aoa_to_sheet(full)
+      applyFontSize(fullWs)
+      XLSX.utils.book_append_sheet(wb, fullWs, 'Full Log')
       XLSX.writeFile(wb, archiveFilename(entry, filter.group))
     } catch {
       toast({ title: t('admin.sheet.export.excelFailed'), tone: 'err' })
