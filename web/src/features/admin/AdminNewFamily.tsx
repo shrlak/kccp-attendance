@@ -6,7 +6,7 @@ import { filterMembers, NO_FILTER, type Filter } from './filters'
 import { semesterKey, newFamilyBySemester, monthlyRegistrations, newFamilyWeek } from './newFamily'
 import { NewFamilyWeekChip } from './NewFamilyWeekChip'
 import { copyNewFamilyCards, saveNewFamilyCards } from './newFamilyCardImage'
-import { newFamilySheets, newFamilyHeader } from './exports'
+import { applyFontSize, newFamilySheets, newFamilyHeader } from './exports'
 import { toggleId } from './bulk'
 import { GroupFilter } from './GroupFilter'
 import { configCalendar, type Member } from '../../lib/api'
@@ -261,6 +261,8 @@ async function exportNewFamilyExcel(members: Member[], today: string): Promise<v
         ...(f.r === 0 ? { font: { name: 'Arial', bold: true } } : {}),
       }
     }
+    // 글자 크기는 맨 마지막에 — 머리줄의 Arial/굵게는 그대로 두고 크기만 얹는다.
+    applyFontSize(ws)
     ws['!cols'] = colWidths
     XLSX.utils.book_append_sheet(wb, ws, name)
   }

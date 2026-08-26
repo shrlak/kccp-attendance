@@ -5,6 +5,7 @@ import { configCalendar } from '../../lib/api'
 import { easternNow } from '../../lib/checkinWindow'
 import type { Filter } from './filters'
 import {
+  applyFontSize,
   exportFilename,
   gridSheet,
   logRows,
@@ -53,6 +54,9 @@ export function ExportMenu({ members, log, filter }: { members: Member[]; log: L
         cell.s = { fill: { patternType: 'solid', fgColor: { rgb: f.rgb } } }
       }
       const full = XLSX.utils.aoa_to_sheet(logRows(members, log, lang, partition))
+      // 글자 크기는 색·정렬을 다 얹은 뒤 마지막에 — 위의 `cell.s = {...}`가 통째로 갈아 끼우므로.
+      applyFontSize(attendance)
+      applyFontSize(full)
       XLSX.utils.book_append_sheet(wb, attendance, 'Attendance')
       XLSX.utils.book_append_sheet(wb, full, 'Full Log')
       XLSX.writeFile(wb, exportFilename(filter.group, today))
