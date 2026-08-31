@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { ADULT_GROUP, ADULT_SCHEMA, canChoosePartition, canViewLoginLog, dbOf, inScope, inScopeGroup, partitionOfGroup, resolveAdmin, scopeFilter, type Partition, type Role, type Scope } from "./auth.ts";
+import { ADULT_GROUP, ADULT_SCHEMA, canAssignDongsan, canChoosePartition, canReadDongsanNames, canViewLoginLog, dbOf, inScope, inScopeGroup, partitionOfGroup, resolveAdmin, scopeFilter, type Partition, type Role, type Scope } from "./auth.ts";
 import { currentSeason, DEFAULT_SEMESTER_DATES, isSummerTerm, lastEndedTermKey, mergeSchedule, rollSchedule, sameSchedule, scheduleOf, scheduleToDates, subgroupSnapshot, trimHistory, validSchedule } from "./term.ts";
 import { availableCardModels, buildCardRequest, cardModelChain, hasGen3Options, parseCardResponse } from "./gemini.ts";
 import { csvUrl, matchPerson, mergeSheetMarks, nameCounts, normalizeMarks, parseAttendanceSheet, parseSheetUrl, sameMarks, type ParsedSheet } from "./sheetSync.ts";
@@ -1140,14 +1140,15 @@ Deno.serve(async (req: Request) => {
       const {data:md}=ids.length?await adb.from("attendance_log").select("*").in("member_id",ids).order("ts",{ascending:false}):{data:[] as any[]};
       let logs:any[]=md||[];
       const gd=gRes?.data; if(gd&&gd.length)logs=logs.concat(gd);
-      // Bulk 동산 reassignment: super-admins + staff + leaders who are NOT 동산지기/부동산지기.
+      // Bulk 동산 reassignment: super-admins + staff + 리더/새가족팀 who are NOT 동산지기/
+      // 부동산지기 (canAssignDongsan in auth.ts — the bulk-subgroup route reads the same rule).
       // Clear-all-attendance: super (direct) + staff/leader/welcoming non-동산지기 (request).
       // staff (break-glass 리더+새가족팀) has no 동산지기 tag, so it gets both.
-      let canBulkSubgroup=role.role==="super_admin"||role.role==="staff";
+      let canBulkSubgroup=canAssignDongsan(role.role,false);
       let canClearAttendance=role.role==="super_admin"||role.role==="staff";
       if(needsTag){
         const tag=isDongsanLeaderName(meRes?.data?.name||"",role.group,role.subgroup,cfg?.dongsan_leaders,summer);
-        if(role.role==="leader") canBulkSubgroup=!tag;
+        canBulkSubgroup=canAssignDongsan(role.role,tag);
         canClearAttendance=!tag;
       }
       // 학기별 동산 편성 스냅샷 (지난 학기 출석부용) — 이 부의 기록에서, 이 관리자가 이미 볼
@@ -1418,11 +1419,13 @@ Deno.serve(async (req: Request) => {
       return ok({status:"ok"});
     }
 
-    // 동산 (dongsan) names editor — read (super-admin only). Returns config.dongsan_names,
-    // shaped { "대학부": [...], "청년부": [...] }, falling back to the seeded defaults.
+    // 동산 (dongsan) names — read. Returns config.dongsan_names, shaped
+    // { "대학부": [...], "청년부": [...] }, falling back to the seeded defaults. 동산을 배정할
+    // 수 있는 사람(최고관리자·staff·새가족팀)이 읽는다 — 이 목록이 곧 멤버 탭 드롭다운의
+    // 후보라, 못 읽으면 배정 권한이 있어도 고를 것이 없다. 편집은 아래 POST(최고관리자)뿐.
     if(req.method==="GET"&&p==="/api/admin/dongsan-names") {
       const role=await auth();
-      if(role?.role!=="super_admin") return fail(403,"Super admin required");
+      if(!role||!canReadDongsanNames(role)) return fail(403,"Not authorized");
       const cfg=await getCfg(sb,actingPartition);
       return ok({names:cfg?.dongsan_names||defaultDongsanNames(role.partition)});
     }
@@ -1869,19 +1872,21 @@ Deno.serve(async (req: Request) => {
     }
 
     // Bulk 동산 (subgroup) reassignment: set or clear the 동산 for many members at once.
-    // Allowed for super-admin OR a leader who is NOT a 동산지기/부동산지기. Out-of-scope
+    // Allowed for super-admin OR a 리더/새가족팀 who is NOT a 동산지기/부동산지기. Out-of-scope
     // members are dropped server-side; subgroup "" removes them from any 동산. Audited.
     if(req.method==="POST"&&p==="/api/admin/members/bulk-subgroup") {
       const role=await auth();
       if(!role) return fail(401,"Not authorized");
       const cfg=await getCfg(sb,actingPartition);
       const part=role.partition, summer=summerNow(cfg,part);
-      // super + staff (break-glass, all-access) may bulk-transfer freely; a leader may too
-      // unless they're a 동산지기/부동산지기. Everyone else is rejected.
-      if(role.role!=="super_admin"&&role.role!=="staff"){
-        if(role.role!=="leader") return fail(403,"Not authorized");
+      // super + staff (break-glass, all-access) may bulk-transfer freely; 리더와 새가족팀은
+      // 자기가 동산지기/부동산지기가 아닐 때만 (canAssignDongsan). Everyone else is rejected.
+      if(!canAssignDongsan(role.role,false)) return fail(403,"Not authorized");
+      // 공용 비밀번호 로그인은 멤버 행이 없다 (memberId "") — 지기일 수가 없으므로 묻지 않는다.
+      if((role.role==="leader"||role.role==="welcoming")&&role.memberId){
         const {data:me}=await adb.from("members").select("name").eq("id",role.memberId).single();
-        if(isDongsanLeaderName((me as any)?.name||"",role.group,role.subgroup,cfg?.dongsan_leaders,summer)) return fail(403,"동산지기/부동산지기는 사용할 수 없습니다");
+        const tag=isDongsanLeaderName((me as any)?.name||"",role.group,role.subgroup,cfg?.dongsan_leaders,summer);
+        if(!canAssignDongsan(role.role,tag)) return fail(403,"동산지기/부동산지기는 사용할 수 없습니다");
       }
       const {memberIds,subgroup}=body;
       if(!Array.isArray(memberIds)||!memberIds.length) return fail(400,"memberIds required");

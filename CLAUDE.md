@@ -114,6 +114,16 @@ live** at https://shrlak.github.io/kccp-attendance/.
   or Supabase's own `graphql_public` disappears) so `.schema('adult')` can reach it at all.
 - 동산지기/부동산지기 are a **display-badge** system (`config.dongsan_leaders`), distinct from the
   `leader` admin role.
+- **동산 배정은 최고관리자만의 일이 아니다** (`auth.ts` `canAssignDongsan`): 리더와 **새가족팀
+  (kccpwelcome)** 이 같은 자격으로 배정한다 — 새가족팀은 새로 온 사람을 등록하고 어느 동산으로
+  보낼지까지 챙기는 자리라, 배정을 못 하면 등록만 해 두고 매번 최고관리자에게 부탁하게 된다.
+  둘 다 **자기가 동산지기/부동산지기면 막힌다** (자기 동산으로 사람을 끌어올 수 있으므로;
+  공용 비밀번호 로그인은 멤버 행이 없어 지기일 수가 없다). 목사는 읽기 전용이라 언제나 아니다.
+  같은 함수를 `/api/roster`의 `canBulkSubgroup`과 `/api/admin/members/bulk-subgroup`이 함께
+  읽는다 — 화면과 서버가 갈리면 버튼은 보이는데 403이 난다. `GET /api/admin/dongsan-names`도
+  그만큼 열려 있다 (`canReadDongsanNames`): 배정할 수 있는 사람은 고를 이름을 볼 수 있어야
+  드롭다운이 빈 채로 남지 않는다. **동산 이름을 만들고 동산지기를 지정하는 것(동산 탭·POST)은
+  여전히 최고관리자뿐** — 배정과 편성은 다른 일이다.
 - **중복 등록은 자동 병합**: `/api/admin/kiosk-new-member` · `/api/share/new-member` find an existing
   member with the same name + 부서 (and no conflicting phone/생년월일) and update it with the newer
   values instead of inserting a second row — device and attendance history carry over, 등록일자 keeps

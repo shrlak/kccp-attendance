@@ -16,6 +16,8 @@ import {
   passwordGrant,
   passwordRole,
   canViewLoginLog,
+  canAssignDongsan,
+  canReadDongsanNames,
   canChoosePartition,
   canCrossPartitions,
   readPartition,
@@ -294,6 +296,31 @@ Deno.test("inScopeGroup: 목적지 부서만 본다 — 동산은 묻지 않는�
   );
   assertEquals(inScopeGroup(adult, ADULT_GROUP), true);
   assertEquals(inScopeGroup(adult, "청년부"), false);
+});
+
+Deno.test("canAssignDongsan: 새가족팀도 배정한다 — 동산지기만 빠진다", () => {
+  // 최고관리자와 staff(공용 비밀번호 레거시)는 지기 여부와 무관하게 언제나 배정한다.
+  assertEquals(canAssignDongsan("super_admin", false), true);
+  assertEquals(canAssignDongsan("super_admin", true), true);
+  assertEquals(canAssignDongsan("staff", true), true);
+  // 새가족팀: 리더와 같은 자격 — 지기가 아니면 배정하고, 지기면 못 한다.
+  assertEquals(canAssignDongsan("welcoming", false), true);
+  assertEquals(canAssignDongsan("welcoming", true), false);
+  assertEquals(canAssignDongsan("leader", false), true);
+  assertEquals(canAssignDongsan("leader", true), false);
+  // 목사는 읽기 전용이다.
+  assertEquals(canAssignDongsan("pastor", false), false);
+});
+
+Deno.test("canReadDongsanNames: 배정하는 사람은 고를 이름을 볼 수 있다", () => {
+  const base: Role = {
+    memberId: "", role: "welcoming", group: "", subgroup: "", ministry: "", partition: "youth",
+  };
+  assertEquals(canReadDongsanNames(base), true);
+  assertEquals(canReadDongsanNames({ ...base, role: "super_admin" }), true);
+  assertEquals(canReadDongsanNames({ ...base, role: "staff" }), true);
+  assertEquals(canReadDongsanNames({ ...base, role: "pastor" }), false);
+  assertEquals(canReadDongsanNames(null), false);
 });
 
 Deno.test("canViewLoginLog: only the designated member, and only as super_admin", () => {
