@@ -1,0 +1,91 @@
+name: CI
+
+# The tests exist; nothing ran them. deploy.yml builds the web app and ships it, so a
+# broken build was only ever discovered *after* merge, by the production deploy failing
+# — that is what happened to Pages run #298 (a `tsc -b` error in newFamilySheets, fixed
+# by #246) and run #286 (#234, titled "Pages 배포를 되살린다"). Both times main was red
+# and the site could not deploy until a follow-up commit landed.
+#
+# So this workflow runs before the merge, not after it: the 686 web tests and the 98
+# edge-function tests, plus the same `tsc -b` that broke those two deploys.
+#
+# It deliberately does NOT gate deploy.yml. That workflow's `needs`/`if` wiring is load-
+# bearing and documented in place (a *skipped* function job must still let Pages through);
+# adding a dependency there is how a frontend-only deploy gets held back by an unrelated
+# job. PRs are squash-merged, so a red check here is visible on the PR, which is the
+# gate that matters.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A new push to a PR makes the previous run's answer irrelevant. Never cancel on main —
+# that history is the record of what was green when it merged.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  web:
+    name: web (lint · build · test)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          # Same single source of truth deploy.yml uses, so CI and the deploy that
+          # follows it never run on different Node majors.
+          node-version-file: web/.nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --prefix web
+
+      - name: Lint
+        run: npm --prefix web run lint
+
+      # `npm run build` is `tsc -b && vite build`. The `tsc -b` half is the check that
+      # would have caught both historical deploy failures: the root `tsc --noEmit` is a
+      # solution config holding only references, so it does not look at these files.
+      - name: Build (tsc -b && vite build)
+        run: npm --prefix web run build
+
+      - name: Test
+        run: npm --prefix web test
+
+  edge-function:
+    name: edge function (deno test)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          # Pinned for the same reason the Supabase CLI is pinned in deploy.yml: an
+          # unpinned toolchain turns an unrelated upstream release into a red build.
+          deno-version: v2.9.6
+
+      # --no-check runs the tests without type-checking the module graph. That is not
+      # laziness about types, it is the only honest setting today: `deno check` reports
+      # 118 errors, 106 of them the same SupabaseClient generic mismatch coming from the
+      # unpinned `jsr:@supabase/supabase-js@2` import in index.ts, whose types drift with
+      # every 2.x release. None of them are defects in this repo, and contorting the
+      # gateway to satisfy a third-party generic would be a large diff through the code
+      # that decides the 부 boundary. Pin the import and drop this flag to turn type
+      # checking on here.
+      - name: Test
+        working-directory: supabase/functions/attendance-api
+        run: deno test --allow-env --allow-net --no-check
