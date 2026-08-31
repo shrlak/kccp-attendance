@@ -26,13 +26,14 @@ vi.mock('../../lib/api', async (orig) => ({
 
 // Build the fixture through the app's own split, so 숨긴 멤버 tests exercise the real rule
 // rather than a hand-written hiddenMembers list.
-const roster = (members: Member[]): RosterData =>
+const roster = (members: Member[], over: Partial<RosterResponse> = {}): RosterData =>
   splitRoster({
     role: 'super_admin',
     canBulkSubgroup: true,
     canClearAttendance: true,
     members,
     log: [],
+    ...over,
   } as unknown as RosterResponse)
 
 import { deleteMembers } from '../../lib/api'
@@ -155,6 +156,35 @@ describe('AdminMembers — 상단 도구줄 고정', () => {
     expect([...bar.querySelectorAll('button')].map((b) => b.textContent)).toEqual(
       expect.arrayContaining([expect.stringContaining('이 동산으로'), expect.stringContaining('동산에서 빼기')]),
     )
+  })
+})
+
+// 새가족팀(kccpwelcome)도 동산 배정을 한다 — 새로 온 사람을 등록하고 어느 동산으로 보낼지까지
+// 챙기는 자리라, 등록만 해 두고 최고관리자에게 매번 부탁하게 두지 않는다. 서버의
+// canAssignDongsan이 그 자격을 내려주고(canBulkSubgroup), 화면은 그 값만 읽는다.
+describe('AdminMembers — 동산 배정 권한', () => {
+  it('새가족팀 로그인에도 동산 이동 줄이 나온다', async () => {
+    rosterData.data = roster([member('m1', '김호연'), member('m2', '이하늘')], {
+      role: 'welcoming',
+      canBulkSubgroup: true,
+    })
+    renderWithProviders(<AdminMembers />)
+
+    await userEvent.click(screen.getByRole('button', { name: /여러 명 선택/ }))
+    expect(screen.getByRole('button', { name: /이 동산으로/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /동산에서 빼기/ })).toBeInTheDocument()
+  })
+
+  it('배정 자격이 없으면(동산지기 리더 등) 이동 줄 없이 선택만 된다', async () => {
+    rosterData.data = roster([member('m1', '김호연'), member('m2', '이하늘')], {
+      role: 'leader',
+      canBulkSubgroup: false,
+    })
+    renderWithProviders(<AdminMembers />)
+
+    await userEvent.click(screen.getByRole('button', { name: /여러 명 선택/ }))
+    expect(screen.queryByRole('button', { name: /이 동산으로/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /동산에서 빼기/ })).not.toBeInTheDocument()
   })
 })
 

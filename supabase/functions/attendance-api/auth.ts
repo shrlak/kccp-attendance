@@ -251,6 +251,28 @@ export function inScopeGroup(scope: Scope, group: string | null | undefined): bo
   return scope.groups.includes(g);
 }
 
+// 동산(장년부에서는 셀) 배정을 할 수 있는가 — 멤버 탭의 일괄 이동과 그 서버 경로가 함께
+// 읽는 하나의 규칙. 배정은 명단을 손보는 일이지 최고관리자만의 일이 아니다: 새가족팀은
+// 새로 온 사람을 등록하고 어느 동산으로 보낼지까지 챙기는 자리라 (그러지 못하면 등록만
+// 해 두고 최고관리자에게 매번 부탁하게 된다) 리더와 같은 자격으로 배정한다.
+//
+// 다만 **동산지기/부동산지기는 못 한다** — 자기 동산으로 사람을 끌어올 수 있는 자리이고,
+// 그 제한이 원래 리더에게 걸려 있던 이유가 그것이다. 새가족팀도 같은 이유로 같은 제한을
+// 받는다 (공용 비밀번호 로그인은 멤버 행이 없어 지기일 수가 없으므로 늘 통과한다).
+// 목사는 읽기 전용이라 어느 경우에도 아니다.
+export function canAssignDongsan(role: AdminRole, isDongsanLeader: boolean): boolean {
+  if (role === "super_admin" || role === "staff") return true;
+  if (role === "leader" || role === "welcoming") return !isDongsanLeader;
+  return false;
+}
+
+// 동산 이름 목록(config.dongsan_names)을 읽을 수 있는가. 배정할 수 있는 사람은 고를 이름을
+// 볼 수 있어야 한다 — 목록이 없으면 드롭다운이 비어서 배정 자체가 안 된다. 담긴 것은 이 부의
+// 동산 이름뿐이라 사람 정보가 아니다. **쓰기는 여전히 최고관리자뿐이다** (동산 탭).
+export function canReadDongsanNames(role: Role | null): boolean {
+  return !!role && (role.role === "super_admin" || role.role === "staff" || role.role === "welcoming");
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  LOGIN-LOG VIEWER — the sign-in history (who logged in, when, from which IP and
 //  approximate place) is personal-audit data, so it is NOT a general super-admin feature:
