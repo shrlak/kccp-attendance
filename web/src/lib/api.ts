@@ -643,6 +643,9 @@ export interface NewMemberFields {
   memberNo?: string
   birthDateRaw?: string
   family?: { nameKo: string; nameEn: string; relation: string; birthDate: string; gender: string; baptism: string }[]
+  // 같은 카드로 함께 등록되는 사람들(부부)을 묶는 값 — 클라이언트가 만들어 두 요청에 같이
+  // 실어 보낸다. 장년부에만 있는 칸이고, UUID가 아닌 값은 서버가 버린다 (adultSpouse.ts).
+  householdId?: string
 }
 
 // 새가족 (new-family) registration from the kiosk: creates a member with

@@ -7,8 +7,12 @@ import type { NewMemberFields } from '../../lib/api'
 //
 // 부서는 고를 것이 없으므로 언제나 장년부이고, 셀은 나중에 관리자가 배정한다 (키오스크에서
 // 셀을 묻지 않는 것은 대학·청년부와 같다).
-export function adultPayload(card: AdultCardValue): NewMemberFields {
+//
+// `householdId`는 같은 카드로 함께 등록되는 사람들(부부)을 묶는 값이다 — 배우자 줄이 없는
+// 보통의 카드에서는 빈 문자열이고, 그때 서버는 그 칸을 쓰지 않는다. 규칙은 adultSpouse.ts.
+export function adultPayload(card: AdultCardValue, householdId = ''): NewMemberFields {
   return {
+    householdId,
     name: card.name.trim(),
     group: ADULT_GROUP,
     subgroup: '',
