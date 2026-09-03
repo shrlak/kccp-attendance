@@ -9,11 +9,18 @@
 -- 그런데 그 전에 들어온 카드들은 본인 한 줄로만 남아 있다. 이 마이그레이션이 그 사람들을
 -- 뒤늦게 올려 준다 — 규칙도 옮겨 담는 칸도 `spousePayload`와 같은 것이다:
 --   · **그 사람의 것**은 그 줄에서   — 이름·영문 이름·성별·생년월일·세례여부
---   · **한 세대의 것**은 카드에서   — 주소·전화·이메일·참석동기·교회등록 의사·방문 일자·
---                                     등록일·동행가족 표
---   · **옮기지 않는 것 둘**         — 교우 등록번호(한 사람에게 발급된 번호라 둘이 들면 그
---                                     번호로 사람을 찾을 수 없다)와 직장·학교명(카드에 한
---                                     칸뿐이고 그건 본인 것이다)
+--   · **한 세대의 것**은 카드에서   — 주소·전화·참석동기·교회등록 의사·방문 일자·등록일·
+--                                     동행가족 표
+--   · **옮기지 않는 것 셋**         — 교우 등록번호(한 사람에게 발급된 번호라 둘이 들면 그
+--                                     번호로 사람을 찾을 수 없다), 직장·학교명(카드에 한
+--                                     칸뿐이고 그건 본인 것이다), 그리고 **이메일**
+--
+-- 이메일이 그 셋에 드는 이유는 스키마가 이미 말하고 있다: `members_lower_idx`가 `lower(email)`에
+-- 걸린 **유니크 인덱스**다 (email IS NOT NULL인 줄만). 이메일은 이 시스템에서 사람을 가리키는
+-- 열쇠라(구글 로그인이 이메일로 members 행을 찾는다) 둘이 같은 값을 들 수 없다 — 교우 등록번호와
+-- 똑같은 이유다. 빈 문자열도 인덱스에 들어가므로 ''를 복사해도 두 번째 사람에서 걸린다. 그래서
+-- 배우자의 이메일은 **NULL로 둔다** (NULL은 그 인덱스 밖이다); 카드에 적힌 이메일은 그 카드를
+-- 쓴 본인에게 남는다.
 -- 두 사람을 묶는 값이 `household_id`(20260808)이고, 본인에게 그 값이 없으면 여기서 만든다.
 --
 -- **기기도 출석도 만들지 않는다.** 이 사람들이 그날 왔다는 기록이 우리에게 없다 — 없는 출석을
@@ -37,7 +44,7 @@ UPDATE adult.members m
 WITH spouse AS (
   SELECT
     m.household_id,
-    m.group_name, m.phone, m.phone_home, m.email, m.address, m.city, m.state, m.zip_code,
+    m.group_name, m.phone, m.phone_home, m.address, m.city, m.state, m.zip_code,
     m.attend_reason, m.registration_choice, m.visit_date, m.registration_date, m.family,
     m.name AS host_name,
     btrim(coalesce(f->>'relation', ''))                                   AS relation,
@@ -67,7 +74,7 @@ WITH spouse AS (
 )
 INSERT INTO adult.members (
   name, name_en, group_name, subgroup, gender, birth_date, birth_date_raw, baptism_status,
-  phone, phone_home, email, address, city, state, zip_code,
+  phone, phone_home, address, city, state, zip_code,
   attend_reason, registration_choice, visit_date, registration_date,
   family, household_id, is_new_member, pastoral_visit_requested, notes
 )
@@ -84,7 +91,7 @@ SELECT DISTINCT ON (s.name)
   CASE WHEN s.birth_raw ~ '^\d{4}-\d{2}-\d{2}$' THEN ''
        ELSE coalesce((regexp_match(s.birth_raw, '^([^-]+(?:-[^-]+)*)'))[1], '') END,
   coalesce(nullif(s.baptism, ''), '해당없음'),
-  s.phone, s.phone_home, s.email, s.address, s.city, s.state, s.zip_code,
+  s.phone, s.phone_home, s.address, s.city, s.state, s.zip_code,
   s.attend_reason, s.registration_choice, s.visit_date,
   coalesce(s.registration_date, (now() AT TIME ZONE 'America/New_York')::date),
   -- 동행가족 표는 카드 한 장의 사실이라 양쪽이 같은 목록을 든다 (본인이 배우자의 동행가족

@@ -120,6 +120,14 @@ describe('배우자 등록 몸통', () => {
     expect(p.schoolOrWork).toBeUndefined()
   })
 
+  it('이메일도 옮기지 않는다 — 두 사람이 같은 값을 들 수 없다', () => {
+    // adult.members의 members_lower_idx가 lower(email)에 걸린 유니크 인덱스다. 카드의
+    // 이메일을 배우자에게도 실으면 두 번째 등록이 통째로 실패해서, 본인만 들어가고
+    // 배우자 한 사람이 조용히 빠진다. 빈 문자열도 그 인덱스에 들어가므로 ''도 안 된다.
+    expect(spousePayload(card, card.family[0]).email).toBeUndefined()
+    expect(spousePayload({ ...card, email: '' }, card.family[0]).email).toBeUndefined()
+  })
+
   it('날짜가 되지 못한 생년월일은 적힌 그대로 남는다', () => {
     const p = spousePayload(card, row({ nameKo: '이영희', relation: '아내', birthDate: '1972' }))
     expect(p.birthDate).toBeNull()
