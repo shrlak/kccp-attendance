@@ -1,10 +1,10 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { ADULT_GROUP, ADULT_SCHEMA, canAssignDongsan, canChoosePartition, canReadDongsanNames, canViewLoginLog, dbOf, inScope, inScopeGroup, partitionOfGroup, resolveAdmin, scopeFilter, type Partition, type Role, type Scope } from "./auth.ts";
-import { currentSeason, DEFAULT_SEMESTER_DATES, isSummerTerm, lastEndedTermKey, mergeSchedule, rollSchedule, sameSchedule, scheduleOf, scheduleToDates, subgroupSnapshot, trimHistory, validSchedule } from "./term.ts";
+import { currentSeason, DEFAULT_SEMESTER_DATES, isSummerTerm, lastEndedTermKey, mergeSchedule, rollSchedule, sameSchedule, scheduleOf, scheduleToDates, semesterDatesOf, subgroupSnapshot, termBounds, trimHistory, validSchedule } from "./term.ts";
 import { availableCardModels, buildCardRequest, cardModelChain, hasGen3Options, parseCardResponse } from "./gemini.ts";
 import { csvUrl, matchPerson, mergeSheetMarks, nameCounts, normalizeMarks, parseAttendanceSheet, parseSheetUrl, sameMarks, type ParsedSheet } from "./sheetSync.ts";
-import { findLink, findLinkFor, newLinkToken, parseLinks, recentSundays, reconcileTermLinks, type DongsanLink } from "./dongsanLink.ts";
+import { findLink, findLinkFor, leadersOf, newLinkToken, parseLinks, recentSundays, reconcileTermLinks, sundaysBetween, type DongsanLink } from "./dongsanLink.ts";
 import { deleteMembersKeepingAttendance } from "./memberDelete.ts";
 // Decrypt-side of the weekly R2 backup pipeline (see scripts/backup/). age-encryption is
 // FiloSottile's own pure-JS port of `age` (no native/subprocess dependency, which Deno
@@ -689,9 +689,33 @@ async function applySheet(pdb: any, source: SyncSource, parsed: ParsedSheet, out
 // 출석)은 애초에 kind가 달라 여기 걸리지도 않는다. 한 동산에 시트와 링크를 같이 쓰면 다음
 // 동기화에서 시트가 자기 값을 도로 넣으므로, 그 동산은 둘 중 하나만 쓴다.
 const LINK_SOURCE="link";
-// 화면에 놓는 주일 수. 지난 두 달이면 밀린 주를 채우기에 넉넉하고, 그보다 멀리 거슬러
-// 고치는 일은 관리자의 출석부 탭이 할 일이다.
+// 학기가 없는 부(장년부)에서 화면에 놓는 주일 수. 지난 두 달이면 밀린 주를 채우기에 넉넉하고,
+// 그보다 멀리 거슬러 고치는 일은 관리자의 출석부 탭이 할 일이다.
 const LINK_WEEKS=8;
+
+// ── 표에 놓이는 주일 = 그 학기 ────────────────────────────────────────────────────────
+// 학기를 쓰는 부(대학·청년부)에서는 **지금 학기의 주일 전부**가 표가 된다 — 첫 주일부터
+// 마지막 주일까지, 아직 오지 않은 주일까지 칸을 미리 내어 둔다. 링크 자체가 학기 하나에
+// 매여 있으므로(reconcileTermLinks) 표도 그 학기 한 장인 것이 맞고, 최근 8주로 미끄러지던
+// 창은 학기 초에는 방학 주일을 앞에 붙이고 학기 중반에는 학기 초를 잘라 냈다 — 적는 사람이
+// 보는 표와 그 학기의 출석부가 다른 종이였다.
+//
+// 학기라는 것이 없는 부(장년부)는 그대로 최근 8주다. 학기 사이(전환 기간)도 마찬가지 —
+// 놓을 학기가 없으니 창으로 돌아간다. 적을 수 있는 날을 정하는 곳이 여기 하나뿐이어서,
+// 표를 그리는 쪽(GET)과 받아 적는 쪽(POST)이 갈릴 수 없다.
+// deno-lint-ignore no-explicit-any
+function boardSundays(cfg: any, part: Partition): string[] {
+  const today=localDate();
+  if(USES_SEMESTERS.includes(part)) {
+    const season=currentSeason(today,cfg?.semester_dates,cfg?.semester_schedule);
+    if(season) {
+      const {start,end}=termBounds(Number(today.slice(0,4)),season,semesterDatesOf(cfg?.semester_dates),scheduleOf(cfg?.semester_schedule));
+      const weeks=sundaysBetween(start,end);
+      if(weeks.length) return weeks;
+    }
+  }
+  return recentSundays(today,LINK_WEEKS);
+}
 
 // 토큰이 어느 부의 어느 동산인가. 두 부의 config를 다 열어 보는 것은 시트 연동 토큰과 같은
 // 이유다 — 링크에는 부가 적혀 있지 않고, 적혀 있어도 그것을 믿을 수 없다.
@@ -699,13 +723,14 @@ const LINK_WEEKS=8;
 // 화면을 열 때 도는 시계라, 아무도 열지 않은 채 학기가 끝났다면 아직 config에 남아 있을 수
 // 있다. 여는 문에서 한 번 더 물어 두면 "학기가 끝나면 폐지된다"가 시계와 무관하게 성립한다.
 // term이 빈 링크(동산별로 내던 것 · 장년부의 셀 링크)는 학기에 매이지 않으므로 그대로 열린다.
-async function resolveDongsanLink(sb: SB, token: string): Promise<{part:Partition;link:DongsanLink}|null> {
+// deno-lint-ignore no-explicit-any
+async function resolveDongsanLink(sb: SB, token: string): Promise<{part:Partition;link:DongsanLink;cfg:any}|null> {
   if(!token) return null;
   const [youthCfg,adultCfg]=await Promise.all([getCfg(sb,"youth"),getCfg(sb,"adult")]);
   const y=findLink(parseLinks(youthCfg?.dongsan_links),token);
-  if(y) return inTerm(y,youthCfg,"youth")?{part:"youth",link:y}:null;
+  if(y) return inTerm(y,youthCfg,"youth")?{part:"youth",link:y,cfg:youthCfg}:null;
   const a=findLink(parseLinks(adultCfg?.dongsan_links),token);
-  if(a) return inTerm(a,adultCfg,"adult")?{part:"adult",link:a}:null;
+  if(a) return inTerm(a,adultCfg,"adult")?{part:"adult",link:a,cfg:adultCfg}:null;
   return null;
 }
 // deno-lint-ignore no-explicit-any
@@ -1267,21 +1292,36 @@ Deno.serve(async (req: Request) => {
     if(req.method==="GET"&&p==="/api/dongsan/board") {
       const found=await resolveDongsanLink(sb,url.searchParams.get("token")||"");
       if(!found) return fail(404,"이 링크는 더 이상 쓸 수 없습니다");
-      const {part,link}=found;
+      const {part,link,cfg}=found;
       const pdb=db(sb,part);
       const {data:mem}=await dongsanMemberQuery(pdb,link,"id,name,group_name,subgroup,status_marks,status_note,status_start,status_end");
+      // **동산이 없는 사람은 이 표에 없다.** 이 화면은 동산모임 출석을 적는 자리인데 동산이
+      // 없으면 나갈 모임이 없고, 실제 명단에서 그런 사람은 옛 멤버까지 합쳐 수십 명이라
+      // (대학부 32명) '동산 미지정' 블록이 표의 대부분을 차지해 정작 적을 동산을 가렸다.
+      // 배정은 동산 탭이 하고, 배정되는 순간 다음 새로고침에서 자기 동산 블록에 나타난다.
+      // 그러니 몇 명이 그렇게 빠졌는지는 함께 실어 보낸다 — 안 그러면 "그 사람은 왜 없지"가
+      // 되고, 답이 화면 어디에도 없다.
+      const assigned=((mem||[]) as any[]).filter((m)=>String(m.subgroup||"").trim());
+      const unassigned=((mem||[]) as any[]).length-assigned.length;
       // 부서 링크는 여러 동산이 한 화면에 오므로 동산 → 이름 순으로 정렬해 두면 화면이 그대로
       // 묶어 그린다. 동산 링크는 한 동산뿐이라 결국 이름 순이다.
-      const members=((mem||[]) as any[]).sort((a,b)=>
+      const members=assigned.sort((a,b)=>
         String(a.subgroup||"").localeCompare(String(b.subgroup||""),"ko")
         ||String(a.name||"").localeCompare(String(b.name||""),"ko"));
-      const dates=recentSundays(localDate(),LINK_WEEKS);
+      const dates=boardSundays(cfg,part);
+      // 동산지기·부동산지기는 그 동산 블록 맨 위에 하이라이트되어 앉는다 (관리자 출석부와 같은
+      // 자리·같은 색). 이름만 내려보내면 되고 — 화면이 그 이름으로 자기 표의 줄을 짚는다.
+      const summer=isSummerTerm(localDate(),cfg?.semester_dates,cfg?.semester_schedule)&&USES_SEMESTERS.includes(part);
+      const leaders: Record<string,unknown>={};
+      for(const sub of new Set(members.map((m)=>String(m.subgroup)))) {
+        leaders[sub]=leadersOf(cfg?.dongsan_leaders,link.group,sub,summer);
+      }
       const ids=members.map((m)=>m.id);
       const {data:logs}=ids.length
         ? await pdb.from("attendance_log").select("member_id,date").eq("kind","dongsan")
             .in("member_id",ids).gte("date",dates[0]).lte("date",dates[dates.length-1])
         : {data:[] as any[]};
-      return ok({partition:part,group:link.group,subgroup:link.subgroup,dates,
+      return ok({partition:part,group:link.group,subgroup:link.subgroup,dates,unassigned,leaders,
         members:members.map((m)=>({id:m.id,name:m.name,group:m.group_name||"",subgroup:m.subgroup||"",
           status_marks:m.status_marks??null,status_note:m.status_note??null,
           status_start:m.status_start??null,status_end:m.status_end??null})),
@@ -1292,11 +1332,12 @@ Deno.serve(async (req: Request) => {
     if(req.method==="POST"&&p==="/api/dongsan/mark") {
       const found=await resolveDongsanLink(sb,req.headers.get("x-dongsan-token")||String(body.token||""));
       if(!found) return fail(404,"이 링크는 더 이상 쓸 수 없습니다");
-      const {part,link}=found;
+      const {part,link,cfg}=found;
       const pdb=db(sb,part);
       const date=String(body.date||"");
-      // 화면이 보낸 날짜를 그대로 쓰지 않는다 — 적을 수 있는 주일은 서버가 정한다.
-      if(!recentSundays(localDate(),LINK_WEEKS).includes(date)) return fail(400,"적을 수 있는 주일이 아닙니다");
+      // 화면이 보낸 날짜를 그대로 쓰지 않는다 — 적을 수 있는 주일은 서버가 정한다(표와 같은
+      // 함수로, 같은 학기 안에서).
+      if(!boardSundays(cfg,part).includes(date)) return fail(400,"적을 수 있는 주일이 아닙니다");
       const memberId=String(body.memberId||"");
       // 그리고 그 사람이 정말 이 동산의 사람인지도 표에 물어본다. 링크가 가리키는 범위 밖으로
       // 한 칸이라도 나가면 이 문은 "우리 동산 출석부"가 아니라 명단 전체의 쓰기 권한이 된다.

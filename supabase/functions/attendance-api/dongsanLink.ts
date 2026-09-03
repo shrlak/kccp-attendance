@@ -179,3 +179,55 @@ export function recentSundays(today: string, count: number): string[] {
   for (let i = count - 1; i >= 0; i--) out.push(addIsoDays(lastSunday, -7 * i));
   return out;
 }
+
+/**
+ * [start, end] 안의 주일 전부 (오래된 것이 앞).
+ *
+ * 링크의 표가 **학기 한 장**이 되는 것이 이 함수다. 최근 8주만 보여주던 시절에는 창이 시간을
+ * 따라 미끄러져서, 학기가 막 시작한 주에는 지난 학기(방학) 주일이 앞에 붙고 학기 중반에는
+ * 학기 초가 잘려 나갔다 — 적는 사람이 보는 표와 그 학기의 출석부가 서로 다른 종이였다.
+ * 학기의 첫 주일부터 마지막 주일까지를 그대로 놓으면 표 한 장이 곧 그 학기다.
+ *
+ * 아직 오지 않은 주일도 함께 놓는다 (그래서 학기 초에도 표가 비어 보이지 않는다): 스프레드
+ * 시트가 그렇듯 칸은 미리 나 있고 사람이 주마다 채운다.
+ */
+export function sundaysBetween(start: string, end: string): string[] {
+  const [y, m, d] = start.split("-").map(Number);
+  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0 = 주일
+  let day = dow === 0 ? start : addIsoDays(start, 7 - dow);
+  const out: string[] = [];
+  while (day <= end) {
+    out.push(day);
+    day = addIsoDays(day, 7);
+  }
+  return out;
+}
+
+/** 한 동산의 동산지기(1명)와 부동산지기들 — config.dongsan_leaders에 적힌 그대로. */
+export interface DongsanLeaderNames {
+  leader: string;
+  subLeaders: string[];
+}
+const NO_LEADERS: DongsanLeaderNames = { leader: "", subLeaders: [] };
+
+/**
+ * `config.dongsan_leaders`에서 이 동산의 지기들을 꺼낸다.
+ *
+ * 저장된 모양은 {부서 또는 "합동": {동산: {leader, subLeaders}}}라 열쇠가 부서다. 여름에는
+ * 대학·청년부가 합동이라 "합동" 아래에 적히고(그때 부서별 열쇠는 비어 있을 수 있다), 부서를
+ * 가리지 않는 링크(group:"")도 있으므로 **찾는 순서를 두었다**: 합동(여름) → 그 부서 → 어느
+ * 부서든 그 이름의 동산. 마지막 단계가 없으면 편성표와 명단의 부서가 어긋난 동산에서 지기가
+ * 조용히 사라진다 (leaderOptions가 같은 이유로 바깥 사람을 남겨 두는 것과 같은 사정).
+ */
+// deno-lint-ignore no-explicit-any
+export function leadersOf(leaders: any, group: string, subgroup: string, summer: boolean): DongsanLeaderNames {
+  if (!leaders || typeof leaders !== "object" || !subgroup) return NO_LEADERS;
+  const entry = (key: string) => (leaders[key] && leaders[key][subgroup]) || null;
+  const found = (summer ? entry("합동") : null) || (group ? entry(group) : null) ||
+    Object.keys(leaders).map(entry).find((e) => e) || null;
+  if (!found) return NO_LEADERS;
+  return {
+    leader: String(found.leader || ""),
+    subLeaders: Array.isArray(found.subLeaders) ? found.subLeaders.map((n: unknown) => String(n || "")).filter(Boolean) : [],
+  };
+}

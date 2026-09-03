@@ -1,5 +1,5 @@
 import { assertEquals, assertNotEquals, assertStringIncludes } from "jsr:@std/assert@1";
-import { addIsoDays, findLink, findLinkFor, isGroupLink, linkSlug, newLinkToken, parseLinks, reconcileTermLinks, recentSundays, type DongsanLink } from "./dongsanLink.ts";
+import { addIsoDays, findLink, findLinkFor, isGroupLink, leadersOf, linkSlug, newLinkToken, parseLinks, reconcileTermLinks, recentSundays, sundaysBetween, type DongsanLink } from "./dongsanLink.ts";
 
 Deno.test("저장된 링크를 읽는다 — 모양이 어긋난 줄은 버린다", () => {
   const links = parseLinks([
@@ -152,4 +152,50 @@ Deno.test("달과 해를 넘어간다", () => {
   assertEquals(addIsoDays("2026-02-28", 1), "2026-03-01");
   assertEquals(addIsoDays("2028-02-28", 1), "2028-02-29"); // 윤년
   assertEquals(addIsoDays("2026-01-01", -1), "2025-12-31");
+});
+
+// ── 학기 한 장이 표가 된다 ───────────────────────────────────────────────────────────
+
+Deno.test("학기의 주일 전부 — 첫 주일부터 마지막 주일까지", () => {
+  // 2026 가을학기: 9/6(주일) ~ 12/13(주일).
+  const weeks = sundaysBetween("2026-09-06", "2026-12-13");
+  assertEquals(weeks[0], "2026-09-06");
+  assertEquals(weeks[weeks.length - 1], "2026-12-13");
+  assertEquals(weeks.length, 15);
+  assertEquals([...weeks].sort(), weeks); // 오래된 것이 앞
+});
+
+Deno.test("학기가 주일이 아닌 날에 시작하면 그 뒤 첫 주일부터", () => {
+  // 8/15는 토요일 → 첫 칸은 8/16.
+  assertEquals(sundaysBetween("2026-08-15", "2026-09-06")[0], "2026-08-16");
+  // 끝나는 날이 주일이 아니면 그 전 주일이 마지막 칸이다 (학기 밖의 주일은 놓지 않는다).
+  const weeks = sundaysBetween("2026-09-06", "2026-12-16");
+  assertEquals(weeks[weeks.length - 1], "2026-12-13");
+  // 주일이 하나도 없는 짧은 구간이면 빈 표 — 부르는 쪽이 그때 최근 8주로 되돌린다.
+  assertEquals(sundaysBetween("2026-09-07", "2026-09-12"), []);
+});
+
+// ── 동산지기 / 부동산지기 ────────────────────────────────────────────────────────────
+
+const LEADERS = {
+  "대학부": { "건영동산": { leader: "김건영", subLeaders: ["이수민", ""] } },
+  "합동": { "건영동산": { leader: "여름지기", subLeaders: [] } },
+};
+
+Deno.test("그 부서의 지기를 꺼낸다 — 빈 이름은 버리고", () => {
+  assertEquals(leadersOf(LEADERS, "대학부", "건영동산", false), { leader: "김건영", subLeaders: ["이수민"] });
+});
+
+Deno.test("여름에는 합동 편성이 먼저다", () => {
+  assertEquals(leadersOf(LEADERS, "대학부", "건영동산", true).leader, "여름지기");
+});
+
+Deno.test("부서를 가리지 않는 링크도 그 이름의 동산을 찾는다", () => {
+  assertEquals(leadersOf(LEADERS, "", "건영동산", false).leader, "김건영");
+});
+
+Deno.test("지기가 적혀 있지 않으면 빈 값 — 화면은 그냥 하이라이트하지 않는다", () => {
+  assertEquals(leadersOf(LEADERS, "대학부", "윤서동산", false), { leader: "", subLeaders: [] });
+  assertEquals(leadersOf(null, "대학부", "건영동산", false), { leader: "", subLeaders: [] });
+  assertEquals(leadersOf(LEADERS, "대학부", "", false), { leader: "", subLeaders: [] });
 });

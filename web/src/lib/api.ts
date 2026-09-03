@@ -786,11 +786,21 @@ export interface DongsanBoard {
   group: string
   /** 이 링크가 가리키는 동산. **비어 있으면 group 부서 전체를 담는 부서 링크다.** */
   subgroup: string
-  /** 적을 수 있는 주일들 (오래된 것부터). 서버가 정한다. */
+  /**
+   * 적을 수 있는 주일들 (오래된 것부터). 서버가 정한다 — 학기를 쓰는 부에서는 **이번 학기의
+   * 주일 전부**라 아직 오지 않은 주일도 칸으로 나와 있다.
+   */
   dates: string[]
   members: DongsanBoardMember[]
   /** 출석한 칸들 — `${memberId}|${date}`. */
   marks: string[]
+  /** 동산 이름 → 그 동산의 동산지기/부동산지기 (config.dongsan_leaders에 적힌 이름). */
+  leaders?: Record<string, { leader: string; subLeaders: string[] }>
+  /**
+   * 아직 동산에 배정되지 않아 표에서 빠진 사람 수. 표에 없는 사람을 세어 두는 이유는
+   * 화면에 한 줄로 적기 위해서다 — 안 적으면 "그 사람은 왜 없지"의 답이 어디에도 없다.
+   */
+  unassigned?: number
 }
 
 export const getDongsanBoard = (token: string) =>

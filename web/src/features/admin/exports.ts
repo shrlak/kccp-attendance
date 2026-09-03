@@ -6,6 +6,7 @@ import { splitAffiliation } from './newFamilyCard'
 import { classifyKakaoId } from './contactQr'
 import { awayForRange, noteOn } from '../../lib/status'
 import { seasonLabel, unitTerms, usesSemesters, type Partition } from '../../lib/partition'
+import { blockColors, cssColor, HEADER_TOTAL_FILL, KEY_FILL, NOTE_FILL } from '../../lib/sheetPalette'
 
 // ── Pure export helpers ──────────────────────────────────────────────────────
 // Everything here is side-effect free so it can be unit-tested. The thin DOM bits
@@ -312,32 +313,10 @@ export function semesterLabel(today: string, lang: Lang, semesterDates?: Calenda
   return seasonLabel(year, season, lang, partition)
 }
 
-// Per-동산 header palette, matching the legacy sheet: blocks cycle green -> blue -> yellow ->
-// red, each a light shade (이름 labels) + a medium shade (date headers, 동산 name, 총 출석). The
-// 예배 총 출석 header is a constant pink; the KEY legend a teal. Colors are ARGB hex.
-export interface BlockColors {
-  light: string
-  medium: string
-}
-const COLOR_FAMILIES: BlockColors[] = [
-  { light: 'FFD9EAD3', medium: 'FFB6D7A8' }, // green
-  { light: 'FFCFE2F3', medium: 'FF9FC5E8' }, // blue
-  { light: 'FFFFF2CC', medium: 'FFFFE599' }, // yellow
-  { light: 'FFF4CCCC', medium: 'FFEA9999' }, // red
-]
-export const HEADER_TOTAL_FILL = 'FFEAD1DC' // 예배 총 출석 column header
-export const KEY_FILL = 'FF76A5AF' // KEY legend label
-export const NOTE_FILL = 'FFCCCCCC' // grey marked-out status cells (한국 귀국 / 이주 / 새가족 / 기타)
-
-// The color family for the nth 동산 block (cycles through the palette).
-export function blockColors(index: number): BlockColors {
-  return COLOR_FAMILIES[index % COLOR_FAMILIES.length]
-}
-
-// ARGB hex ("FFB6D7A8") -> CSS hex ("#B6D7A8"), dropping the alpha byte.
-export function cssColor(argb: string): string {
-  return `#${argb.slice(2)}`
-}
+// 출석부의 종이 색 — 한 벌뿐이고 lib/sheetPalette.ts에 산다 (엑셀·관리자 출석부·동산 리더
+// 링크가 같은 표를 서로 다른 자리에서 그리므로). 여기서 다시 내보내는 것은 이 파일에서
+// 가져다 쓰던 코드와 테스트가 그대로 돌게 하려는 것이다.
+export { blockColors, cssColor, HEADER_TOTAL_FILL, KEY_FILL, NOTE_FILL, type BlockColors } from '../../lib/sheetPalette'
 
 // 내보내는 엑셀의 글자 크기. 시트의 기본값은 11pt인데 출석부는 한 줄에 주일이 스무 칸까지
 // 가는 표라, 그대로 두면 열 너비가 밀려 한 화면에 안 들어간다. 교회가 쓰는 원본 시트도 10pt다.
