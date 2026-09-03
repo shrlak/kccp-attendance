@@ -64,6 +64,19 @@ export function spouseName(row: AdultFamilyMember): string {
   return (row.nameKo || '').trim() || (row.nameEn || '').trim()
 }
 
+// 성별은 이 시스템에서 '남'/'여' 두 말로만 적힌다 (출석부 엑셀의 칸 색도, 멤버 편집 창의
+// 선택지도 그 말만 안다). 그런데 동행가족 표의 성별은 카드 판독이 'M'/'F'로 적어 오는 일이
+// 있어서 — 종이에 영문 이름을 쓴 카드가 그렇다 — 그대로 옮기면 아무도 읽지 못하는 값이
+// 명단에 들어간다. **표기를 옮기는 것뿐이라 없던 사실을 지어내지 않는다**; 모르는 값은
+// 적힌 그대로 둔다 (지우면 그 칸에 뭐라고 적혀 있었는지가 사라진다).
+export function normalizeGender(value: string): string {
+  const s = (value || '').trim()
+  const u = s.toUpperCase()
+  if (u === 'M' || u === 'MALE') return '남'
+  if (u === 'F' || u === 'FEMALE') return '여'
+  return s
+}
+
 // 같은 카드로 등록된 사람들을 묶는 값. crypto.randomUUID가 없는 오래된 브라우저에서도
 // 등록 자체는 돌아야 하므로 빈 문자열로 떨어뜨린다 (서버가 그 값을 버린다) — 세대 묶음이
 // 없는 등록은 예전과 같은 등록이고, 등록이 안 되는 것보다 낫다.
@@ -86,7 +99,7 @@ export function spousePayload(
     group: ADULT_GROUP,
     subgroup: '',
     // ── 그 사람의 것 ──
-    gender: (row.gender || '').trim(),
+    gender: normalizeGender(row.gender),
     birthDate: isoDateOrNull(row.birthDate),
     birthDateRaw: birthRaw(row.birthDate),
     baptismStatus: (row.baptism || '').trim(),
