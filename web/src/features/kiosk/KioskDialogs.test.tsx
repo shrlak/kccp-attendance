@@ -177,14 +177,20 @@ describe('KioskNewMemberDialog (새가족 등록)', () => {
     expect(await screen.findByText('이름을 입력해주세요')).toBeInTheDocument()
   })
 
-  it('blocks submission without a 소속 — 부서 is derived from it, so it must be ticked', async () => {
+  // 필수는 이름 하나뿐이다: 소속은 부서를 정하는 칸일 뿐이고, 비었을 때 넣을 값이 이미
+  // 있으므로(청년부) 그 칸 때문에 사람을 명단에 못 올리는 일은 없다.
+  it('registers with only a name — an unticked 소속 falls back to 청년부', async () => {
     const { kioskNewMember } = await import('../../lib/api')
     renderWithProviders(<KioskNewMemberDialog open onClose={vi.fn()} />)
 
     await userEvent.type(screen.getByLabelText('이름'), '무소속')
     await userEvent.click(screen.getByRole('button', { name: '등록 후 출석' }))
 
-    expect(kioskNewMember).not.toHaveBeenCalled()
-    expect(await screen.findByText('소속 (학교/직장)을 선택해주세요')).toBeInTheDocument()
+    await waitFor(() => expect(kioskNewMember).toHaveBeenCalled())
+    expect((kioskNewMember as ReturnType<typeof vi.fn>).mock.calls[0][0]).toMatchObject({
+      name: '무소속',
+      group: '청년부',
+      schoolOrWork: '',
+    })
   })
 })

@@ -27,12 +27,12 @@ vi.mock('./cardPhoto', () => ({
 beforeAll(async () => { await i18n.init() })
 beforeEach(() => { vi.clearAllMocks() })
 
-function renderDialog(onClose = vi.fn(), initialFiles?: File[]) {
+function renderDialog(onClose = vi.fn(), initialFiles?: File[], partition?: 'adult') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={qc}>
       <ToastProvider>
-        <CardScanDialog open onClose={onClose} initialFiles={initialFiles} />
+        <CardScanDialog open onClose={onClose} initialFiles={initialFiles} forcePartition={partition} />
       </ToastProvider>
     </QueryClientProvider>,
   )
@@ -55,6 +55,28 @@ const cardsJson = (...names: string[]) => ({
 const cardJson = (name: string) => cardsJson(name)
 
 const file = (name: string) => new File(['x'], name, { type: 'image/jpeg' })
+
+// 장년부 카드 한 장 — 본인 + 동행가족 표. 기본값은 배우자 한 줄과 자녀 한 줄이다.
+const adultCardJson = (family: Record<string, string>[] = [
+  { nameKo: '이영희', nameEn: 'Younghee Lee', relation: '배우자', gender: '여', birthDate: '1972-11-05' },
+  { nameKo: '김유은', relation: '자녀', gender: '여' },
+]) => ({
+  status: 'ok',
+  cards: [{
+    cardType: 'adult',
+    name: '김철수',
+    nameEn: 'Chulsoo Kim',
+    gender: '남',
+    phone: '412-555-0100',
+    address: '5000 Forbes Ave',
+    city: 'Pittsburgh',
+    state: 'PA',
+    zipCode: '15213',
+    family,
+  }],
+  model: 'Gemini 2.5 Flash',
+  usage: { limit: 60, remaining: 56, day: '2026-07-19', resetsAt: 1_774_158_400_000, updatedAt: 1_774_072_001_000 },
+})
 
 describe('CardScanDialog — multi-card batch', () => {
   it('shows only the number of tries remaining today', async () => {
@@ -348,6 +370,54 @@ describe('CardScanDialog — photos handed over by the share sheet', () => {
     await userEvent.click(screen.getByRole('button', { name: '등록' }))
     expect(await screen.findByText('사진 2 / 2')).toBeInTheDocument()
     expect(await screen.findByLabelText('이름')).toHaveValue('이새가')
+  })
+
+  // ── 장년부 카드: 배우자 줄은 사람 하나를 더 만든다 ─────────────────────────────
+  // 배우자도 자기 출석을 찍으므로 명단에 자기 행이 있어야 한다. 나머지 동행가족(자녀)은
+  // 출석을 찍지 않으니 family 표 안에 남는 것으로 끝난다.
+  it('registers the 배우자 row as a second member sharing the household', async () => {
+    const { extractCard, kioskNewMember } = await import('../../lib/api')
+    ;(extractCard as ReturnType<typeof vi.fn>).mockResolvedValue(adultCardJson())
+    ;(kioskNewMember as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ok', memberId: 'm1' })
+    renderDialog(vi.fn(), [file('adult.jpg')], 'adult')
+
+    // 등록을 누르기 전에 누가 함께 등록되는지 알려 준다.
+    expect(await screen.findByText(/이영희도 함께 등록됩니다/)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: '등록' }))
+
+    await waitFor(() => expect(kioskNewMember).toHaveBeenCalledTimes(2))
+    const [self] = (kioskNewMember as ReturnType<typeof vi.fn>).mock.calls[0]
+    const [spouse] = (kioskNewMember as ReturnType<typeof vi.fn>).mock.calls[1]
+    expect(self).toMatchObject({ name: '김철수', group: '장년부' })
+    expect(spouse).toMatchObject({
+      name: '이영희',
+      group: '장년부',
+      gender: '여',
+      // 세대의 것은 카드 그대로.
+      address: '5000 Forbes Ave',
+      city: 'Pittsburgh',
+      phone: '(412) 555-0100',
+    })
+    // 두 사람은 같은 세대로 묶인다.
+    expect(self.householdId).toMatch(/^[0-9a-f-]{36}$/i)
+    expect(spouse.householdId).toBe(self.householdId)
+  })
+
+  it('leaves a card with no 배우자 row as one member', async () => {
+    const { extractCard, kioskNewMember } = await import('../../lib/api')
+    ;(extractCard as ReturnType<typeof vi.fn>).mockResolvedValue(
+      adultCardJson([{ nameKo: '김유은', relation: '자녀', gender: '여' }]),
+    )
+    ;(kioskNewMember as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ok', memberId: 'm1' })
+    renderDialog(vi.fn(), [file('adult.jpg')], 'adult')
+
+    await screen.findByDisplayValue('김철수')
+    expect(screen.queryByText(/함께 등록됩니다/)).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: '등록' }))
+
+    await waitFor(() => expect(kioskNewMember).toHaveBeenCalledTimes(1))
+    // 세대를 묶을 상대가 없으면 세대 값도 만들지 않는다.
+    expect((kioskNewMember as ReturnType<typeof vi.fn>).mock.calls[0][0].householdId).toBe('')
   })
 
   it('extracts a shared photo exactly once — a metered call must not fire twice', async () => {

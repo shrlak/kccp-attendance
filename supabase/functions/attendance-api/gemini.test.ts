@@ -8,6 +8,7 @@ import {
   buildGeminiBody,
   CARD_MODELS,
   CARD_PROMPT,
+  CARD_PROMPT_ADULT,
   CARD_PROMPT_FREEFORM,
   CARD_SCHEMA,
   CARDS_SCHEMA,
@@ -74,6 +75,10 @@ Deno.test("한 사진 여러 장: the prompt makes the array length the card cou
   assertEquals(CARD_PROMPT.includes("한 장을 두 개의 객체로 쪼개지 말고, 두 장을 한 객체에 합치지도 마세요."), true);
   // 동행가족은 카드가 아니다 — 장년부 카드 한 장이 네 명으로 불어나지 않도록.
   assertEquals(CARD_PROMPT.includes("동행가족은 카드가 아닙니다"), true);
+  // 관계 칸은 배우자를 가려내는 열쇠다 (웹의 adultSpouse.ts가 이 글자를 읽는다). 모델이
+  // '아내'를 '가족'으로 고쳐 쓰면 배우자가 명단에 올라가지 않는다.
+  assertEquals(CARD_PROMPT.includes("관계 칸(relation)은 **적힌 그대로** 옮기세요"), true);
+  assertEquals(CARD_PROMPT_ADULT.includes("관계 칸(relation)은 **적힌 그대로** 옮기세요"), true);
   // 같은 규칙이 스키마 없는 모델(OpenRouter)에도 그대로 간다.
   assertEquals(CARD_PROMPT_FREEFORM.includes("배열의 길이를 그 장수와 똑같이"), true);
 });

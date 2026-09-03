@@ -21,6 +21,7 @@ import { NewFamilyCardForm } from './NewFamilyCardForm'
 import { AdultCardForm } from './AdultCardForm'
 import { blankAdultCard, type AdultCardValue } from './adultCard'
 import { adultPayload } from './adultRegistration'
+import { newHouseholdId, spouseName, spousePayload, spouseRows } from './adultSpouse'
 import { groupsOfPartition, type Partition } from '../../lib/partition'
 import { useAdminAuth } from '../../stores/useAdminAuth'
 import { blankCardForm, groupForAffiliation, joinAffiliation, type CardFormValue } from './newFamilyCard'
@@ -233,14 +234,21 @@ export function CardScanDialog({
     : groupForAffiliation('', partition)
   // 장년부 카드에는 소속을 묻는 칸이 없다 — 고를 부서가 하나뿐이므로.
   const guessedGroup = !isAdultCard && !card.affiliationCategory.trim() ? fallbackGroup : ''
+  // 동행가족 표의 배우자 줄은 멤버 행을 하나 더 만든다 (adultSpouse.ts) — 배우자도 자기
+  // 출석을 찍으므로 명단에 자기 행이 있어야 한다. 누가 함께 등록되는지는 아래 SpouseNotice가
+  // 등록 버튼 위에 이름으로 적어 준다.
+  const spouses = isAdultCard ? spouseRows(adultCard.family) : []
 
   async function submit() {
     setBusy(true)
     try {
       // 이름 칸이 비어 있어도 멈추지 않는다 — 자리표를 만들어 등록한다.
       const name = cardMemberName(isAdultCard ? adultCard.name : card.name)
+      // 부부가 한 장에 적혀 있으면 두 사람이 된다. 그 둘을 묶는 값은 지금 만들어 두 요청에
+      // 같이 싣는다 — 배우자 줄이 없으면 빈 문자열이고, 서버가 그 칸을 쓰지 않는다.
+      const householdId = spouses.length > 0 ? newHouseholdId() : ''
       const payload: NewMemberFields = isAdultCard ? {
-        ...adultPayload(adultCard),
+        ...adultPayload(adultCard, householdId),
         name,
         skipCheckin: !checkinToday,
         // 로그인 없이 도는 링크는 서버가 신원에서 부를 알아낼 수 없으므로 직접 말해 준다.
@@ -264,13 +272,31 @@ export function CardScanDialog({
         pastoralVisitRequested: card.pastoralVisitRequested,
         skipCheckin: !checkinToday,
       }
-      await (publicMode ? shareNewMember : kioskNewMember)(payload)
+      const register = publicMode ? shareNewMember : kioskNewMember
+      await register(payload)
+      // 배우자는 자기 출석을 찍으므로 자기 행을 갖는다. 본인 등록이 끝난 **뒤에** 한 명씩
+      // 보내고, 한 명이 실패해도 이미 들어간 본인을 되돌리지 않는다 — 그 사람은 명단에
+      // 있는 것이 맞고, 빠진 사람만 이름을 대고 다시 넣으면 된다.
+      const failed: string[] = []
+      for (const row of spouses) {
+        try {
+          await register({
+            ...spousePayload(adultCard, row, householdId),
+            skipCheckin: !checkinToday,
+            ...(publicMode ? { partition: 'adult' as const } : {}),
+          })
+        } catch {
+          failed.push(spouseName(row))
+        }
+      }
       // The share link has no roster to refetch (that query is admin-only), but the ping
       // still goes out so any admin panel or kiosk that is open picks the new 새가족 up
       // immediately — same as a registration made from inside the panel.
       if (publicMode) broadcastAttendanceChange()
       else refreshRoster(qc)
-      toast({ title: t('admin.newfamily.scan.done', { name: payload.name }), tone: 'ok' })
+      const registered = [payload.name, ...spouses.map(spouseName).filter((n) => !failed.includes(n))]
+      toast({ title: t('admin.newfamily.scan.done', { name: registered.join(', ') }), tone: 'ok' })
+      if (failed.length > 0) toast({ title: t('admin.newfamily.scan.spouseFailed', { name: failed.join(', ') }), tone: 'err' })
       if (hasMore) {
         // More cards in the stack — keep the dialog (and the 오늘 출석 체크 choice)
         // and roll straight into the next card, extracting the next photo if this
@@ -375,6 +401,9 @@ export function CardScanDialog({
               {guessedGroup && <li>{t('admin.newfamily.scan.autoGroup', { group: guessedGroup })}</li>}
             </ul>
           )}
+          {/* 배우자는 고칠 것이 아니라 알려 줄 것이라 경고가 아닌 자리에 둔다 — 등록을
+              누르면 명단에 사람이 둘 생긴다는 사실 그 자체다. */}
+          {isAdultCard && <SpouseNotice card={adultCard} />}
           <div className="mt-4 inset-list">
             <label className="inset-row min-h-12 cursor-pointer justify-between gap-3">
               <span className="flex items-center gap-2 text-sm font-medium text-text">
@@ -402,5 +431,21 @@ export function CardScanDialog({
         </>
       )}
     </Dialog>
+  )
+}
+
+// 이 카드로 함께 등록될 배우자. 자기 컴포넌트로 떼어 둔 이유는 화면이 아니라 컴파일러
+// 쪽이다 — 위쪽 컴포넌트의 렌더가 동행가족 표까지 훑기 시작하면, 사진 배치를 돌리는
+// 서로 부르는 함수들(processFile ↔ nextPhoto)이 React Compiler의 "선언 전 참조"에
+// 걸려 컴포넌트가 통째로 최적화에서 빠진다. 읽는 자리를 여기로 옮기면 그 훑기가 이 안에서
+// 끝난다.
+function SpouseNotice({ card }: { card: AdultCardValue }) {
+  const { t } = useTranslation()
+  const names = spouseRows(card.family).map(spouseName).join(', ')
+  if (!names) return null
+  return (
+    <p className="mt-3 rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-[11px] leading-5 text-primary">
+      {t('admin.newfamily.scan.spouseAlso', { name: names })}
+    </p>
   )
 }

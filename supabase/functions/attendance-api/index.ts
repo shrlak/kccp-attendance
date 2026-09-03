@@ -147,6 +147,15 @@ function adultCardFields(body: any): Record<string, unknown> {
 // 있는 컬럼이라 멤버 수정에서 **장년부 요청일 때만** 매핑한다. 웹의 짝은 adultCard.ts.
 const ADULT_CARD_COLS: Record<string,string>={nameEn:"name_en",phoneHome:"phone_home",email:"email",birthDateRaw:"birth_date_raw",address:"address",city:"city",state:"state",zipCode:"zip_code",attendReason:"attend_reason",registrationChoice:"registration_choice",visitDate:"visit_date",memberNo:"member_no"};
 
+// 같은 카드로 함께 등록된 사람들(부부)을 묶는 값 — 클라이언트가 만들어 두 요청에 같이 실어
+// 보낸다 (웹의 adultSpouse.ts). household_id는 uuid 컬럼이라 아무 문자열이나 넣으면 등록이
+// 통째로 실패하므로, 모양이 맞을 때만 받고 아니면 없던 것으로 둔다 — 세대 묶음이 빠진 등록은
+// 예전과 같은 등록이지만, 등록이 안 되는 것은 사람을 잃는 것이다.
+function householdIdOf(body: any): string|null {
+  const v=typeof body?.householdId==="string"?body.householdId.trim():"";
+  return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(v)?v:null;
+}
+
 // 봄·여름·가을학기로 한 해를 나누는 부. 장년부는 상반기·하반기 둘로만 나뉘고 그 경계가
 // 고정이라, 학기 일정도 학기 종료 롤오버도 없다. 웹의 짝은 partition.ts usesSemesters().
 const USES_SEMESTERS: Partition[]=["youth"];
@@ -2165,9 +2174,12 @@ Deno.serve(async (req: Request) => {
       // 이미 같은 사람이 등록돼 있으면 행을 하나 더 만들지 않고 그 멤버에 최신 정보를 덮어쓴다
       // (출석 기록·기기가 그대로 이어진다).
       const dup=await findDuplicateMember(ndb,name,group,body);
+      // 부부가 한 카드로 들어오면 두 요청이 같은 값을 들고 온다. 장년부에만 있는 칸이므로
+      // 그 부일 때만 본다.
+      const household=newMemberPart==="adult"?householdIdOf(body):null;
       let memberId: string|null=null, merged=false;
       if(dup){
-        await ndb.from("members").update(mergedMemberFields(dup,body,subgroup,today)).eq("id",dup.id);
+        await ndb.from("members").update({...mergedMemberFields(dup,body,subgroup,today),...(household?{household_id:household}:{})}).eq("id",dup.id);
         memberId=dup.id; merged=true;
       } else {
         const {data:created}=await ndb.from("members").insert({
@@ -2178,6 +2190,7 @@ Deno.serve(async (req: Request) => {
           // 장년부 카드는 묻는 것이 다르다 (이름 영문·집 전화·주소·참석동기·동행가족 …).
           // 그 칸들은 adult.members에만 있으므로 그 부일 때만 얹는다.
           ...(newMemberPart==="adult"?adultCardFields(body):{}),
+          ...(household?{household_id:household}:{}),
           // 등록일자 defaults to the date the member is added but the operator may set it
           // explicitly (e.g. back-fill someone who joined earlier). Attendance percentages
           // count from this date.
