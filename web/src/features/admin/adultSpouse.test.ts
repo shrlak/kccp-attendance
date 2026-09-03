@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isSpouseRelation, spouseName, spousePayload, spouseRows } from './adultSpouse'
+import { isSpouseRelation, normalizeGender, spouseName, spousePayload, spouseRows } from './adultSpouse'
 import { blankAdultCard, blankFamilyMember, type AdultFamilyMember } from './adultCard'
 
 const row = (extra: Partial<AdultFamilyMember> = {}): AdultFamilyMember => ({
@@ -40,6 +40,20 @@ describe('배우자 줄 고르기', () => {
   it('한글 이름이 없으면 영문 이름을 쓴다', () => {
     expect(spouseName(row({ nameEn: 'John Kim' }))).toBe('John Kim')
     expect(spouseName(row({ nameKo: '김철수', nameEn: 'Chulsoo Kim' }))).toBe('김철수')
+  })
+})
+
+describe('성별 표기', () => {
+  it("카드가 영문으로 적어 온 성별을 이 칸의 말로 옮긴다", () => {
+    for (const v of ['M', 'm', 'Male', 'MALE']) expect(normalizeGender(v)).toBe('남')
+    for (const v of ['F', 'f', 'Female', ' FEMALE ']) expect(normalizeGender(v)).toBe('여')
+  })
+
+  it('이미 한글로 적힌 값과 모르는 값은 그대로 둔다', () => {
+    expect(normalizeGender('남')).toBe('남')
+    expect(normalizeGender('여')).toBe('여')
+    expect(normalizeGender('')).toBe('')
+    expect(normalizeGender('미상')).toBe('미상')
   })
 })
 
@@ -91,6 +105,13 @@ describe('배우자 등록 몸통', () => {
     expect(p.visitDate).toBe('2026-09-06')
     expect(p.registrationDate).toBe('2026-09-06')
     expect(p.family).toHaveLength(1)
+  })
+
+  it("동행가족 표의 'M'/'F'는 명단의 말로 옮겨 담는다", () => {
+    // 종이에 영문 이름을 쓴 카드는 성별도 영문으로 읽혀 온다 — 그대로 넣으면 출석부
+    // 엑셀도 멤버 편집 창도 읽지 못하는 값이 명단에 앉는다.
+    const p = spousePayload(card, row({ nameKo: '이영희', relation: 'WIFE', gender: 'F' }))
+    expect(p.gender).toBe('여')
   })
 
   it('교우 등록번호와 직장·학교는 본인의 것이라 옮기지 않는다', () => {
