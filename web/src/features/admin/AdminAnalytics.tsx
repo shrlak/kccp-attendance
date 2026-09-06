@@ -57,7 +57,7 @@ export function AdminAnalytics() {
 }
 
 // ── 새가족만 따로 ────────────────────────────────────────────────────────────
-// 위쪽 통계가 전체를 세는 자리라면 여기부터는 새가족만 센다 — 숫자 타일 · 등록/출석 추이
+// 위쪽 통계가 전체를 세는 자리라면 여기부터는 새가족만 센다 — 숫자 타일 · 주별 등록/출석 추이
 // 그래프 · 월별 표. 입력은 위와 같은(부서/동산 필터가 이미 걸린) members + log이므로 필터를
 // 바꾸면 이 블록도 같이 좁혀진다.
 function NewFamilySection({ members, log }: { members: Member[]; log: LogEntry[] }) {
@@ -80,7 +80,7 @@ function NewFamilySection({ members, log }: { members: Member[]; log: LogEntry[]
           <Sprout size={16} strokeWidth={2} aria-hidden />
         </span>
         <h2 className="font-display text-lg font-bold tracking-tight text-text">{t('admin.newfamily.title')}</h2>
-        {/* 등록일이 없는 새가족은 어느 달에도 놓을 수 없어 그래프와 월별 표에서 빠진다.
+        {/* 등록일이 없는 새가족은 어느 주에도 놓을 수 없어 그래프와 월별 표에서 빠진다.
             숫자만 맞고 추이에 안 보이면 "왜 하나가 모자라지"가 되므로 여기서 밝혀 둔다. */}
         {totals.undated > 0 && (
           <span className="ml-auto text-xs text-muted">{t('admin.analytics.nfUndated', { n: totals.undated })}</span>
@@ -94,7 +94,7 @@ function NewFamilySection({ members, log }: { members: Member[]; log: LogEntry[]
       ) : (
         <>
           <NewFamilyTiles totals={totals} showEdu={showEdu} />
-          <NewFamilyCharts members={members} log={log} showEdu={showEdu} />
+          <NewFamilyCharts members={members} log={log} showEdu={showEdu} today={today} />
           <div className="mt-5">
             <NewFamilyMonthlyTable rows={rows} />
           </div>

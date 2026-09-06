@@ -141,19 +141,34 @@ const nf = (name: string, registration_date: string | null, edu = false): Member
 const eid = (member: Member, date: string): LogEntry => ({ ...e(member.name, date), memberId: member.id })
 
 describe('newFamilyRegistrations', () => {
-  it('counts registrations per month, oldest first, filling the empty months', () => {
-    const members = [nf('A', '2026-01-04'), nf('B', '2026-01-18'), nf('C', '2026-03-01'), m('기존')]
+  it('counts registrations per week, oldest first, filling the empty weeks', () => {
+    const members = [nf('A', '2026-01-04'), nf('B', '2026-01-04'), nf('C', '2026-01-25'), m('기존')]
     expect(newFamilyRegistrations(members)).toEqual([
-      { month: '2026-01', count: 2 },
-      { month: '2026-02', count: 0 },
-      { month: '2026-03', count: 1 },
+      { week: '2026-01-04', count: 2 },
+      { week: '2026-01-11', count: 0 },
+      { week: '2026-01-18', count: 0 },
+      { week: '2026-01-25', count: 1 },
     ])
   })
+  it('puts a midweek registration in the 주일 that opened its week', () => {
+    // 수요일에 옮겨 적은 등록도 그 사람이 온 주일(1/4)의 칸에 앉는다.
+    expect(newFamilyRegistrations([nf('A', '2026-01-07')])).toEqual([{ week: '2026-01-04', count: 1 }])
+  })
   it('spans a year boundary', () => {
-    expect(newFamilyRegistrations([nf('A', '2025-12-07'), nf('B', '2026-01-11')])).toEqual([
-      { month: '2025-12', count: 1 },
-      { month: '2026-01', count: 1 },
+    expect(newFamilyRegistrations([nf('A', '2025-12-28'), nf('B', '2026-01-04')])).toEqual([
+      { week: '2025-12-28', count: 1 },
+      { week: '2026-01-04', count: 1 },
     ])
+  })
+  it('runs the axis through this 주일 when today is given, so a quiet stretch shows', () => {
+    expect(newFamilyRegistrations([nf('A', '2026-01-04')], '2026-01-21')).toEqual([
+      { week: '2026-01-04', count: 1 },
+      { week: '2026-01-11', count: 0 },
+      { week: '2026-01-18', count: 0 },
+    ])
+  })
+  it('never shortens the series when today is older than the last registration', () => {
+    expect(newFamilyRegistrations([nf('A', '2026-01-04')], '2025-12-30')).toEqual([{ week: '2026-01-04', count: 1 }])
   })
   it('drops 새가족 with no 등록일, and is empty with no dated 새가족', () => {
     expect(newFamilyRegistrations([nf('A', null), m('기존')])).toEqual([])

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useTranslation } from 'react-i18next'
 import type { Chart as ChartType, ChartConfiguration, Plugin } from 'chart.js'
 import { useTheme } from '../../stores/useTheme'
-import { shortDate, shortMonth } from './sheet'
+import { shortDate } from './sheet'
 import { trendSeries, groupSeries, newFamilyRegistrations, newFamilyTrend } from './analytics'
 import { type Member, type LogEntry } from '../../lib/api'
 import { resolveGroupColor } from './groupColors'
@@ -172,25 +172,31 @@ export function AnalyticsCharts({ members, log }: { members: Member[]; log: LogE
 const NEW_FAMILY_COLOR = '#2E9E63'
 const NEW_FAMILY_TINT = 'rgba(46,158,99,0.14)'
 
-// 새가족만 따로 본 두 그래프 — 월별 등록(막대)과 주일별 새가족 출석(선). 둘 다 값이 점/막대
+// 최근 몇 주의 등록을 그리는가. 주일 단위라 한 학기(15~16주)가 통째로 한 화면에 들어오는
+// 수이고, 막대가 스무 개를 넘으면 x축 날짜가 겹쳐 읽히지 않는다.
+const REG_WEEKS = 16
+
+// 새가족만 따로 본 두 그래프 — 주별 등록(막대)과 주일별 새가족 출석(선). 둘 다 값이 점/막대
 // 위에 적히므로 그래프에서 바로 숫자를 읽을 수 있다.
 export function NewFamilyCharts({
   members,
   log,
   showEdu,
+  today,
 }: {
   members: Member[]
   log: LogEntry[]
   showEdu: boolean
+  today: string
 }) {
   const { t } = useTranslation()
   // 새가족 출석 추이를 새가족 교육 단계로 갈라 본다. 장년부에는 그 교육이 없으므로 칩도 없고
   // 언제나 '전체'다.
   const [edu, setEdu] = useState<EduFilter>('all')
   const cohort = showEdu ? edu : 'all'
-  // 최근 12개월만 그린다. 그 앞은 아래 월별 표가 그대로 들고 있고, 막대가 스무 개를 넘으면
-  // x축 이름이 겹쳐 읽히지 않는다.
-  const regs = useMemo(() => newFamilyRegistrations(members).slice(-12), [members])
+  // 최근 16주만 그린다 — 그 앞은 아래 월별 표가 달 단위로 그대로 들고 있다. `today`를 넘겨
+  // 축을 이번 주일까지 이어 두므로, 마지막 몇 칸이 비어 있으면 그것이 곧 "요즘 등록이 없다"다.
+  const regs = useMemo(() => newFamilyRegistrations(members, today).slice(-REG_WEEKS), [members, today])
   const trend = useMemo(() => newFamilyTrend(members, log, cohort), [members, log, cohort])
   const cohortLabel = cohort === 'all' ? t('admin.analytics.nfAttendance') : t(`admin.newfamily.eduFilter.${cohort}`)
 
@@ -198,7 +204,7 @@ export function NewFamilyCharts({
     (tick: string, grid: string): ChartConfiguration => ({
       type: 'bar',
       data: {
-        labels: regs.map((p) => shortMonth(p.month)),
+        labels: regs.map((p) => shortDate(p.week)),
         datasets: [
           {
             label: t('admin.analytics.nfRegistered'),

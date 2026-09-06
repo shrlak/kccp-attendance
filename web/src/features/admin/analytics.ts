@@ -1,7 +1,7 @@
 import type { Member, LogEntry } from '../../lib/api'
 import { groupsOf } from './filters'
 import { onBreak } from '../../lib/status'
-import { matchesEduFilter, type EduFilter } from './newFamily'
+import { matchesEduFilter, worshipSunday, type EduFilter } from './newFamily'
 
 // ── Pure, immutable aggregation helpers for the Analytics tab ──────────────
 // All functions take the already-scoped/filtered roster (members + log) and never
@@ -154,8 +154,8 @@ export function recapText(rows: RecapRow[]): string {
 // 새가족만 따로 세는 자리. 입력은 다른 집계와 똑같이 이미 부서/동산으로 좁혀진 members + log
 // 이고, 새가족의 정의는 `members.is_new_member` 하나다 — 새가족 탭의 `visibleNewFamily`는
 // "지금 새가족팀이 챙길 사람"이라 떠난 사람을 빼고 표시가 해제된 사람도 1년은 데리고 있지만,
-// **추이는 지나간 사실**이라 그때 등록한 사람은 그 달에 그대로 있어야 한다 (목록의 사정에 따라
-// 사람이 들고 나면 지난달 숫자가 이번 주에 바뀐다).
+// **추이는 지나간 사실**이라 그때 등록한 사람은 그 주에 그대로 있어야 한다 (목록의 사정에 따라
+// 사람이 들고 나면 지난주 숫자가 이번 주에 바뀐다).
 
 export const newFamilyMembers = (members: Member[]): Member[] => members.filter((m) => m.is_new_member)
 
@@ -168,39 +168,46 @@ function newFamilyMatcher(members: Member[]): (e: LogEntry) => boolean {
   return (e) => (e.memberId ? ids.has(e.memberId) : names.has(e.name))
 }
 
-// "2026-01"부터 "2026-04"까지처럼 두 달 사이를 빠짐없이 잇는다.
-function monthsBetween(from: string, to: string): string[] {
-  const out: string[] = []
-  let [y, m] = from.split('-').map(Number)
-  const [ty, tm] = to.split('-').map(Number)
-  while (y < ty || (y === ty && m <= tm)) {
-    out.push(`${y}-${String(m).padStart(2, '0')}`)
-    if (++m > 12) {
-      m = 1
-      y++
-    }
+// "2026-08-02"부터 "2026-08-30"까지처럼 두 주일 사이를 빠짐없이 잇는다 (양쪽 다 주일 날짜).
+function weeksBetween(from: string, to: string): string[] {
+  const DAY = 86_400_000
+  const toUTC = (s: string) => {
+    const [y, m, d] = s.split('-').map(Number)
+    return Date.UTC(y, m - 1, d)
   }
+  const out: string[] = []
+  for (let t = toUTC(from), end = toUTC(to); t <= end; t += 7 * DAY) out.push(new Date(t).toISOString().slice(0, 10))
   return out
 }
 
 export interface NewFamilyRegPoint {
-  month: string // "2026-06"
-  count: number // 그 달에 등록한 새가족 수
+  week: string // 그 주를 여는 주일 — "2026-06-07"
+  count: number // 그 주에 등록한 새가족 수
 }
 
-// 월별 새가족 등록 수, 오래된 달 → 최근 달. **한 명도 없던 달도 0으로 채운다** — 건너뛰면
-// x축이 붙어 버려 "그 달에도 왔다"로 읽히고, 추이는 빈 달이 보여야 추이다. 등록일이 없는
-// 새가족은 놓을 자리가 없어 빠진다 (숫자 타일의 `undated`가 그 사람들을 따로 센다).
-export function newFamilyRegistrations(members: Member[]): NewFamilyRegPoint[] {
-  const byMonth = new Map<string, number>()
+// 주별 새가족 등록 수, 오래된 주 → 최근 주. **주는 주일에서 열린다** (`worshipSunday`,
+// 주일→토요일) — 새가족 카드의 '이번 주일 등록/지난주 등록'과 같은 자름이라, 수요일에 옮겨
+// 적은 등록도 그 사람이 실제로 온 주일에 놓인다. 한 달로 묶으면 "8월에 5명"까지만 보이고
+// 그 다섯이 한 주일에 몰려 온 것인지 넉 주에 흩어져 온 것인지가 사라지는데, 새가족을 맞는
+// 일은 주일 단위로 돌아간다.
+//
+// **한 명도 없던 주도 0으로 채운다** — 건너뛰면 x축이 붙어 버려 "그 주에도 왔다"로 읽히고,
+// 추이는 빈 주가 보여야 추이다. `today`를 주면 축이 이번 주일까지 이어진다: 주 단위에서는
+// 마지막 등록에서 축이 끝나 버리면 몇 주째 아무도 안 온 것이 화면에서 사라진다 (달 단위일
+// 때는 그 침묵이 길어야 눈에 띄었다). 등록일이 없는 새가족은 놓을 자리가 없어 빠진다
+// (숫자 타일의 `undated`가 그 사람들을 따로 센다).
+export function newFamilyRegistrations(members: Member[], today?: string): NewFamilyRegPoint[] {
+  const byWeek = new Map<string, number>()
   for (const m of newFamilyMembers(members)) {
     if (!m.registration_date) continue
-    const key = m.registration_date.slice(0, 7)
-    byMonth.set(key, (byMonth.get(key) ?? 0) + 1)
+    const key = worshipSunday(m.registration_date)
+    byWeek.set(key, (byWeek.get(key) ?? 0) + 1)
   }
-  const keys = [...byMonth.keys()].sort()
+  const keys = [...byWeek.keys()].sort()
   if (keys.length === 0) return []
-  return monthsBetween(keys[0], keys[keys.length - 1]).map((month) => ({ month, count: byMonth.get(month) ?? 0 }))
+  const lastReg = keys[keys.length - 1]
+  const through = today && worshipSunday(today) > lastReg ? worshipSunday(today) : lastReg
+  return weeksBetween(keys[0], through).map((week) => ({ week, count: byWeek.get(week) ?? 0 }))
 }
 
 export interface NewFamilyTrendPoint {
