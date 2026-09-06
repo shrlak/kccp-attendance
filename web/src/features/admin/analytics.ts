@@ -9,8 +9,22 @@ import { matchesEduFilter, worshipSunday, type EduFilter } from './newFamily'
 // attendees are counted by name (matching buildGrid / computeStats).
 
 const distinctDates = (log: LogEntry[]): string[] => [...new Set(log.map((e) => e.date))].sort()
-const uniqueNamesOn = (log: LogEntry[], date: string): Set<string> =>
-  new Set(log.filter((e) => e.date === date).map((e) => e.name))
+
+// ── 그래프의 가로축 한 칸 ──────────────────────────────────────────────────
+// 통계 탭 맨 위의 주별/월별 토글이 이 값 하나로 네 그래프(출석 추이 · 부서별 비교 ·
+// 새가족 등록 · 새가족 출석)를 함께 옮긴다. **주별이 원래의 그림이다** — 출석은 주일마다
+// 찍히므로 한 칸이 곧 그 주일이고, 월별은 그 칸들을 달로 묶어 긴 흐름을 보는 자리다.
+// 하나뿐인 토글로 넷을 다 옮기는 이유는, 같은 화면의 그래프가 서로 다른 축을 쓰면 위아래를
+// 견주는 순간 틀리기 때문이다.
+export type Granularity = 'week' | 'month'
+
+// 출석 한 줄이 놓이는 칸. 로그의 날짜는 이미 예배가 있던 날이라 주별에서는 그 날짜가 그대로
+// 칸이 된다 (없던 주일은 칸도 없다 — 예배가 없던 주에 0을 그리면 아무도 안 온 것으로 읽힌다).
+const bucketOf = (date: string, gran: Granularity): string => (gran === 'month' ? date.slice(0, 7) : date)
+const distinctBuckets = (log: LogEntry[], gran: Granularity): string[] =>
+  [...new Set(log.map((e) => bucketOf(e.date, gran)))].sort()
+const uniqueNamesIn = (log: LogEntry[], bucket: string, gran: Granularity): Set<string> =>
+  new Set(log.filter((e) => bucketOf(e.date, gran) === bucket).map((e) => e.name))
 
 // 방학 (school break) 표기가 `date`를 덮는지 — 멤버가 여러 표기를 가질 수 있으므로
 // lib/status.ts의 목록 규칙을 그대로 쓴다 (출석부·키오스크와 같은 판정).
@@ -28,30 +42,32 @@ export function excludeOnBreak(members: Member[], log: LogEntry[]): LogEntry[] {
 }
 
 export interface TrendPoint {
-  date: string
-  count: number // distinct attendees on that date
+  date: string // 칸의 열쇠 — 주별이면 그 주일("2026-06-07"), 월별이면 그 달("2026-06")
+  count: number // distinct attendees in that bucket
 }
 
-// 4.1 — unique attendees per date, ascending. One point per distinct log date.
-export function trendSeries(log: LogEntry[]): TrendPoint[] {
-  return distinctDates(log).map((date) => ({ date, count: uniqueNamesOn(log, date).size }))
+// 4.1 — unique attendees per bucket, ascending. 주별은 기록이 있는 주일마다 한 점이고,
+// 월별은 그 달에 **한 번이라도** 온 사람 수다 (주일마다의 평균이 아니라 아래 월별 요약 표의
+// '출석 인원'과 같은 수 — 같은 화면의 두 곳이 다른 것을 세면 어느 쪽이 맞나 싶어진다).
+export function trendSeries(log: LogEntry[], gran: Granularity = 'week'): TrendPoint[] {
+  return distinctBuckets(log, gran).map((date) => ({ date, count: uniqueNamesIn(log, date, gran).size }))
 }
 
 export interface GroupSeries {
-  dates: string[]
+  dates: string[] // 칸의 열쇠들 (trendSeries와 같은 자름 — 주일 또는 달)
   groups: string[] // 부서 present among members, in the preferred order
-  counts: Record<string, number[]> // group → per-date distinct attendee counts (aligned to dates)
+  counts: Record<string, number[]> // group → per-bucket distinct attendee counts (aligned to dates)
 }
 
-// 4.2 — one row of per-date counts per 부서, for a grouped bar chart. Counts use the
+// 4.2 — one row of per-bucket counts per 부서, for a grouped bar chart. Counts use the
 // log's group label so visitors/cross-group entries land in their logged 부서.
-export function groupSeries(members: Member[], log: LogEntry[]): GroupSeries {
-  const dates = distinctDates(log)
+export function groupSeries(members: Member[], log: LogEntry[], gran: Granularity = 'week'): GroupSeries {
+  const dates = distinctBuckets(log, gran)
   const groups = groupsOf(members)
   const counts: Record<string, number[]> = {}
   for (const g of groups) {
     const gLog = log.filter((e) => e.group === g)
-    counts[g] = dates.map((date) => uniqueNamesOn(gLog, date).size)
+    counts[g] = dates.map((date) => uniqueNamesIn(gLog, date, gran).size)
   }
   return { dates, groups, counts }
 }
@@ -168,6 +184,21 @@ function newFamilyMatcher(members: Member[]): (e: LogEntry) => boolean {
   return (e) => (e.memberId ? ids.has(e.memberId) : names.has(e.name))
 }
 
+// "2026-01"부터 "2026-04"까지처럼 두 달 사이를 빠짐없이 잇는다.
+function monthsBetween(from: string, to: string): string[] {
+  const out: string[] = []
+  let [y, m] = from.split('-').map(Number)
+  const [ty, tm] = to.split('-').map(Number)
+  while (y < ty || (y === ty && m <= tm)) {
+    out.push(`${y}-${String(m).padStart(2, '0')}`)
+    if (++m > 12) {
+      m = 1
+      y++
+    }
+  }
+  return out
+}
+
 // "2026-08-02"부터 "2026-08-30"까지처럼 두 주일 사이를 빠짐없이 잇는다 (양쪽 다 주일 날짜).
 function weeksBetween(from: string, to: string): string[] {
   const DAY = 86_400_000
@@ -181,43 +212,51 @@ function weeksBetween(from: string, to: string): string[] {
 }
 
 export interface NewFamilyRegPoint {
-  week: string // 그 주를 여는 주일 — "2026-06-07"
-  count: number // 그 주에 등록한 새가족 수
+  bucket: string // 주별이면 그 주를 여는 주일("2026-06-07"), 월별이면 그 달("2026-06")
+  count: number // 그 칸에서 등록한 새가족 수
 }
 
-// 주별 새가족 등록 수, 오래된 주 → 최근 주. **주는 주일에서 열린다** (`worshipSunday`,
-// 주일→토요일) — 새가족 카드의 '이번 주일 등록/지난주 등록'과 같은 자름이라, 수요일에 옮겨
-// 적은 등록도 그 사람이 실제로 온 주일에 놓인다. 한 달로 묶으면 "8월에 5명"까지만 보이고
-// 그 다섯이 한 주일에 몰려 온 것인지 넉 주에 흩어져 온 것인지가 사라지는데, 새가족을 맞는
-// 일은 주일 단위로 돌아간다.
+// 칸마다 등록한 새가족 수, 오래된 칸 → 최근 칸. **주별에서 주는 주일에서 열린다**
+// (`worshipSunday`, 주일→토요일) — 새가족 카드의 '이번 주일 등록/지난주 등록'과 같은
+// 자름이라, 수요일에 옮겨 적은 등록도 그 사람이 실제로 온 주일에 놓인다. 달로 묶으면
+// "8월에 5명"까지만 보이고 그 다섯이 한 주일에 몰려 온 것인지 넉 주에 흩어져 온 것인지가
+// 사라지지만, 반대로 여러 달에 걸친 흐름은 달 쪽이 한눈에 들어온다 — 그래서 둘 다 둔다.
 //
-// **한 명도 없던 주도 0으로 채운다** — 건너뛰면 x축이 붙어 버려 "그 주에도 왔다"로 읽히고,
-// 추이는 빈 주가 보여야 추이다. `today`를 주면 축이 이번 주일까지 이어진다: 주 단위에서는
-// 마지막 등록에서 축이 끝나 버리면 몇 주째 아무도 안 온 것이 화면에서 사라진다 (달 단위일
-// 때는 그 침묵이 길어야 눈에 띄었다). 등록일이 없는 새가족은 놓을 자리가 없어 빠진다
-// (숫자 타일의 `undated`가 그 사람들을 따로 센다).
-export function newFamilyRegistrations(members: Member[], today?: string): NewFamilyRegPoint[] {
-  const byWeek = new Map<string, number>()
+// **한 명도 없던 칸도 0으로 채운다** — 건너뛰면 x축이 붙어 버려 "그때도 왔다"로 읽히고,
+// 추이는 빈 칸이 보여야 추이다. `today`를 주면 축이 지금 칸까지 이어진다: 마지막 등록에서
+// 축이 끝나 버리면 몇 주(달)째 아무도 안 온 것이 화면에서 사라진다. 등록일이 없는 새가족은
+// 놓을 자리가 없어 빠진다 (숫자 타일의 `undated`가 그 사람들을 따로 센다).
+export function newFamilyRegistrations(
+  members: Member[],
+  today?: string,
+  gran: Granularity = 'week',
+): NewFamilyRegPoint[] {
+  // 등록일은 주일이 아닌 날일 수 있으므로(카드를 나중에 옮겨 적는다) 주별에서만 주일로
+  // 끌어당긴다. 달로 묶을 때는 적힌 날짜의 달이 곧 그 칸이다.
+  const keyOf = (date: string) => (gran === 'month' ? date.slice(0, 7) : worshipSunday(date))
+  const byBucket = new Map<string, number>()
   for (const m of newFamilyMembers(members)) {
     if (!m.registration_date) continue
-    const key = worshipSunday(m.registration_date)
-    byWeek.set(key, (byWeek.get(key) ?? 0) + 1)
+    const key = keyOf(m.registration_date)
+    byBucket.set(key, (byBucket.get(key) ?? 0) + 1)
   }
-  const keys = [...byWeek.keys()].sort()
+  const keys = [...byBucket.keys()].sort()
   if (keys.length === 0) return []
-  const lastReg = keys[keys.length - 1]
-  const through = today && worshipSunday(today) > lastReg ? worshipSunday(today) : lastReg
-  return weeksBetween(keys[0], through).map((week) => ({ week, count: byWeek.get(week) ?? 0 }))
+  const last = keys[keys.length - 1]
+  const now = today ? keyOf(today) : last
+  const through = now > last ? now : last
+  const span = gran === 'month' ? monthsBetween(keys[0], through) : weeksBetween(keys[0], through)
+  return span.map((bucket) => ({ bucket, count: byBucket.get(bucket) ?? 0 }))
 }
 
 export interface NewFamilyTrendPoint {
-  date: string
-  count: number // 그 주일에 출석한 새가족 중 고른 교육 단계에 해당하는 사람
-  newFamily: number // 그 주일에 출석한 새가족 전부 — 단계를 골랐을 때의 배경 선
-  total: number // 그 주일 전체 출석 인원
+  date: string // 칸의 열쇠 — 주일("2026-06-07") 또는 달("2026-06")
+  count: number // 그 칸에 출석한 새가족 중 고른 교육 단계에 해당하는 사람
+  newFamily: number // 그 칸에 출석한 새가족 전부 — 단계를 골랐을 때의 배경 선
+  total: number // 그 칸의 전체 출석 인원
 }
 
-// 주일마다 출석한 새가족 수. `edu`로 **새가족 교육 단계별로 갈라 볼 수 있다** (수강 완료 ·
+// 칸마다(주일 또는 달) 출석한 새가족 수. `edu`로 **새가족 교육 단계별로 갈라 볼 수 있다** (수강 완료 ·
 // 1주차만 · 2주차만 · 미수강 — 새가족 교육 탭의 그 네 갈래와 같은 `matchesEduFilter`를 쓴다).
 // 갈랐을 때도 새가족 전체(`newFamily`)와 그날 전체 출석(`total`)을 같이 들고 오는 이유는
 // **한 갈래의 숫자만으로는 아무것도 알 수 없기** 때문이다 — 미수강 3명은 새가족이 4명일 때와
@@ -226,11 +265,16 @@ export interface NewFamilyTrendPoint {
 // 주의: `new_member_edu_week1/2`는 **날짜 없는 참/거짓**이라, 갈래는 언제나 *지금* 상태다.
 // 지난달에 아직 미수강이던 사람도 이번 주에 이수를 찍으면 그 달까지 '수강 완료'로 그려진다 —
 // 교육을 마친 사람들이 어떻게 오고 있나를 보는 선이지, 그때 그 사람의 단계가 아니다.
-export function newFamilyTrend(members: Member[], log: LogEntry[], edu: EduFilter = 'all'): NewFamilyTrendPoint[] {
+export function newFamilyTrend(
+  members: Member[],
+  log: LogEntry[],
+  edu: EduFilter = 'all',
+  gran: Granularity = 'week',
+): NewFamilyTrendPoint[] {
   const isNewFamily = newFamilyMatcher(members)
   const inCohort = newFamilyMatcher(members.filter((m) => matchesEduFilter(m, edu)))
-  return distinctDates(log).map((date) => {
-    const onDate = log.filter((e) => e.date === date)
+  return distinctBuckets(log, gran).map((date) => {
+    const onDate = log.filter((e) => bucketOf(e.date, gran) === date)
     const newFamily = onDate.filter(isNewFamily)
     return {
       date,

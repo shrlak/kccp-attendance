@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useTranslation } from 'react-i18next'
 import type { Chart as ChartType, ChartConfiguration, Plugin } from 'chart.js'
 import { useTheme } from '../../stores/useTheme'
-import { shortDate } from './sheet'
-import { trendSeries, groupSeries, newFamilyRegistrations, newFamilyTrend } from './analytics'
+import { shortDate, shortMonth } from './sheet'
+import { trendSeries, groupSeries, newFamilyRegistrations, newFamilyTrend, type Granularity } from './analytics'
 import { type Member, type LogEntry } from '../../lib/api'
 import { resolveGroupColor } from './groupColors'
 import { Activity, BarChart3, Sprout, UserPlus } from '../../components/ui/Icon'
@@ -34,6 +34,9 @@ function pointValueLabels(tick: string): Plugin {
     },
   }
 }
+
+// 칸의 열쇠를 축에 적을 글자로. 주별은 그 주일("8/30"), 월별은 그 달("26.8")이다.
+const axisLabel = (key: string, gran: Granularity): string => (gran === 'month' ? shortMonth(key) : shortDate(key))
 
 // Chart.js is loaded once, lazily, on first chart mount — it must never be in the
 // initial bundle. registerables wires up the line/bar controllers, scales, etc.
@@ -75,11 +78,12 @@ export function ChartCanvas({ build }: { build: (tick: string, grid: string) => 
 }
 
 // 4.1 + 4.2 — trend line + (when more than one 부서 is in scope) the grouped bar chart.
-export function AnalyticsCharts({ members, log }: { members: Member[]; log: LogEntry[] }) {
+// `gran`은 탭 맨 위의 주별/월별 토글이 정한다 — 아래 새가족 그래프도 같은 값을 받는다.
+export function AnalyticsCharts({ members, log, gran }: { members: Member[]; log: LogEntry[]; gran: Granularity }) {
   const { t } = useTranslation()
   const { data: cfg } = useAppConfig()
-  const trend = useMemo(() => trendSeries(log), [log])
-  const groups = useMemo(() => groupSeries(members, log), [members, log])
+  const trend = useMemo(() => trendSeries(log, gran), [log, gran])
+  const groups = useMemo(() => groupSeries(members, log, gran), [members, log, gran])
   const showGroups = groups.groups.length > 1 && groups.dates.length > 0
 
   // Builders are memoized on their data so the chart only rebuilds when the underlying
@@ -88,7 +92,7 @@ export function AnalyticsCharts({ members, log }: { members: Member[]; log: LogE
     (tick: string, grid: string): ChartConfiguration => ({
       type: 'line',
       data: {
-        labels: trend.map((p) => shortDate(p.date)),
+        labels: trend.map((p) => axisLabel(p.date, gran)),
         datasets: [
           {
             label: t('admin.analytics.attendance'),
@@ -115,14 +119,14 @@ export function AnalyticsCharts({ members, log }: { members: Member[]; log: LogE
       // Inline plugin: draw each point's count just above its dot.
       plugins: [pointValueLabels(tick)],
     }),
-    [trend, t],
+    [trend, t, gran],
   )
 
   const groupBuild = useCallback(
     (tick: string, grid: string): ChartConfiguration => ({
       type: 'bar',
       data: {
-        labels: groups.dates.map((d) => shortDate(d)),
+        labels: groups.dates.map((d) => axisLabel(d, gran)),
         datasets: groups.groups.map((g) => ({
           label: g,
           data: groups.counts[g],
@@ -139,7 +143,7 @@ export function AnalyticsCharts({ members, log }: { members: Member[]; log: LogE
         },
       },
     }),
-    [cfg?.groupColors, groups],
+    [cfg?.groupColors, groups, gran],
   )
 
   if (trend.length === 0)
@@ -172,9 +176,9 @@ export function AnalyticsCharts({ members, log }: { members: Member[]; log: LogE
 const NEW_FAMILY_COLOR = '#2E9E63'
 const NEW_FAMILY_TINT = 'rgba(46,158,99,0.14)'
 
-// 최근 몇 주의 등록을 그리는가. 주일 단위라 한 학기(15~16주)가 통째로 한 화면에 들어오는
-// 수이고, 막대가 스무 개를 넘으면 x축 날짜가 겹쳐 읽히지 않는다.
-const REG_WEEKS = 16
+// 등록 막대를 몇 칸까지 그리는가. 주별 16주는 한 학기(15~16주)가 통째로 한 화면에 들어오는
+// 수이고, 월별 12달은 한 해를 넘겨 본다 — 둘 다 막대 스무 개를 넘지 않아 x축이 겹치지 않는다.
+const REG_BUCKETS: Record<Granularity, number> = { week: 16, month: 12 }
 
 // 새가족만 따로 본 두 그래프 — 주별 등록(막대)과 주일별 새가족 출석(선). 둘 다 값이 점/막대
 // 위에 적히므로 그래프에서 바로 숫자를 읽을 수 있다.
@@ -183,28 +187,33 @@ export function NewFamilyCharts({
   log,
   showEdu,
   today,
+  gran,
 }: {
   members: Member[]
   log: LogEntry[]
   showEdu: boolean
   today: string
+  gran: Granularity
 }) {
   const { t } = useTranslation()
   // 새가족 출석 추이를 새가족 교육 단계로 갈라 본다. 장년부에는 그 교육이 없으므로 칩도 없고
   // 언제나 '전체'다.
   const [edu, setEdu] = useState<EduFilter>('all')
   const cohort = showEdu ? edu : 'all'
-  // 최근 16주만 그린다 — 그 앞은 아래 월별 표가 달 단위로 그대로 들고 있다. `today`를 넘겨
-  // 축을 이번 주일까지 이어 두므로, 마지막 몇 칸이 비어 있으면 그것이 곧 "요즘 등록이 없다"다.
-  const regs = useMemo(() => newFamilyRegistrations(members, today).slice(-REG_WEEKS), [members, today])
-  const trend = useMemo(() => newFamilyTrend(members, log, cohort), [members, log, cohort])
+  // 최근 칸만 그린다 — 그 앞은 아래 월별 표가 달 단위로 그대로 들고 있다. `today`를 넘겨
+  // 축을 지금 칸까지 이어 두므로, 마지막 몇 칸이 비어 있으면 그것이 곧 "요즘 등록이 없다"다.
+  const regs = useMemo(
+    () => newFamilyRegistrations(members, today, gran).slice(-REG_BUCKETS[gran]),
+    [members, today, gran],
+  )
+  const trend = useMemo(() => newFamilyTrend(members, log, cohort, gran), [members, log, cohort, gran])
   const cohortLabel = cohort === 'all' ? t('admin.analytics.nfAttendance') : t(`admin.newfamily.eduFilter.${cohort}`)
 
   const regBuild = useCallback(
     (tick: string, grid: string): ChartConfiguration => ({
       type: 'bar',
       data: {
-        labels: regs.map((p) => shortDate(p.week)),
+        labels: regs.map((p) => axisLabel(p.bucket, gran)),
         datasets: [
           {
             label: t('admin.analytics.nfRegistered'),
@@ -227,14 +236,14 @@ export function NewFamilyCharts({
       },
       plugins: [pointValueLabels(tick)],
     }),
-    [regs, t],
+    [regs, t, gran],
   )
 
   const trendBuild = useCallback(
     (tick: string, grid: string): ChartConfiguration => ({
       type: 'line',
       data: {
-        labels: trend.map((p) => shortDate(p.date)),
+        labels: trend.map((p) => axisLabel(p.date, gran)),
         datasets: [
           {
             label: cohortLabel,
@@ -291,7 +300,7 @@ export function NewFamilyCharts({
       },
       plugins: [pointValueLabels(tick)],
     }),
-    [trend, t, cohort, cohortLabel],
+    [trend, t, cohort, cohortLabel, gran],
   )
 
   if (regs.length === 0 && trend.length === 0) return null
@@ -313,6 +322,36 @@ export function NewFamilyCharts({
           <ChartCanvas build={trendBuild} />
         </Panel>
       )}
+    </div>
+  )
+}
+
+// 주별/월별 토글. 탭 맨 위에 한 번만 놓여 네 그래프를 함께 옮긴다 — 그래프마다 따로 두면
+// 위아래를 견주는 순간 서로 다른 축을 보게 된다. 칩이 아니라 segmented control인 이유는
+// 고르는 값이 둘뿐이고 언제나 하나가 켜져 있기 때문이다 (끄는 상태가 없다).
+const GRANULARITIES: Granularity[] = ['week', 'month']
+
+export function GranularityToggle({ value, onChange }: { value: Granularity; onChange: (g: Granularity) => void }) {
+  const { t } = useTranslation()
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-2">
+      <span className="text-xs font-semibold text-subtle">{t('admin.analytics.granularity')}</span>
+      <div className="segmented" role="group" aria-label={t('admin.analytics.granularity')}>
+        {GRANULARITIES.map((g) => (
+          <button
+            key={g}
+            type="button"
+            aria-pressed={value === g}
+            onClick={() => onChange(g)}
+            className={
+              'min-h-9 rounded-full px-4 py-1.5 text-xs font-semibold transition-[background-color,color,box-shadow] duration-200 [transition-timing-function:var(--ease-out-soft)] ' +
+              (value === g ? 'bg-surface text-primary shadow-[var(--shadow-sm)]' : 'text-muted hover:text-text')
+            }
+          >
+            {t(`admin.analytics.by_${g}`)}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }

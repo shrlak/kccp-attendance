@@ -35,3 +35,10 @@ export function shortDate(iso: string): string {
   const [, m, d] = iso.split('-')
   return `${parseInt(m, 10)}/${parseInt(d, 10)}`
 }
+
+// "2026-06" → "26.6" — compact axis label for the 월별 그래프. 연도를 떼지 않는 이유는
+// 열두 달 창이 늘 해를 한 번 넘기 때문이다 — "1"이 어느 해 1월인지 보여야 한다.
+export function shortMonth(iso: string): string {
+  const [y, m] = iso.split('-')
+  return `${y.slice(2)}.${parseInt(m, 10)}`
+}

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useRoster } from './useRoster'
 import { filterMembers, filterLog, NO_FILTER, type Filter } from './filters'
 import { GroupFilter } from './GroupFilter'
-import { AnalyticsCharts, NewFamilyCharts } from './AnalyticsCharts'
+import { AnalyticsCharts, NewFamilyCharts, GranularityToggle } from './AnalyticsCharts'
 import {
   monthlySummary,
   semesterSummary,
@@ -16,6 +16,7 @@ import {
   type SemesterRow,
   type NewFamilyTotals,
   type NewFamilyMonthRow,
+  type Granularity,
 } from './analytics'
 import { semesterBounds } from './newFamily'
 import { Button } from '../../components/ui/Button'
@@ -31,6 +32,9 @@ import { easternNow } from '../../lib/checkinWindow'
 export function AdminAnalytics() {
   const { t } = useTranslation()
   const [filter, setFilter] = useState<Filter>(NO_FILTER)
+  // 그래프의 가로축 단위. 이 화면의 그래프 넷이 이 값 하나를 함께 쓴다 — 기본은 주별이다
+  // (출석이 주일마다 찍히므로 한 칸이 곧 그 주일이고, 달은 그것을 묶어 보는 자리다).
+  const [gran, setGran] = useState<Granularity>('week')
   const { data, isLoading, isError } = useRoster(true)
 
   if (isLoading) return <p className="text-sm text-muted">{t('common.loading')}</p>
@@ -45,13 +49,14 @@ export function AdminAnalytics() {
   return (
     <>
       <GroupFilter members={data.members} value={filter} onChange={setFilter} />
-      <AnalyticsCharts members={members} log={log} />
+      <GranularityToggle value={gran} onChange={setGran} />
+      <AnalyticsCharts members={members} log={log} gran={gran} />
       <div className="fx-rise grid grid-cols-1 gap-4 lg:grid-cols-3">
         <SemesterTable members={members} log={log} />
         <MonthlyTable members={members} log={log} />
         <WeeklyRecap log={log} />
       </div>
-      <NewFamilySection members={members} log={log} />
+      <NewFamilySection members={members} log={log} gran={gran} />
     </>
   )
 }
@@ -60,7 +65,7 @@ export function AdminAnalytics() {
 // 위쪽 통계가 전체를 세는 자리라면 여기부터는 새가족만 센다 — 숫자 타일 · 주별 등록/출석 추이
 // 그래프 · 월별 표. 입력은 위와 같은(부서/동산 필터가 이미 걸린) members + log이므로 필터를
 // 바꾸면 이 블록도 같이 좁혀진다.
-function NewFamilySection({ members, log }: { members: Member[]; log: LogEntry[] }) {
+function NewFamilySection({ members, log, gran }: { members: Member[]; log: LogEntry[]; gran: Granularity }) {
   const { t } = useTranslation()
   const { data: cfg } = useAppConfig()
   const partition = usePartition()
@@ -94,7 +99,7 @@ function NewFamilySection({ members, log }: { members: Member[]; log: LogEntry[]
       ) : (
         <>
           <NewFamilyTiles totals={totals} showEdu={showEdu} />
-          <NewFamilyCharts members={members} log={log} showEdu={showEdu} today={today} />
+          <NewFamilyCharts members={members} log={log} showEdu={showEdu} today={today} gran={gran} />
           <div className="mt-5">
             <NewFamilyMonthlyTable rows={rows} />
           </div>
