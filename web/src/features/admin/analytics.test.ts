@@ -141,22 +141,82 @@ const nf = (name: string, registration_date: string | null, edu = false): Member
 const eid = (member: Member, date: string): LogEntry => ({ ...e(member.name, date), memberId: member.id })
 
 describe('newFamilyRegistrations', () => {
-  it('counts registrations per month, oldest first, filling the empty months', () => {
-    const members = [nf('A', '2026-01-04'), nf('B', '2026-01-18'), nf('C', '2026-03-01'), m('기존')]
+  it('counts registrations per week, oldest first, filling the empty weeks', () => {
+    const members = [nf('A', '2026-01-04'), nf('B', '2026-01-04'), nf('C', '2026-01-25'), m('기존')]
     expect(newFamilyRegistrations(members)).toEqual([
-      { month: '2026-01', count: 2 },
-      { month: '2026-02', count: 0 },
-      { month: '2026-03', count: 1 },
+      { bucket: '2026-01-04', count: 2 },
+      { bucket: '2026-01-11', count: 0 },
+      { bucket: '2026-01-18', count: 0 },
+      { bucket: '2026-01-25', count: 1 },
     ])
   })
+  it('puts a midweek registration in the 주일 that opened its week', () => {
+    // 수요일에 옮겨 적은 등록도 그 사람이 온 주일(1/4)의 칸에 앉는다.
+    expect(newFamilyRegistrations([nf('A', '2026-01-07')])).toEqual([{ bucket: '2026-01-04', count: 1 }])
+  })
   it('spans a year boundary', () => {
-    expect(newFamilyRegistrations([nf('A', '2025-12-07'), nf('B', '2026-01-11')])).toEqual([
-      { month: '2025-12', count: 1 },
-      { month: '2026-01', count: 1 },
+    expect(newFamilyRegistrations([nf('A', '2025-12-28'), nf('B', '2026-01-04')])).toEqual([
+      { bucket: '2025-12-28', count: 1 },
+      { bucket: '2026-01-04', count: 1 },
     ])
+  })
+  it('runs the axis through this 주일 when today is given, so a quiet stretch shows', () => {
+    expect(newFamilyRegistrations([nf('A', '2026-01-04')], '2026-01-21')).toEqual([
+      { bucket: '2026-01-04', count: 1 },
+      { bucket: '2026-01-11', count: 0 },
+      { bucket: '2026-01-18', count: 0 },
+    ])
+  })
+  it('never shortens the series when today is older than the last registration', () => {
+    expect(newFamilyRegistrations([nf('A', '2026-01-04')], '2025-12-30')).toEqual([{ bucket: '2026-01-04', count: 1 }])
   })
   it('drops 새가족 with no 등록일, and is empty with no dated 새가족', () => {
     expect(newFamilyRegistrations([nf('A', null), m('기존')])).toEqual([])
+  })
+  it('buckets by month when asked, filling the empty months', () => {
+    const members = [nf('A', '2026-01-04'), nf('B', '2026-01-18'), nf('C', '2026-03-01'), m('기존')]
+    expect(newFamilyRegistrations(members, undefined, 'month')).toEqual([
+      { bucket: '2026-01', count: 2 },
+      { bucket: '2026-02', count: 0 },
+      { bucket: '2026-03', count: 1 },
+    ])
+  })
+  it('runs the monthly axis through this month when today is given', () => {
+    expect(newFamilyRegistrations([nf('A', '2026-01-04')], '2026-03-15', 'month')).toEqual([
+      { bucket: '2026-01', count: 1 },
+      { bucket: '2026-02', count: 0 },
+      { bucket: '2026-03', count: 0 },
+    ])
+  })
+})
+
+describe('granularity', () => {
+  const log = [e('A', '2026-06-07'), e('B', '2026-06-07'), e('A', '2026-06-14'), e('C', '2026-07-05', '대학부')]
+  it('keeps one point per worship date by week (the default)', () => {
+    expect(trendSeries(log)).toEqual([
+      { date: '2026-06-07', count: 2 },
+      { date: '2026-06-14', count: 1 },
+      { date: '2026-07-05', count: 1 },
+    ])
+  })
+  it('counts each person once per month by month', () => {
+    // A는 6월에 두 주일 왔지만 한 사람이다 — 아래 월별 요약 표의 '출석 인원'과 같은 수.
+    expect(trendSeries(log, 'month')).toEqual([
+      { date: '2026-06', count: 2 },
+      { date: '2026-07', count: 1 },
+    ])
+  })
+  it('moves the group bars onto the same buckets', () => {
+    const members = [m('A'), m('B'), m('C', '대학부')]
+    expect(groupSeries(members, log, 'month').dates).toEqual(['2026-06', '2026-07'])
+    expect(groupSeries(members, log, 'month').counts['청년부']).toEqual([2, 0])
+    expect(groupSeries(members, log, 'month').counts['대학부']).toEqual([0, 1])
+  })
+  it('leaves a month with no attendance out entirely — an empty axis slot reads as "nobody came"', () => {
+    expect(trendSeries([e('A', '2026-06-07'), e('A', '2026-08-02')], 'month').map((p) => p.date)).toEqual([
+      '2026-06',
+      '2026-08',
+    ])
   })
 })
 
@@ -193,6 +253,14 @@ describe('newFamilyTrend', () => {
   })
   it('counts every 새가족 with the default (all)', () => {
     expect(newFamilyTrend(cohortMembers, cohortLog)).toEqual([{ date: '2026-06-07', count: 4, newFamily: 4, total: 5 }])
+  })
+  it('folds the weeks into months when asked', () => {
+    const c = nf('C', '2026-06-21')
+    const log = [eid(a, '2026-06-07'), eid(b, '2026-06-14'), eid(c, '2026-07-05')]
+    expect(newFamilyTrend([a, b, c], log, 'all', 'month')).toEqual([
+      { date: '2026-06', count: 2, newFamily: 2, total: 2 },
+      { date: '2026-07', count: 1, newFamily: 1, total: 1 },
+    ])
   })
   it('never lets a plain member fall into 미수강 — the stages live inside 새가족', () => {
     // 기존 멤버도 교육 칸이 비어 있지만 새가족이 아니므로 어느 갈래에도 들어가지 않는다.

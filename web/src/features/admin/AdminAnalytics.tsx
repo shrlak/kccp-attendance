@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useRoster } from './useRoster'
 import { filterMembers, filterLog, NO_FILTER, type Filter } from './filters'
 import { GroupFilter } from './GroupFilter'
-import { AnalyticsCharts, NewFamilyCharts } from './AnalyticsCharts'
+import { AnalyticsCharts, NewFamilyCharts, GranularityToggle } from './AnalyticsCharts'
 import {
   monthlySummary,
   semesterSummary,
@@ -16,6 +16,7 @@ import {
   type SemesterRow,
   type NewFamilyTotals,
   type NewFamilyMonthRow,
+  type Granularity,
 } from './analytics'
 import { semesterBounds } from './newFamily'
 import { Button } from '../../components/ui/Button'
@@ -31,6 +32,9 @@ import { easternNow } from '../../lib/checkinWindow'
 export function AdminAnalytics() {
   const { t } = useTranslation()
   const [filter, setFilter] = useState<Filter>(NO_FILTER)
+  // 그래프의 가로축 단위. 이 화면의 그래프 넷이 이 값 하나를 함께 쓴다 — 기본은 주별이다
+  // (출석이 주일마다 찍히므로 한 칸이 곧 그 주일이고, 달은 그것을 묶어 보는 자리다).
+  const [gran, setGran] = useState<Granularity>('week')
   const { data, isLoading, isError } = useRoster(true)
 
   if (isLoading) return <p className="text-sm text-muted">{t('common.loading')}</p>
@@ -45,22 +49,23 @@ export function AdminAnalytics() {
   return (
     <>
       <GroupFilter members={data.members} value={filter} onChange={setFilter} />
-      <AnalyticsCharts members={members} log={log} />
+      <GranularityToggle value={gran} onChange={setGran} />
+      <AnalyticsCharts members={members} log={log} gran={gran} />
       <div className="fx-rise grid grid-cols-1 gap-4 lg:grid-cols-3">
         <SemesterTable members={members} log={log} />
         <MonthlyTable members={members} log={log} />
         <WeeklyRecap log={log} />
       </div>
-      <NewFamilySection members={members} log={log} />
+      <NewFamilySection members={members} log={log} gran={gran} />
     </>
   )
 }
 
 // ── 새가족만 따로 ────────────────────────────────────────────────────────────
-// 위쪽 통계가 전체를 세는 자리라면 여기부터는 새가족만 센다 — 숫자 타일 · 등록/출석 추이
+// 위쪽 통계가 전체를 세는 자리라면 여기부터는 새가족만 센다 — 숫자 타일 · 주별 등록/출석 추이
 // 그래프 · 월별 표. 입력은 위와 같은(부서/동산 필터가 이미 걸린) members + log이므로 필터를
 // 바꾸면 이 블록도 같이 좁혀진다.
-function NewFamilySection({ members, log }: { members: Member[]; log: LogEntry[] }) {
+function NewFamilySection({ members, log, gran }: { members: Member[]; log: LogEntry[]; gran: Granularity }) {
   const { t } = useTranslation()
   const { data: cfg } = useAppConfig()
   const partition = usePartition()
@@ -80,7 +85,7 @@ function NewFamilySection({ members, log }: { members: Member[]; log: LogEntry[]
           <Sprout size={16} strokeWidth={2} aria-hidden />
         </span>
         <h2 className="font-display text-lg font-bold tracking-tight text-text">{t('admin.newfamily.title')}</h2>
-        {/* 등록일이 없는 새가족은 어느 달에도 놓을 수 없어 그래프와 월별 표에서 빠진다.
+        {/* 등록일이 없는 새가족은 어느 주에도 놓을 수 없어 그래프와 월별 표에서 빠진다.
             숫자만 맞고 추이에 안 보이면 "왜 하나가 모자라지"가 되므로 여기서 밝혀 둔다. */}
         {totals.undated > 0 && (
           <span className="ml-auto text-xs text-muted">{t('admin.analytics.nfUndated', { n: totals.undated })}</span>
@@ -94,7 +99,7 @@ function NewFamilySection({ members, log }: { members: Member[]; log: LogEntry[]
       ) : (
         <>
           <NewFamilyTiles totals={totals} showEdu={showEdu} />
-          <NewFamilyCharts members={members} log={log} showEdu={showEdu} />
+          <NewFamilyCharts members={members} log={log} showEdu={showEdu} today={today} gran={gran} />
           <div className="mt-5">
             <NewFamilyMonthlyTable rows={rows} />
           </div>
