@@ -16,12 +16,23 @@ import {
 } from './newFamily'
 import { NewFamilyWeekChip } from './NewFamilyWeekChip'
 import { focusEduSession, needsEduWeek, nextEduSession, type EduSession } from './eduSchedule'
+import {
+  assignEduDongsan as planEduDongsan,
+  clearEduDongsan,
+  eduDongsanPlan,
+  groupByEduDongsan,
+  type EduAssignment,
+  type EduDongsanGroup,
+} from './eduDongsan'
 import { presentToday, cameToday } from './today'
 import { GroupFilter, Pill } from './GroupFilter'
-import { configCalendar, updateMember, type Member } from '../../lib/api'
+import { assignEduDongsan, configCalendar, updateMember, type Member } from '../../lib/api'
 import { Tag } from '../../components/ui/Tag'
 import { useToast } from '../../components/ui/Toast'
-import { GraduationCap, AlertTriangle, Check } from '../../components/ui/Icon'
+import { GraduationCap, AlertTriangle, Check, ListChecks, Sprout } from '../../components/ui/Icon'
+import { Button } from '../../components/ui/Button'
+import { Input } from '../../components/ui/Input'
+import { Dialog } from '../../components/ui/Dialog'
 import { EditModal, AttendanceModal } from './MemberDialogs'
 import { refreshRoster } from '../../lib/live'
 import { useAppConfig } from '../../lib/useAppConfig'
@@ -51,6 +62,10 @@ export function AdminNewFamilyEdu() {
   const [attendFilter, setAttendFilter] = useState<AttendFilter>('all')
   const [editing, setEditing] = useState<Member | null>(null)
   const [attendanceFor, setAttendanceFor] = useState<Member | null>(null)
+  // 교육 동산에 넣을 사람을 고르는 자리. 필터를 바꿔도 선택은 남는다 — 골라 놓고 화면을
+  // 좁혔다고 사람이 조용히 빠지면 배정에서 빠진 것을 알 길이 없다.
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [assignOpen, setAssignOpen] = useState(false)
 
   if (isLoading) return (
     <div className="fx-fade grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
@@ -99,6 +114,30 @@ export function AdminNewFamilyEdu() {
   const due = session ? visible.filter((m) => needsEduWeek(m, session.week)) : []
   const rest = session ? visible.filter((m) => !needsEduWeek(m, session.week)) : visible
 
+  // 배정은 **고른 사람 전부**를 대상으로 한다 (지금 화면에 남아 있는 사람이 아니라) —
+  // 위 필터는 고르는 것을 돕는 도구일 뿐이다.
+  const selectedMembers = inScope.filter((m) => selected.has(m.id))
+  const allVisibleSelected = visible.length > 0 && visible.every((m) => selected.has(m.id))
+  const toggleAll = () => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      for (const m of visible) if (allVisibleSelected) next.delete(m.id)
+        else next.add(m.id)
+      return next
+    })
+  }
+  const toggleOne = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+  // 이미 배정돼 있는 조들 — 카드마다 붙은 배지만으로는 "1동산이 누구누구인가"를 알려면
+  // 화면을 훑어야 한다.
+  const eduGroups = groupByEduDongsan(inScope)
+
   const grid = (list: Member[], highlight: boolean) => (
     <ul className="fx-stagger grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
       {list.map((m) => (
@@ -109,6 +148,8 @@ export function AdminNewFamilyEdu() {
           here={cameToday(m, present)}
           term={termLabel(m)}
           due={highlight}
+          selected={selected.has(m.id)}
+          onSelect={() => toggleOne(m.id)}
           readOnly={readOnly}
           onOpen={() => setEditing(m)}
         />
@@ -118,6 +159,26 @@ export function AdminNewFamilyEdu() {
 
   return (
     <>
+      {/* 고르고 → 배정한다. 배정 버튼이 오른쪽 위에 있는 이유는 그것이 이 탭에서 유일하게
+          여러 사람을 한 번에 바꾸는 일이기 때문 — 나머지는 카드 하나하나의 일이다. */}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" variant="secondary" onClick={toggleAll} disabled={visible.length === 0}>
+            <ListChecks className="size-4" aria-hidden />
+            {t(allVisibleSelected ? 'admin.newfamilyEdu.select.none' : 'admin.newfamilyEdu.select.all')}
+          </Button>
+          {selected.size > 0 && (
+            <span className="text-xs font-semibold text-primary">
+              {t('admin.newfamilyEdu.select.count', { n: selected.size })}
+            </span>
+          )}
+        </div>
+        <Button size="sm" onClick={() => setAssignOpen(true)} disabled={readOnly}>
+          <Sprout className="size-4" aria-hidden />
+          {t('admin.newfamilyEdu.assign.action')}
+        </Button>
+      </div>
+
       <GroupFilter members={data.members} value={filter} onChange={setFilter} />
 
       {/* 새가족 교육 이수 필터: 1주차만 / 2주차만 / 둘 다 / 아무것도 안 들음 */}
@@ -155,6 +216,8 @@ export function AdminNewFamilyEdu() {
 
       <ScheduleBanner session={session} openToday={openToday} following={following} due={due.length} lang={i18n.language} />
 
+      {eduGroups.length > 0 && <EduDongsanResult groups={eduGroups} />}
+
       {visible.length === 0 ? (
         <div className="fx-rise grid place-items-center rounded-2xl border border-dashed border-border py-14 text-center">
           <div className="grid size-14 place-items-center rounded-full bg-fill text-subtle"><GraduationCap className="size-6" aria-hidden /></div>
@@ -190,6 +253,13 @@ export function AdminNewFamilyEdu() {
         </>
       )}
 
+      <EduDongsanDialog
+        open={assignOpen}
+        onOpenChange={setAssignOpen}
+        members={selectedMembers}
+        onDone={() => setAssignOpen(false)}
+      />
+
       {editing && (
         <EditModal
           member={editing}
@@ -209,6 +279,125 @@ export function AdminNewFamilyEdu() {
         />
       )}
     </>
+  )
+}
+
+// 배정 결과 — 조별로 누가 있는지. 카드의 배지는 "이 사람이 몇 동산인가"에 답하지만,
+// 교육 시간에 실제로 필요한 것은 그 반대다 ("1동산은 누구누구인가"). 배정된 사람이 하나도
+// 없으면 이 블록 자체가 없다.
+function EduDongsanResult({ groups }: { groups: EduDongsanGroup[] }) {
+  const { t } = useTranslation()
+  return (
+    <div className="fx-rise mb-4 rounded-2xl border border-border bg-surface p-3.5">
+      <div className="mb-2 flex items-center gap-2 section-kicker">
+        <Sprout className="size-4 text-subtle" aria-hidden />
+        {t('admin.newfamilyEdu.assign.result')}
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {groups.map((g) => (
+          <div key={g.name} className="rounded-xl bg-fill px-3 py-2">
+            <div className="text-xs font-semibold text-text">
+              {g.name}
+              <span className="ml-1 tabular-nums text-muted">· {g.members.length}</span>
+            </div>
+            <div className="mt-0.5 text-xs leading-relaxed text-muted">
+              {g.members.map((m) => m.name).join(' · ')}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// 동산 배정 창 — 고른 사람을 **부서 안에서** 무작위로 나눈다. 정하는 것은 동산 갯수 하나이고,
+// 조마다 몇 명이 되는지는 누르기 전에 미리 보여준다 (무작위가 정하는 것은 누가 어디로
+// 가느냐뿐이다). 배정 규칙(누구를 같이 두고 누구를 갈라놓을지)이 정해지면 eduDongsan.ts의
+// 섞는 자리만 갈아 끼우면 되고 이 창은 그대로다.
+const MAX_EDU_DONGSAN = 12
+
+function EduDongsanDialog({
+  open,
+  onOpenChange,
+  members,
+  onDone,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  members: Member[] // 고른 사람들 (화면에 남아 있는 사람이 아니라)
+  onDone: () => void
+}) {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const toast = useToast()
+  const [count, setCount] = useState(2)
+  const [busy, setBusy] = useState(false)
+  const plan = eduDongsanPlan(members, count)
+
+  async function send(assignments: EduAssignment[], key: 'done' | 'cleared') {
+    setBusy(true)
+    try {
+      const res = await assignEduDongsan(assignments)
+      refreshRoster(qc)
+      toast({ title: t(`admin.newfamilyEdu.assign.${key}`, { n: res.updated }), tone: 'ok' })
+      onDone()
+    } catch {
+      toast({ title: t('common.error'), tone: 'err' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange} title={t('admin.newfamilyEdu.assign.title')}>
+      <p className="text-xs leading-relaxed text-muted">{t('admin.newfamilyEdu.assign.help')}</p>
+
+      <label className="field-label mt-4" htmlFor="edu-dongsan-count">
+        {t('admin.newfamilyEdu.assign.count')}
+      </label>
+      <Input
+        id="edu-dongsan-count"
+        type="number"
+        min={1}
+        max={MAX_EDU_DONGSAN}
+        value={count}
+        onChange={(e) => setCount(Math.min(MAX_EDU_DONGSAN, Math.max(1, Number(e.target.value) || 1)))}
+      />
+
+      {/* 부서마다 몇 명씩 나뉘는지 — 누르기 전에 보인다. 부서를 넘지 않으므로 줄도 부서마다다. */}
+      <ul className="mt-3 grid gap-1.5">
+        {members.length === 0 ? (
+          <li className="rounded-xl bg-fill px-3 py-2 text-xs text-muted">{t('admin.newfamilyEdu.assign.none')}</li>
+        ) : (
+          plan.map((row) => (
+            <li key={row.group || '—'} className="rounded-xl bg-fill px-3 py-2 text-xs text-text">
+              <span className="font-semibold">{row.group || '—'}</span>
+              <span className="text-muted">
+                {' '}
+                {t('admin.newfamilyEdu.assign.preview', { total: row.total, sizes: row.sizes.join(' · ') })}
+              </span>
+            </li>
+          ))
+        )}
+      </ul>
+
+      <div className="mt-5 flex flex-wrap justify-end gap-2">
+        <Button
+          variant="secondary"
+          disabled={busy || members.length === 0}
+          onClick={() => void send(clearEduDongsan(members), 'cleared')}
+        >
+          {t('admin.newfamilyEdu.assign.clear')}
+        </Button>
+        <Button
+          disabled={busy || members.length === 0}
+          onClick={() => void send(planEduDongsan(members, count), 'done')}
+        >
+          <Sprout className="size-4" aria-hidden />
+          {busy ? t('common.loading') : t('admin.newfamilyEdu.assign.run')}
+        </Button>
+      </div>
+    </Dialog>
   )
 }
 
@@ -272,6 +461,8 @@ function EduCard({
   here,
   term,
   due,
+  selected,
+  onSelect,
   readOnly,
   onOpen,
 }: {
@@ -280,6 +471,8 @@ function EduCard({
   here: boolean // 오늘 예배에 왔는가 — 위 '오늘 출석' 칩과 같은 기준
   term: string | null // 이전 학기에서 넘어온 새가족의 등록 학기 (이번 학기면 null)
   due: boolean // 이번에 여는 주차를 아직 안 들은 사람인가
+  selected: boolean // 교육 동산 배정 대상으로 골랐는가
+  onSelect: () => void
   readOnly: boolean
   onOpen: () => void
 }) {
@@ -303,13 +496,27 @@ function EduCard({
   return (
     <li
       className={
-        'rounded-2xl border p-3.5 shadow-[var(--shadow-sm)] transition-shadow duration-200 hover:shadow-[var(--shadow)] ' +
-        (due ? 'border-primary/40 bg-primary/[0.05]' : 'border-border bg-surface')
+        'relative rounded-2xl border p-3.5 shadow-[var(--shadow-sm)] transition-shadow duration-200 hover:shadow-[var(--shadow)] ' +
+        (selected ? 'border-primary ring-2 ring-primary/40 bg-surface ' : due ? 'border-primary/40 bg-primary/[0.05]' : 'border-border bg-surface')
       }
     >
+      {/* 고르는 자리는 카드 본문과 따로다 — 본문을 누르면 편집 창이 열리므로, 둘을 한
+          버튼에 얹으면 이름을 확인하려다 선택이 바뀐다. */}
+      <button
+        type="button"
+        onClick={onSelect}
+        aria-pressed={selected}
+        aria-label={t('admin.newfamilyEdu.select.one', { name: member.name })}
+        className={
+          'absolute right-2.5 top-2.5 grid size-6 place-items-center rounded-full transition-colors ' +
+          (selected ? 'bg-primary text-primary-fg' : 'border border-border bg-surface text-transparent hover:border-primary/40')
+        }
+      >
+        <Check className="size-3.5" strokeWidth={3} aria-hidden />
+      </button>
       {/* Tap the body to open the member's full info/editor (feature parity with 새가족 tab) */}
       <button type="button" onClick={onOpen} className="block w-full text-left">
-        <div className="flex items-center gap-1.5 text-sm font-semibold text-text">
+        <div className="flex items-center gap-1.5 pr-7 text-sm font-semibold text-text">
           {member.name}
           {/* 오늘 와 있는 사람 — 목록을 좁히지 않고도 눈에 띄도록 이름 옆에 점 하나. */}
           {here && (
@@ -323,6 +530,15 @@ function EduCard({
           )}
         </div>
         <div className="mt-0.5 text-xs text-muted">{[member.group_name, member.subgroup].filter(Boolean).join(' · ') || '—'}</div>
+        {/* 이번 주 교육 동산 — 배정하면 카드에서 바로 읽힌다 (조별 명단은 위 블록에 있다). */}
+        {member.new_member_dongsan && (
+          <div className="mt-1.5">
+            <span className="inline-flex items-center gap-1 rounded-full bg-info/10 px-2 py-0.5 text-[10px] font-semibold text-info">
+              <Sprout className="size-3" aria-hidden />
+              {member.new_member_dongsan}
+            </span>
+          </div>
+        )}
         {/* 이번 주일에 등록한 새가족인지, 그 전 주에 등록했는지 — 교육 진도와 함께 보이도록. */}
         {(week === 'thisWeek' || week === 'lastWeek') && (
           <div className="mt-1.5"><NewFamilyWeekChip week={week} /></div>

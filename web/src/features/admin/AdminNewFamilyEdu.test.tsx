@@ -17,9 +17,11 @@ vi.mock('./useRoster', async (orig) => ({
   useRoster: () => rosterData,
 }))
 
+const apiMocks = vi.hoisted(() => ({ assignEduDongsan: vi.fn() }))
 vi.mock('../../lib/api', async (orig) => ({
   ...(await orig<typeof import('../../lib/api')>()),
   getConfig: vi.fn().mockResolvedValue({ groupColors: {} }),
+  assignEduDongsan: apiMocks.assignEduDongsan,
 }))
 
 import { AdminNewFamilyEdu } from './AdminNewFamilyEdu'
@@ -179,5 +181,65 @@ describe('AdminNewFamilyEdu — 이번 주차를 들을 사람이 위로', () =>
     expect(screen.queryByText(/들을 사람/)).not.toBeInTheDocument()
     expect(screen.getByText('아무것도안들음')).toBeInTheDocument()
     expect(screen.getByText('수강완료')).toBeInTheDocument()
+  })
+})
+
+// 교육 동산 배정: 카드에서 사람을 고르고 → 오른쪽 위 버튼으로 조를 나눈다. 부서를 넘지
+// 않는 것이 이 기능의 전부라, 테스트도 거기에 걸려 있다.
+describe('AdminNewFamilyEdu — 새가족 교육 동산 배정', () => {
+  const people = [
+    { ...member('m1', '대학하나'), group_name: '대학부' },
+    { ...member('m2', '대학둘'), group_name: '대학부' },
+    { ...member('m3', '청년하나'), group_name: '청년부' },
+    { ...member('m4', '청년둘'), group_name: '청년부' },
+  ]
+
+  it('전체 선택으로 고르고, 고른 수가 보인다', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event')
+    renderAs('super_admin', people)
+
+    await userEvent.click(screen.getByRole('button', { name: '전체 선택' }))
+    expect(screen.getByText('4명 선택')).toBeInTheDocument()
+    // 다시 누르면 풀린다 (같은 버튼이 '선택 해제'로 바뀐다).
+    await userEvent.click(screen.getByRole('button', { name: '선택 해제' }))
+    expect(screen.queryByText('4명 선택')).not.toBeInTheDocument()
+  })
+
+  it('고른 사람만, 부서 안에서만 나눈다', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event')
+    apiMocks.assignEduDongsan.mockResolvedValue({ status: 'ok', updated: 3 })
+    renderAs('super_admin', people)
+
+    // 대학부 둘 + 청년부 하나만 고른다.
+    await userEvent.click(screen.getByRole('button', { name: '대학하나 선택' }))
+    await userEvent.click(screen.getByRole('button', { name: '대학둘 선택' }))
+    await userEvent.click(screen.getByRole('button', { name: '청년하나 선택' }))
+
+    await userEvent.click(screen.getByRole('button', { name: '동산 배정' }))
+    // 미리보기는 부서마다 한 줄 — 대학부 2명 → 1·1, 청년부 1명 → 1·0.
+    expect(screen.getByText('2명 → 1 · 1')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: '무작위 배정' }))
+
+    const sent = apiMocks.assignEduDongsan.mock.calls.at(-1)![0] as { memberId: string; dongsan: string }[]
+    const byId = new Map(sent.map((a) => [a.memberId, a.dongsan]))
+    expect([...byId.keys()].sort()).toEqual(['m1', 'm2', 'm3']) // 고르지 않은 청년둘은 빠진다
+    expect(byId.get('m1')!.startsWith('대학부 ')).toBe(true)
+    expect(byId.get('m2')!.startsWith('대학부 ')).toBe(true)
+    expect(byId.get('m3')).toBe('청년부 1동산')
+    // 2동산(기본값)으로 나눴으므로 대학부 둘은 서로 다른 조다.
+    expect(byId.get('m1')).not.toBe(byId.get('m2'))
+  })
+
+  it('이미 배정된 조는 조별 명단으로 한자리에 모인다', () => {
+    renderAs('super_admin', [
+      { ...people[0], new_member_dongsan: '대학부 1동산' },
+      { ...people[1], new_member_dongsan: '대학부 1동산' },
+      { ...people[2], new_member_dongsan: '청년부 1동산' },
+    ])
+
+    expect(screen.getByText('이번 교육 동산')).toBeInTheDocument()
+    expect(screen.getByText('대학둘 · 대학하나')).toBeInTheDocument() // 이름순
+    // 조 이름은 명단 블록과 카드 배지 양쪽에 나온다.
+    expect(screen.getAllByText('청년부 1동산').length).toBeGreaterThan(1)
   })
 })

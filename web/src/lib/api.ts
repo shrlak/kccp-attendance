@@ -225,6 +225,10 @@ export interface Member {
   registration_date?: string | null
   new_member_edu_week1?: boolean
   new_member_edu_week2?: boolean
+  // 새가족 교육 동산 — 교육 시간에 어느 조로 앉는가. members.subgroup(실제 동산 편성)과는
+  // 다른 칸이고, 출석부·통계·엑셀·시트 연동 어디에도 들어가지 않는다. 새가족 교육 탭에서
+  // 매주 다시 배정한다 (features/admin/eduDongsan.ts).
+  new_member_dongsan?: string | null
   // 새가족 표시가 처음 붙은 날 (마이그레이션 20260821). 표시가 해제돼도 서버가 지우지
   // 않으므로, 새가족 탭은 이 날로부터 1년 동안 그 사람을 계속 보여준다 — newFamily.ts.
   new_member_since?: string | null
@@ -319,6 +323,11 @@ export const getRoster = () => api<RosterResponse>('GET', '/api/roster')
 // server-side. Returns how many were actually updated.
 export const bulkSetSubgroup = (memberIds: string[], subgroup: string) =>
   api<{ status: string; updated: number }>('POST', '/api/admin/members/bulk-subgroup', { memberIds, subgroup })
+
+// 새가족 교육 동산을 여러 명에게 한 번에 적는다 — dongsan ""이면 그 사람의 배정을 지운다.
+// 목사(읽기 전용)만 막히고, 범위 밖 멤버는 서버가 조용히 뺀다. 실제로 적힌 수를 돌려준다.
+export const assignEduDongsan = (assignments: { memberId: string; dongsan: string }[]) =>
+  api<{ status: string; updated: number }>('POST', '/api/admin/members/edu-dongsan', { assignments })
 
 // Remove several members from the roster in one scoped request. The server deletes their
 // member/device/role rows but intentionally keeps historical attendance records.
