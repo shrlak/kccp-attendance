@@ -17,6 +17,7 @@ import { NewFamilyWeekChip } from './NewFamilyWeekChip'
 import { presentToday, cameToday } from './today'
 import { GroupFilter, Pill } from './GroupFilter'
 import { configCalendar, updateMember, type Member } from '../../lib/api'
+import { Tag } from '../../components/ui/Tag'
 import { useToast } from '../../components/ui/Toast'
 import { GraduationCap, AlertTriangle, Check } from '../../components/ui/Icon'
 import { EditModal, AttendanceModal } from './MemberDialogs'
@@ -65,10 +66,11 @@ export function AdminNewFamilyEdu() {
   const today = easternNow().date
   // 부서·동산으로 좁힌다 — 다른 탭과 같은 GroupFilter, 같은 filterMembers.
   const scopedMembers = filterMembers(data.members, filter)
-  // 새가족 표시가 붙어 있는 사람 전부 — 새가족 탭과 같은 기준. **교육을 다 마쳐도 남는다**:
-  // 이수한 사람이 목록 밖으로 나가 버리면 '수강 완료'로 걸러도 아무도 안 나와서, 정작 누가
-  // 이수했는지를 이 탭에서 볼 수 없었다.
-  const inScope = visibleNewFamily(scopedMembers)
+  // 새가족 표시가 붙어 있는 사람 전부 — 새가족 탭과 **같은 함수**라 표시를 붙이는 순간
+  // 이 탭에도 같이 나타난다. **교육을 다 마쳐도 남는다**: 이수한 사람이 목록 밖으로 나가
+  // 버리면 '수강 완료'로 걸러도 아무도 안 나와서, 정작 누가 이수했는지를 이 탭에서 볼 수
+  // 없었다. 표시가 해제된 사람도 1년은 남는다 (visibleNewFamily 머리말).
+  const inScope = visibleNewFamily(scopedMembers, today)
   // 오늘 온 사람 — 예배 출석 줄에서 id로 되찾는다 (이름은 예전 줄을 위한 대비책).
   const present = presentToday(data.log, today)
   const byEdu = eduFilter === 'all' ? inScope : inScope.filter((m) => matchesEduFilter(m, eduFilter))
@@ -220,6 +222,13 @@ function EduCard({
         {/* 이번 주일에 등록한 새가족인지, 그 전 주에 등록했는지 — 교육 진도와 함께 보이도록. */}
         {(week === 'thisWeek' || week === 'lastWeek') && (
           <div className="mt-1.5"><NewFamilyWeekChip week={week} /></div>
+        )}
+        {/* 새가족 표시가 해제된 사람 — 해제 뒤 1년은 이 탭에도 남는다 (visibleNewFamily).
+            이수 기록을 남기는 자리이므로 그 사람이 아직 새가족으로 표시돼 있는지가 보여야 한다. */}
+        {!member.is_new_member && (
+          <div className="mt-1.5">
+            <Tag className="text-[10px]">{t('admin.newfamily.unmarked')}</Tag>
+          </div>
         )}
         {/* 이전 학기에 등록했는데 교육이 남아 넘어온 새가족 — 어느 학기 사람인지 표시. */}
         {term && (

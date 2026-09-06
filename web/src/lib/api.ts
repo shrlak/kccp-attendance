@@ -225,6 +225,9 @@ export interface Member {
   registration_date?: string | null
   new_member_edu_week1?: boolean
   new_member_edu_week2?: boolean
+  // 새가족 표시가 처음 붙은 날 (마이그레이션 20260821). 표시가 해제돼도 서버가 지우지
+  // 않으므로, 새가족 탭은 이 날로부터 1년 동안 그 사람을 계속 보여준다 — newFamily.ts.
+  new_member_since?: string | null
   pastoral_visit_requested?: boolean | null
   // 새가족 등록 카드 fields (stored on members; /api/roster returns them via select *).
   baptism_status?: string

@@ -153,8 +153,9 @@ export function recapText(rows: RecapRow[]): string {
 // ── 새가족 (new family) ────────────────────────────────────────────────────
 // 새가족만 따로 세는 자리. 입력은 다른 집계와 똑같이 이미 부서/동산으로 좁혀진 members + log
 // 이고, 새가족의 정의는 `members.is_new_member` 하나다 — 새가족 탭의 `visibleNewFamily`는
-// "지금 새가족팀이 챙길 사람"이라 교육을 마치면 목록에서 빠지지만, **추이는 지나간 사실**이라
-// 그때 등록한 사람은 그 달에 계속 남아 있어야 한다 (빠지면 지난달 숫자가 이번 주에 바뀐다).
+// "지금 새가족팀이 챙길 사람"이라 떠난 사람을 빼고 표시가 해제된 사람도 1년은 데리고 있지만,
+// **추이는 지나간 사실**이라 그때 등록한 사람은 그 달에 그대로 있어야 한다 (목록의 사정에 따라
+// 사람이 들고 나면 지난달 숫자가 이번 주에 바뀐다).
 
 export const newFamilyMembers = (members: Member[]): Member[] => members.filter((m) => m.is_new_member)
 
