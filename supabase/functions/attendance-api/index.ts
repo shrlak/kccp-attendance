@@ -218,7 +218,9 @@ function mergedMemberFields(existing: any, body: any, subgroup: string, today: s
   const upd: any={updated_at:new Date().toISOString(),is_new_member:true};
   // 새가족 표시가 붙은 날 — 한 번 적히면 다시 쓰지 않는다 (표시를 해제해도 남는 사실이라,
   // 새가족 탭이 이 날로부터 1년간 사람을 남긴다). 이미 있던 사람이면 그때 적힌 날을 지킨다.
-  if(!existing.new_member_since) upd.new_member_since=existing.registration_date||today;
+  // **등록일이 아니라 오늘이다**: 등록일은 종이 카드를 나중에 옮겨 적으면서 뒤로 적는 칸이라
+  // (실제로 1년 전 날짜가 들어온다), 그 값을 쓰면 오늘 붙인 표시가 이미 1년 지난 것이 된다.
+  if(!existing.new_member_since) upd.new_member_since=today;
   const put=(col:string,val:unknown)=>{ if(val!==undefined&&val!==null&&val!=="") upd[col]=val; };
   put("group_name",(body.group||"").trim());
   put("subgroup",subgroup);
@@ -1821,7 +1823,7 @@ Deno.serve(async (req: Request) => {
       if(!role) return fail(401,"Not authorized");
       if(role.role==="pastor") return fail(403,"Read-only");
       const {memberId}=body; if(!memberId) return fail(400,"memberId required");
-      const {data:m}=await adb.from("members").select("name,group_name,subgroup,registration_date,new_member_since").eq("id",memberId).single();
+      const {data:m}=await adb.from("members").select("name,group_name,subgroup,new_member_since").eq("id",memberId).single();
       if(!m) return fail(404,"Member not found");
       // 부 경계는 최고관리자에게도 적용된다 — scopeFilter가 자기 부만 돌려주므로 예외 없이 검사.
       const editScope=scopeFilter(role,summerNow(await getCfg(sb,actingPartition),role.partition));
@@ -1852,10 +1854,10 @@ Deno.serve(async (req: Request) => {
       // 이 날짜가 있어야 새가족 탭이 표시가 내려간 사람도 1년 동안 데리고 있을 수 있고,
       // 없으면 해제하는 순간 그 사람이 화면에서 통째로 사라진다. 이미 적혀 있으면 그대로 둔다
       // (껐다 켰다 하는 것으로 1년이 다시 시작되면 "처음 새가족이 된 날"이 아니게 된다).
-      // 붙는 날은 그 사람의 등록일 — 같은 요청이 등록일을 함께 고쳐 보냈으면 그 값이 먼저다
-      // (멤버 편집 창은 폼 전체를 보내므로 새가족 표시와 등록일이 한 번에 들어온다).
+      // 붙는 날은 오늘이다 (등록일이 아니다 — 그 칸은 실제로 온 날을 뒤로 적는 자리라,
+      // 그 값을 쓰면 방금 켠 표시가 이미 1년 지난 것으로 읽힌다).
       if(body.isNewMember===true&&!(m as {new_member_since?:string|null}).new_member_since)
-        upd.new_member_since=upd.registration_date||(m as {registration_date?:string|null}).registration_date||localDate();
+        upd.new_member_since=localDate();
       // 상태 표기 목록 — 목록을 저장하고, 예전 단일 컬럼에는 현재(또는 최신) 표기를 남긴다.
       if(body.statusMarks!==undefined){
         const marks=cleanStatusMarks(body.statusMarks);
@@ -2247,8 +2249,9 @@ Deno.serve(async (req: Request) => {
           // explicitly (e.g. back-fill someone who joined earlier). Attendance percentages
           // count from this date.
           registration_date:(body.registrationDate||"").trim()||today,
-          // 새가족으로 명단에 오르는 그 사건이 곧 표시가 붙는 날이다 (위 mergedMemberFields와 같은 값).
-          new_member_since:(body.registrationDate||"").trim()||today,
+          // 표시가 붙는 날은 **오늘**이다 — 등록일(위)은 실제로 온 날을 뒤로 적는 칸이라
+          // 다른 값이다. 위 mergedMemberFields와 같은 규칙.
+          new_member_since:today,
           pastoral_visit_requested:body.pastoralVisitRequested===true?true:body.pastoralVisitRequested===false?false:null,
         }).select("id").single();
         memberId=(created as {id?:string}|null)?.id||null;
