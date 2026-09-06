@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react'
-import { describe, it, expect, vi, beforeAll } from 'vitest'
+import { render, screen, within } from '@testing-library/react'
+import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest'
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query'
 import { i18n } from '../../lib/i18n'
 import { ToastProvider } from '../../components/ui/Toast'
@@ -115,5 +115,69 @@ describe('AdminNewFamilyEdu — 수강 완료도 목록에 남는다', () => {
     expect(screen.getByText('이수완료')).toBeInTheDocument()
     expect(screen.getByText('지난학기이수완료')).toBeInTheDocument()
     expect(screen.queryByText('교육전')).not.toBeInTheDocument()
+  })
+})
+
+// 교육은 세 주일이 한 바퀴라(1주차 · 2주차 · 쉼) 그 주일에 여는 것이 몇 주차인지가 매주
+// 바뀐다. 그 주차를 아직 안 들은 사람이 그 자리에 있어야 할 사람이므로, 목록도 그렇게
+// 갈린다 — 미수강도, 다른 한 주차만 들은 사람도 함께 위로 올라온다.
+describe('AdminNewFamilyEdu — 이번 주차를 들을 사람이 위로', () => {
+  const none = member('m1', '아무것도안들음')
+  const w1 = { ...member('m2', '일주차만'), new_member_edu_week1: true }
+  const w2 = { ...member('m3', '이주차만'), new_member_edu_week2: true }
+  const both = { ...member('m4', '수강완료'), new_member_edu_week1: true, new_member_edu_week2: true }
+  const all = [none, w1, w2, both]
+
+  // 'due' 블록에 실제로 담긴 이름들 — 머리줄 바로 다음 목록이 그 블록이다.
+  const dueNames = (heading: HTMLElement) =>
+    within(heading.nextElementSibling as HTMLElement)
+      .getAllByRole('listitem')
+      .map((li) => li.textContent)
+
+  afterEach(() => vi.useRealTimers())
+
+  const on = (iso: string) => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(`${iso}T16:00:00Z`)) // 정오(Eastern)의 그 주일
+  }
+
+  it('1주차 주일에는 미수강과 2주차만 들은 사람이 대상이다', () => {
+    on('2026-09-06')
+    renderAs('super_admin', all)
+
+    const heading = screen.getByText(/1주차 들을 사람/)
+    expect(heading).toHaveTextContent('· 2')
+    expect(dueNames(heading)).toEqual(expect.arrayContaining([expect.stringContaining('아무것도안들음'), expect.stringContaining('이주차만')]))
+    expect(dueNames(heading)).toHaveLength(2)
+  })
+
+  it('2주차 주일에는 미수강과 1주차만 들은 사람이 대상이다', () => {
+    on('2026-09-13')
+    renderAs('super_admin', all)
+
+    const heading = screen.getByText(/2주차 들을 사람/)
+    expect(dueNames(heading)).toEqual(expect.arrayContaining([expect.stringContaining('아무것도안들음'), expect.stringContaining('일주차만')]))
+    expect(dueNames(heading)).toHaveLength(2)
+    // 이미 들은 사람도 사라지지 않는다 — 이수 기록을 고칠 자리이므로.
+    expect(screen.getByText(/이미 들은 새가족/)).toHaveTextContent('· 2')
+    expect(screen.getByText('이주차만')).toBeInTheDocument()
+  })
+
+  it('쉬는 주일에는 다음에 열리는 교육을 가리킨다', () => {
+    on('2026-09-20')
+    renderAs('super_admin', all)
+
+    expect(screen.getByText('다음 교육')).toBeInTheDocument()
+    expect(screen.getByText(/1주차 들을 사람/)).toBeInTheDocument()
+  })
+
+  it('일정이 끝난 뒤에는 가르지 않고 그 사실을 적는다', () => {
+    on('2027-01-03')
+    renderAs('super_admin', all)
+
+    expect(screen.getByText('예정된 새가족 교육이 없습니다')).toBeInTheDocument()
+    expect(screen.queryByText(/들을 사람/)).not.toBeInTheDocument()
+    expect(screen.getByText('아무것도안들음')).toBeInTheDocument()
+    expect(screen.getByText('수강완료')).toBeInTheDocument()
   })
 })
