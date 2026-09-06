@@ -6,6 +6,7 @@ import {
   transitionBounds,
   transitionSundays,
   visibleNewFamily,
+  recentlyNewFamily,
   groupByDate,
   newFamilyBySemester,
   monthlyRegistrations,
@@ -112,56 +113,84 @@ const edu = (base: Member, week1: boolean, week2: boolean): Member => ({
 })
 
 describe('visibleNewFamily', () => {
+  // 이 묶음이 보는 "오늘". 새가족 표시가 내려간 사람을 1년 동안 데리고 있는 규칙 때문에
+  // 이 함수는 날짜를 받는다.
+  const TODAY = '2026-06-15'
   const members = [
     m('cur', true, '2026-06-01'), // summer 2026 — this term
     m('noreg', true, null), // no reg date — kept visible
-    m('notNew', false, '2026-06-02'), // not flagged — excluded
+    m('notNew', false, '2026-06-02'), // not flagged, 표시가 붙은 적도 없다 — excluded
     edu(m('oldUnfinished', true, '2026-02-01'), true, false), // spring, 1주차만
     edu(m('oldDone', true, '2026-02-02'), true, true), // spring, 교육 완료 — 그래도 남는다
     m('oldNoEdu', true, '2026-02-03'), // spring, 아무것도 안 들음
   ]
   it('keeps every 새가족 with the mark on — this term, undated, and earlier terms alike', () => {
-    expect(visibleNewFamily(members).map((x) => x.id).sort())
+    expect(visibleNewFamily(members, TODAY).map((x) => x.id).sort())
       .toEqual(['cur', 'noreg', 'oldDone', 'oldNoEdu', 'oldUnfinished'])
   })
   // 떠난 사람은 학기와 무관하게 빠진다. splitRoster는 "오늘을 덮는" 표기만 보므로 이 둘은
   // 그물을 빠져나간다 — 실제 프로덕션 데이터에 있던 두 경우다.
   it('drops a 새가족 whose 이주 has not started yet (다음 주에 떠남)', () => {
     const leaving = { ...m('leaving', true, '2026-06-01'), status_marks: [{ note: '이주', start: '2026-06-20', end: null }] }
-    expect(visibleNewFamily([leaving])).toEqual([])
+    expect(visibleNewFamily([leaving], TODAY)).toEqual([])
   })
   it('drops a 새가족 whose 귀국 period already ended (기간이 잘못 적힌 경우)', () => {
     const returned = { ...m('returned', true, '2026-06-01'), status_marks: [{ note: '한국 귀국', start: '2026-06-02', end: '2026-06-02' }] }
-    expect(visibleNewFamily([returned])).toEqual([])
+    expect(visibleNewFamily([returned], TODAY)).toEqual([])
     // 예전 단일 컬럼으로 적힌 것도 같이 걸러진다.
     const legacy = { ...m('legacy', true, '2026-06-01'), status_note: '이주', status_start: '2026-06-02', status_end: '2026-06-02' }
-    expect(visibleNewFamily([legacy])).toEqual([])
+    expect(visibleNewFamily([legacy], TODAY)).toEqual([])
   })
   it('keeps a bounded 방학 — 돌아올 날이 정해진 사람은 여전히 새가족이다', () => {
     const onBreak = { ...m('break', true, '2026-06-01'), status_marks: [{ note: '방학', start: '2026-06-02', end: '2026-07-30' }] }
-    expect(visibleNewFamily([onBreak]).map((x) => x.id)).toEqual(['break'])
+    expect(visibleNewFamily([onBreak], TODAY).map((x) => x.id)).toEqual(['break'])
   })
-  it('drops anyone registered before 2026 — 옛 시트에서 옮겨온 기록은 목록에 올리지 않는다', () => {
+  // 표시가 붙어 있으면 등록일이 언제든 남는다 — 예전에는 2026년 이전 등록을 걸러 내서,
+  // 옛 명단의 사람에게 새가족 표시를 붙여도 목록에 나타나지 않았다.
+  it('keeps a 새가족 registered before 2026 — 표시가 붙어 있으면 등록일은 사람을 내리지 못한다', () => {
     const old = edu(m('old2025', true, '2025-11-02'), false, false)
-    expect(visibleNewFamily([old])).toEqual([])
-    // 경계: 2026-01-01은 남는다.
-    const boundary = edu(m('newYear', true, '2026-01-01'), false, false)
-    expect(visibleNewFamily([boundary]).map((x) => x.id)).toEqual(['newYear'])
+    expect(visibleNewFamily([old], TODAY).map((x) => x.id)).toEqual(['old2025'])
   })
 
-  it('drops an earlier term member once the 새가족 표시 comes off, education or not', () => {
-    const dropped = { ...edu(m('gone', true, '2026-02-01'), false, false), is_new_member: false }
-    expect(visibleNewFamily([dropped])).toEqual([])
-  })
   it('keeps this term regardless of education progress', () => {
     const done = edu(m('curDone', true, '2026-06-01'), true, true)
-    expect(visibleNewFamily([done]).map((x) => x.id)).toEqual(['curDone'])
+    expect(visibleNewFamily([done], TODAY).map((x) => x.id)).toEqual(['curDone'])
   })
   // 이것이 이 목록의 규칙이 된 자리: 지난 학기에 등록하고 두 주를 다 마친 사람도 남는다.
   // 마치는 순간 사라지면 교육 탭에서 '수강 완료'로 걸러도 아무도 안 나온다.
   it('keeps an earlier term member who finished BOTH education weeks', () => {
     const done = edu(m('oldDone', true, '2026-02-02'), true, true)
-    expect(visibleNewFamily([done]).map((x) => x.id)).toEqual(['oldDone'])
+    expect(visibleNewFamily([done], TODAY).map((x) => x.id)).toEqual(['oldDone'])
+  })
+})
+
+// 표시를 내려도 1년은 남는다 — 해제는 "이제 새가족이 아니다"라는 판단이지 그 사람을 화면에서
+// 지우라는 뜻이 아니다. 근거가 되는 날짜는 서버가 members.new_member_since에 적어 둔다.
+describe('새가족 표시가 내려간 뒤의 1년 (new_member_since)', () => {
+  const TODAY = '2026-06-15'
+  const cleared = (id: string, since: string | null): Member => ({
+    ...m(id, false, '2026-01-05'), new_member_since: since,
+  })
+
+  it('keeps someone whose 새가족 표시 came off but was marked within the last year', () => {
+    expect(visibleNewFamily([cleared('recent', '2025-09-01')], TODAY).map((x) => x.id)).toEqual(['recent'])
+  })
+  it('drops them once a year has passed since the mark went on', () => {
+    expect(visibleNewFamily([cleared('longAgo', '2025-06-14')], TODAY)).toEqual([])
+    // 경계: 정확히 365일 전은 아직 남는다.
+    expect(visibleNewFamily([cleared('edge', '2025-06-15')], TODAY).map((x) => x.id)).toEqual(['edge'])
+  })
+  it('drops someone with no 새가족 기록 at all — 되살릴 근거가 없다', () => {
+    expect(visibleNewFamily([cleared('never', null)], TODAY)).toEqual([])
+  })
+  it('still drops a 떠난 사람 even inside the year', () => {
+    const gone = { ...cleared('gone', '2026-05-01'), status_marks: [{ note: '한국 귀국', start: '2026-06-01', end: null }] }
+    expect(visibleNewFamily([gone], TODAY)).toEqual([])
+  })
+  it('recentlyNewFamily reads the date alone', () => {
+    expect(recentlyNewFamily({ new_member_since: '2026-01-01' }, TODAY)).toBe(true)
+    expect(recentlyNewFamily({ new_member_since: '2024-01-01' }, TODAY)).toBe(false)
+    expect(recentlyNewFamily({ new_member_since: null }, TODAY)).toBe(false)
   })
 })
 
@@ -182,7 +211,7 @@ describe('학기 사이 틈에 등록한 새가족 (regression)', () => {
   })
 
   it('교육을 다 마쳐도 목록에 남고 수강 완료로 걸러진다', () => {
-    const list = visibleNewFamily([educated('김시우'), educated('신서윤')])
+    const list = visibleNewFamily([educated('김시우'), educated('신서윤')], '2026-08-24')
     expect(list.map((x) => x.id).sort()).toEqual(['김시우', '신서윤'])
     expect(list.filter((x) => matchesEduFilter(x, 'both')).map((x) => x.id).sort()).toEqual(['김시우', '신서윤'])
   })
@@ -217,15 +246,15 @@ describe('newFamilyBySemester', () => {
       m('a2', true, '2026-06-07'),
       m('none', true, null), // undated — sits in the current term
       edu(m('spring', true, '2026-02-01'), false, true), // spring 2026 — carried over
-      edu(m('lastFall', true, '2025-09-01'), true, false), // fall 2025 — 2026년 이전이라 제외
+      edu(m('lastFall', true, '2025-09-01'), true, false), // fall 2025 — 표시가 붙어 있으니 그 학기 묶음으로 남는다
       edu(m('springDone', true, '2026-02-02'), true, true), // 교육 완료 — 그래도 봄학기에 남는다
       m('notNew', false, '2026-06-07'),
     ]
     const groups = newFamilyBySemester(members, '2026-06-08')
 
-    // 2025년 등록은 학기 묶음 자체가 생기지 않는다 (교육을 안 끝냈어도).
-    expect(groups.map((g) => g.key)).toEqual(['2026-summer', '2026-spring'])
-    expect(groups.map((g) => g.current)).toEqual([true, false])
+    // 등록 학기가 오래됐어도 표시가 붙어 있으면 자기 학기 묶음으로 나온다 (현재 학기 → 최신순).
+    expect(groups.map((g) => g.key)).toEqual(['2026-summer', '2026-spring', '2025-fall'])
+    expect(groups.map((g) => g.current)).toEqual([true, false, false])
     expect(groups[0].total).toBe(4)
     expect(groups[0].dates.map((g) => g.date)).toEqual(['2026-06-07', '2026-05-31', null])
     expect(groups[0].dates[0].members.map((x) => x.id)).toEqual(['a1', 'a2'])

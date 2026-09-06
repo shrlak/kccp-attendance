@@ -61,7 +61,7 @@ export function AdminNewFamily() {
     usesSemesters(partition) ? t(`admin.newfamily.season.${season}`) : seasonName(season, partition, lang)
   const today = easternNow().date
   const scopedMembers = filterMembers(data.members, filter)
-  // 학기별 섹션: 이번 학기 + 아직 새가족 교육이 끝나지 않아 넘어온 이전 학기들.
+  // 학기별 섹션: 이번 학기 + 새가족 표시가 붙어 있어(또는 내려간 지 1년이 안 돼) 넘어온 이전 학기들.
   const semesters = newFamilyBySemester(scopedMembers, today, configCalendar(cfg), partition)
   const allNewFamily = semesters.flatMap((s) => s.dates.flatMap((g) => g.members))
   const total = allNewFamily.length
@@ -117,7 +117,7 @@ export function AdminNewFamily() {
       </div>
       {/* Legend for the card badge below + why an earlier term's 새가족 are still listed */}
       <p className="mb-3 text-xs text-subtle">
-        {t('admin.newfamily.legend')} · {t('admin.newfamily.carryOverLegend')}
+        {t('admin.newfamily.legend')} · {t('admin.newfamily.carryOverLegend')} · {t('admin.newfamily.unmarkedLegend')}
       </p>
 
       {semesters.length === 0 ? (
@@ -432,6 +432,14 @@ function NewFamilyCard({ member, onOpen }: { member: Member; onOpen: () => void 
         </div>
         <div className="mt-0.5 text-xs text-muted">{[member.group_name, member.subgroup].filter(Boolean).join(' · ') || '—'}</div>
         {member.phone && <div className="text-xs text-subtle">{member.phone}</div>}
+        {/* 새가족 표시가 이미 해제된 사람 — 1년 동안은 목록에 남는다 (newFamily.ts
+            visibleNewFamily). 표시가 켜진 사람과 섞여 있으므로 어느 쪽인지 적어 준다:
+            안 적으면 해제 버튼이 아무 일도 안 한 것처럼 보인다. */}
+        {!member.is_new_member && (
+          <div className="mt-1.5">
+            <Tag className="text-[10px]">{t('admin.newfamily.unmarked')}</Tag>
+          </div>
+        )}
         {(member.new_member_edu_week1 || member.new_member_edu_week2) && (
           <div className="mt-1.5 flex gap-1">
             {member.new_member_edu_week1 && (

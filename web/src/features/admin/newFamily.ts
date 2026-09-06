@@ -203,29 +203,51 @@ export function matchesEduFilter(
   return !w1 && !w2 // 'none'
 }
 
-// 2026년 이전에 등록된 새가족은 목록에 올리지 않는다. 그 이전 기록은 옛 시트에서 옮겨온
-// 것이라 지금 새가족팀이 챙길 대상이 아니고, 교육을 안 끝낸 채로 남아 있으면 아래 "학기가
-// 넘어가도 계속 보인다" 규칙에 걸려 영영 목록에 붙어 있게 된다.
+// 2026년 이전에 등록된 기록은 월별 등록 집계에 올리지 않는다. 그 이전 것은 옛 시트에서
+// 옮겨온 명단이라 지금 새가족팀이 세는 대상이 아니다. (예전에는 이 선이 새가족 목록에도
+// 걸려 있었지만 지금은 아니다 — 아래 visibleNewFamily 머리말 참고.)
 const NEW_FAMILY_SINCE = '2026-01-01'
 
-// 새가족 that belong on the 새가족 · 새가족 교육 탭 — **새가족 표시가 붙어 있는 동안은 학기도
-// 교육 이수도 목록에서 내리지 않는다.** 예전에는 지난 학기에 등록한 사람이 새가족 교육 두 주를
-// 다 마치면 목록에서 사라졌는데, 그러면 '수강 완료'로 걸러도 아무도 안 나와서 **이수한 사람을
-// 확인할 방법이 교육 탭에 없었다** (마치는 순간 목록 밖으로 나가므로). 목록에서 내리는 열쇠는
-// 이제 하나뿐이다 — 멤버 편집에서 새가족 표시를 해제하는 것. 새가족팀이 "이 사람은 이제 새가족이
-// 아니다"라고 판단하는 그 동작이고, 교육 이수는 그 판단이 아니다. 등록일이 없는 사람도 그대로
-// 남는다. Newest registration first.
+// 새가족 표시가 내려간 뒤에도 목록에 남는 기간. 표시를 해제하는 것은 "이제 새가족이 아니다"
+// 라는 판단이지 "더는 안 봐도 된다"가 아니다 — 해제하는 순간 사람이 화면에서 사라지면
+// 새가족팀은 방금까지 챙기던 사람을 멤버 탭에서 이름으로 다시 찾아야 한다. 1년은 새가족
+// 한 바퀴(등록 → 교육 → 정착)를 다 덮는 길이다.
+export const NEW_FAMILY_MEMORY_DAYS = 365
+
+// 새가족 표시가 지금 붙어 있지는 않지만 **1년 안에 붙어 있던** 사람인가. 그 날짜는 서버가
+// members.new_member_since에 적어 두고 해제해도 지우지 않는다 (마이그레이션 20260821).
+// 날짜가 없는 사람은 그 칸이 생기기 전에 표시가 해제된 사람이라 되살릴 근거가 없다.
+export function recentlyNewFamily(
+  m: Pick<Member, 'new_member_since'>,
+  today: string,
+): boolean {
+  return !!m.new_member_since && m.new_member_since >= addIsoDays(today, -NEW_FAMILY_MEMORY_DAYS)
+}
+
+// 새가족 that belong on the 새가족 · 새가족 교육 탭 — 두 탭이 이 함수 하나를 같이 읽는다
+// (그래서 새가족 표시를 붙이면 새가족 교육 탭에도 같은 순간에 나타난다).
 //
-// 떠난 사람은 학기와 무관하게 빠진다. useRoster의 splitRoster는 "오늘을 덮는" 표기만 보고
-// 거르므로, 시작일이 아직 안 온 이주(다음 주에 떠남)나 이미 끝난 기간으로 잘못 적힌 귀국은
-// 그물을 빠져나간다. 새가족팀 입장에서는 둘 다 이제 시작할 대상이 아니므로, 여기서는 날짜를
-// 보지 않고 그런 표기를 하나라도 가졌는지만 본다.
-export function visibleNewFamily(members: Member[]): Member[] {
+// **새가족 표시가 붙어 있으면 무조건 남는다.** 학기도, 새가족 교육 이수도, 등록일이 언제인지도
+// 목록에서 사람을 내리지 못한다. 예전에는 등록일이 2026년 이전이면 걸러 냈는데(옛 시트에서
+// 옮겨온 명단을 올리지 않으려는 선이었다), 그러면 관리자가 그런 사람에게 새가족 표시를 붙여도
+// 목록에 나타나지 않아 — 표시는 켜져 있는데 화면 어디에도 없는 상태가 된다. 표시를 붙이는 것이
+// 곧 "이 사람을 새가족으로 챙긴다"는 뜻이므로, 그 표시보다 앞서는 규칙을 두지 않는다.
+//
+// **표시가 내려가도 1년은 남는다** (recentlyNewFamily). 해제는 "이제 새가족이 아니다"라는
+// 판단이지 그 사람을 화면에서 지우라는 뜻이 아니다 — 새가족 한 바퀴가 도는 동안은 계속 보이고,
+// 그 뒤에 조용히 목록에서 빠진다. 새가족 교육 탭도 같이 따라간다 (이수 기록을 남긴 사람이
+// 표시 해제와 동시에 사라지면 누가 이수했는지 확인할 자리가 없어진다 — 학기·이수 규칙을 없앤
+// 것과 같은 이유다).
+//
+// 남는 규칙은 하나다: **떠난 사람은 빠진다.** useRoster의 splitRoster는 "오늘을 덮는" 표기만
+// 보고 거르므로, 시작일이 아직 안 온 이주(다음 주에 떠남)나 이미 끝난 기간으로 잘못 적힌 귀국은
+// 그 그물을 빠져나간다. 새가족팀 입장에서는 둘 다 이제 시작할 대상이 아니므로, 여기서는 날짜를
+// 보지 않고 그런 표기를 하나라도 가졌는지만 본다. Newest registration first.
+export function visibleNewFamily(members: Member[], today: string): Member[] {
   return members
     .filter((m) => {
-      if (!m.is_new_member) return false
+      if (!m.is_new_member && !recentlyNewFamily(m, today)) return false
       if (hasHidingMark(m)) return false
-      if (m.registration_date && m.registration_date < NEW_FAMILY_SINCE) return false
       return true
     })
     .sort(
@@ -264,9 +286,9 @@ export interface SemesterGroup {
 }
 
 // The 새가족 탭's list, separated by the 학기 each member registered in: the current term
-// first, then earlier terms (newest first) holding the 새가족 carried over by
-// visibleNewFamily — 교육을 마쳤든 아니든 새가족 표시가 붙어 있는 동안은 전부. Undated
-// registrations sit in the current term, where they've always been shown.
+// first, then earlier terms (newest first) holding everyone visibleNewFamily carries over —
+// 표시가 붙어 있는 사람 전부와, 표시가 내려간 지 1년이 안 된 사람. Undated registrations sit
+// in the current term, where they've always been shown.
 export function newFamilyBySemester(
   members: Member[],
   today: string,
@@ -275,7 +297,7 @@ export function newFamilyBySemester(
 ): SemesterGroup[] {
   const currentKey = semesterKey(today, semesterDates, partition)
   const byKey = new Map<string, Member[]>()
-  for (const m of visibleNewFamily(members)) {
+  for (const m of visibleNewFamily(members, today)) {
     const key = m.registration_date ? semesterKey(m.registration_date, semesterDates, partition) : currentKey
     const list = byKey.get(key) ?? []
     list.push(m)
