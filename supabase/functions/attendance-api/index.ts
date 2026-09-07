@@ -1967,6 +1967,54 @@ Deno.serve(async (req: Request) => {
       return ok({status:"ok",updated:targetIds.length});
     }
 
+    // 새가족 교육 동산 배정 — 고른 사람들에게 조를 한 번에 적는다 (members.new_member_dongsan).
+    // 이 값이 정하는 것은 **교육 시간에 어느 조로 앉는가**뿐이라 실제 동산 편성(members.subgroup)
+    // 과는 다른 칸이다: 출석부·통계·엑셀·시트 연동 어디에도 들어가지 않고, 기기와 출석 행에도
+    // 옮겨 적지 않는다 (그 행들이 담는 것은 그날의 동산이지 교육 조가 아니다).
+    //
+    // 권한은 **이수 체크와 같다** — 목사(읽기 전용)만 막고 나머지는 자기 범위 안에서 한다.
+    // 새가족 교육 탭에서 이미 카드마다 이수를 찍을 수 있는 사람들이고, 조 배정은 그보다 더
+    // 센 일이 아니다 (동산 배정의 canAssignDongsan을 걸지 않는 이유: 그 규칙이 막는 것은
+    // "자기 동산으로 사람을 끌어오는 것"인데, 교육 조는 그 주 교육이 끝나면 뜻이 없어진다).
+    if(req.method==="POST"&&p==="/api/admin/members/edu-dongsan") {
+      const role=await auth();
+      if(!role) return fail(401,"Not authorized");
+      if(role.role==="pastor") return fail(403,"Read-only");
+      const {assignments}=body;
+      if(!Array.isArray(assignments)) return fail(400,"assignments required");
+      const wanted=new Map<string,string>();
+      for(const a of assignments as any[]){
+        const id=String(a?.memberId||"").trim();
+        if(!id) continue;
+        wanted.set(id,String(a?.dongsan??"").trim().slice(0,40));
+      }
+      if(!wanted.size) return ok({status:"ok",updated:0});
+      // 범위 밖 멤버는 조용히 빠진다 — 다른 부·다른 동산 사람은 최고관리자도 건드리지 않는다.
+      const cfg=await getCfg(sb,actingPartition);
+      const part=role.partition;
+      const scope=scopeFilter(role,summerNow(cfg,part));
+      const {data:ms}=await adb.from("members").select("id,group_name,subgroup").in("id",[...wanted.keys()]);
+      // 같은 조에 들어가는 사람들을 묶어 값마다 UPDATE 한 번 — 사람 수만큼 왕복하지 않는다.
+      const byValue=new Map<string,string[]>();
+      for(const m of (ms||[]) as any[]){
+        if(!inScope(scope,m.group_name,m.subgroup)) continue;
+        const val=wanted.get(m.id) ?? "";
+        const list=byValue.get(val)||[]; list.push(m.id); byValue.set(val,list);
+      }
+      const ts=new Date().toISOString();
+      let updated=0;
+      for(const [val,ids] of byValue){
+        await adb.from("members").update({new_member_dongsan:val,updated_at:ts}).in("id",ids);
+        updated+=ids.length;
+      }
+      if(updated){
+        const cleared=(byValue.get("")||[]).length;
+        await addAudit(adb,"edu-dongsan",xDev,
+          cleared===updated?updated+"명 새가족 교육 동산 해제":updated+"명 새가족 교육 동산 배정",part);
+      }
+      return ok({status:"ok",updated});
+    }
+
     // Clear ALL attendance records **in the caller's 부**. Super-admin clears immediately; a
     // non-super admin (leader/welcoming who is NOT a 동산지기/부동산지기) files a request
     // held for super approval. Audited either way. 장년부에서 "전체 삭제"를 눌러도
