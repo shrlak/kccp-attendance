@@ -143,26 +143,37 @@ describe('AdminNewFamilyEdu — 이번 주차를 들을 사람이 위로', () =>
     vi.setSystemTime(new Date(`${iso}T16:00:00Z`)) // 정오(Eastern)의 그 주일
   }
 
-  it('1주차 주일에는 미수강과 2주차만 들은 사람이 대상이다', () => {
-    on('2026-09-06')
+  it('교육이 안 끝난 사람은 어느 주일이든 모두 위로 올라온다', () => {
+    on('2026-09-06') // 1주차 주일
     renderAs('super_admin', all)
 
-    const heading = screen.getByText(/1주차 들을 사람/)
-    expect(heading).toHaveTextContent('· 2')
-    expect(dueNames(heading)).toEqual(expect.arrayContaining([expect.stringContaining('아무것도안들음'), expect.stringContaining('이주차만')]))
-    expect(dueNames(heading)).toHaveLength(2)
+    const heading = screen.getByText(/아직 교육이 남은 사람/)
+    expect(heading).toHaveTextContent('· 3')
+    // 미수강 · 2주차만(오늘 것이 비었다) + 1주차만(오늘 것은 들었지만 나머지가 남았다)
+    expect(dueNames(heading)).toHaveLength(3)
+    expect(dueNames(heading).join(' ')).toContain('아무것도안들음')
+    expect(dueNames(heading).join(' ')).toContain('이주차만')
+    expect(dueNames(heading).join(' ')).toContain('일주차만')
+    // 두 주를 다 마친 사람만 아래로 내려간다 — 사라지지는 않는다 (이수 기록을 고칠 자리).
+    expect(screen.getByText(/수강 완료 ·/)).toHaveTextContent('· 1')
+    expect(screen.getByText('수강완료')).toBeInTheDocument()
   })
 
-  it('2주차 주일에는 미수강과 1주차만 들은 사람이 대상이다', () => {
+  it('2주차 주일에도 같다 — 2주차만 들은 사람이 그대로 남는다', () => {
     on('2026-09-13')
     renderAs('super_admin', all)
 
-    const heading = screen.getByText(/2주차 들을 사람/)
-    expect(dueNames(heading)).toEqual(expect.arrayContaining([expect.stringContaining('아무것도안들음'), expect.stringContaining('일주차만')]))
-    expect(dueNames(heading)).toHaveLength(2)
-    // 이미 들은 사람도 사라지지 않는다 — 이수 기록을 고칠 자리이므로.
-    expect(screen.getByText(/이미 들은 새가족/)).toHaveTextContent('· 2')
-    expect(screen.getByText('이주차만')).toBeInTheDocument()
+    const heading = screen.getByText(/아직 교육이 남은 사람/)
+    expect(dueNames(heading)).toHaveLength(3)
+    expect(dueNames(heading).join(' ')).toContain('이주차만')
+  })
+
+  it('그 블록 안에서는 오늘 여는 주차가 비어 있는 사람이 먼저다', () => {
+    on('2026-09-13') // 2주차 — 2주차가 비어 있는 미수강·1주차만이 앞
+    renderAs('super_admin', all)
+
+    const order = dueNames(screen.getByText(/아직 교육이 남은 사람/))
+    expect(order[2]).toContain('이주차만') // 오늘 것은 이미 들은 사람이 맨 뒤
   })
 
   it('쉬는 주일에는 다음에 열리는 교육을 가리킨다', () => {
@@ -170,7 +181,7 @@ describe('AdminNewFamilyEdu — 이번 주차를 들을 사람이 위로', () =>
     renderAs('super_admin', all)
 
     expect(screen.getByText('다음 교육')).toBeInTheDocument()
-    expect(screen.getByText(/1주차 들을 사람/)).toBeInTheDocument()
+    expect(screen.getByText(/아직 교육이 남은 사람/)).toBeInTheDocument()
   })
 
   it('일정이 끝난 뒤에는 가르지 않고 그 사실을 적는다', () => {
@@ -178,7 +189,7 @@ describe('AdminNewFamilyEdu — 이번 주차를 들을 사람이 위로', () =>
     renderAs('super_admin', all)
 
     expect(screen.getByText('예정된 새가족 교육이 없습니다')).toBeInTheDocument()
-    expect(screen.queryByText(/들을 사람/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/아직 교육이 남은 사람/)).not.toBeInTheDocument()
     expect(screen.getByText('아무것도안들음')).toBeInTheDocument()
     expect(screen.getByText('수강완료')).toBeInTheDocument()
   })

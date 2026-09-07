@@ -15,7 +15,7 @@ import {
   type NewFamilyWeek,
 } from './newFamily'
 import { NewFamilyWeekChip } from './NewFamilyWeekChip'
-import { focusEduSession, needsEduWeek, nextEduSession, type EduSession } from './eduSchedule'
+import { eduUnfinished, focusEduSession, needsEduWeek, nextEduSession, type EduSession } from './eduSchedule'
 import {
   assignEduDongsan as planEduDongsan,
   clearEduDongsan,
@@ -112,8 +112,15 @@ export function AdminNewFamilyEdu() {
   const openToday = !!session && session.date === today
   // 그다음 교육 — 한 바퀴에 쉬는 주일이 끼어 있어 "다음 주"가 아닐 때가 있다.
   const following = session ? nextEduSession(addIsoDays(session.date, 1)) : null
-  const due = session ? visible.filter((m) => needsEduWeek(m, session.week)) : []
-  const rest = session ? visible.filter((m) => !needsEduWeek(m, session.week)) : visible
+  // 위 블록은 **교육이 아직 안 끝난 사람 전부**다 (eduUnfinished 머리말): 오늘 여는 주차가
+  // 비어 있는 사람에 더해, 오늘 것은 들었지만 나머지 한 주가 남은 사람까지. 그 안에서는
+  // 오늘 그 자리에 앉을 사람(needsEduWeek)이 먼저 온다.
+  const due = session
+    ? visible
+        .filter(eduUnfinished)
+        .sort((a, b) => Number(needsEduWeek(b, session.week)) - Number(needsEduWeek(a, session.week)))
+    : []
+  const rest = session ? visible.filter((m) => !eduUnfinished(m)) : visible
 
   // 배정은 **고른 사람 전부**를 대상으로 한다 (지금 화면에 남아 있는 사람이 아니라) —
   // 위 필터는 고르는 것을 돕는 도구일 뿐이다.
@@ -236,7 +243,7 @@ export function AdminNewFamilyEdu() {
             <>
               <div className="mb-2 flex items-center gap-2 section-kicker text-primary">
                 <span className="h-3.5 w-1 rounded-full bg-primary" aria-hidden />
-                {t('admin.newfamilyEdu.schedule.due', { week: t('admin.newfamilyEdu.schedule.week', { n: session.week }) })} · {due.length}
+                {t('admin.newfamilyEdu.schedule.due')} · {due.length}
               </div>
               {grid(due, true)}
             </>
