@@ -24,6 +24,7 @@ import {
   type EduAssignment,
   type EduDongsanGroup,
 } from './eduDongsan'
+import { composition } from './eduDongsanTraits'
 import { presentToday, cameToday } from './today'
 import { GroupFilter, Pill } from './GroupFilter'
 import { assignEduDongsan, configCalendar, updateMember, type Member } from '../../lib/api'
@@ -303,11 +304,26 @@ function EduDongsanResult({ groups }: { groups: EduDongsanGroup[] }) {
             <div className="mt-0.5 text-xs leading-relaxed text-muted">
               {g.members.map((m) => m.name).join(' · ')}
             </div>
+            <GroupComposition members={g.members} />
           </div>
         ))}
       </div>
     </div>
   )
+}
+
+// 조가 어떻게 섞였는지 한 줄 — 성비 · 학교 · 전공 계열. 기준대로 나뉘었는지를 눈으로
+// 검산하는 자리다 (숫자가 없으면 "정말 반반인가"를 이름을 세어 확인하게 된다). 적혀 있지
+// 않은 값은 세지 않으므로 합이 인원과 다를 수 있다.
+function GroupComposition({ members }: { members: Member[] }) {
+  const { t } = useTranslation()
+  const { male, female, cmu, pitt, fields } = composition(members)
+  const parts: string[] = []
+  if (male || female) parts.push(`${t('admin.newfamilyEdu.assign.male')} ${male} · ${t('admin.newfamilyEdu.assign.female')} ${female}`)
+  if (cmu || pitt) parts.push(`CMU ${cmu} · Pitt ${pitt}`)
+  for (const { field, n } of fields) parts.push(`${t(`admin.newfamilyEdu.assign.major.${field}`)} ${n}`)
+  if (!parts.length) return null
+  return <div className="mt-1 text-[11px] tabular-nums text-subtle">{parts.join(' · ')}</div>
 }
 
 // 동산 배정 창 — 고른 사람을 **부서 안에서** 무작위로 나눈다. 정하는 것은 동산 갯수 하나이고,
@@ -376,6 +392,21 @@ function EduDongsanDialog({
                 {' '}
                 {t('admin.newfamilyEdu.assign.preview', { total: row.total, sizes: row.sizes.join(' · ') })}
               </span>
+              {/* 그 부서에 걸리는 기준. 대학부만 성비·학교·전공을 맞추고 나머지는 무작위다. */}
+              <div className="mt-0.5 text-[11px] text-subtle">
+                {t(`admin.newfamilyEdu.assign.rule.${row.rule}`)}
+                {/* 성별·학교가 비어 있는 사람은 그 기준으로 셀 수가 없다 — 적어 두지 않으면
+                    "왜 성비가 안 맞지"가 된다. 배정에서 빠지는 것은 아니다. */}
+                {row.rule === 'balanced' && (row.missing.gender > 0 || row.missing.school > 0) && (
+                  <>
+                    {' · '}
+                    {t('admin.newfamilyEdu.assign.missing', {
+                      gender: row.missing.gender,
+                      school: row.missing.school,
+                    })}
+                  </>
+                )}
+              </div>
             </li>
           ))
         )}

@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest'
 import type { Member } from '../../lib/api'
 import {
   assignEduDongsan,
+  ruleForGroup,
+  missingTraits,
   bucketSizes,
   clearEduDongsan,
   eduDongsanLabel,
@@ -55,7 +57,9 @@ describe('eduDongsan — 인원은 고르게, 미리보기와 결과가 같게',
   it('실제 배정의 조별 인원이 미리보기와 일치한다', () => {
     const people = Array.from({ length: 7 }, (_, i) => m(`청${i}`, '청년부'))
     const plan = eduDongsanPlan(people, 3)
-    expect(plan).toEqual([{ group: '청년부', total: 7, sizes: [3, 2, 2] }])
+    expect(plan).toEqual([
+      { group: '청년부', total: 7, sizes: [3, 2, 2], rule: 'random', missing: { gender: 7, school: 7, major: 7 } },
+    ])
 
     const counts = new Map<string, number>()
     for (const a of assignEduDongsan(people, 3, seeded([0.9, 0.2, 0.5, 0.7, 0.1, 0.4])))
@@ -107,5 +111,110 @@ describe('eduDongsan — 해제와 조별 명단', () => {
       m('c', '대학부', '대학부 1동산'),
     ])
     expect(groups.map((g) => g.name)).toEqual(['대학부 1동산', '청년부 2동산', '청년부 10동산'])
+  })
+})
+
+// ── 대학부의 배정 기준 ──────────────────────────────────────────────────────────────
+// 1) 성비를 5:5에 가깝게 · 2) Pitt과 CMU를 반반으로 · 3) 전공이 비슷한 사람을 같은 조로.
+// 순서가 곧 우선순위다 (전공만 방향이 반대라 — 모으는 힘이라 — 가장 가볍다).
+
+// 자리를 고정하기 위한 가짜 난수 (mulberry32). 시드를 바꾸면 다른 배치에서 출발한다.
+const seededRand = (seed: number) => () => {
+  seed = (seed + 0x6d2b79f5) | 0
+  let t = seed
+  t = Math.imul(t ^ (t >>> 15), t | 1)
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+}
+
+const college = (id: string, gender: string, school: string, major: string): Member =>
+  ({ ...m(id, '대학부'), gender, school_or_work: `${school} ${major}` }) as Member
+
+// 결과를 조별 명단으로 되돌린다 (배정 결과는 사람 → 조 이름이므로).
+const groupsOf = (people: Member[], out: { memberId: string; dongsan: string }[]) => {
+  const byName = new Map<string, Member[]>()
+  for (const a of out) {
+    const person = people.find((p) => p.id === a.memberId)!
+    byName.set(a.dongsan, [...(byName.get(a.dongsan) ?? []), person])
+  }
+  return [...byName.values()]
+}
+
+describe('eduDongsan — 대학부 배정 기준', () => {
+  it('대학부에만 기준이 걸린다 — 청년부는 아직 무작위다', () => {
+    expect(ruleForGroup('대학부')).toBe('balanced')
+    expect(ruleForGroup('청년부')).toBe('random')
+    expect(ruleForGroup('')).toBe('random')
+  })
+
+  it('성비를 조마다 5:5로 맞춘다', () => {
+    const people = [
+      college('a', '남', 'CMU', 'Math'), college('b', '남', 'CMU', 'Math'),
+      college('c', '남', 'CMU', 'Math'), college('d', '남', 'CMU', 'Math'),
+      college('e', '여', 'CMU', 'Math'), college('f', '여', 'CMU', 'Math'),
+      college('g', '여', 'CMU', 'Math'), college('h', '여', 'CMU', 'Math'),
+    ]
+    for (const seed of [1, 2, 3, 4, 5]) {
+      const groups = groupsOf(people, assignEduDongsan(people, 2, seededRand(seed)))
+      expect(groups).toHaveLength(2)
+      for (const g of groups) {
+        expect(g.filter((p) => p.gender === '남')).toHaveLength(2)
+        expect(g.filter((p) => p.gender === '여')).toHaveLength(2)
+      }
+    }
+  })
+
+  it('학교를 조마다 반반으로 맞춘다', () => {
+    const people = [
+      college('a', '남', 'CMU', 'Math'), college('b', '여', 'CMU', 'Math'),
+      college('c', '남', 'CMU', 'Math'), college('d', '여', 'CMU', 'Math'),
+      college('e', '남', 'Pitt', 'Math'), college('f', '여', 'Pitt', 'Math'),
+      college('g', '남', 'Pitt', 'Math'), college('h', '여', 'Pitt', 'Math'),
+    ]
+    for (const seed of [7, 8, 9]) {
+      for (const g of groupsOf(people, assignEduDongsan(people, 2, seededRand(seed)))) {
+        expect(g.filter((p) => (p.school_or_work || '').startsWith('CMU'))).toHaveLength(2)
+        expect(g.filter((p) => (p.school_or_work || '').startsWith('Pitt'))).toHaveLength(2)
+      }
+    }
+  })
+
+  it('성비·학교가 어느 쪽이든 같으면 전공이 비슷한 사람끼리 모인다', () => {
+    // 넷 다 남·CMU라 1·2번 기준은 어떻게 나눠도 같다 — 그때 3번이 답을 고른다.
+    const people = [
+      college('bio1', '남', 'CMU', 'Biology'), college('bio2', '남', 'CMU', 'Biology'),
+      college('math1', '남', 'CMU', 'Math'), college('math2', '남', 'CMU', 'Math'),
+    ]
+    for (const seed of [11, 12, 13]) {
+      const groups = groupsOf(people, assignEduDongsan(people, 2, seededRand(seed)))
+      for (const g of groups) {
+        const ids = g.map((p) => p.id).sort()
+        expect([['bio1', 'bio2'], ['math1', 'math2']]).toContainEqual(ids)
+      }
+    }
+  })
+
+  it('전공보다 성비가 먼저다 — 같은 전공끼리 몰아 성비를 깨지 않는다', () => {
+    const people = [
+      college('bio남1', '남', 'CMU', 'Biology'), college('bio남2', '남', 'CMU', 'Biology'),
+      college('math여1', '여', 'CMU', 'Math'), college('math여2', '여', 'CMU', 'Math'),
+    ]
+    for (const seed of [21, 22, 23]) {
+      for (const g of groupsOf(people, assignEduDongsan(people, 2, seededRand(seed)))) {
+        expect(g.filter((p) => p.gender === '남')).toHaveLength(1)
+        expect(g.filter((p) => p.gender === '여')).toHaveLength(1)
+      }
+    }
+  })
+
+  it('정보가 없는 사람도 배정에서 빠지지 않는다 (균형 계산에서만 빠진다)', () => {
+    const people = [
+      college('a', '남', 'CMU', 'Math'),
+      { ...m('b', '대학부'), gender: '', school_or_work: '' } as Member,
+      college('c', '여', 'Pitt', 'Bio'),
+    ]
+    const out = assignEduDongsan(people, 2, seededRand(31))
+    expect(out).toHaveLength(3)
+    expect(missingTraits(people)).toEqual({ gender: 1, school: 1, major: 1 })
   })
 })
