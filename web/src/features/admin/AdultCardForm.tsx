@@ -72,7 +72,9 @@ export function AdultCardForm({
               <div className="flex border-b border-[#111]">
                 <Label ko="한글 (Korean)" en="" className="w-[38%]" small />
                 <Box className="flex-1 border-l border-[#111]">
-                  <TextBox value={value.name} onChange={(v) => onChange({ name: v })} />
+                  {/* 종이의 칸 이름은 그림(Label)이라 입력과 이어져 있지 않다 — 이름 칸만은
+                      찾을 수 있어야 하므로 라벨을 붙인다 (생년월일 칸과 같은 방식). */}
+                  <TextBox value={value.name} onChange={(v) => onChange({ name: v })} aria-label="이름" />
                 </Box>
               </div>
               <div className="flex">
