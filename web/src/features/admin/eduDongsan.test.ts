@@ -57,9 +57,11 @@ describe('eduDongsan — 인원은 고르게, 미리보기와 결과가 같게',
   it('실제 배정의 조별 인원이 미리보기와 일치한다', () => {
     const people = Array.from({ length: 7 }, (_, i) => m(`청${i}`, '청년부'))
     const plan = eduDongsanPlan(people, 3)
-    expect(plan).toEqual([
-      { group: '청년부', total: 7, sizes: [3, 2, 2], rule: 'random', missing: { gender: 7, school: 7, major: 7 } },
-    ])
+    expect(plan[0].group).toBe('청년부')
+    expect(plan[0].total).toBe(7)
+    expect(plan[0].sizes).toEqual([3, 2, 2])
+    // 이 표본은 어느 칸도 적혀 있지 않으므로 청년부의 여섯 기준이 모두 '셀 수 없음'이다.
+    expect(plan[0].missing.map((x) => x.n)).toEqual([7, 7, 7, 7, 7, 7])
 
     const counts = new Map<string, number>()
     for (const a of assignEduDongsan(people, 3, seeded([0.9, 0.2, 0.5, 0.7, 0.1, 0.4])))
@@ -141,10 +143,16 @@ const groupsOf = (people: Member[], out: { memberId: string; dongsan: string }[]
 }
 
 describe('eduDongsan — 대학부 배정 기준', () => {
-  it('대학부에만 기준이 걸린다 — 청년부는 아직 무작위다', () => {
-    expect(ruleForGroup('대학부')).toBe('balanced')
-    expect(ruleForGroup('청년부')).toBe('random')
-    expect(ruleForGroup('')).toBe('random')
+  it('부서마다 기준이 다르다 — 대학부는 학교를 흩고, 청년부는 모은다', () => {
+    const college = ruleForGroup('대학부')!
+    const young = ruleForGroup('청년부')!
+    expect(college.spread.map((t) => t.key)).toEqual(['gender', 'school'])
+    expect(college.cluster.map((t) => t.key)).toEqual(['major'])
+    expect(young.spread.map((t) => t.key)).toEqual(['gender'])
+    expect(young.cluster.map((t) => t.key)).toEqual(['age', 'career', 'school', 'major', 'faith'])
+    // 기준이 없는 부서는 무작위 그대로다.
+    expect(ruleForGroup('EM')).toBeNull()
+    expect(ruleForGroup('')).toBeNull()
   })
 
   it('성비를 조마다 5:5로 맞춘다', () => {
@@ -215,6 +223,131 @@ describe('eduDongsan — 대학부 배정 기준', () => {
     ]
     const out = assignEduDongsan(people, 2, seededRand(31))
     expect(out).toHaveLength(3)
-    expect(missingTraits(people)).toEqual({ gender: 1, school: 1, major: 1 })
+    // 그 부서의 기준이 보는 칸만 센다 — 대학부는 성별 · 학교 · 전공.
+    expect(missingTraits(people, ruleForGroup('대학부'))).toEqual([
+      { key: 'gender', n: 1 },
+      { key: 'school', n: 1 },
+      { key: 'major', n: 1 },
+    ])
+  })
+})
+
+// ── 청년부의 기준 ──────────────────────────────────────────────────────────────────
+// 성비만 흩고(5:5), 나머지 넷은 모두 모은다: 비슷한 나이 · 같은 처지(대학원생/직장인) ·
+// 같은 학교 · 비슷한 전공 · 비슷한 신앙 연차.
+const young = (
+  id: string,
+  gender: string,
+  extra: { born?: string; work?: string; faith?: string } = {},
+): Member =>
+  ({
+    ...m(id, '청년부'),
+    gender,
+    birth_date: extra.born ?? null,
+    school_or_work: extra.work ?? '',
+    faith_duration: extra.faith ?? '',
+  }) as Member
+
+describe('eduDongsan — 청년부 배정 기준', () => {
+  it('성비는 청년부에서도 5:5로 흩는다', () => {
+    const people = [
+      young('a', '남'), young('b', '남'), young('c', '남'), young('d', '남'),
+      young('e', '여'), young('f', '여'), young('g', '여'), young('h', '여'),
+    ]
+    for (const seed of [1, 2, 3]) {
+      for (const g of groupsOf(people, assignEduDongsan(people, 2, seededRand(seed)))) {
+        expect(g.filter((p) => p.gender === '남')).toHaveLength(2)
+        expect(g.filter((p) => p.gender === '여')).toHaveLength(2)
+      }
+    }
+  })
+
+  it('비슷한 나이끼리 모은다 (±2년)', () => {
+    // 성비는 어느 쪽으로 갈라도 같으므로 나이가 답을 고른다.
+    const people = [
+      young('91a', '남', { born: '1991-03-02' }), young('91b', '여', { born: '1992-05-11' }),
+      young('00a', '남', { born: '2000-01-20' }), young('00b', '여', { born: '2001-07-09' }),
+    ]
+    for (const seed of [4, 5, 6]) {
+      for (const g of groupsOf(people, assignEduDongsan(people, 2, seededRand(seed)))) {
+        const ids = g.map((p) => p.id).sort()
+        expect([['91a', '91b'], ['00a', '00b']]).toContainEqual(ids)
+      }
+    }
+  })
+
+  it('대학원생은 대학원생끼리, 직장인은 직장인끼리 모은다', () => {
+    const people = [
+      young('grad1', '남', { work: '대학원생 · CMU' }), young('grad2', '여', { work: '대학원생 · CMU' }),
+      young('work1', '남', { work: '직장인 · 회사' }), young('work2', '여', { work: '직장인 · 회사' }),
+    ]
+    for (const seed of [7, 8, 9]) {
+      for (const g of groupsOf(people, assignEduDongsan(people, 2, seededRand(seed)))) {
+        const ids = g.map((p) => p.id).sort()
+        expect([['grad1', 'grad2'], ['work1', 'work2']]).toContainEqual(ids)
+      }
+    }
+  })
+
+  it('비슷한 신앙 연차끼리 모은다', () => {
+    const people = [
+      young('모태1', '남', { faith: '모태신앙' }), young('모태2', '여', { faith: '모태신앙' }),
+      young('새신자1', '남', { faith: '1년 미만' }), young('새신자2', '여', { faith: '1년 미만' }),
+    ]
+    for (const seed of [10, 11, 12]) {
+      for (const g of groupsOf(people, assignEduDongsan(people, 2, seededRand(seed)))) {
+        const ids = g.map((p) => p.id).sort()
+        expect([['모태1', '모태2'], ['새신자1', '새신자2']]).toContainEqual(ids)
+      }
+    }
+  })
+
+  it('청년부는 같은 학교끼리 모은다 — 대학부와 방향이 반대다', () => {
+    const people = [
+      young('cmu1', '남', { work: '대학원생 · CMU' }), young('cmu2', '여', { work: '대학원생 · CMU' }),
+      young('pitt1', '남', { work: '대학원생 · Pitt' }), young('pitt2', '여', { work: '대학원생 · Pitt' }),
+    ]
+    for (const seed of [13, 14, 15]) {
+      for (const g of groupsOf(people, assignEduDongsan(people, 2, seededRand(seed)))) {
+        const ids = g.map((p) => p.id).sort()
+        expect([['cmu1', 'cmu2'], ['pitt1', 'pitt2']]).toContainEqual(ids)
+      }
+    }
+  })
+
+  it('성비가 나이보다 먼저다 — 같은 나이끼리 몰면서 성비를 깨지 않는다', () => {
+    const people = [
+      young('남91', '남', { born: '1991-01-01' }), young('남92', '남', { born: '1992-01-01' }),
+      young('여00', '여', { born: '2000-01-01' }), young('여01', '여', { born: '2001-01-01' }),
+    ]
+    for (const seed of [16, 17, 18]) {
+      for (const g of groupsOf(people, assignEduDongsan(people, 2, seededRand(seed)))) {
+        expect(g.filter((p) => p.gender === '남')).toHaveLength(1)
+        expect(g.filter((p) => p.gender === '여')).toHaveLength(1)
+      }
+    }
+  })
+
+  it('나이가 신앙 연차보다 먼저다 — 낮은 기준이 높은 기준을 뒤집지 못한다', () => {
+    // 나이로 묶으면 {91a,91b}·{00a,00b}, 신앙으로 묶으면 {91a,00a}·{91b,00b}. 나이가 이긴다.
+    const people = [
+      young('91a', '남', { born: '1991-01-01', faith: '모태신앙' }),
+      young('91b', '여', { born: '1992-01-01', faith: '1년 미만' }),
+      young('00a', '여', { born: '2000-01-01', faith: '모태신앙' }),
+      young('00b', '남', { born: '2001-01-01', faith: '1년 미만' }),
+    ]
+    for (const seed of [19, 20, 21]) {
+      for (const g of groupsOf(people, assignEduDongsan(people, 2, seededRand(seed)))) {
+        const ids = g.map((p) => p.id).sort()
+        expect([['91a', '91b'], ['00a', '00b']]).toContainEqual(ids)
+      }
+    }
+  })
+
+  it('청년부에서 셀 수 없는 칸도 이름으로 적어 준다', () => {
+    expect(missingTraits([young('a', '')], ruleForGroup('청년부'))).toEqual([
+      { key: 'gender', n: 1 }, { key: 'age', n: 1 }, { key: 'career', n: 1 },
+      { key: 'school', n: 1 }, { key: 'major', n: 1 }, { key: 'faith', n: 1 },
+    ])
   })
 })
