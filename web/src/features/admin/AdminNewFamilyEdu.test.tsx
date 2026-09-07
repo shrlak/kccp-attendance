@@ -227,30 +227,30 @@ describe('AdminNewFamilyEdu — 새가족 교육 동산 배정', () => {
     await userEvent.click(screen.getByRole('button', { name: '청년하나 선택' }))
 
     await userEvent.click(screen.getByRole('button', { name: '동산 배정' }))
-    // 미리보기는 부서마다 한 줄 — 대학부 2명 → 1·1, 청년부 1명 → 1·0.
-    expect(screen.getByText('2명 → 1 · 1')).toBeInTheDocument()
+    // 미리보기가 곧 결과다 — 부서 × 교육 단계 한 줄이 조 하나. 셋 다 미수강이므로 두 줄.
+    expect(screen.getByText('대학부 미수강')).toBeInTheDocument()
+    expect(screen.getByText('청년부 미수강')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: '무작위 배정' }))
 
     const sent = apiMocks.assignEduDongsan.mock.calls.at(-1)![0] as { memberId: string; dongsan: string }[]
     const byId = new Map(sent.map((a) => [a.memberId, a.dongsan]))
     expect([...byId.keys()].sort()).toEqual(['m1', 'm2', 'm3']) // 고르지 않은 청년둘은 빠진다
-    expect(byId.get('m1')!.startsWith('대학부 ')).toBe(true)
-    expect(byId.get('m2')!.startsWith('대학부 ')).toBe(true)
-    expect(byId.get('m3')).toBe('청년부 1동산')
-    // 2동산(기본값)으로 나눴으므로 대학부 둘은 서로 다른 조다.
-    expect(byId.get('m1')).not.toBe(byId.get('m2'))
+    // 부서를 넘지 않고, 같은 부서·같은 단계면 한 조다.
+    expect(byId.get('m1')).toBe('대학부 미수강')
+    expect(byId.get('m2')).toBe('대학부 미수강')
+    expect(byId.get('m3')).toBe('청년부 미수강')
   })
 
   it('이미 배정된 조는 조별 명단으로 한자리에 모인다', () => {
     renderAs('super_admin', [
-      { ...people[0], new_member_dongsan: '대학부 1동산' },
-      { ...people[1], new_member_dongsan: '대학부 1동산' },
-      { ...people[2], new_member_dongsan: '청년부 1동산' },
+      { ...people[0], new_member_dongsan: '대학부 미수강' },
+      { ...people[1], new_member_dongsan: '대학부 미수강' },
+      { ...people[2], new_member_dongsan: '청년부 미수강' },
     ])
 
     expect(screen.getByText('이번 교육 동산')).toBeInTheDocument()
     expect(screen.getByText('대학둘 · 대학하나')).toBeInTheDocument() // 이름순
     // 조 이름은 명단 블록과 카드 배지 양쪽에 나온다.
-    expect(screen.getAllByText('청년부 1동산').length).toBeGreaterThan(1)
+    expect(screen.getAllByText('청년부 미수강').length).toBeGreaterThan(1)
   })
 })
