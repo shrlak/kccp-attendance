@@ -76,3 +76,19 @@ export function needsEduWeek(
 ): boolean {
   return !(week === 1 ? m.new_member_edu_week1 : m.new_member_edu_week2)
 }
+
+// 위 블록에 올라오는 사람 — **아직 두 주를 다 마치지 않은 사람 전부**.
+//
+// 규칙 둘을 합치면 이렇게 된다: 1주차 주일에는 그 주차가 비어 있는 사람(미수강 · 2주차만)에
+// **1주차만 들은 사람**이 더해지고, 2주차 주일에는 그 주차가 비어 있는 사람(미수강 ·
+// 1주차만)에 **2주차만 들은 사람**이 더해진다. 어느 주일이든 남는 것은 같다 — 한 주차라도
+// 비어 있는 사람. 교육을 아직 끝내지 않은 사람은 그 주일에 다 챙길 대상이기 때문이다
+// (오늘 들을 사람이든, 다음 바퀴에 나머지 한 주를 들을 사람이든).
+//
+// 그 안에서 **오늘 여는 주차가 비어 있는 사람이 먼저** 온다 (needsEduWeek) — 같은 블록
+// 안에서도 오늘 그 자리에 앉을 사람이 앞이라야 명단을 위에서부터 읽을 수 있다.
+export function eduUnfinished(
+  m: Pick<Member, 'new_member_edu_week1' | 'new_member_edu_week2'>,
+): boolean {
+  return !(m.new_member_edu_week1 && m.new_member_edu_week2)
+}

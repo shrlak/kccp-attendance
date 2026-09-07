@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { eduSessions, eduSessionOn, nextEduSession, focusEduSession, needsEduWeek } from './eduSchedule'
+import { eduSessions, eduSessionOn, nextEduSession, focusEduSession, needsEduWeek, eduUnfinished } from './eduSchedule'
 
 // 교육은 세 주일이 한 바퀴다: 1주차 · 2주차 · 쉬는 주일. 그래서 "격주"로도 "매주"로도
 // 날짜를 맞힐 수 없고, 이 표가 유일한 답이다.
@@ -56,5 +56,27 @@ describe('needsEduWeek', () => {
     expect(needsEduWeek(m(true, false), 2)).toBe(true)
     expect(needsEduWeek(m(false, true), 2)).toBe(false)
     expect(needsEduWeek(m(true, true), 2)).toBe(false)
+  })
+})
+
+// 위 블록에 오르는 사람은 **한 주차라도 비어 있는 사람 전부**다. 1주차 주일에는 그 주차가
+// 빈 사람에 '1주차만 들은 사람'이, 2주차 주일에는 '2주차만 들은 사람'이 더해지므로, 어느
+// 주일이든 남는 것은 같다 — 교육을 아직 안 끝낸 사람.
+describe('eduUnfinished', () => {
+  const m = (w1: boolean, w2: boolean) => ({ new_member_edu_week1: w1, new_member_edu_week2: w2 })
+
+  it('두 주를 다 마친 사람만 빠진다', () => {
+    expect(eduUnfinished(m(false, false))).toBe(true)
+    expect(eduUnfinished(m(true, false))).toBe(true)
+    expect(eduUnfinished(m(false, true))).toBe(true)
+    expect(eduUnfinished(m(true, true))).toBe(false)
+  })
+
+  it('어느 주일이든 같은 사람들이다 — 그 안의 순서만 주차가 정한다', () => {
+    const people = [m(false, false), m(true, false), m(false, true), m(true, true)]
+    expect(people.filter(eduUnfinished)).toHaveLength(3)
+    // 1주차 주일에는 1주차가 빈 둘이 앞, 2주차 주일에는 2주차가 빈 둘이 앞.
+    expect(people.filter(eduUnfinished).filter((p) => needsEduWeek(p, 1))).toHaveLength(2)
+    expect(people.filter(eduUnfinished).filter((p) => needsEduWeek(p, 2))).toHaveLength(2)
   })
 })
