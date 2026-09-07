@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { genderOf, schoolOf, majorFieldOf, composition } from './eduDongsanTraits'
+import { genderOf, schoolOf, majorFieldOf, composition, birthYearOf, careerOf, faithStageOf } from './eduDongsanTraits'
 import type { Member } from '../../lib/api'
 
 const at = (school_or_work: string) => ({ school_or_work })
@@ -100,6 +100,44 @@ describe('eduDongsanTraits — 조의 구성', () => {
         { field: 'health', n: 1 },
         { field: 'math', n: 1 },
       ],
+      careers: [{ career: 'college', n: 2 }], // '대학생 · …' 앞머리
+      faith: [],
+      birthYears: null,
     })
+  })
+})
+
+// 청년부의 기준 셋이 더 읽는 칸들.
+describe('eduDongsanTraits — 나이 · 학생/직장 · 신앙기간', () => {
+  it('나이는 태어난 해로 센다 — 잘못 적힌 값은 모름', () => {
+    expect(birthYearOf({ birth_date: '1999-04-02' })).toBe(1999)
+    expect(birthYearOf({ birth_date: null })).toBeNull()
+    expect(birthYearOf({ birth_date: '1899-12-30' })).toBeNull() // 엑셀에서 옮겨 오다 생기는 값
+  })
+
+  it("학생인지 직장인인지는 ' · ' 앞머리가 말해 준다", () => {
+    expect(careerOf({ school_or_work: '대학원생 · CMU Cybersecurity' })).toBe('grad')
+    expect(careerOf({ school_or_work: '직장인 · 발레댄서' })).toBe('work')
+    expect(careerOf({ school_or_work: '대학생 · CMU Math' })).toBe('college')
+    // 'Other'는 카드의 '기타'라 학생인지 직장인인지를 말해 주지 않는다 — 모름.
+    expect(careerOf({ school_or_work: 'Other · UX researcher' })).toBe('')
+    expect(careerOf({ school_or_work: 'CMU/MSCV' })).toBe('')
+    expect(careerOf({ school_or_work: '' })).toBe('')
+  })
+
+  it('신앙기간은 짧은 쪽부터 순서가 있다', () => {
+    expect(faithStageOf({ faith_duration: '1년 미만' })).toBe(0)
+    expect(faithStageOf({ faith_duration: '1-3년' })).toBe(1)
+    expect(faithStageOf({ faith_duration: '3-5년' })).toBe(2)
+    expect(faithStageOf({ faith_duration: '5년 이상' })).toBe(3)
+    expect(faithStageOf({ faith_duration: '모태신앙' })).toBe(4)
+  })
+
+  it("손으로 적은 'N년'은 그 수로 칸을 찾아 주고, 뜻을 알 수 없는 값은 모름이다", () => {
+    expect(faithStageOf({ faith_duration: '3년' })).toBe(2) // 3 이상 5 미만
+    expect(faithStageOf({ faith_duration: '10년' })).toBe(3)
+    expect(faithStageOf({ faith_duration: '27' })).toBe(-1) // 나이인지 연차인지 알 수 없다
+    expect(faithStageOf({ faith_duration: 'No' })).toBe(-1)
+    expect(faithStageOf({ faith_duration: '' })).toBe(-1)
   })
 })

@@ -21,6 +21,7 @@ import {
   clearEduDongsan,
   eduDongsanPlan,
   groupByEduDongsan,
+  ruleForGroup,
   type EduAssignment,
   type EduDongsanGroup,
 } from './eduDongsan'
@@ -324,11 +325,29 @@ function EduDongsanResult({ groups }: { groups: EduDongsanGroup[] }) {
 // 않은 값은 세지 않으므로 합이 인원과 다를 수 있다.
 function GroupComposition({ members }: { members: Member[] }) {
   const { t } = useTranslation()
-  const { male, female, cmu, pitt, fields } = composition(members)
+  // 그 부서의 기준이 보는 칸만 적는다 — 대학부 카드에 신앙 연차가 뜨면 그 기준으로 나눈 줄
+  // 알게 되고, 기준이 없는 부서(무작위)에는 검산할 것 자체가 없다.
+  const rule = ruleForGroup(members[0]?.group_name || '')
+  if (!rule) return null
+  const c = composition(members)
   const parts: string[] = []
-  if (male || female) parts.push(`${t('admin.newfamilyEdu.assign.male')} ${male} · ${t('admin.newfamilyEdu.assign.female')} ${female}`)
-  if (cmu || pitt) parts.push(`CMU ${cmu} · Pitt ${pitt}`)
-  for (const { field, n } of fields) parts.push(`${t(`admin.newfamilyEdu.assign.major.${field}`)} ${n}`)
+  for (const { key } of [...rule.spread, ...rule.cluster]) {
+    if (key === 'gender' && (c.male || c.female))
+      parts.push(`${t('admin.newfamilyEdu.assign.male')} ${c.male} · ${t('admin.newfamilyEdu.assign.female')} ${c.female}`)
+    if (key === 'school' && (c.cmu || c.pitt)) parts.push(`CMU ${c.cmu} · Pitt ${c.pitt}`)
+    if (key === 'age' && c.birthYears)
+      parts.push(
+        c.birthYears.min === c.birthYears.max
+          ? t('admin.newfamilyEdu.assign.bornOne', { year: c.birthYears.min })
+          : t('admin.newfamilyEdu.assign.bornRange', { min: c.birthYears.min, max: c.birthYears.max }),
+      )
+    if (key === 'career')
+      for (const x of c.careers) parts.push(`${t(`admin.newfamilyEdu.assign.career.${x.career}`)} ${x.n}`)
+    if (key === 'major')
+      for (const x of c.fields) parts.push(`${t(`admin.newfamilyEdu.assign.major.${x.field}`)} ${x.n}`)
+    if (key === 'faith')
+      for (const x of c.faith) parts.push(`${t(`admin.newfamilyEdu.assign.faith.${x.stage}`)} ${x.n}`)
+  }
   if (!parts.length) return null
   return <div className="mt-1 text-[11px] tabular-nums text-subtle">{parts.join(' · ')}</div>
 }
@@ -401,16 +420,20 @@ function EduDongsanDialog({
               </span>
               {/* 그 부서에 걸리는 기준. 대학부만 성비·학교·전공을 맞추고 나머지는 무작위다. */}
               <div className="mt-0.5 text-[11px] text-subtle">
-                {t(`admin.newfamilyEdu.assign.rule.${row.rule}`)}
-                {/* 성별·학교가 비어 있는 사람은 그 기준으로 셀 수가 없다 — 적어 두지 않으면
+                {/* 그 부서에 실제로 걸리는 기준을 이름으로 적는다 — 부서마다 다르므로
+                    (대학부는 학교를 흩고, 청년부는 모은다) 적지 않으면 알 길이 없다. */}
+                {t(`admin.newfamilyEdu.assign.rule.${row.group || 'none'}`, {
+                  defaultValue: t('admin.newfamilyEdu.assign.rule.random'),
+                })}
+                {/* 칸이 비어 있는 사람은 그 기준으로 셀 수가 없다 — 적어 두지 않으면
                     "왜 성비가 안 맞지"가 된다. 배정에서 빠지는 것은 아니다. */}
-                {row.rule === 'balanced' && (row.missing.gender > 0 || row.missing.school > 0) && (
+                {row.missing.length > 0 && (
                   <>
                     {' · '}
-                    {t('admin.newfamilyEdu.assign.missing', {
-                      gender: row.missing.gender,
-                      school: row.missing.school,
-                    })}
+                    {t('admin.newfamilyEdu.assign.missing')}{' '}
+                    {row.missing
+                      .map((x) => `${t(`admin.newfamilyEdu.assign.criterion.${x.key}`)} ${x.n}`)
+                      .join(' · ')}
                   </>
                 )}
               </div>
