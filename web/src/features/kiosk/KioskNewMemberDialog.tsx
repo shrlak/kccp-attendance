@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import { Dialog } from '../../components/ui/Dialog'
 import { Button } from '../../components/ui/Button'
@@ -13,7 +12,8 @@ import { blankAdultCard, type AdultCardValue } from '../admin/adultCard'
 import { adultPayload } from '../admin/adultRegistration'
 import { newHouseholdId, spouseName, spousePayload, spouseRows } from '../admin/adultSpouse'
 import { blankCardForm, groupForAffiliation, joinAffiliation, type CardFormValue } from '../admin/newFamilyCard'
-import { usePartition } from '../../lib/useAppConfig'
+import { UNNAMED_CARD_NAME, cardMemberName } from '../admin/cardRegistration'
+import { usePartition, usePartitionT } from '../../lib/useAppConfig'
 import { useAdminAuth } from '../../stores/useAdminAuth'
 import { groupsOfPartition } from '../../lib/partition'
 import { refreshRoster } from '../../lib/live'
@@ -33,8 +33,16 @@ import { refreshRoster } from '../../lib/live'
 // 이름만은 남는다: 이름이 이 시스템의 신원이라(출석부·키오스크가 이름으로 사람을 찾는다)
 // 빈 이름은 명단에 올려도 아무도 찾지 못한다. 카드 사진 쪽이 이름을 자리표로 채우는 것은
 // 종이가 곧 사라지기 때문이고, 여기서는 적는 사람이 그 자리에 서 있다.
+//
+// **장년부는 그 하나마저 없다 — 필수 항목이 없다.** 그 부의 등록은 세대 카드를 받아 적는
+// 자리라(부부·주소·연락처가 한 장에 있다) 이름 한 칸이 비었다고 세대 전체를 명단에 못
+// 올리면 잃는 것이 사람 하나로 끝나지 않는다. 그래서 이름이 비면 거절하는 대신 카드 사진
+// 등록과 **같은 자리표**를 넣는다 (`cardMemberName` — '이름 미기재 08-17 14:23:05', 시각까지
+// 붙는 이유는 서버의 중복 병합이 이름+부서로 사람을 찾기 때문이다: 자리표가 같으면 연락처
+// 없는 두 사람이 한 줄로 합쳐진다). 지어낸 값은 조용히 넣지 않고 등록 버튼 위에 적어 준다.
 export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { t } = useTranslation()
+  // 문구는 부(部)를 따른다 — 장년부에서는 아래 안내가 그 부의 규칙(필수 없음)을 말한다.
+  const t = usePartitionT()
   const qc = useQueryClient()
   const toast = useToast()
   const partition = usePartition()
@@ -53,6 +61,9 @@ export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose
     ? scopedGroup
     : groupForAffiliation('', partition)
 
+  // 장년부에서 이름 칸이 빈 채로 등록되려는 중 — 그때만 자리표가 들어간다.
+  const autoName = isAdult && !adultCard.name.trim()
+
   const patchCard = (patch: Partial<CardFormValue>) => setCard((cur) => ({ ...cur, ...patch }))
   const patchAdultCard = (patch: Partial<AdultCardValue>) => setAdultCard((cur) => ({ ...cur, ...patch }))
 
@@ -64,19 +75,22 @@ export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose
   }
 
   async function submit() {
-    const name = (isAdult ? adultCard.name : card.name).trim()
-    if (!name) {
+    const typed = (isAdult ? adultCard.name : card.name).trim()
+    // 장년부에는 등록을 막는 칸이 없다 (위 주석) — 빈 이름은 자리표로 채운다. 대학·청년부는
+    // 이름 하나를 그대로 요구한다: 적는 사람이 그 자리에 서 있어 다시 물을 수 있다.
+    if (!typed && !isAdult) {
       toast({ title: t('kiosk.newMember.nameRequired'), tone: 'warn' })
       return
     }
+    const name = cardMemberName(typed)
     setBusy(true)
     try {
       // 부부가 한 카드에 적혀 있으면 두 사람이 된다 (adultSpouse.ts) — 배우자도 자기
       // 출석을 찍으므로 명단에 자기 행이 있어야 한다.
       const spouses = isAdult ? spouseRows(adultCard.family) : []
       const householdId = spouses.length > 0 ? newHouseholdId() : ''
-      const payload: NewMemberFields = isAdult ? adultPayload(adultCard, householdId) : {
-        name: card.name.trim(),
+      const payload: NewMemberFields = isAdult ? { ...adultPayload(adultCard, householdId), name } : {
+        name,
         // 부서 from the 소속 checkbox: 대학생 → 대학부, 대학원생/직장인/Other → 청년부.
         // 아무 네모도 안 찍혔으면 기본 부서로 — 그 칸 때문에 등록이 막히지 않는다.
         group: card.affiliationCategory.trim()
@@ -133,8 +147,16 @@ export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose
           <NewFamilyCardForm value={card} onChange={patchCard} regDateFixed />
         )}
       </div>
-      {/* 필수가 이름 하나뿐이라는 것은 화면을 봐서는 알 수 없다 — 빈 칸을 남겨도 되는지
-          몰라 붙들려 있는 것이, 이 규칙을 바꾼 이유 그 자체다. */}
+      {/* 우리가 대신 채운 값은 등록을 누르기 전에 읽을 수 있어야 한다 — 조용히 지어낸
+          이름은 나중에 아무도 못 찾는다 (카드 사진 등록의 안내와 같은 문구·같은 자리표). */}
+      {autoName && (
+        <p className="mt-4 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-[11px] leading-5 text-warning">
+          {t('admin.newfamily.scan.autoName', { name: UNNAMED_CARD_NAME })}
+        </p>
+      )}
+      {/* 어느 칸이 필수인지는 화면을 봐서는 알 수 없다 — 빈 칸을 남겨도 되는지 몰라
+          붙들려 있는 것이, 이 규칙을 바꾼 이유 그 자체다. 장년부에는 필수가 없다고
+          적어 준다 (`optionalHint_adult`). */}
       <p className="mt-4 rounded-xl bg-fill px-3 py-2 text-[11px] leading-5 text-subtle">
         {t('kiosk.newMember.optionalHint')}
       </p>

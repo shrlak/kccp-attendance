@@ -194,3 +194,62 @@ describe('KioskNewMemberDialog (새가족 등록)', () => {
     })
   })
 })
+
+// ── 장년부: 필수 항목이 하나도 없다 ────────────────────────────────────────────────
+// 그 부의 등록은 세대 카드를 받아 적는 자리라, 이름 한 칸이 비었다고 세대 전체를 명단에
+// 못 올리면 잃는 것이 사람 하나로 끝나지 않는다. 그래서 이름조차 막지 않고, 카드 사진
+// 등록과 같은 자리표를 넣는다 — 대신 무엇을 채웠는지 등록 전에 화면에 적어 준다.
+describe('KioskNewMemberDialog (장년부) — 필수 항목 없음', () => {
+  async function asAdult() {
+    const { useAdminAuth } = await import('../../stores/useAdminAuth')
+    useAdminAuth.setState({
+      status: 'authed',
+      identity: { role: 'super_admin', group: '', subgroup: '', ministry: '', partition: 'adult' },
+    })
+    return useAdminAuth
+  }
+
+  it('빈 카드도 등록된다 — 이름은 자리표, 부서는 장년부', async () => {
+    const useAdminAuth = await asAdult()
+    const { kioskNewMember } = await import('../../lib/api')
+    ;(kioskNewMember as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ok', memberId: 'm1' })
+    try {
+      renderWithProviders(<KioskNewMemberDialog open onClose={vi.fn()} />)
+
+      // 아무 칸도 채우지 않고 바로 등록. 채워질 이름은 누르기 전에 화면에 적혀 있다.
+      expect(screen.getByText(/이름이 비어 있어/)).toBeInTheDocument()
+      await userEvent.click(screen.getByRole('button', { name: '등록 후 출석' }))
+
+      await waitFor(() => expect(kioskNewMember).toHaveBeenCalledTimes(1))
+      const payload = (kioskNewMember as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      expect(payload.group).toBe('장년부')
+      // 자리표에 시각이 붙는 이유는 유일성이다 — 서버의 중복 병합이 이름+부서로 사람을
+      // 찾으므로, 자리표가 같으면 빈 카드 두 장이 한 줄로 합쳐진다.
+      expect(payload.name).toMatch(/^이름 미기재 \d\d-\d\d \d\d:\d\d:\d\d$/)
+      expect(screen.queryByText('이름을 입력해주세요')).toBeNull()
+    } finally {
+      useAdminAuth.setState({ status: 'idle', identity: null })
+    }
+  })
+
+  it('이름을 적으면 그 이름으로 등록되고 자리표 안내도 사라진다', async () => {
+    const useAdminAuth = await asAdult()
+    const { kioskNewMember } = await import('../../lib/api')
+    ;(kioskNewMember as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ok', memberId: 'm1' })
+    try {
+      renderWithProviders(<KioskNewMemberDialog open onClose={vi.fn()} />)
+
+      await userEvent.type(screen.getByLabelText('이름'), '  김장년  ')
+      expect(screen.queryByText(/이름이 비어 있어/)).toBeNull()
+      await userEvent.click(screen.getByRole('button', { name: '등록 후 출석' }))
+
+      await waitFor(() => expect(kioskNewMember).toHaveBeenCalledTimes(1))
+      expect((kioskNewMember as ReturnType<typeof vi.fn>).mock.calls[0][0]).toMatchObject({
+        name: '김장년',
+        group: '장년부',
+      })
+    } finally {
+      useAdminAuth.setState({ status: 'idle', identity: null })
+    }
+  })
+})

@@ -55,6 +55,7 @@
       "done": "Registered {{name}}",
       "nameRequired": "Please enter a name",
       "optionalHint": "Only the name is required. Everything else can stay blank and be filled in later from the Members tab.",
+      "optionalHint_adult": "No field is required. Anything left blank can be filled in later from the Members tab; a blank name is registered under a placeholder.",
       "spouseFailed": "Could not register {{name}} — add them from the Members tab"
     }
   },
