@@ -134,13 +134,27 @@ function summerNow(cfg: any, part: Partition="youth") {
 function adultCardFields(body: any): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for(const [k,col] of Object.entries(ADULT_CARD_COLS)){
-    if(body[k]!==undefined) out[col]=(col==="visit_date")?(body[k]||null):body[k];
+    if(body[k]!==undefined) out[col]=adultColValue(col,body[k]);
   }
   if(Array.isArray(body.family)) out.family=body.family.map((r:any)=>({
     nameKo:String(r?.nameKo??""), nameEn:String(r?.nameEn??""), relation:String(r?.relation??""),
     birthDate:String(r?.birthDate??""), gender:String(r?.gender??""), baptism:String(r?.baptism??""),
   }));
   return out;
+}
+
+// 빈 칸을 **빈 문자열이 아니라 NULL로** 적어야 하는 컬럼들.
+//   · visit_date — date 컬럼이라 빈 문자열을 받지 않는다.
+//   · email — adult.members의 `members_lower_idx`가 `lower(email)`에 걸린 유니크 인덱스인데
+//     (email IS NOT NULL인 줄만) **빈 문자열도 그 인덱스에 들어간다**. 그래서 이메일을 비운
+//     사람이 둘이 되는 순간 두 번째 등록의 insert가 통째로 거절되고, 화면에는 그 이유를 알 수
+//     없는 "Could not create member"만 남는다. 종이 카드의 이메일 칸은 자주 비어 있으므로
+//     (필수 칸을 없앤 뒤로는 늘 그렇다) 이 길이 곧 등록이 막히는 길이다. 이메일이 없다는 것은
+//     사실이니 값이 아니라 NULL로 적는다 — NULL은 그 인덱스 밖이라 몇 명이든 함께 설 수 있다.
+//     배우자 등록이 이메일만 아예 보내지 않는 것도(adultSpouse.ts) 같은 이유였다.
+const ADULT_NULL_IF_BLANK=new Set(["visit_date","email"]);
+function adultColValue(col: string, v: unknown): unknown {
+  return ADULT_NULL_IF_BLANK.has(col)&&(v===null||v===undefined||(typeof v==="string"&&v.trim()===""))?null:v;
 }
 
 // 장년부 새교우 방문·등록 카드가 가진 칸들 (마이그레이션 20260808). adult.members에만
@@ -1852,7 +1866,9 @@ Deno.serve(async (req: Request) => {
       // public.members에 없는 컬럼이라 업데이트 전체가 실패한다.
       if(role.partition==="adult"){
         for(const [k,col] of Object.entries(ADULT_CARD_COLS)){
-          if(body[k]!==undefined) upd[col]=DATE_COLS.has(col)?(body[k]||null):body[k];
+          // 멤버 편집에서 이메일을 지워도 같은 함정에 걸린다 (빈 문자열 둘이 유니크 인덱스에
+          // 부딪힌다) — 등록과 같은 규칙으로 NULL을 적는다.
+          if(body[k]!==undefined) upd[col]=adultColValue(col,body[k]);
         }
         if(body.family!==undefined){
           if(!Array.isArray(body.family)) return fail(400,"family must be a list");
