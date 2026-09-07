@@ -232,6 +232,29 @@ describe('KioskNewMemberDialog (장년부) — 필수 항목 없음', () => {
     }
   })
 
+  // 종이에는 칸이 없는 사실(휠체어·통역·다음 주에 배우자와 함께 온다 …)을 적어 두는
+  // 자리다. members.notes로 들어가므로 멤버 탭의 '메모'에서 그대로 이어 쓴다.
+  it('카드 밑의 추가 정보가 메모로 실려 나간다', async () => {
+    const useAdminAuth = await asAdult()
+    const { kioskNewMember } = await import('../../lib/api')
+    ;(kioskNewMember as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ok', memberId: 'm1' })
+    try {
+      renderWithProviders(<KioskNewMemberDialog open onClose={vi.fn()} />)
+
+      await userEvent.type(screen.getByLabelText('이름'), '김장년')
+      await userEvent.type(screen.getByLabelText('추가 정보'), '  휠체어로 오심  ')
+      await userEvent.click(screen.getByRole('button', { name: '등록 후 출석' }))
+
+      await waitFor(() => expect(kioskNewMember).toHaveBeenCalledTimes(1))
+      expect((kioskNewMember as ReturnType<typeof vi.fn>).mock.calls[0][0]).toMatchObject({
+        name: '김장년',
+        notes: '휠체어로 오심',
+      })
+    } finally {
+      useAdminAuth.setState({ status: 'idle', identity: null })
+    }
+  })
+
   it('이름을 적으면 그 이름으로 등록되고 자리표 안내도 사라진다', async () => {
     const useAdminAuth = await asAdult()
     const { kioskNewMember } = await import('../../lib/api')

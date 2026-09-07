@@ -211,9 +211,20 @@ async function findDuplicateMember(pdb: any, name: string, group: string, body: 
     return true;
   })||null;
 }
+// 등록하며 적어 넣은 추가 정보(메모)를 기존 메모에 **잇는다**. 이 칸만 덮어쓰지 않는 이유는
+// 담기는 것이 값이 아니라 문장이기 때문이다 — 시트 연동이 적어 둔 출처, 지난번 등록에 적은
+// 사정이 이미 있을 수 있고, 새 한 줄이 그것을 지우면 그런 문장이 있었다는 것조차 알 수 없다.
+// 같은 카드를 두 번 넣어도 같은 줄이 두 번 쌓이지는 않는다.
+function mergeNotes(existing: unknown, incoming: unknown): string|undefined {
+  const add=typeof incoming==="string"?incoming.trim():"";
+  if(!add) return undefined;
+  const cur=typeof existing==="string"?existing.trim():"";
+  if(!cur) return add;
+  return cur.includes(add)?cur:cur+"\n"+add;
+}
 // 병합 규칙: 나중에 들어온 값이 이긴다. 새 등록이 비워 둔 칸은 기존 값을 그대로 둔다.
 // 등록일자만 예외로 더 이른 날짜를 지킨다 — 출석부가 등록일 이전 주일을 빈칸으로 두므로
-// 나중 날짜로 덮으면 이미 쌓인 출석이 화면에서 사라진다.
+// 나중 날짜로 덮으면 이미 쌓인 출석이 화면에서 사라진다. 메모(notes)도 예외다 (위 mergeNotes).
 function mergedMemberFields(existing: any, body: any, subgroup: string, today: string) {
   const upd: any={updated_at:new Date().toISOString(),is_new_member:true};
   // 새가족 표시가 붙은 날 — 한 번 적히면 다시 쓰지 않는다 (표시를 해제해도 남는 사실이라,
@@ -228,6 +239,8 @@ function mergedMemberFields(existing: any, body: any, subgroup: string, today: s
   put("birth_date",body.birthDate); put("baptism_status",body.baptismStatus);
   put("school_or_work",body.schoolOrWork); put("faith_duration",body.faithDuration);
   if(body.pastoralVisitRequested===true||body.pastoralVisitRequested===false) upd.pastoral_visit_requested=body.pastoralVisitRequested;
+  const notes=mergeNotes(existing.notes,body.notes);
+  if(notes!==undefined) upd.notes=notes;
   const reg=((body.registrationDate||"").trim())||today;
   upd.registration_date=existing.registration_date&&existing.registration_date<reg?existing.registration_date:reg;
   return upd;
@@ -2286,6 +2299,9 @@ Deno.serve(async (req: Request) => {
       } else {
         const {data:created}=await ndb.from("members").insert({
           name,group_name:group,subgroup,is_new_member:true,
+          // 등록하며 적어 넣은 추가 정보. 카드에 칸이 없는 사실(휠체어·통역·다음에 다시 온다 …)이
+          // 적히는 자리이고, 나중에 멤버 편집 창의 '메모'에서 그대로 이어 쓴다.
+          notes:(body.notes||"").trim(),
           gender:body.gender||"",phone:body.phone||"",kakao_id:body.kakaoId||"",
           birth_date:body.birthDate||null,baptism_status:body.baptismStatus||"해당없음",
           school_or_work:body.schoolOrWork||"",faith_duration:body.faithDuration||"",

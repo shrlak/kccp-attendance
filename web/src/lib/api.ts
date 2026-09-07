@@ -632,6 +632,10 @@ export interface NewMemberFields {
   baptismStatus?: string
   schoolOrWork?: string
   faithDuration?: string
+  // 추가 정보 — 카드에 칸이 없는 사실을 적는 자유 기입. members.notes로 들어가고, 나중에
+  // 멤버 편집 창의 '메모'에서 이어 쓴다. 이미 있던 사람으로 병합되면 서버가 기존 메모에
+  // 덮어쓰지 않고 잇는다.
+  notes?: string
   // 등록일 (registration date). Optional; server defaults to today when omitted.
   registrationDate?: string | null
   pastoralVisitRequested?: boolean | null

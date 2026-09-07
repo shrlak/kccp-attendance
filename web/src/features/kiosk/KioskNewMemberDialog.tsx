@@ -52,6 +52,11 @@ export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose
   // 장년부는 종이가 다르다 — 키오스크에서도 그 부의 카드를 그대로 내민다.
   const isAdult = partition === 'adult'
   const [adultCard, setAdultCard] = useState<AdultCardValue>(() => blankAdultCard(easternNow().date))
+  // 카드 밑의 자유 기입. 종이에는 칸이 없는 사실(휠체어로 오셨다 · 통역이 필요하다 · 다음
+  // 주에 배우자와 함께 온다 …)이 적히는 자리다. 카드 안에 넣지 않은 것은 그 화면이 인쇄된
+  // 종이를 그대로 옮긴 그림이기 때문 — 종이에 없는 칸을 그 안에 그리면 받아 적는 사람이
+  // 어느 것이 종이의 칸인지 알 수 없게 된다.
+  const [extraNotes, setExtraNotes] = useState('')
   const [busy, setBusy] = useState(false)
   // 소속이 비었을 때 넣을 부서. 리더는 자기 부서 밖으로 등록할 수 없으므로(서버
   // inScopeGroup) 늘 청년부로 떨어뜨리면 대학부 리더에게 403이 난다 — 카드 사진 등록이
@@ -70,6 +75,7 @@ export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose
   function close() {
     setCard(blankCardForm(easternNow().date))
     setAdultCard(blankAdultCard(easternNow().date))
+    setExtraNotes('')
     setBusy(false)
     onClose()
   }
@@ -89,7 +95,10 @@ export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose
       // 출석을 찍으므로 명단에 자기 행이 있어야 한다.
       const spouses = isAdult ? spouseRows(adultCard.family) : []
       const householdId = spouses.length > 0 ? newHouseholdId() : ''
-      const payload: NewMemberFields = isAdult ? { ...adultPayload(adultCard, householdId), name } : {
+      // 추가 정보는 **그 사람의 것**이라 배우자 행에는 옮겨 적지 않는다 (주소·전화처럼 한
+      // 세대의 사실이 아니라, 적는 사람이 그 자리에서 본 그 사람의 사정이다).
+      const notes = extraNotes.trim()
+      const payload: NewMemberFields = isAdult ? { ...adultPayload(adultCard, householdId), name, notes } : {
         name,
         // 부서 from the 소속 checkbox: 대학생 → 대학부, 대학원생/직장인/Other → 청년부.
         // 아무 네모도 안 찍혔으면 기본 부서로 — 그 칸 때문에 등록이 막히지 않는다.
@@ -142,7 +151,12 @@ export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose
           card fits without scrolling. */}
       <div className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto pr-1">
         {isAdult ? (
-          <AdultCardForm value={adultCard} onChange={patchAdultCard} />
+          <>
+            <AdultCardForm value={adultCard} onChange={patchAdultCard} />
+            {/* 카드 **밑에** 둔다: 종이의 칸이 아니라 우리가 더한 칸이므로, 종이가 끝나는
+                자리에서 시작해야 어디까지가 카드인지 보인다. */}
+            <ExtraNotes value={extraNotes} onChange={setExtraNotes} />
+          </>
         ) : (
           <NewFamilyCardForm value={card} onChange={patchCard} regDateFixed />
         )}
@@ -165,5 +179,29 @@ export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose
         {busy ? t('common.loading') : t('kiosk.newMember.submit')}
       </Button>
     </Dialog>
+  )
+}
+
+// 카드 밑의 추가 정보. 저장되는 곳은 `members.notes`라 멤버 탭의 '메모'에서 그대로 이어
+// 쓰고 고칠 수 있다 — 여기서만 볼 수 있는 값이면 적어 둘 이유가 없으므로, 어디로 가는지
+// 라벨 아래 한 줄로 적어 준다.
+function ExtraNotes({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const t = usePartitionT()
+  return (
+    // 안내 줄은 라벨 **밖**에 둔다: 안에 넣으면 그 문장까지 이 칸의 이름이 되어, 화면
+    // 낭독기가 '추가 정보' 대신 두 문장을 통째로 읽는다.
+    <div>
+      <label className="block">
+        <span className="field-label">{t('kiosk.newMember.extra')}</span>
+        <textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          rows={3}
+          placeholder={t('kiosk.newMember.extraPlaceholder')}
+          className="w-full rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-text outline-none transition-[border-color,box-shadow] duration-200 [transition-timing-function:var(--ease-out-soft)] hover:border-primary/30 focus-visible:border-primary focus-visible:ring-[3.5px] focus-visible:ring-primary/18"
+        />
+      </label>
+      <p className="mt-1 text-[11px] leading-5 text-subtle">{t('kiosk.newMember.extraHint')}</p>
+    </div>
   )
 }
