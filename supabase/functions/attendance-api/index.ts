@@ -317,6 +317,28 @@ async function rolloverDongsan(sb: SB, cfg: any, part: Partition="youth") {
                :" 학기 종료 — 셀 편성 보존, 스냅숏만 저장 ("+Object.keys(subgroups).length+"명)"),part);
   return {...cfg,...upd};
 }
+// ── 새가족 교육 동산은 그날 하루짜리다 ───────────────────────────────────────────────
+// `members.new_member_dongsan`이 담는 것은 "그 주일 교육 시간에 어느 자리에 앉는가"이고, 그
+// 시간이 지나면 가리키는 것이 없어진다. 다음 교육은 다음 바퀴에 다시 배정하므로, 그 사이에
+// 남아 있는 값은 지난주 것인지 이번 주 것인지 화면만 보고는 알 수 없다 — 그래서 **날이 바뀌면
+// 지운다**.
+//
+// 배정한 날은 배정 경로가 config.edu_dongsan_date에 적어 두고, 날짜가 달라진 뒤 **첫
+// /api/roster**가 그 부의 값을 비운다 (학기 종료 롤오버·시트 당김과 같은 시계다). 지우는 것은
+// 그 부의 멤버 행뿐이다 — 교육 동산은 애초에 기기·출석 행에 옮겨 적지 않는다.
+// deno-lint-ignore no-explicit-any
+async function expireEduDongsan(sb: SB, cfg: any, part: Partition) {
+  const day=String(cfg?.edu_dongsan_date||"").slice(0,10);
+  if(!day||day===localDate()) return cfg;
+  const pdb=db(sb,part);
+  // 청구권을 먼저 집는다 — 같은 순간에 들어온 요청들이 저마다 명단 전체를 훑지 않도록.
+  // (지우는 일 자체는 여러 번 해도 결과가 같지만, 여기는 앱에서 제일 자주 도는 길이다.)
+  const {data:claim}=await pdb.from("config").update({edu_dongsan_date:null}).eq("id",1).eq("edu_dongsan_date",day).select("id");
+  if(!claim||!claim.length) return {...cfg,edu_dongsan_date:null};
+  await pdb.from("members").update({new_member_dongsan:""}).neq("new_member_dongsan","");
+  return {...cfg,edu_dongsan_date:null};
+}
+
 // ── 학기를 따라 나고 지는 동산 리더 링크 ─────────────────────────────────────────────
 // 학기가 시작하면 부서마다 링크가 저절로 나고, 학기가 끝나면 저절로 폐기된다. 규칙 자체는
 // dongsanLink.ts reconcileTermLinks()가 쥐고 있고 여기는 그 규칙에 오늘의 사실을 먹인다:
@@ -1181,7 +1203,7 @@ Deno.serve(async (req: Request) => {
       // Every admin page load is also the clock that retires a finished 학기's 동산 편성
       // (no-op except on the first request after a term ends) — for this 부 only. 같은 시계가
       // 동산 리더 링크도 학기에 맞춰 내고 걷는다 (syncTermLinks).
-      const cfg=await syncTermLinks(sb,await rolloverDongsan(sb,await maybeRollSchedule(sb,baseCfg,part),part),part);
+      const cfg=await expireEduDongsan(sb,await syncTermLinks(sb,await rolloverDongsan(sb,await maybeRollSchedule(sb,baseCfg,part),part),part),part);
       // 같은 시계가 구글 시트도 당겨 온다 (쿨다운마다 한 번, 응답은 기다리지 않는다). 이번에
       // 읽은 것은 다음 요청에 실려 온다 — 화면이 15초마다 다시 부르므로 저절로 따라온다.
       scheduleSheetPull(sb,part,cfg);
@@ -2038,6 +2060,9 @@ Deno.serve(async (req: Request) => {
       }
       if(updated){
         const cleared=(byValue.get("")||[]).length;
+        // 실제로 조를 적었을 때만 날짜를 남긴다 — 이 값이 곧 "언제 지울지"이고, 해제만 한
+        // 요청에는 지울 것이 없다 (expireEduDongsan 머리말).
+        if(cleared<updated) await adb.from("config").update({edu_dongsan_date:localDate()}).eq("id",1);
         await addAudit(adb,"edu-dongsan",xDev,
           cleared===updated?updated+"명 새가족 교육 동산 해제":updated+"명 새가족 교육 동산 배정",part);
       }
