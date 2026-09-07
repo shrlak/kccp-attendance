@@ -92,3 +92,24 @@ export function eduUnfinished(
 ): boolean {
   return !(m.new_member_edu_week1 && m.new_member_edu_week2)
 }
+
+// 교육 **단계** — 그 사람이 두 주 중 무엇을 들었는가. 네 갈래로 빠짐없이 갈린다.
+// 이 값이 곧 교육 동산의 경계다 (features/admin/eduDongsan.ts): 1주차 주일에는 2주차만
+// 들은 사람과 미수강인 사람이 서로 다른 조로 가고, 2주차 주일에는 1주차만 들은 사람과
+// 미수강인 사람이 그렇게 갈린다 — 두 규칙을 합치면 **단계가 곧 조**다. 주차와 무관하게
+// 같은 답이 나오므로, 일정이 끝난 뒤에도 이 가름은 그대로 선다.
+export type EduStage = 'none' | 'week1' | 'week2' | 'both'
+
+// 조를 세울 순서 — 아직 아무것도 안 들은 사람이 앞이고 다 마친 사람이 뒤다.
+export const EDU_STAGES: EduStage[] = ['none', 'week1', 'week2', 'both']
+
+export function eduStage(
+  m: Pick<Member, 'new_member_edu_week1' | 'new_member_edu_week2'>,
+): EduStage {
+  const w1 = !!m.new_member_edu_week1
+  const w2 = !!m.new_member_edu_week2
+  if (w1 && w2) return 'both'
+  if (w1) return 'week1'
+  if (w2) return 'week2'
+  return 'none'
+}

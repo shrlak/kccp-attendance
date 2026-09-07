@@ -32,17 +32,21 @@ describe('eduDongsan — 부서를 넘지 않는다', () => {
     ])
   })
 
-  it('조 이름에 부서가 붙는다 — 두 부서의 1동산이 같은 이름을 가지면 안 되므로', () => {
-    expect(eduDongsanLabel('대학부', 1)).toBe('대학부 1동산')
-    expect(eduDongsanLabel('', 3)).toBe('3동산')
+  it('조 이름은 부서 + 교육 단계다 — 그 조가 누구의 자리인지가 이름에 있어야 한다', () => {
+    expect(eduDongsanLabel('대학부', 'none')).toBe('대학부 미수강')
+    expect(eduDongsanLabel('청년부', 'week2')).toBe('청년부 2주차만')
+    expect(eduDongsanLabel('', 'both')).toBe('수강 완료')
+    // 한 단계를 둘 이상으로 쪼갤 때만 번호가 붙는다.
+    expect(eduDongsanLabel('대학부', 'none', 2, 3)).toBe('대학부 미수강 2')
   })
 
   it('배정된 조는 언제나 그 사람의 부서 것이다', () => {
     const byId = new Map(assignEduDongsan(people, 2, seeded([0.1, 0.7, 0.3])).map((a) => [a.memberId, a.dongsan]))
     for (const p of people) expect(byId.get(p.id)!.startsWith(p.group_name)).toBe(true)
     // 부서마다 자기 조가 따로 선다 — 대학부 2명이 2동산으로 갈라지고 청년부 3명도 그렇다.
+    // 이 표본은 모두 미수강이라 단계가 하나뿐 — count 2로 그 단계 안에서 둘로 쪼개진다.
     expect(new Set([...byId.values()])).toEqual(
-      new Set(['대학부 1동산', '대학부 2동산', '청년부 1동산', '청년부 2동산']),
+      new Set(['대학부 미수강 1', '대학부 미수강 2', '청년부 미수강 1', '청년부 미수강 2']),
     )
   })
 })
@@ -67,9 +71,9 @@ describe('eduDongsan — 인원은 고르게, 미리보기와 결과가 같게',
     for (const a of assignEduDongsan(people, 3, seeded([0.9, 0.2, 0.5, 0.7, 0.1, 0.4])))
       counts.set(a.dongsan, (counts.get(a.dongsan) || 0) + 1)
     expect([...counts.entries()].sort()).toEqual([
-      ['청년부 1동산', 3],
-      ['청년부 2동산', 2],
-      ['청년부 3동산', 2],
+      ['청년부 미수강 1', 3],
+      ['청년부 미수강 2', 2],
+      ['청년부 미수강 3', 2],
     ])
   })
 
@@ -349,5 +353,69 @@ describe('eduDongsan — 청년부 배정 기준', () => {
       { key: 'gender', n: 1 }, { key: 'age', n: 1 }, { key: 'career', n: 1 },
       { key: 'school', n: 1 }, { key: 'major', n: 1 }, { key: 'faith', n: 1 },
     ])
+  })
+})
+
+// ── 교육 단계가 조의 경계다 ────────────────────────────────────────────────────────
+// 1주차 주일에는 '2주차만 들은 사람'과 '미수강'이 서로 다른 조로, 2주차 주일에는 '1주차만
+// 들은 사람'과 '미수강'이 그렇게 갈린다. 두 규칙을 합치면 주차와 상관없이 **단계가 곧 조**다.
+const staged = (id: string, group: string, w1: boolean, w2: boolean): Member =>
+  ({ ...m(id, group), new_member_edu_week1: w1, new_member_edu_week2: w2 }) as Member
+
+describe('eduDongsan — 교육 단계가 조를 가른다', () => {
+  const people = [
+    staged('미수강1', '대학부', false, false), staged('미수강2', '대학부', false, false),
+    staged('이주차만1', '대학부', false, true), staged('이주차만2', '대학부', false, true),
+    staged('일주차만1', '대학부', true, false),
+    staged('완료1', '대학부', true, true),
+  ]
+
+  it('단계마다 정확히 한 조다 — 갯수를 정하지 않으면', () => {
+    const out = assignEduDongsan(people)
+    const byId = new Map(out.map((a) => [a.memberId, a.dongsan]))
+    expect(byId.get('미수강1')).toBe('대학부 미수강')
+    expect(byId.get('미수강2')).toBe('대학부 미수강')
+    expect(byId.get('이주차만1')).toBe('대학부 2주차만')
+    expect(byId.get('이주차만2')).toBe('대학부 2주차만')
+    expect(byId.get('일주차만1')).toBe('대학부 1주차만')
+    expect(byId.get('완료1')).toBe('대학부 수강 완료')
+    // 조는 단계 수만큼 — 넷.
+    expect(new Set(byId.values()).size).toBe(4)
+  })
+
+  it('단계가 다른 사람은 절대 한 조에 섞이지 않는다', () => {
+    for (let seed = 1; seed <= 5; seed++) {
+      const groups = groupsOf(people, assignEduDongsan(people, 1, seededRand(seed)))
+      for (const g of groups) {
+        const stages = new Set(g.map((p) => `${p.new_member_edu_week1}/${p.new_member_edu_week2}`))
+        expect(stages.size).toBe(1)
+      }
+    }
+  })
+
+  it('부서가 다르면 같은 단계여도 다른 조다', () => {
+    const mixed = [staged('대학미수강', '대학부', false, false), staged('청년미수강', '청년부', false, false)]
+    const byId = new Map(assignEduDongsan(mixed).map((a) => [a.memberId, a.dongsan]))
+    expect(byId.get('대학미수강')).toBe('대학부 미수강')
+    expect(byId.get('청년미수강')).toBe('청년부 미수강')
+  })
+
+  it('미리보기가 곧 결과다 — 부서 × 단계 한 줄이 조 하나', () => {
+    expect(eduDongsanPlan(people).map((r) => [r.group, r.stage, r.total])).toEqual([
+      ['대학부', 'none', 2],
+      ['대학부', 'week1', 1],
+      ['대학부', 'week2', 2],
+      ['대학부', 'both', 1],
+    ])
+  })
+
+  it('갯수를 2 이상으로 올리면 그 단계 안에서만 다시 쪼개진다', () => {
+    const out = assignEduDongsan(people, 2, seededRand(9))
+    const labels = new Set(out.map((a) => a.dongsan))
+    // 두 명뿐인 단계는 둘로, 한 명뿐인 단계는 사람이 없어 빈 조가 생기지 않는다.
+    expect(labels).toContain('대학부 미수강 1')
+    expect(labels).toContain('대학부 미수강 2')
+    expect(labels).toContain('대학부 1주차만')
+    expect(labels).toContain('대학부 수강 완료')
   })
 })

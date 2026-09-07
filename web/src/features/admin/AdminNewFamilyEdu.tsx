@@ -20,6 +20,7 @@ import {
   assignEduDongsan as planEduDongsan,
   clearEduDongsan,
   eduDongsanPlan,
+  EDU_STAGE_NAMES,
   groupByEduDongsan,
   ruleForGroup,
   type EduAssignment,
@@ -33,7 +34,6 @@ import { Tag } from '../../components/ui/Tag'
 import { useToast } from '../../components/ui/Toast'
 import { GraduationCap, AlertTriangle, Check, ListChecks, Sprout } from '../../components/ui/Icon'
 import { Button } from '../../components/ui/Button'
-import { Input } from '../../components/ui/Input'
 import { Dialog } from '../../components/ui/Dialog'
 import { EditModal, AttendanceModal } from './MemberDialogs'
 import { refreshRoster } from '../../lib/live'
@@ -325,8 +325,8 @@ function EduDongsanResult({ groups }: { groups: EduDongsanGroup[] }) {
 // 않은 값은 세지 않으므로 합이 인원과 다를 수 있다.
 function GroupComposition({ members }: { members: Member[] }) {
   const { t } = useTranslation()
-  // 그 부서의 기준이 보는 칸만 적는다 — 대학부 카드에 신앙 연차가 뜨면 그 기준으로 나눈 줄
-  // 알게 되고, 기준이 없는 부서(무작위)에는 검산할 것 자체가 없다.
+  // 그 조가 어떤 사람들인지 한 줄 — 그 부서의 기준이 보는 칸만 적는다 (대학부 카드에 신앙
+  // 연차가 뜨면 그 기준으로 나눈 줄 알게 되고, 기준이 없는 부서에는 적을 것이 없다).
   const rule = ruleForGroup(members[0]?.group_name || '')
   if (!rule) return null
   const c = composition(members)
@@ -356,8 +356,6 @@ function GroupComposition({ members }: { members: Member[] }) {
 // 조마다 몇 명이 되는지는 누르기 전에 미리 보여준다 (무작위가 정하는 것은 누가 어디로
 // 가느냐뿐이다). 배정 규칙(누구를 같이 두고 누구를 갈라놓을지)이 정해지면 eduDongsan.ts의
 // 섞는 자리만 갈아 끼우면 되고 이 창은 그대로다.
-const MAX_EDU_DONGSAN = 12
-
 function EduDongsanDialog({
   open,
   onOpenChange,
@@ -372,9 +370,8 @@ function EduDongsanDialog({
   const { t } = useTranslation()
   const qc = useQueryClient()
   const toast = useToast()
-  const [count, setCount] = useState(2)
   const [busy, setBusy] = useState(false)
-  const plan = eduDongsanPlan(members, count)
+  const plan = eduDongsanPlan(members)
 
   async function send(assignments: EduAssignment[], key: 'done' | 'cleared') {
     setBusy(true)
@@ -394,49 +391,17 @@ function EduDongsanDialog({
     <Dialog open={open} onOpenChange={onOpenChange} title={t('admin.newfamilyEdu.assign.title')}>
       <p className="text-xs leading-relaxed text-muted">{t('admin.newfamilyEdu.assign.help')}</p>
 
-      <label className="field-label mt-4" htmlFor="edu-dongsan-count">
-        {t('admin.newfamilyEdu.assign.count')}
-      </label>
-      <Input
-        id="edu-dongsan-count"
-        type="number"
-        min={1}
-        max={MAX_EDU_DONGSAN}
-        value={count}
-        onChange={(e) => setCount(Math.min(MAX_EDU_DONGSAN, Math.max(1, Number(e.target.value) || 1)))}
-      />
-
-      {/* 부서마다 몇 명씩 나뉘는지 — 누르기 전에 보인다. 부서를 넘지 않으므로 줄도 부서마다다. */}
-      <ul className="mt-3 grid gap-1.5">
+      {/* 누르기 전에 어떤 조가 생기는지 그대로 보여준다 — 조를 정하는 것이 사람이 고르는
+          갯수가 아니라 **교육 단계**이므로, 미리보기가 곧 결과다. */}
+      <ul className="mt-4 grid gap-1.5">
         {members.length === 0 ? (
           <li className="rounded-xl bg-fill px-3 py-2 text-xs text-muted">{t('admin.newfamilyEdu.assign.none')}</li>
         ) : (
           plan.map((row) => (
-            <li key={row.group || '—'} className="rounded-xl bg-fill px-3 py-2 text-xs text-text">
-              <span className="font-semibold">{row.group || '—'}</span>
-              <span className="text-muted">
-                {' '}
-                {t('admin.newfamilyEdu.assign.preview', { total: row.total, sizes: row.sizes.join(' · ') })}
-              </span>
-              {/* 그 부서에 걸리는 기준. 대학부만 성비·학교·전공을 맞추고 나머지는 무작위다. */}
-              <div className="mt-0.5 text-[11px] text-subtle">
-                {/* 그 부서에 실제로 걸리는 기준을 이름으로 적는다 — 부서마다 다르므로
-                    (대학부는 학교를 흩고, 청년부는 모은다) 적지 않으면 알 길이 없다. */}
-                {t(`admin.newfamilyEdu.assign.rule.${row.group || 'none'}`, {
-                  defaultValue: t('admin.newfamilyEdu.assign.rule.random'),
-                })}
-                {/* 칸이 비어 있는 사람은 그 기준으로 셀 수가 없다 — 적어 두지 않으면
-                    "왜 성비가 안 맞지"가 된다. 배정에서 빠지는 것은 아니다. */}
-                {row.missing.length > 0 && (
-                  <>
-                    {' · '}
-                    {t('admin.newfamilyEdu.assign.missing')}{' '}
-                    {row.missing
-                      .map((x) => `${t(`admin.newfamilyEdu.assign.criterion.${x.key}`)} ${x.n}`)
-                      .join(' · ')}
-                  </>
-                )}
-              </div>
+            <li key={`${row.group}/${row.stage}`} className="flex items-center gap-2 rounded-xl bg-fill px-3 py-2 text-xs text-text">
+              <Sprout className="size-3.5 shrink-0 text-subtle" aria-hidden />
+              <span className="font-semibold">{[row.group, EDU_STAGE_NAMES[row.stage]].filter(Boolean).join(' ')}</span>
+              <span className="ml-auto tabular-nums text-muted">{t('admin.newfamilyEdu.assign.count', { n: row.total })}</span>
             </li>
           ))
         )}
@@ -452,7 +417,7 @@ function EduDongsanDialog({
         </Button>
         <Button
           disabled={busy || members.length === 0}
-          onClick={() => void send(planEduDongsan(members, count), 'done')}
+          onClick={() => void send(planEduDongsan(members), 'done')}
         >
           <Sprout className="size-4" aria-hidden />
           {busy ? t('common.loading') : t('admin.newfamilyEdu.assign.run')}

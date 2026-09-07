@@ -1,4 +1,5 @@
 import type { Member } from '../../lib/api'
+import { EDU_STAGES, eduStage, type EduStage } from './eduSchedule'
 import {
   birthYearOf,
   careerOf,
@@ -22,8 +23,20 @@ export interface EduAssignment {
   dongsan: string // "" = 배정 해제
 }
 
-export function eduDongsanLabel(group: string, n: number): string {
-  return group ? `${group} ${n}동산` : `${n}동산`
+// 조 이름에 **부서와 교육 단계**가 함께 들어간다 (`대학부 미수강` · `청년부 2주차만`).
+// 조를 가르는 것이 단계이므로 번호보다 단계 이름이 그 조를 가리키는 말이다 — 명단을 받는
+// 사람이 "1동산이 어느 쪽이었지"를 되묻지 않는다. 한 단계를 둘 이상으로 쪼갤 때만 번호가
+// 붙는다 (`대학부 미수강 2`).
+export const EDU_STAGE_NAMES: Record<EduStage, string> = {
+  none: '미수강',
+  week1: '1주차만',
+  week2: '2주차만',
+  both: '수강 완료',
+}
+
+export function eduDongsanLabel(group: string, stage: EduStage, n = 1, of = 1): string {
+  const name = [group, EDU_STAGE_NAMES[stage]].filter(Boolean).join(' ')
+  return of > 1 ? `${name} ${n}` : name
 }
 
 // 부서별 묶음 (부서 이름순, 부서가 빈 사람은 자기들끼리 한 묶음).
@@ -47,8 +60,31 @@ export function bucketSizes(total: number, count: number): number[] {
   return Array.from({ length: n }, (_, i) => Math.floor(total / n) + (i < total % n ? 1 : 0))
 }
 
+// 부서 안에서 다시 **교육 단계**로 가른 묶음 — 이 한 묶음이 조 하나다.
+export interface EduBucket {
+  group: string
+  stage: EduStage
+  members: Member[]
+}
+
+// 배정의 뼈대. 부서를 넘지 않고(대학부는 대학부끼리), 그 안에서 교육 단계를 넘지 않는다
+// (미수강인 사람과 2주차를 이미 들은 사람이 한 조에 섞이지 않는다). 순서는 부서 이름 →
+// 단계 순(미수강 → 1주차만 → 2주차만 → 수강 완료)으로 고정한다 — 매주 같은 자리에서
+// 읽히도록.
+export function eduBuckets(members: Member[]): EduBucket[] {
+  const out: EduBucket[] = []
+  for (const { group, members: list } of membersByGroup(members)) {
+    for (const stage of EDU_STAGES) {
+      const inStage = list.filter((m) => eduStage(m) === stage)
+      if (inStage.length) out.push({ group, stage, members: inStage })
+    }
+  }
+  return out
+}
+
 export interface EduDongsanPlanRow {
   group: string
+  stage: EduStage
   total: number
   sizes: number[]
   rule: GroupRule | null // 이 부서에 걸리는 기준 (없으면 무작위)
@@ -57,9 +93,10 @@ export interface EduDongsanPlanRow {
 
 // 배정 버튼을 누르기 전에 보여줄 미리보기 — 무작위가 섞는 것은 누가 어느 조에 가느냐뿐이고
 // 조마다 몇 명인지는 여기서 이미 정해진다. 어떤 기준으로 나뉘는지도 같이 적어 준다.
-export function eduDongsanPlan(members: Member[], count: number): EduDongsanPlanRow[] {
-  return membersByGroup(members).map(({ group, members: list }) => ({
+export function eduDongsanPlan(members: Member[], count = 1): EduDongsanPlanRow[] {
+  return eduBuckets(members).map(({ group, stage, members: list }) => ({
     group,
+    stage,
     total: list.length,
     sizes: bucketSizes(list.length, count),
     rule: ruleForGroup(group),
@@ -245,22 +282,26 @@ function balancedGroups(list: Member[], sizes: number[], rand: () => number, rul
   return best ?? deal(list, sizes)
 }
 
-// 고른 사람들을 부서 안에서 조로 나눈다. 조마다의 인원은 언제나 bucketSizes이고, 누가 어디로
-// 가느냐는 그 부서의 기준(ruleForGroup)이 정한다 — 대학부는 성비·학교·전공을 맞추고, 기준이
-// 없는 부서는 섞어서 자른다.
+// 고른 사람들을 **부서 × 교육 단계**로 갈라 조를 만든다. `count`는 한 단계를 몇 조로 나눌지이고
+// **기본값은 1 — 단계 하나가 곧 조 하나다** (미수강인 사람들이 한 조, 2주차만 들은 사람들이
+// 다른 한 조). 2 이상으로 올리면 그 단계 안에서 다시 쪼개지고, 그때 비로소 그 부서의 기준
+// (ruleForGroup — 성비·나이·학교·전공·신앙)이 누가 어느 쪽으로 갈지를 정한다. 조가 하나뿐인
+// 동안에는 고를 것이 없으므로 기준이 아무것도 바꾸지 않는다.
 export function assignEduDongsan(
   members: Member[],
-  count: number,
+  count = 1,
   rand: () => number = Math.random,
 ): EduAssignment[] {
   const n = Math.max(1, Math.floor(count))
   const out: EduAssignment[] = []
-  for (const { group, members: list } of membersByGroup(members)) {
-    const sizes = bucketSizes(list.length, n)
+  for (const { group, stage, members: list } of eduBuckets(members)) {
+    const sizes = bucketSizes(list.length, n).filter((size) => size > 0)
     const rule = ruleForGroup(group)
     const groups = rule ? balancedGroups(list, sizes, rand, rule) : deal(shuffled(list, rand), sizes)
     groups.forEach((g, i) => {
-      for (const m of g) out.push({ memberId: m.id, dongsan: eduDongsanLabel(group, i + 1) })
+      for (const m of g) {
+        out.push({ memberId: m.id, dongsan: eduDongsanLabel(group, stage, i + 1, groups.length) })
+      }
     })
   }
   return out
