@@ -35,6 +35,7 @@ import { useToast } from '../../components/ui/Toast'
 import { GraduationCap, AlertTriangle, Check, ListChecks, Sprout, Trash2 } from '../../components/ui/Icon'
 import { Button } from '../../components/ui/Button'
 import { Dialog } from '../../components/ui/Dialog'
+import { Input } from '../../components/ui/Input'
 import { EditModal, AttendanceModal } from './MemberDialogs'
 import { refreshRoster } from '../../lib/live'
 import { useAppConfig } from '../../lib/useAppConfig'
@@ -300,7 +301,36 @@ function EduDongsanResult({ groups, readOnly }: { groups: EduDongsanGroup[]; rea
   const toast = useToast()
   const [confirming, setConfirming] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [moving, setMoving] = useState<{ member: Member; from: string } | null>(null)
   const shown = groups.reduce((n, g) => n + g.members.length, 0)
+
+  // 옮겨 갈 수 있는 조 — 같은 부서의 다른 조들. 조의 부서는 그 조 사람의 부서로 읽는다
+  // (조 이름이 부서로 시작하지만 이름을 파싱하는 것보다 사람에게 묻는 편이 틀리지 않는다).
+  const targetsFor = ({ member, from }: { member: Member; from: string }) =>
+    groups
+      .filter((g) => g.name !== from && g.members[0]?.group_name === member.group_name)
+      .map((g) => g.name)
+
+  // 한 사람을 옮기는 것은 배정 요청 한 줄이다 (`dongsan:""`면 해제) — 서버는 같은 길을 쓴다.
+  async function move(to: string) {
+    if (!moving) return
+    setBusy(true)
+    try {
+      await assignEduDongsan([{ memberId: moving.member.id, dongsan: to }])
+      refreshRoster(qc)
+      toast({
+        title: to
+          ? t('admin.newfamilyEdu.assign.move.done', { name: moving.member.name, to })
+          : t('admin.newfamilyEdu.assign.move.cleared', { name: moving.member.name }),
+        tone: 'ok',
+      })
+      setMoving(null)
+    } catch {
+      toast({ title: t('common.error'), tone: 'err' })
+    } finally {
+      setBusy(false)
+    }
+  }
 
   // 화면이 아는 사람만이 아니라 **그 부에 남아 있는 배정 전부**를 지운다 (서버가 범위 안에서
   // 훑는다). 배정 해제는 고른 사람만 지우므로, 새가족 표시가 내려갔거나 필터에 걸러진 사람에게
@@ -331,20 +361,83 @@ function EduDongsanResult({ groups, readOnly }: { groups: EduDongsanGroup[]; rea
           </Button>
         )}
       </div>
+      {/* 조마다 카드 하나, 그 안에 사람이 이름표로 앉는다. 이름표를 누르면 다른 조로 옮긴다 —
+          기준이 뽑아 준 배치가 늘 맞는 것은 아니라(친한 사람 둘, 늦게 온 한 사람) 손으로
+          고칠 자리가 있어야 한다. 끌어다 놓기가 아니라 눌러서 고르는 이유는 이 화면이 주로
+          폰에서 열리기 때문이다 — 손가락으로 끄는 동작은 목록이 함께 스크롤되는 자리에서 자주
+          어긋난다. */}
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {groups.map((g) => (
-          <div key={g.name} className="rounded-xl bg-fill px-3 py-2">
+          <div key={g.name} className="rounded-xl bg-fill px-3 py-2.5">
             <div className="text-xs font-semibold text-text">
               {g.name}
               <span className="ml-1 tabular-nums text-muted">· {g.members.length}</span>
             </div>
-            <div className="mt-0.5 text-xs leading-relaxed text-muted">
-              {g.members.map((m) => m.name).join(' · ')}
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {g.members.map((m) =>
+                readOnly ? (
+                  <span key={m.id} className="rounded-full border border-border bg-surface px-2 py-1 text-xs text-text">
+                    {m.name}
+                  </span>
+                ) : (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => setMoving({ member: m, from: g.name })}
+                    className="rounded-full border border-border bg-surface px-2 py-1 text-xs font-medium text-text transition-colors hover:border-primary/40 hover:text-primary active:scale-[0.97]"
+                  >
+                    {m.name}
+                  </button>
+                ),
+              )}
             </div>
             <GroupComposition members={g.members} />
           </div>
         ))}
       </div>
+      {!readOnly && (
+        <p className="mt-2 text-[11px] text-subtle">{t('admin.newfamilyEdu.assign.move.hint')}</p>
+      )}
+
+      {/* 옮길 곳은 **같은 부서의 조**뿐이다 — 부서를 넘지 않는 것은 이 기능의 규칙이라
+          손으로도 넘기지 않는다 (대학부 사람이 청년부 조에 앉으면 그 조의 이름이 거짓말이 된다). */}
+      <Dialog
+        open={!!moving}
+        onOpenChange={(v) => !v && setMoving(null)}
+        title={t('admin.newfamilyEdu.assign.move.title')}
+      >
+        {moving && (
+          <>
+            <p className="text-xs leading-relaxed text-muted">
+              {t('admin.newfamilyEdu.assign.move.help', { name: moving.member.name, from: moving.from })}
+            </p>
+            <ul className="mt-4 grid gap-1.5">
+              {targetsFor(moving).map((name) => (
+                <li key={name}>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void move(name)}
+                    className="w-full rounded-xl bg-fill px-3 py-2.5 text-left text-sm font-semibold text-text transition-colors hover:bg-fill-hover disabled:opacity-40"
+                  >
+                    {name}
+                  </button>
+                </li>
+              ))}
+              <li>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void move('')}
+                  className="w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-danger transition-colors hover:bg-danger/10 disabled:opacity-40"
+                >
+                  {t('admin.newfamilyEdu.assign.move.unassign')}
+                </button>
+              </li>
+            </ul>
+          </>
+        )}
+      </Dialog>
 
       <Dialog open={confirming} onOpenChange={setConfirming} title={t('admin.newfamilyEdu.assign.clearAllTitle')}>
         <p className="text-xs leading-relaxed text-muted">
@@ -400,6 +493,9 @@ function GroupComposition({ members }: { members: Member[] }) {
 // 조마다 몇 명이 되는지는 누르기 전에 미리 보여준다 (무작위가 정하는 것은 누가 어디로
 // 가느냐뿐이다). 배정 규칙(누구를 같이 두고 누구를 갈라놓을지)이 정해지면 eduDongsan.ts의
 // 섞는 자리만 갈아 끼우면 되고 이 창은 그대로다.
+// 한 단계를 이보다 잘게 쪼갤 일은 없다 — 한 단계에 이만큼 사람이 모이는 주일 자체가 없다.
+const MAX_PER_STAGE = 12
+
 function EduDongsanDialog({
   open,
   onOpenChange,
@@ -415,7 +511,12 @@ function EduDongsanDialog({
   const qc = useQueryClient()
   const toast = useToast()
   const [busy, setBusy] = useState(false)
-  const plan = eduDongsanPlan(members)
+  // **한 단계를 몇 조로 나눌지.** 기본값 1 = 단계 하나가 곧 조 하나이고, 2 이상으로 올리면 그
+  // 단계 안에서만 다시 쪼개진다 (단계를 넘어 섞이지는 않는다). 2 이상일 때 비로소 부서별
+  // 기준(성비·나이·학교·전공·신앙)이 누가 어느 쪽으로 갈지를 정한다 — 조가 하나뿐이면 고를
+  // 것이 없으므로 기준이 아무것도 바꾸지 않는다.
+  const [count, setCount] = useState(1)
+  const plan = eduDongsanPlan(members, count)
 
   async function send(assignments: EduAssignment[], key: 'done' | 'cleared') {
     setBusy(true)
@@ -435,9 +536,22 @@ function EduDongsanDialog({
     <Dialog open={open} onOpenChange={onOpenChange} title={t('admin.newfamilyEdu.assign.title')}>
       <p className="text-xs leading-relaxed text-muted">{t('admin.newfamilyEdu.assign.help')}</p>
 
-      {/* 누르기 전에 어떤 조가 생기는지 그대로 보여준다 — 조를 정하는 것이 사람이 고르는
-          갯수가 아니라 **교육 단계**이므로, 미리보기가 곧 결과다. */}
-      <ul className="mt-4 grid gap-1.5">
+      <label className="field-label mt-4" htmlFor="edu-dongsan-count">
+        {t('admin.newfamilyEdu.assign.groups')}
+      </label>
+      <Input
+        id="edu-dongsan-count"
+        type="number"
+        min={1}
+        max={MAX_PER_STAGE}
+        value={count}
+        onChange={(e) => setCount(Math.min(MAX_PER_STAGE, Math.max(1, Number(e.target.value) || 1)))}
+      />
+      <p className="mt-1 text-[11px] leading-relaxed text-subtle">{t('admin.newfamilyEdu.assign.groupsHint')}</p>
+
+      {/* 누르기 전에 어떤 조가 생기는지 그대로 보여준다 — 단계마다 몇 조가 서고 조마다 몇 명이
+          되는지까지. 무작위가 정하는 것은 누가 어디로 가느냐뿐이라 이 수는 그대로 맞는다. */}
+      <ul className="mt-3 grid gap-1.5">
         {members.length === 0 ? (
           <li className="rounded-xl bg-fill px-3 py-2 text-xs text-muted">{t('admin.newfamilyEdu.assign.none')}</li>
         ) : (
@@ -445,7 +559,11 @@ function EduDongsanDialog({
             <li key={`${row.group}/${row.stage}`} className="flex items-center gap-2 rounded-xl bg-fill px-3 py-2 text-xs text-text">
               <Sprout className="size-3.5 shrink-0 text-subtle" aria-hidden />
               <span className="font-semibold">{[row.group, EDU_STAGE_NAMES[row.stage]].filter(Boolean).join(' ')}</span>
-              <span className="ml-auto tabular-nums text-muted">{t('admin.newfamilyEdu.assign.count', { n: row.total })}</span>
+              <span className="ml-auto tabular-nums text-muted">
+                {t('admin.newfamilyEdu.assign.count', { n: row.total })}
+                {/* 한 조로 갈 때는 나눗셈을 적을 것이 없다 — 인원이 곧 그 조다. */}
+                {row.sizes.filter((x) => x > 0).length > 1 && ` → ${row.sizes.filter((x) => x > 0).join(' · ')}`}
+              </span>
             </li>
           ))
         )}
@@ -461,7 +579,7 @@ function EduDongsanDialog({
         </Button>
         <Button
           disabled={busy || members.length === 0}
-          onClick={() => void send(planEduDongsan(members), 'done')}
+          onClick={() => void send(planEduDongsan(members, count), 'done')}
         >
           <Sprout className="size-4" aria-hidden />
           {busy ? t('common.loading') : t('admin.newfamilyEdu.assign.run')}

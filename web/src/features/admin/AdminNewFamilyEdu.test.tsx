@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, within, fireEvent } from '@testing-library/react'
 import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest'
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query'
 import { i18n } from '../../lib/i18n'
@@ -250,7 +250,9 @@ describe('AdminNewFamilyEdu — 새가족 교육 동산 배정', () => {
     ])
 
     expect(screen.getByText('이번 교육 동산')).toBeInTheDocument()
-    expect(screen.getByText('대학둘 · 대학하나')).toBeInTheDocument() // 이름순
+    // 이름은 조 카드 안에 이름표 하나씩 앉는다 (누르면 옮길 수 있는 버튼).
+    expect(screen.getByRole('button', { name: '대학하나' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '대학둘' })).toBeInTheDocument()
     // 조 이름은 명단 블록과 카드 배지 양쪽에 나온다.
     expect(screen.getAllByText('청년부 미수강').length).toBeGreaterThan(1)
   })
@@ -282,5 +284,65 @@ describe('AdminNewFamilyEdu — 교육 동산 전체 초기화', () => {
     renderAs('pastor', assigned)
     expect(screen.getByText('이번 교육 동산')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '전체 초기화' })).not.toBeInTheDocument()
+  })
+})
+
+// 기준이 뽑아 준 배치가 늘 맞는 것은 아니라(친한 사람 둘, 늦게 온 한 사람) 손으로 고칠
+// 자리가 있어야 한다 — 조마다 카드 하나, 그 안의 이름을 눌러 다른 조로 옮긴다.
+describe('AdminNewFamilyEdu — 조 갯수와 사람 옮기기', () => {
+  const boarded = [
+    { ...member('m1', '가나'), group_name: '대학부', new_member_dongsan: '대학부 미수강 1' },
+    { ...member('m2', '다라'), group_name: '대학부', new_member_dongsan: '대학부 미수강 2' },
+    { ...member('m3', '마바'), group_name: '청년부', new_member_dongsan: '청년부 미수강' },
+  ]
+
+  it('한 단계를 몇 조로 나눌지 고르면 미리보기가 그만큼 갈린다', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event')
+    renderAs('super_admin', [
+      { ...member('a', '하나'), group_name: '대학부' },
+      { ...member('b', '둘'), group_name: '대학부' },
+      { ...member('c', '셋'), group_name: '대학부' },
+      { ...member('d', '넷'), group_name: '대학부' },
+    ])
+
+    await userEvent.click(screen.getByRole('button', { name: '전체 선택' }))
+    await userEvent.click(screen.getByRole('button', { name: '동산 배정' }))
+    // 기본값 1 — 단계 하나가 곧 조 하나라 나눗셈을 적을 것이 없다.
+    expect(screen.getByText('4명')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('한 단계를 몇 조로'), { target: { value: '2' } })
+    expect(screen.getByText(/4명\s*→\s*2 · 2/)).toBeInTheDocument()
+  })
+
+  it('이름을 누르면 같은 부서의 다른 조로만 옮길 수 있다', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event')
+    apiMocks.assignEduDongsan.mockResolvedValue({ status: 'ok', updated: 1 })
+    renderAs('super_admin', boarded)
+
+    await userEvent.click(screen.getByRole('button', { name: '가나' }))
+    // 같은 부서의 다른 조만 보인다 — 청년부 조는 고를 수 없다 (부서를 넘지 않는다).
+    expect(screen.getByRole('button', { name: '대학부 미수강 2' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '청년부 미수강' })).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: '대학부 미수강 2' }))
+    expect(apiMocks.assignEduDongsan).toHaveBeenLastCalledWith([
+      { memberId: 'm1', dongsan: '대학부 미수강 2' },
+    ])
+  })
+
+  it('그 자리에서 배정을 해제할 수도 있다', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event')
+    apiMocks.assignEduDongsan.mockResolvedValue({ status: 'ok', updated: 1 })
+    renderAs('super_admin', boarded)
+
+    await userEvent.click(screen.getByRole('button', { name: '마바' }))
+    await userEvent.click(screen.getByRole('button', { name: '배정 해제' }))
+    expect(apiMocks.assignEduDongsan).toHaveBeenLastCalledWith([{ memberId: 'm3', dongsan: '' }])
+  })
+
+  it('목사(읽기 전용)에게는 이름이 눌리지 않는다', () => {
+    renderAs('pastor', boarded)
+    expect(screen.getAllByText('가나').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: '가나' })).not.toBeInTheDocument()
   })
 })
