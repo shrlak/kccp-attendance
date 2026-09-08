@@ -32,22 +32,22 @@ describe('eduDongsan — 부서를 넘지 않는다', () => {
     ])
   })
 
-  it('조 이름은 부서 + 교육 단계다 — 그 조가 누구의 자리인지가 이름에 있어야 한다', () => {
-    expect(eduDongsanLabel('대학부', 'none')).toBe('대학부 미수강')
-    expect(eduDongsanLabel('청년부', 'week2')).toBe('청년부 2주차만')
-    expect(eduDongsanLabel('', 'both')).toBe('수강 완료')
-    // 한 단계를 둘 이상으로 쪼갤 때만 번호가 붙는다.
-    expect(eduDongsanLabel('대학부', 'none', 2, 3)).toBe('대학부 미수강 2')
+  it('조 이름은 번호다 — 1조, 2조', () => {
+    expect(eduDongsanLabel(1)).toBe('1조')
+    expect(eduDongsanLabel(12)).toBe('12조')
   })
 
-  it('배정된 조는 언제나 그 사람의 부서 것이다', () => {
+  it('한 조에는 한 부서만 앉는다 — 이름이 번호뿐이라 사람으로 확인한다', () => {
     const byId = new Map(assignEduDongsan(people, 2, seeded([0.1, 0.7, 0.3])).map((a) => [a.memberId, a.dongsan]))
-    for (const p of people) expect(byId.get(p.id)!.startsWith(p.group_name)).toBe(true)
-    // 부서마다 자기 조가 따로 선다 — 대학부 2명이 2동산으로 갈라지고 청년부 3명도 그렇다.
-    // 이 표본은 모두 미수강이라 단계가 하나뿐 — count 2로 그 단계 안에서 둘로 쪼개진다.
-    expect(new Set([...byId.values()])).toEqual(
-      new Set(['대학부 미수강 1', '대학부 미수강 2', '청년부 미수강 1', '청년부 미수강 2']),
-    )
+    const groupsIn = new Map<string, Set<string>>()
+    for (const p of people) {
+      const name = byId.get(p.id)!
+      groupsIn.set(name, (groupsIn.get(name) ?? new Set()).add(p.group_name || ''))
+    }
+    for (const groups of groupsIn.values()) expect(groups.size).toBe(1)
+    // 번호는 **배정 전체에서 이어진다** — 부서마다 1조부터 다시 세면 두 부서의 1조가 한 조가 된다.
+    // 이 표본은 모두 미수강이라 단계가 하나뿐 — count 2로 부서마다 둘씩 쪼개져 넷이 선다.
+    expect(new Set([...byId.values()])).toEqual(new Set(['1조', '2조', '3조', '4조']))
   })
 })
 
@@ -64,6 +64,7 @@ describe('eduDongsan — 인원은 고르게, 미리보기와 결과가 같게',
     expect(plan[0].group).toBe('청년부')
     expect(plan[0].total).toBe(7)
     expect(plan[0].sizes).toEqual([3, 2, 2])
+    expect(plan[0].names).toEqual(['1조', '2조', '3조'])
     // 이 표본은 어느 칸도 적혀 있지 않으므로 청년부의 여섯 기준이 모두 '셀 수 없음'이다.
     expect(plan[0].missing.map((x) => x.n)).toEqual([7, 7, 7, 7, 7, 7])
 
@@ -71,9 +72,9 @@ describe('eduDongsan — 인원은 고르게, 미리보기와 결과가 같게',
     for (const a of assignEduDongsan(people, 3, seeded([0.9, 0.2, 0.5, 0.7, 0.1, 0.4])))
       counts.set(a.dongsan, (counts.get(a.dongsan) || 0) + 1)
     expect([...counts.entries()].sort()).toEqual([
-      ['청년부 미수강 1', 3],
-      ['청년부 미수강 2', 2],
-      ['청년부 미수강 3', 2],
+      ['1조', 3],
+      ['2조', 2],
+      ['3조', 2],
     ])
   })
 
@@ -94,29 +95,29 @@ describe('eduDongsan — 인원은 고르게, 미리보기와 결과가 같게',
 
 describe('eduDongsan — 해제와 조별 명단', () => {
   it('해제는 빈 값을 보낸다 (서버가 ""를 해제로 읽는다)', () => {
-    expect(clearEduDongsan([m('a', '청년부', '청년부 1동산')])).toEqual([{ memberId: 'a', dongsan: '' }])
+    expect(clearEduDongsan([m('a', '청년부', '1조')])).toEqual([{ memberId: 'a', dongsan: '' }])
   })
 
   it('조별로 묶어 이름순으로 돌려준다 — 배정 안 된 사람은 빠진다', () => {
     const groups = groupByEduDongsan([
-      m('나', '청년부', '청년부 2동산'),
-      m('가', '청년부', '청년부 1동산'),
-      m('다', '청년부', '청년부 1동산'),
+      m('나', '청년부', '2조'),
+      m('가', '청년부', '1조'),
+      m('다', '청년부', '1조'),
       m('라', '청년부', ''),
     ])
     expect(groups.map((g) => [g.name, g.members.map((x) => x.name)])).toEqual([
-      ['청년부 1동산', ['가', '다']],
-      ['청년부 2동산', ['나']],
+      ['1조', ['가', '다']],
+      ['2조', ['나']],
     ])
   })
 
-  it('조는 숫자로 세운다 — 글자만으로는 10동산이 2동산 앞에 온다', () => {
+  it('조는 숫자로 세운다 — 글자만으로는 10조가 2조 앞에 온다', () => {
     const groups = groupByEduDongsan([
-      m('a', '청년부', '청년부 10동산'),
-      m('b', '청년부', '청년부 2동산'),
-      m('c', '대학부', '대학부 1동산'),
+      m('a', '청년부', '10조'),
+      m('b', '청년부', '2조'),
+      m('c', '대학부', '1조'),
     ])
-    expect(groups.map((g) => g.name)).toEqual(['대학부 1동산', '청년부 2동산', '청년부 10동산'])
+    expect(groups.map((g) => g.name)).toEqual(['1조', '2조', '10조'])
   })
 })
 
@@ -373,12 +374,13 @@ describe('eduDongsan — 교육 단계가 조를 가른다', () => {
   it('단계마다 정확히 한 조다 — 갯수를 정하지 않으면', () => {
     const out = assignEduDongsan(people)
     const byId = new Map(out.map((a) => [a.memberId, a.dongsan]))
-    expect(byId.get('미수강1')).toBe('대학부 미수강')
-    expect(byId.get('미수강2')).toBe('대학부 미수강')
-    expect(byId.get('이주차만1')).toBe('대학부 2주차만')
-    expect(byId.get('이주차만2')).toBe('대학부 2주차만')
-    expect(byId.get('일주차만1')).toBe('대학부 1주차만')
-    expect(byId.get('완료1')).toBe('대학부 수강 완료')
+    // 번호는 부서 → 단계 순(미수강 · 1주차만 · 2주차만 · 수강 완료)으로 이어진다.
+    expect(byId.get('미수강1')).toBe('1조')
+    expect(byId.get('미수강2')).toBe('1조')
+    expect(byId.get('일주차만1')).toBe('2조')
+    expect(byId.get('이주차만1')).toBe('3조')
+    expect(byId.get('이주차만2')).toBe('3조')
+    expect(byId.get('완료1')).toBe('4조')
     // 조는 단계 수만큼 — 넷.
     expect(new Set(byId.values()).size).toBe(4)
   })
@@ -396,16 +398,16 @@ describe('eduDongsan — 교육 단계가 조를 가른다', () => {
   it('부서가 다르면 같은 단계여도 다른 조다', () => {
     const mixed = [staged('대학미수강', '대학부', false, false), staged('청년미수강', '청년부', false, false)]
     const byId = new Map(assignEduDongsan(mixed).map((a) => [a.memberId, a.dongsan]))
-    expect(byId.get('대학미수강')).toBe('대학부 미수강')
-    expect(byId.get('청년미수강')).toBe('청년부 미수강')
+    expect(byId.get('대학미수강')).toBe('1조')
+    expect(byId.get('청년미수강')).toBe('2조')
   })
 
   it('미리보기가 곧 결과다 — 부서 × 단계 한 줄이 조 하나', () => {
-    expect(eduDongsanPlan(people).map((r) => [r.group, r.stage, r.total])).toEqual([
-      ['대학부', 'none', 2],
-      ['대학부', 'week1', 1],
-      ['대학부', 'week2', 2],
-      ['대학부', 'both', 1],
+    expect(eduDongsanPlan(people).map((r) => [r.group, r.stage, r.total, r.names])).toEqual([
+      ['대학부', 'none', 2, ['1조']],
+      ['대학부', 'week1', 1, ['2조']],
+      ['대학부', 'week2', 2, ['3조']],
+      ['대학부', 'both', 1, ['4조']],
     ])
   })
 
@@ -413,9 +415,7 @@ describe('eduDongsan — 교육 단계가 조를 가른다', () => {
     const out = assignEduDongsan(people, 2, seededRand(9))
     const labels = new Set(out.map((a) => a.dongsan))
     // 두 명뿐인 단계는 둘로, 한 명뿐인 단계는 사람이 없어 빈 조가 생기지 않는다.
-    expect(labels).toContain('대학부 미수강 1')
-    expect(labels).toContain('대학부 미수강 2')
-    expect(labels).toContain('대학부 1주차만')
-    expect(labels).toContain('대학부 수강 완료')
+    // 미수강 2명 → 1·2조, 1주차만 1명 → 3조, 2주차만 2명 → 4·5조, 수강 완료 1명 → 6조.
+    expect(labels).toEqual(new Set(['1조', '2조', '3조', '4조', '5조', '6조']))
   })
 })

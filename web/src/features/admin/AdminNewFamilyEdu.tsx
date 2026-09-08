@@ -15,12 +15,18 @@ import {
   type NewFamilyWeek,
 } from './newFamily'
 import { NewFamilyWeekChip } from './NewFamilyWeekChip'
-import { eduUnfinished, focusEduSession, needsEduWeek, nextEduSession, type EduSession } from './eduSchedule'
+import {
+  eduStage,
+  eduUnfinished,
+  focusEduSession,
+  needsEduWeek,
+  nextEduSession,
+  type EduSession,
+} from './eduSchedule'
 import {
   assignEduDongsan as planEduDongsan,
   clearEduDongsan,
   eduDongsanPlan,
-  EDU_STAGE_NAMES,
   groupByEduDongsan,
   ruleForGroup,
   type EduAssignment,
@@ -373,6 +379,7 @@ function EduDongsanResult({ groups, readOnly }: { groups: EduDongsanGroup[]; rea
               {g.name}
               <span className="ml-1 tabular-nums text-muted">· {g.members.length}</span>
             </div>
+            <GroupWho members={g.members} />
             <div className="mt-1.5 flex flex-wrap gap-1">
               {g.members.map((m) =>
                 readOnly ? (
@@ -455,6 +462,19 @@ function EduDongsanResult({ groups, readOnly }: { groups: EduDongsanGroup[]; rea
       </Dialog>
     </div>
   )
+}
+
+// 그 조가 어느 부서의 어느 단계인가. **조 이름이 번호뿐이라 이름은 그것을 말해 주지 않는다**
+// — 그래서 그 조에 앉은 사람들에게 묻는다. 손으로 옮긴 뒤에는 한 카드에 단계가 섞일 수 있어
+// (같은 부서 안에서는 어디로든 옮길 수 있다) 나오는 것을 그대로 적는다.
+function GroupWho({ members }: { members: Member[] }) {
+  const { t } = useTranslation()
+  const uniq = (xs: string[]) => [...new Set(xs)]
+  const groups = uniq(members.map((m) => m.group_name || '').filter(Boolean))
+  const stages = uniq(members.map((m) => eduStage(m))).map((s) => t(`admin.newfamily.eduFilter.${s}`))
+  const parts = [...groups, ...stages]
+  if (!parts.length) return null
+  return <div className="text-[11px] text-muted">{parts.join(' · ')}</div>
 }
 
 // 조가 어떻게 섞였는지 한 줄 — 성비 · 학교 · 전공 계열. 기준대로 나뉘었는지를 눈으로
@@ -558,11 +578,17 @@ function EduDongsanDialog({
           plan.map((row) => (
             <li key={`${row.group}/${row.stage}`} className="flex items-center gap-2 rounded-xl bg-fill px-3 py-2 text-xs text-text">
               <Sprout className="size-3.5 shrink-0 text-subtle" aria-hidden />
-              <span className="font-semibold">{[row.group, EDU_STAGE_NAMES[row.stage]].filter(Boolean).join(' ')}</span>
+              <span className="font-semibold">
+                {[row.group, t(`admin.newfamily.eduFilter.${row.stage}`)].filter(Boolean).join(' ')}
+              </span>
               <span className="ml-auto tabular-nums text-muted">
                 {t('admin.newfamilyEdu.assign.count', { n: row.total })}
-                {/* 한 조로 갈 때는 나눗셈을 적을 것이 없다 — 인원이 곧 그 조다. */}
-                {row.sizes.filter((x) => x > 0).length > 1 && ` → ${row.sizes.filter((x) => x > 0).join(' · ')}`}
+                {/* 어느 묶음이 몇 조가 되는지까지 적는다 — 이름이 번호뿐이라 창을 닫고 나면
+                    `1조`가 어느 묶음이었는지 알 길이 없다. 한 조로 갈 때는 인원이 곧 그
+                    조이므로 나눗셈을 적지 않는다. */}
+                {` → ${row.names
+                  .map((name, i) => (row.names.length > 1 ? `${name} ${row.sizes[i]}` : name))
+                  .join(' · ')}`}
               </span>
             </li>
           ))

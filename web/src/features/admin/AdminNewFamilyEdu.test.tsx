@@ -236,17 +236,18 @@ describe('AdminNewFamilyEdu — 새가족 교육 동산 배정', () => {
     const sent = apiMocks.assignEduDongsan.mock.calls.at(-1)![0] as { memberId: string; dongsan: string }[]
     const byId = new Map(sent.map((a) => [a.memberId, a.dongsan]))
     expect([...byId.keys()].sort()).toEqual(['m1', 'm2', 'm3']) // 고르지 않은 청년둘은 빠진다
-    // 부서를 넘지 않고, 같은 부서·같은 단계면 한 조다.
-    expect(byId.get('m1')).toBe('대학부 미수강')
-    expect(byId.get('m2')).toBe('대학부 미수강')
-    expect(byId.get('m3')).toBe('청년부 미수강')
+    // 부서를 넘지 않고, 같은 부서·같은 단계면 한 조다. 이름은 번호이고 번호는 배정 전체에서
+    // 이어진다 — 대학부 미수강이 1조, 청년부 미수강이 2조.
+    expect(byId.get('m1')).toBe('1조')
+    expect(byId.get('m2')).toBe('1조')
+    expect(byId.get('m3')).toBe('2조')
   })
 
   it('이미 배정된 조는 조별 명단으로 한자리에 모인다', () => {
     renderAs('super_admin', [
-      { ...people[0], new_member_dongsan: '대학부 미수강' },
-      { ...people[1], new_member_dongsan: '대학부 미수강' },
-      { ...people[2], new_member_dongsan: '청년부 미수강' },
+      { ...people[0], new_member_dongsan: '1조' },
+      { ...people[1], new_member_dongsan: '1조' },
+      { ...people[2], new_member_dongsan: '2조' },
     ])
 
     expect(screen.getByText('이번 교육 동산')).toBeInTheDocument()
@@ -254,7 +255,10 @@ describe('AdminNewFamilyEdu — 새가족 교육 동산 배정', () => {
     expect(screen.getByRole('button', { name: '대학하나' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '대학둘' })).toBeInTheDocument()
     // 조 이름은 명단 블록과 카드 배지 양쪽에 나온다.
-    expect(screen.getAllByText('청년부 미수강').length).toBeGreaterThan(1)
+    expect(screen.getAllByText('2조').length).toBeGreaterThan(1)
+    // 이름이 번호뿐이라 그 조가 어느 부서 어느 단계인지는 카드가 적어 준다.
+    expect(screen.getByText('대학부 · 미수강')).toBeInTheDocument()
+    expect(screen.getByText('청년부 · 미수강')).toBeInTheDocument()
   })
 })
 
@@ -262,8 +266,8 @@ describe('AdminNewFamilyEdu — 새가족 교육 동산 배정', () => {
 // 있는 값은 그 길로는 닿지 않으므로, 조별 명단 위에 '전체 초기화'를 둔다.
 describe('AdminNewFamilyEdu — 교육 동산 전체 초기화', () => {
   const assigned = [
-    { ...member('m1', '배정된하나'), group_name: '대학부', new_member_dongsan: '대학부 미수강' },
-    { ...member('m2', '배정된둘'), group_name: '대학부', new_member_dongsan: '대학부 미수강' },
+    { ...member('m1', '배정된하나'), group_name: '대학부', new_member_dongsan: '1조' },
+    { ...member('m2', '배정된둘'), group_name: '대학부', new_member_dongsan: '1조' },
   ]
 
   it('조별 명단 위의 버튼으로 전부 지운다 — 확인을 한 번 거친다', async () => {
@@ -291,9 +295,9 @@ describe('AdminNewFamilyEdu — 교육 동산 전체 초기화', () => {
 // 자리가 있어야 한다 — 조마다 카드 하나, 그 안의 이름을 눌러 다른 조로 옮긴다.
 describe('AdminNewFamilyEdu — 조 갯수와 사람 옮기기', () => {
   const boarded = [
-    { ...member('m1', '가나'), group_name: '대학부', new_member_dongsan: '대학부 미수강 1' },
-    { ...member('m2', '다라'), group_name: '대학부', new_member_dongsan: '대학부 미수강 2' },
-    { ...member('m3', '마바'), group_name: '청년부', new_member_dongsan: '청년부 미수강' },
+    { ...member('m1', '가나'), group_name: '대학부', new_member_dongsan: '1조' },
+    { ...member('m2', '다라'), group_name: '대학부', new_member_dongsan: '2조' },
+    { ...member('m3', '마바'), group_name: '청년부', new_member_dongsan: '3조' },
   ]
 
   it('한 단계를 몇 조로 나눌지 고르면 미리보기가 그만큼 갈린다', async () => {
@@ -307,11 +311,11 @@ describe('AdminNewFamilyEdu — 조 갯수와 사람 옮기기', () => {
 
     await userEvent.click(screen.getByRole('button', { name: '전체 선택' }))
     await userEvent.click(screen.getByRole('button', { name: '동산 배정' }))
-    // 기본값 1 — 단계 하나가 곧 조 하나라 나눗셈을 적을 것이 없다.
-    expect(screen.getByText('4명')).toBeInTheDocument()
+    // 기본값 1 — 단계 하나가 곧 조 하나라 나눗셈을 적을 것이 없다 (인원이 곧 그 조다).
+    expect(screen.getByText(/4명\s*→\s*1조$/)).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('한 단계를 몇 조로'), { target: { value: '2' } })
-    expect(screen.getByText(/4명\s*→\s*2 · 2/)).toBeInTheDocument()
+    expect(screen.getByText(/4명\s*→\s*1조 2 · 2조 2/)).toBeInTheDocument()
   })
 
   it('이름을 누르면 같은 부서의 다른 조로만 옮길 수 있다', async () => {
@@ -320,14 +324,12 @@ describe('AdminNewFamilyEdu — 조 갯수와 사람 옮기기', () => {
     renderAs('super_admin', boarded)
 
     await userEvent.click(screen.getByRole('button', { name: '가나' }))
-    // 같은 부서의 다른 조만 보인다 — 청년부 조는 고를 수 없다 (부서를 넘지 않는다).
-    expect(screen.getByRole('button', { name: '대학부 미수강 2' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '청년부 미수강' })).not.toBeInTheDocument()
+    // 같은 부서의 다른 조만 보인다 — 청년부 조(3조)는 고를 수 없다 (부서를 넘지 않는다).
+    expect(screen.getByRole('button', { name: '2조' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '3조' })).not.toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('button', { name: '대학부 미수강 2' }))
-    expect(apiMocks.assignEduDongsan).toHaveBeenLastCalledWith([
-      { memberId: 'm1', dongsan: '대학부 미수강 2' },
-    ])
+    await userEvent.click(screen.getByRole('button', { name: '2조' }))
+    expect(apiMocks.assignEduDongsan).toHaveBeenLastCalledWith([{ memberId: 'm1', dongsan: '2조' }])
   })
 
   it('그 자리에서 배정을 해제할 수도 있다', async () => {
