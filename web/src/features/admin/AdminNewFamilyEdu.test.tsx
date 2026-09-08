@@ -17,11 +17,12 @@ vi.mock('./useRoster', async (orig) => ({
   useRoster: () => rosterData,
 }))
 
-const apiMocks = vi.hoisted(() => ({ assignEduDongsan: vi.fn() }))
+const apiMocks = vi.hoisted(() => ({ assignEduDongsan: vi.fn(), clearAllEduDongsan: vi.fn() }))
 vi.mock('../../lib/api', async (orig) => ({
   ...(await orig<typeof import('../../lib/api')>()),
   getConfig: vi.fn().mockResolvedValue({ groupColors: {} }),
   assignEduDongsan: apiMocks.assignEduDongsan,
+  clearAllEduDongsan: apiMocks.clearAllEduDongsan,
 }))
 
 import { AdminNewFamilyEdu } from './AdminNewFamilyEdu'
@@ -252,5 +253,34 @@ describe('AdminNewFamilyEdu — 새가족 교육 동산 배정', () => {
     expect(screen.getByText('대학둘 · 대학하나')).toBeInTheDocument() // 이름순
     // 조 이름은 명단 블록과 카드 배지 양쪽에 나온다.
     expect(screen.getAllByText('청년부 미수강').length).toBeGreaterThan(1)
+  })
+})
+
+// 배정 해제는 고른 사람만 지운다. 화면이 모르는 사람(표시가 내려갔거나 필터 밖)에게 남아
+// 있는 값은 그 길로는 닿지 않으므로, 조별 명단 위에 '전체 초기화'를 둔다.
+describe('AdminNewFamilyEdu — 교육 동산 전체 초기화', () => {
+  const assigned = [
+    { ...member('m1', '배정된하나'), group_name: '대학부', new_member_dongsan: '대학부 미수강' },
+    { ...member('m2', '배정된둘'), group_name: '대학부', new_member_dongsan: '대학부 미수강' },
+  ]
+
+  it('조별 명단 위의 버튼으로 전부 지운다 — 확인을 한 번 거친다', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event')
+    apiMocks.clearAllEduDongsan.mockResolvedValue({ status: 'ok', updated: 5 })
+    renderAs('super_admin', assigned)
+
+    await userEvent.click(screen.getByRole('button', { name: '전체 초기화' }))
+    // 바로 지우지 않는다 — 화면 밖 사람까지 지워지는 일이라 무엇이 지워지는지 먼저 적는다.
+    expect(apiMocks.clearAllEduDongsan).not.toHaveBeenCalled()
+    expect(screen.getByText(/화면에 보이는 2명/)).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: '모두 지우기' }))
+    expect(apiMocks.clearAllEduDongsan).toHaveBeenCalledTimes(1)
+  })
+
+  it('목사(읽기 전용)에게는 버튼이 없다', () => {
+    renderAs('pastor', assigned)
+    expect(screen.getByText('이번 교육 동산')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '전체 초기화' })).not.toBeInTheDocument()
   })
 })

@@ -2031,6 +2031,22 @@ Deno.serve(async (req: Request) => {
       const role=await auth();
       if(!role) return fail(401,"Not authorized");
       if(role.role==="pastor") return fail(403,"Read-only");
+      // **전체 초기화** — 고른 사람이 아니라 이 관리자가 볼 수 있는 그 부 사람 **전부**의 교육
+      // 동산을 지운다. 배정 해제(assignments에 ""를 실어 보내는 길)로는 화면이 들고 온 사람만
+      // 지워지는데, 새가족 표시가 내려갔거나 필터에 걸러진 사람에게 남아 있는 값은 화면이 그
+      // 사람을 모르므로 조용히 남는다 — 그 값을 걷어내는 길이 여기다. 범위는 다른 길과 같다:
+      // 리더는 자기 동산 사람만, 최고관리자도 자기 부만.
+      if(body.clearAll===true){
+        const cfg=await getCfg(sb,actingPartition);
+        const part=role.partition;
+        const scope=scopeFilter(role,summerNow(cfg,part));
+        const {data:wiped}=await scopeQuery(adb.from("members").update({new_member_dongsan:"",updated_at:new Date().toISOString()}),scope).neq("new_member_dongsan","").select("id");
+        const n=(wiped||[]).length;
+        // 지울 것이 없어졌으니 하루짜리 표시도 함께 내린다 (expireEduDongsan이 볼 것이 없다).
+        await adb.from("config").update({edu_dongsan_date:null}).eq("id",1);
+        if(n) await addAudit(adb,"edu-dongsan",xDev,n+"명 새가족 교육 동산 전체 초기화",part);
+        return ok({status:"ok",updated:n});
+      }
       const {assignments}=body;
       if(!Array.isArray(assignments)) return fail(400,"assignments required");
       const wanted=new Map<string,string>();

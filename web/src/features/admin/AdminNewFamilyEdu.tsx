@@ -29,10 +29,10 @@ import {
 import { composition } from './eduDongsanTraits'
 import { presentToday, cameToday } from './today'
 import { GroupFilter, Pill } from './GroupFilter'
-import { assignEduDongsan, configCalendar, updateMember, type Member } from '../../lib/api'
+import { assignEduDongsan, clearAllEduDongsan, configCalendar, updateMember, type Member } from '../../lib/api'
 import { Tag } from '../../components/ui/Tag'
 import { useToast } from '../../components/ui/Toast'
-import { GraduationCap, AlertTriangle, Check, ListChecks, Sprout } from '../../components/ui/Icon'
+import { GraduationCap, AlertTriangle, Check, ListChecks, Sprout, Trash2 } from '../../components/ui/Icon'
 import { Button } from '../../components/ui/Button'
 import { Dialog } from '../../components/ui/Dialog'
 import { EditModal, AttendanceModal } from './MemberDialogs'
@@ -225,7 +225,7 @@ export function AdminNewFamilyEdu() {
 
       <ScheduleBanner session={session} openToday={openToday} following={following} due={due.length} lang={i18n.language} />
 
-      {eduGroups.length > 0 && <EduDongsanResult groups={eduGroups} />}
+      {eduGroups.length > 0 && <EduDongsanResult groups={eduGroups} readOnly={readOnly} />}
 
       {visible.length === 0 ? (
         <div className="fx-rise grid place-items-center rounded-2xl border border-dashed border-border py-14 text-center">
@@ -294,13 +294,42 @@ export function AdminNewFamilyEdu() {
 // 배정 결과 — 조별로 누가 있는지. 카드의 배지는 "이 사람이 몇 동산인가"에 답하지만,
 // 교육 시간에 실제로 필요한 것은 그 반대다 ("1동산은 누구누구인가"). 배정된 사람이 하나도
 // 없으면 이 블록 자체가 없다.
-function EduDongsanResult({ groups }: { groups: EduDongsanGroup[] }) {
+function EduDongsanResult({ groups, readOnly }: { groups: EduDongsanGroup[]; readOnly: boolean }) {
   const { t } = useTranslation()
+  const qc = useQueryClient()
+  const toast = useToast()
+  const [confirming, setConfirming] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const shown = groups.reduce((n, g) => n + g.members.length, 0)
+
+  // 화면이 아는 사람만이 아니라 **그 부에 남아 있는 배정 전부**를 지운다 (서버가 범위 안에서
+  // 훑는다). 배정 해제는 고른 사람만 지우므로, 새가족 표시가 내려갔거나 필터에 걸러진 사람에게
+  // 남은 값은 그 길로는 닿지 않는다 — 여기가 그 값을 걷어내는 자리다.
+  async function clearAll() {
+    setBusy(true)
+    try {
+      const res = await clearAllEduDongsan()
+      refreshRoster(qc)
+      toast({ title: t('admin.newfamilyEdu.assign.clearAllDone', { n: res.updated }), tone: 'ok' })
+      setConfirming(false)
+    } catch {
+      toast({ title: t('common.error'), tone: 'err' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div className="fx-rise mb-4 rounded-2xl border border-border bg-surface p-3.5">
       <div className="mb-2 flex items-center gap-2 section-kicker">
         <Sprout className="size-4 text-subtle" aria-hidden />
         {t('admin.newfamilyEdu.assign.result')}
+        {!readOnly && (
+          <Button size="sm" variant="ghost" className="ml-auto" onClick={() => setConfirming(true)}>
+            <Trash2 className="size-3.5" aria-hidden />
+            {t('admin.newfamilyEdu.assign.clearAll')}
+          </Button>
+        )}
       </div>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {groups.map((g) => (
@@ -316,6 +345,21 @@ function EduDongsanResult({ groups }: { groups: EduDongsanGroup[] }) {
           </div>
         ))}
       </div>
+
+      <Dialog open={confirming} onOpenChange={setConfirming} title={t('admin.newfamilyEdu.assign.clearAllTitle')}>
+        <p className="text-xs leading-relaxed text-muted">
+          {t('admin.newfamilyEdu.assign.clearAllWarn', { n: shown })}
+        </p>
+        <div className="mt-5 flex flex-wrap justify-end gap-2">
+          <Button variant="secondary" disabled={busy} onClick={() => setConfirming(false)}>
+            {t('common.cancel')}
+          </Button>
+          <Button variant="danger" disabled={busy} onClick={() => void clearAll()}>
+            <Trash2 className="size-4" aria-hidden />
+            {busy ? t('common.loading') : t('admin.newfamilyEdu.assign.clearAllConfirm')}
+          </Button>
+        </div>
+      </Dialog>
     </div>
   )
 }
