@@ -329,6 +329,12 @@ export const bulkSetSubgroup = (memberIds: string[], subgroup: string) =>
 export const assignEduDongsan = (assignments: { memberId: string; dongsan: string }[]) =>
   api<{ status: string; updated: number }>('POST', '/api/admin/members/edu-dongsan', { assignments })
 
+// 새가족 교육 동산 **전체 초기화** — 고른 사람이 아니라 이 관리자가 볼 수 있는 그 부 사람
+// 전부의 배정을 지운다. 화면이 모르는 사람(새가족 표시가 내려갔거나 필터 밖)에게 남아 있는
+// 값까지 걷어내는 길이라, 명단을 실어 보내지 않는다.
+export const clearAllEduDongsan = () =>
+  api<{ status: string; updated: number }>('POST', '/api/admin/members/edu-dongsan', { clearAll: true })
+
 // Remove several members from the roster in one scoped request. The server deletes their
 // member/device/role rows but intentionally keeps historical attendance records.
 export const deleteMembers = (memberIds: string[]) =>
