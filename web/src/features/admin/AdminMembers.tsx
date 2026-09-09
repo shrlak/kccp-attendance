@@ -7,9 +7,11 @@ import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
-import { Search, ListChecks, Merge as MergeIcon, Users, AlertTriangle, EyeOff, ChevronDown, Trash2 } from '../../components/ui/Icon'
+import { Search, ListChecks, Merge as MergeIcon, Users, AlertTriangle, EyeOff, ChevronDown, GraduationCap, Trash2 } from '../../components/ui/Icon'
 import { mergeTargets, canMerge, mergeSummary, type MergeState } from './merge'
-import { groupsOf } from './filters'
+import { groupsOf, schoolsOf, matchesSchool, type SchoolFilter } from './filters'
+import { SCHOOL_NAMES } from './eduDongsanTraits'
+import { Pill } from './GroupFilter'
 import { summerDongsanList } from './dongsan'
 import { newFamilyWeek } from './newFamily'
 import { NewFamilyWeekChip } from './NewFamilyWeekChip'
@@ -37,6 +39,10 @@ export function AdminMembers() {
   const [attendanceFor, setAttendanceFor] = useState<Member | null>(null)
   const [merging, setMerging] = useState(false)
   const [search, setSearch] = useState('')
+  // 학교로 좁혀 보는 칩 (CMU · Pitt · 학교 미기재) — **이 탭에만 있다.** 명단을 학교로 갈라
+  // 보는 자리는 여기 하나이고, 출석부·통계·오늘이 세는 것은 그 주일에 누가 왔는가라 학교는
+  // 그 질문의 칸이 아니다.
+  const [school, setSchool] = useState<SchoolFilter>('')
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [target, setTarget] = useState('')
@@ -62,7 +68,13 @@ export function AdminMembers() {
 
   const today = easternNow().date
   const q = search.trim().toLowerCase()
-  const byName = (list: Member[]) => (q ? list.filter((m) => m.name.toLowerCase().includes(q)) : list)
+  // 이름 검색과 학교 칩은 곱해진다 — 둘 다 "지금 보고 싶은 사람"을 좁히는 같은 종류의 도구라
+  // 세 목록(명단·숨긴 멤버·스태프)에 똑같이 걸린다.
+  const byName = (list: Member[]) =>
+    (q ? list.filter((m) => m.name.toLowerCase().includes(q)) : list).filter((m) => matchesSchool(m, school))
+  // 칩은 **검색 전 명단**에서 뽑는다 — 검색어를 치는 동안 칩이 사라졌다 나타나면 고르지 못한다.
+  const schools = schoolsOf(data.members)
+  const showSchools = schools.length > 1 && schools.some((s) => s !== 'none')
   // useRoster has already taken the 숨긴 멤버 out of `data.members` — they are off the roster
   // everywhere in the app, and this tab is the one place they still surface: the 숨긴 멤버
   // section at the bottom. 지워진 게 아니라 접혀 있을 뿐이라, 카드를 눌러 표기를 풀거나
@@ -211,6 +223,22 @@ export function AdminMembers() {
         </div>
       )}
       </div>
+      {/* 학교 칩 — 부서는 아래 섹션 머리줄이 이미 가르고 있으므로, 여기서 고르는 것은 그와
+          곱해지는 다른 가름이다 (대학부 섹션 안의 CMU). 고를 것이 없는 부(장년부)에서는
+          줄 자체가 뜨지 않는다. */}
+      {showSchools && (
+        <div className="mb-4 flex flex-wrap items-center gap-1.5">
+          <GraduationCap className="mr-0.5 size-3.5 shrink-0 text-subtle" aria-hidden />
+          <Pill active={!school} onClick={() => setSchool('')}>
+            {t('admin.filter.all')}
+          </Pill>
+          {schools.map((s) => (
+            <Pill key={s} active={school === s} onClick={() => setSchool(s)}>
+              {s === 'none' ? t('admin.members.school.none') : SCHOOL_NAMES[s]}
+            </Pill>
+          ))}
+        </div>
+      )}
       {!selectMode && (
         <div className="mb-4 flex items-center gap-2 section-kicker">
           <Users className="size-4 text-subtle" aria-hidden />

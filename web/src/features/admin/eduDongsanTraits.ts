@@ -33,12 +33,9 @@ const SCHOOL_PATTERNS: { school: School; re: RegExp }[] = [
   { school: 'pitt', re: /pitt|피츠|핏츠|핏대/i },
 ]
 
-// 화면과 조 이름에 그대로 나가는 표기. 두 언어가 같은 말로 부르므로 번역 파일에 두지 않는다.
+// 화면에 그대로 나가는 표기 (멤버 탭의 칩, 새가족 교육 카드의 마크). 두 언어가 같은 말로
+// 부르므로 번역 파일에 두지 않는다.
 export const SCHOOL_NAMES: Record<Exclude<School, ''>, string> = { cmu: 'CMU', pitt: 'Pitt' }
-
-// 학교가 적히지 않은 사람들의 자리 이름 — 조 이름에 들어가는 값이라 EDU_STAGE_NAMES와 같이
-// 한글 하나로 둔다 (저장되는 것은 UI 문구가 아니다).
-export const NO_SCHOOL_NAME = '학교 미기재'
 
 // 두 학교가 한 줄에 같이 적힌 경우(“서울대/CMU 비지팅”)에는 **먼저 나오는 쪽**을 그 사람의
 // 학교로 본다 — 자기 학교를 앞에 적기 때문이다.

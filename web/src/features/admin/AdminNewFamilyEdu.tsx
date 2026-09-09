@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useRoster } from './useRoster'
 import { easternNow } from '../../lib/checkinWindow'
 import { addIsoDays } from '../../lib/semester'
-import { filterMembers, schoolsOf, NO_FILTER, type Filter } from './filters'
+import { filterMembers, NO_FILTER, type Filter } from './filters'
 import {
   visibleNewFamily,
   semesterBounds,
@@ -19,14 +19,14 @@ import { eduUnfinished, focusEduSession, needsEduWeek, nextEduSession, type EduS
 import {
   assignEduDongsan as planEduDongsan,
   clearEduDongsan,
-  eduDongsanLabel,
   eduDongsanPlan,
+  EDU_STAGE_NAMES,
   groupByEduDongsan,
   ruleForGroup,
   type EduAssignment,
   type EduDongsanGroup,
 } from './eduDongsan'
-import { composition } from './eduDongsanTraits'
+import { composition, schoolOf, SCHOOL_NAMES } from './eduDongsanTraits'
 import { presentToday, cameToday } from './today'
 import { GroupFilter, Pill } from './GroupFilter'
 import { assignEduDongsan, clearAllEduDongsan, configCalendar, updateMember, type Member } from '../../lib/api'
@@ -516,15 +516,7 @@ function EduDongsanDialog({
   // 기준(성비·나이·학교·전공·신앙)이 누가 어느 쪽으로 갈지를 정한다 — 조가 하나뿐이면 고를
   // 것이 없으므로 기준이 아무것도 바꾸지 않는다.
   const [count, setCount] = useState(1)
-  // **학교로도 가를 것인가** (CMU · Pitt · 학교 미기재). 기본값은 꺼짐 — 학교는 이 시스템의
-  // 칸이 아니라 손으로 적은 말에서 읽어낸 값이라(`schoolOf`) 늘 맞는 가름이 아니고, 켜는
-  // 순간 조가 세 배 가까이 늘어난다. 고른 사람 중에 학교를 읽어낼 수 있는 사람이 하나도
-  // 없으면(장년부·EM) 물을 것이 없으므로 이 줄 자체가 뜨지 않는다.
-  const [bySchool, setBySchool] = useState(false)
-  const schools = schoolsOf(members)
-  const canSplitBySchool = schools.length > 1 && schools.some((s) => s !== 'none')
-  const splitting = bySchool && canSplitBySchool
-  const plan = eduDongsanPlan(members, count, splitting)
+  const plan = eduDongsanPlan(members, count)
 
   async function send(assignments: EduAssignment[], key: 'done' | 'cleared') {
     setBusy(true)
@@ -557,20 +549,6 @@ function EduDongsanDialog({
       />
       <p className="mt-1 text-[11px] leading-relaxed text-subtle">{t('admin.newfamilyEdu.assign.groupsHint')}</p>
 
-      {/* 학교로 가르기 — 단계와 **같은 종류의 가름**이라 조 갯수 옆이 아니라 그 아래에 둔다
-          (조 갯수는 한 조를 다시 쪼개는 수이고, 이것은 조를 하나 더 세우는 일이다). */}
-      {canSplitBySchool && (
-        <div className="mt-4">
-          <EduCheck
-            label={t('admin.newfamilyEdu.assign.bySchool')}
-            checked={bySchool}
-            disabled={busy}
-            onChange={setBySchool}
-          />
-          <p className="mt-1 text-[11px] leading-relaxed text-subtle">{t('admin.newfamilyEdu.assign.bySchoolHint')}</p>
-        </div>
-      )}
-
       {/* 누르기 전에 어떤 조가 생기는지 그대로 보여준다 — 단계마다 몇 조가 서고 조마다 몇 명이
           되는지까지. 무작위가 정하는 것은 누가 어디로 가느냐뿐이라 이 수는 그대로 맞는다. */}
       <ul className="mt-3 grid gap-1.5">
@@ -578,9 +556,9 @@ function EduDongsanDialog({
           <li className="rounded-xl bg-fill px-3 py-2 text-xs text-muted">{t('admin.newfamilyEdu.assign.none')}</li>
         ) : (
           plan.map((row) => (
-            <li key={`${row.group}/${row.school ?? '-'}/${row.stage}`} className="flex items-center gap-2 rounded-xl bg-fill px-3 py-2 text-xs text-text">
+            <li key={`${row.group}/${row.stage}`} className="flex items-center gap-2 rounded-xl bg-fill px-3 py-2 text-xs text-text">
               <Sprout className="size-3.5 shrink-0 text-subtle" aria-hidden />
-              <span className="font-semibold">{eduDongsanLabel(row.group, row.stage, 1, 1, row.school)}</span>
+              <span className="font-semibold">{[row.group, EDU_STAGE_NAMES[row.stage]].filter(Boolean).join(' ')}</span>
               <span className="ml-auto tabular-nums text-muted">
                 {t('admin.newfamilyEdu.assign.count', { n: row.total })}
                 {/* 한 조로 갈 때는 나눗셈을 적을 것이 없다 — 인원이 곧 그 조다. */}
@@ -601,7 +579,7 @@ function EduDongsanDialog({
         </Button>
         <Button
           disabled={busy || members.length === 0}
-          onClick={() => void send(planEduDongsan(members, count, Math.random, splitting), 'done')}
+          onClick={() => void send(planEduDongsan(members, count), 'done')}
         >
           <Sprout className="size-4" aria-hidden />
           {busy ? t('common.loading') : t('admin.newfamilyEdu.assign.run')}
@@ -739,7 +717,10 @@ function EduCard({
             </span>
           )}
         </div>
-        <div className="mt-0.5 text-xs text-muted">{[member.group_name, member.subgroup].filter(Boolean).join(' · ') || '—'}</div>
+        <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted">
+          <span>{[member.group_name, member.subgroup].filter(Boolean).join(' · ') || '—'}</span>
+          <SchoolMark member={member} />
+        </div>
         {/* 이번 주 교육 동산 — 배정하면 카드에서 바로 읽힌다 (조별 명단은 위 블록에 있다). */}
         {member.new_member_dongsan && (
           <div className="mt-1.5">
@@ -783,6 +764,21 @@ function EduCard({
         />
       </div>
     </li>
+  )
+}
+
+// 학교 마크 — CMU인지 Pitt인지를 카드에서 바로 읽는다. **적어 주기만 하고 가르지는 않는다**:
+// 교육 조를 나누는 것은 부서와 교육 단계이고(eduDongsan), 학교는 이 시스템의 칸이 아니라
+// `school_or_work`에 손으로 적힌 말에서 읽어낸 값이라(`schoolOf`) 조를 세울 근거로 쓰기에는
+// 늘 맞지 않는다. 못 읽으면 아무것도 붙이지 않는다 — '모름' 딱지는 알려주는 것이 없다.
+function SchoolMark({ member }: { member: Member }) {
+  const school = schoolOf(member)
+  if (!school) return null
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-fill px-1.5 py-0.5 text-[10px] font-semibold text-subtle">
+      <GraduationCap className="size-2.5" aria-hidden />
+      {SCHOOL_NAMES[school]}
+    </span>
   )
 }
 

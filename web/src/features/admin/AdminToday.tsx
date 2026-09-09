@@ -83,7 +83,7 @@ export function AdminToday() {
     }
   }
   const members = filterMembers(data.members, filter)
-  const log = filterLog(data.log, filter, data.members)
+  const log = filterLog(data.log, filter)
   const allTodays = todaysCheckins(log, today)
   // 종류 칩은 부서/동산 필터 **안에서** 다시 좁힌다. 칩에 적는 수도 그 안의 수라, 고른
   // 부서를 바꾸면 수도 같이 움직인다.

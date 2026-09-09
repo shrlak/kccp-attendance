@@ -8,10 +8,7 @@ import {
   genderOf,
   majorFieldOf,
   schoolOf,
-  NO_SCHOOL_NAME,
-  SCHOOL_NAMES,
   type MajorField,
-  type School,
 } from './eduDongsanTraits'
 
 // 새가족 교육 동산 — **교육 시간에 어느 조로 앉는가**. 실제 동산 편성(`members.subgroup`)과는
@@ -29,8 +26,7 @@ export interface EduAssignment {
 // 조 이름에 **부서와 교육 단계**가 함께 들어간다 (`대학부 미수강` · `청년부 2주차만`).
 // 조를 가르는 것이 단계이므로 번호보다 단계 이름이 그 조를 가리키는 말이다 — 명단을 받는
 // 사람이 "1동산이 어느 쪽이었지"를 되묻지 않는다. 한 단계를 둘 이상으로 쪼갤 때만 번호가
-// 붙는다 (`대학부 미수강 2`). 학교로도 가른 주에는 그 이름이 사이에 들어간다
-// (`대학부 CMU 미수강`) — 이름에 적힌 순서가 곧 가른 순서다.
+// 붙는다 (`대학부 미수강 2`).
 export const EDU_STAGE_NAMES: Record<EduStage, string> = {
   none: '미수강',
   week1: '1주차만',
@@ -38,14 +34,8 @@ export const EDU_STAGE_NAMES: Record<EduStage, string> = {
   both: '수강 완료',
 }
 
-// `school`은 **세 가지 뜻**을 갖는다: null이면 학교로 가르지 않은 것(이름에 안 들어간다),
-// 'cmu'/'pitt'이면 그 학교, ''이면 학교를 읽어낼 수 없는 사람들의 조다. 빈 칸도 자기 이름을
-// 가져야 한다 — 이름이 없으면 그 조가 무엇으로 묶인 조인지 명단만 보고는 알 수 없다.
-export function eduDongsanLabel(group: string, stage: EduStage, n = 1, of = 1, school: School | null = null): string {
-  const parts = [group]
-  if (school !== null) parts.push(school ? SCHOOL_NAMES[school] : NO_SCHOOL_NAME)
-  parts.push(EDU_STAGE_NAMES[stage])
-  const name = parts.filter(Boolean).join(' ')
+export function eduDongsanLabel(group: string, stage: EduStage, n = 1, of = 1): string {
+  const name = [group, EDU_STAGE_NAMES[stage]].filter(Boolean).join(' ')
   return of > 1 ? `${name} ${n}` : name
 }
 
@@ -73,35 +63,20 @@ export function bucketSizes(total: number, count: number): number[] {
 // 부서 안에서 다시 **교육 단계**로 가른 묶음 — 이 한 묶음이 조 하나다.
 export interface EduBucket {
   group: string
-  school: School | null // null = 학교로 가르지 않았다, '' = 학교 미기재
   stage: EduStage
   members: Member[]
 }
 
-// 학교로 가를 때의 순서 — CMU · Pitt · 학교 미기재. 빈 칸이 맨 뒤인 것은 그것이 학교가
-// 아니라 '아직 모른다'이기 때문이다.
-const SCHOOL_LANES: School[] = ['cmu', 'pitt', '']
-
 // 배정의 뼈대. 부서를 넘지 않고(대학부는 대학부끼리), 그 안에서 교육 단계를 넘지 않는다
 // (미수강인 사람과 2주차를 이미 들은 사람이 한 조에 섞이지 않는다). 순서는 부서 이름 →
-// (학교) → 단계 순(미수강 → 1주차만 → 2주차만 → 수강 완료)으로 고정한다 — 매주 같은
-// 자리에서 읽히도록.
-//
-// `bySchool`이면 부서와 단계 사이에 **학교**가 한 겹 더 들어간다 (CMU · Pitt · 학교 미기재).
-// 학교가 이 시스템의 칸이 아니라 `school_or_work`에 손으로 적힌 말에서 읽어낸 값이라
-// (`schoolOf`) 못 읽은 사람이 늘 있고, 그 사람들은 자기들끼리 한 조가 된다 — 빈 칸 때문에
-// 배정에서 빠지지 않는다는 규칙은 여기서도 같다.
-export function eduBuckets(members: Member[], bySchool = false): EduBucket[] {
+// 단계 순(미수강 → 1주차만 → 2주차만 → 수강 완료)으로 고정한다 — 매주 같은 자리에서
+// 읽히도록.
+export function eduBuckets(members: Member[]): EduBucket[] {
   const out: EduBucket[] = []
   for (const { group, members: list } of membersByGroup(members)) {
-    const lanes: { school: School | null; list: Member[] }[] = bySchool
-      ? SCHOOL_LANES.map((school) => ({ school, list: list.filter((m) => schoolOf(m) === school) }))
-      : [{ school: null, list }]
-    for (const lane of lanes) {
-      for (const stage of EDU_STAGES) {
-        const inStage = lane.list.filter((m) => eduStage(m) === stage)
-        if (inStage.length) out.push({ group, school: lane.school, stage, members: inStage })
-      }
+    for (const stage of EDU_STAGES) {
+      const inStage = list.filter((m) => eduStage(m) === stage)
+      if (inStage.length) out.push({ group, stage, members: inStage })
     }
   }
   return out
@@ -109,7 +84,6 @@ export function eduBuckets(members: Member[], bySchool = false): EduBucket[] {
 
 export interface EduDongsanPlanRow {
   group: string
-  school: School | null
   stage: EduStage
   total: number
   sizes: number[]
@@ -119,15 +93,14 @@ export interface EduDongsanPlanRow {
 
 // 배정 버튼을 누르기 전에 보여줄 미리보기 — 무작위가 섞는 것은 누가 어느 조에 가느냐뿐이고
 // 조마다 몇 명인지는 여기서 이미 정해진다. 어떤 기준으로 나뉘는지도 같이 적어 준다.
-export function eduDongsanPlan(members: Member[], count = 1, bySchool = false): EduDongsanPlanRow[] {
-  return eduBuckets(members, bySchool).map(({ group, school, stage, members: list }) => ({
+export function eduDongsanPlan(members: Member[], count = 1): EduDongsanPlanRow[] {
+  return eduBuckets(members).map(({ group, stage, members: list }) => ({
     group,
-    school,
     stage,
     total: list.length,
     sizes: bucketSizes(list.length, count),
-    rule: ruleForGroup(group, bySchool),
-    missing: missingTraits(list, ruleForGroup(group, bySchool)),
+    rule: ruleForGroup(group),
+    missing: missingTraits(list, ruleForGroup(group)),
   }))
 }
 
@@ -203,14 +176,8 @@ const RULES: Record<string, GroupRule> = {
   },
 }
 
-// 학교로 조를 이미 갈랐으면 조 안의 학교는 하나뿐이라 그 기준은 고를 것이 없어진다 —
-// 대학부의 'Pitt/CMU 반반'도, 청년부의 '같은 학교끼리'도 그 주에는 뜻이 없으므로 빼고 센다
-// (남겨 두면 화면이 '학교 정보 없음 n명'을 그 기준의 빈칸으로 계속 적어 준다).
-export function ruleForGroup(group: string, bySchool = false): GroupRule | null {
-  const rule = RULES[group] ?? null
-  if (!rule || !bySchool) return rule
-  const withoutSchool = (terms: Term[]) => terms.filter((x) => x.key !== 'school')
-  return { spread: withoutSchool(rule.spread), cluster: withoutSchool(rule.cluster) }
+export function ruleForGroup(group: string): GroupRule | null {
+  return RULES[group] ?? null
 }
 
 // 나이가 "비슷하다"고 보는 폭. 태어난 해가 이만큼 안에 들면 한 짝으로 센다 — 청년부는
@@ -324,17 +291,16 @@ export function assignEduDongsan(
   members: Member[],
   count = 1,
   rand: () => number = Math.random,
-  bySchool = false,
 ): EduAssignment[] {
   const n = Math.max(1, Math.floor(count))
   const out: EduAssignment[] = []
-  for (const { group, school, stage, members: list } of eduBuckets(members, bySchool)) {
+  for (const { group, stage, members: list } of eduBuckets(members)) {
     const sizes = bucketSizes(list.length, n).filter((size) => size > 0)
-    const rule = ruleForGroup(group, bySchool)
+    const rule = ruleForGroup(group)
     const groups = rule ? balancedGroups(list, sizes, rand, rule) : deal(shuffled(list, rand), sizes)
     groups.forEach((g, i) => {
       for (const m of g) {
-        out.push({ memberId: m.id, dongsan: eduDongsanLabel(group, stage, i + 1, groups.length, school) })
+        out.push({ memberId: m.id, dongsan: eduDongsanLabel(group, stage, i + 1, groups.length) })
       }
     })
   }

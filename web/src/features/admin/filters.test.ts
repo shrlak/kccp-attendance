@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { groupsOf, subgroupsOf, schoolsOf, filterMembers, filterLog } from './filters'
+import { groupsOf, subgroupsOf, schoolsOf, matchesSchool, filterMembers, filterLog } from './filters'
 import type { Member, LogEntry } from '../../lib/api'
 
 const m = (id: string, group: string, subgroup: string): Member => ({
@@ -44,8 +44,8 @@ describe('filterLog', () => {
   })
 })
 
-// ── 학교로 좁히기 ─────────────────────────────────────────────────────────────────────
-// 대학·청년부는 CMU와 Pitt이 섞여 있고, 그 값은 이미 '학교/직장 학과' 칸에 적혀 있다.
+// ── 학교 (멤버 탭) ────────────────────────────────────────────────────────────────────
+// 학교는 부서·동산 필터에 들어가지 않는다 — 명단을 학교로 갈라 보는 자리는 멤버 탭 하나다.
 const s = (id: string, group: string, schoolOrWork: string): Member => ({
   ...m(id, group, ''),
   school_or_work: schoolOrWork,
@@ -67,34 +67,15 @@ describe('schoolsOf', () => {
   })
 })
 
-describe('filterMembers — 학교', () => {
-  it('학교로 좁힌다', () => {
-    expect(filterMembers(schooled, { group: '', subgroup: '', school: 'cmu' }).map((x) => x.id)).toEqual(['c1', 'c2'])
-    expect(filterMembers(schooled, { group: '', subgroup: '', school: 'pitt' }).map((x) => x.id)).toEqual(['p1', 'p2'])
+describe('matchesSchool', () => {
+  it('학교로 가른다 — 한글로 적힌 이름도 같이', () => {
+    expect(schooled.filter((x) => matchesSchool(x, 'cmu')).map((x) => x.id)).toEqual(['c1', 'c2'])
+    expect(schooled.filter((x) => matchesSchool(x, 'pitt')).map((x) => x.id)).toEqual(['p1', 'p2'])
   })
   it('학교를 읽어낼 수 없는 사람도 자기 묶음이 있다 — 세 칩을 더하면 전체가 된다', () => {
-    expect(filterMembers(schooled, { group: '', subgroup: '', school: 'none' }).map((x) => x.id)).toEqual(['x1'])
+    expect(schooled.filter((x) => matchesSchool(x, 'none')).map((x) => x.id)).toEqual(['x1'])
   })
-  it('부서와 곱해진다 (대학부 × CMU)', () => {
-    expect(filterMembers(schooled, { group: '대학부', subgroup: '', school: 'cmu' }).map((x) => x.id)).toEqual(['c1'])
-  })
-})
-
-describe('filterLog — 학교', () => {
-  const withId = (memberId: string, name: string): LogEntry => ({ ...e('대학부', '', '2026-09-06'), memberId, name })
-  const log: LogEntry[] = [
-    withId('c1', '김씨엠'),
-    withId('p1', '김핏'),
-    { ...e('대학부', '', '2026-09-06'), name: 'p2' }, // memberId 없는 옛 줄 — 이름으로 되짚는다
-    { ...e('대학부', '', '2026-09-06'), name: '손님' }, // 멤버가 아닌 줄
-  ]
-  it('출석 줄에는 학교가 없으므로 명단으로 되짚는다 — 열쇠는 memberId', () => {
-    expect(filterLog(log, { group: '', subgroup: '', school: 'cmu' }, schooled).map((x) => x.name)).toEqual(['김씨엠'])
-  })
-  it('memberId가 없는 옛 줄만 이름으로 찾는다', () => {
-    expect(filterLog(log, { group: '', subgroup: '', school: 'pitt' }, schooled).map((x) => x.name)).toEqual(['김핏', 'p2'])
-  })
-  it('학교 칩이 꺼져 있으면 명단을 보지 않는다 — 손님 줄도 그대로 남는다', () => {
-    expect(filterLog(log, { group: '', subgroup: '' })).toHaveLength(4)
+  it('빈 값은 전체다', () => {
+    expect(schooled.every((x) => matchesSchool(x, ''))).toBe(true)
   })
 })

@@ -72,18 +72,15 @@ export function AdminSheet() {
   // `data.members` already has the 숨긴 멤버 taken out (useRoster), so every number and row
   // on this screen is about who is actually on the roster now.
   const members = filterMembers(data.members, filter)
-  // 학교로 좁힐 때 출석 줄이 누구의 것인지를 되짚을 명단 — **숨긴 멤버까지** 넣는다. 아카이브가
-  // 같은 log을 읽고, 이미 끝난 학기의 출석부에는 그때 있던 사람이 다 들어 있어야 한다.
-  const roster = [...data.members, ...data.hiddenMembers]
-  const fLog = filterLog(data.log, filter, roster)
+  const fLog = filterLog(data.log, filter)
   // 동산모임 출석 (구글 시트 연동이 들어오기 전에는 비어 있다). 예배 출석과 같은 필터를
   // 거쳐야 부서/동산을 좁혔을 때 두 값이 같은 사람들의 것으로 남는다.
-  const fDongsanLog = filterLog(data.dongsanLog ?? [], filter, roster)
+  const fDongsanLog = filterLog(data.dongsanLog ?? [], filter)
   const canBulk = data.role !== 'pastor'
   // 아카이브만은 숨긴 멤버까지 되돌려 넣는다: 이미 끝난 학기의 출석부는 그때 실제로 있던
   // 사람이 다 들어 있어야 하는 기록이고, 그 안에서 누구를 넣고 뺄지는 buildAttendanceModel의
   // 기간 규칙(awayForRange)이 학기별로 판단한다.
-  const archiveMembers = filterMembers(roster, filter)
+  const archiveMembers = filterMembers([...data.members, ...data.hiddenMembers], filter)
 
   return (
     <>

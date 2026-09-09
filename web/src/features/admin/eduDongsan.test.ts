@@ -11,7 +11,6 @@ import {
   groupByEduDongsan,
   membersByGroup,
 } from './eduDongsan'
-import { schoolOf } from './eduDongsanTraits'
 
 const m = (id: string, group: string, dongsan = ''): Member =>
   ({ id, name: id, group_name: group, subgroup: '', member_role: '', gender: '', phone: '',
@@ -418,60 +417,5 @@ describe('eduDongsan — 교육 단계가 조를 가른다', () => {
     expect(labels).toContain('대학부 미수강 2')
     expect(labels).toContain('대학부 1주차만')
     expect(labels).toContain('대학부 수강 완료')
-  })
-})
-
-// ── 학교로도 가르기 ───────────────────────────────────────────────────────────────────
-// 부서 → 학교 → 단계. 켜는 것은 배정 창의 체크 한 칸이고, 꺼져 있으면 예전과 똑같다.
-describe('eduDongsan — 학교로 가르기 (bySchool)', () => {
-  const at = (id: string, group: string, schoolOrWork: string, w1 = false, w2 = false): Member =>
-    ({ ...staged(id, group, w1, w2), school_or_work: schoolOrWork }) as Member
-  const people = [
-    at('씨1', '대학부', '대학생 · CMU Math'),
-    at('씨2', '대학부', '대학생 · 씨엠유 기계공학'),
-    at('핏1', '대학부', '대학생 · UPitt nursing'),
-    at('핏2', '대학부', '핏대 심리학'),
-    at('모름1', '대학부', ''),
-    at('씨3', '대학부', 'CMU - Design', true, false), // 다른 단계 — 학교가 같아도 섞이지 않는다
-  ]
-
-  it('조 이름에 학교가 들어간다 — 부서 · 학교 · 단계 순', () => {
-    const byId = new Map(assignEduDongsan(people, 1, seededRand(3), true).map((a) => [a.memberId, a.dongsan]))
-    expect(byId.get('씨1')).toBe('대학부 CMU 미수강')
-    expect(byId.get('핏1')).toBe('대학부 Pitt 미수강')
-    expect(byId.get('씨3')).toBe('대학부 CMU 1주차만')
-  })
-
-  it('학교를 읽어낼 수 없는 사람은 자기들끼리 한 조다 — 빈 칸 때문에 배정에서 빠지지 않는다', () => {
-    const byId = new Map(assignEduDongsan(people, 1, seededRand(3), true).map((a) => [a.memberId, a.dongsan]))
-    expect(byId.get('모름1')).toBe('대학부 학교 미기재 미수강')
-  })
-
-  it('한 조 안에는 한 학교뿐이다', () => {
-    for (const g of groupsOf(people, assignEduDongsan(people, 1, seededRand(11), true))) {
-      expect(new Set(g.map((p) => schoolOf(p))).size).toBe(1)
-    }
-  })
-
-  it('꺼져 있으면 예전 그대로 — 이름에도 조에도 학교가 없다', () => {
-    const labels = new Set(assignEduDongsan(people, 1, seededRand(3)).map((a) => a.dongsan))
-    expect(labels).toEqual(new Set(['대학부 미수강', '대학부 1주차만']))
-  })
-
-  it('미리보기가 곧 결과다 — 학교 한 겹이 더 들어간 줄', () => {
-    expect(eduDongsanPlan(people, 1, true).map((r) => [r.group, r.school, r.stage, r.total])).toEqual([
-      ['대학부', 'cmu', 'none', 2],
-      ['대학부', 'cmu', 'week1', 1],
-      ['대학부', 'pitt', 'none', 2],
-      ['대학부', '', 'none', 1],
-    ])
-  })
-
-  it('학교로 이미 갈랐으면 학교 기준은 빠진다 — 조 안의 학교는 하나뿐이라 고를 것이 없다', () => {
-    expect(ruleForGroup('대학부')!.spread.map((x) => x.key)).toEqual(['gender', 'school'])
-    expect(ruleForGroup('대학부', true)!.spread.map((x) => x.key)).toEqual(['gender'])
-    expect(ruleForGroup('청년부', true)!.cluster.map((x) => x.key)).not.toContain('school')
-    // 그 기준이 빠지면 '학교 정보 없음 n명'도 더는 적지 않는다.
-    expect(missingTraits(people, ruleForGroup('대학부', true)).map((x) => x.key)).not.toContain('school')
   })
 })
