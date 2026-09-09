@@ -29,6 +29,12 @@ describe('eduDongsanTraits — 학교 읽기', () => {
       expect(schoolOf(at(v))).toBe('pitt')
   })
 
+  // Duquesne — 피츠버그의 세 번째 학교. 영문 철자가 어려워 앞머리만 적거나 소리 나는 대로 적는다.
+  it('Duquesne도 읽는다', () => {
+    for (const v of ['대학생 · Duquesne nursing', 'Duq 약대', '듀케인 대학교 음악', '두케인'])
+      expect(schoolOf(at(v))).toBe('duq')
+  })
+
   it('학교가 없으면 모름 — 배정에서 빠지는 것이 아니라 균형 계산에서만 빠진다', () => {
     expect(schoolOf(at(''))).toBe('')
     expect(schoolOf(at('ballet'))).toBe('')
@@ -105,8 +111,7 @@ describe('eduDongsanTraits — 조의 구성', () => {
     expect(composition(people)).toEqual({
       male: 1,
       female: 1,
-      cmu: 1,
-      pitt: 1,
+      schools: [{ school: 'cmu', n: 1 }, { school: 'pitt', n: 1 }],
       fields: [
         { field: 'health', n: 1 },
         { field: 'math', n: 1 },

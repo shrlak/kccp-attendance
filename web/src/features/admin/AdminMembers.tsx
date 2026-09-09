@@ -7,9 +7,12 @@ import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
-import { Search, ListChecks, Merge as MergeIcon, Users, AlertTriangle, EyeOff, ChevronDown, GraduationCap, Trash2 } from '../../components/ui/Icon'
+import { Search, ListChecks, Merge as MergeIcon, Users, AlertTriangle, EyeOff, ChevronDown, GraduationCap, Briefcase, Trash2 } from '../../components/ui/Icon'
 import { mergeTargets, canMerge, mergeSummary, type MergeState } from './merge'
-import { groupsOf, schoolsOf, matchesSchool, type SchoolFilter } from './filters'
+import {
+  groupsOf, groupChipsOf, matchesGroup, careersOf, matchesCareer, schoolsOf, matchesSchool,
+  careerAxis, schoolAxis, NO_GROUP, type CareerFilter, type SchoolFilter,
+} from './filters'
 import { SCHOOL_NAMES } from './eduDongsanTraits'
 import { Pill } from './GroupFilter'
 import { summerDongsanList } from './dongsan'
@@ -39,9 +42,14 @@ export function AdminMembers() {
   const [attendanceFor, setAttendanceFor] = useState<Member | null>(null)
   const [merging, setMerging] = useState(false)
   const [search, setSearch] = useState('')
-  // 학교로 좁혀 보는 칩 (CMU · Pitt · 학교 미기재) — **이 탭에만 있다.** 명단을 학교로 갈라
-  // 보는 자리는 여기 하나이고, 출석부·통계·오늘이 세는 것은 그 주일에 누가 왔는가라 학교는
-  // 그 질문의 칸이 아니다.
+  // 부서로 좁혀 보는 칩 (대학부 · 청년부 …) — 아래 섹션 머리줄이 이미 부서를 가르고 있지만
+  // 그것은 **함께 놓고 보는** 자리라, 한 부서만 보려면 다른 부서를 지나 스크롤해야 했다.
+  const [group, setGroup] = useState('')
+  // 처지 칩 (대학원생 · 직장인 · 기타) — 청년부에서만 뜬다.
+  const [career, setCareer] = useState<CareerFilter>('')
+  // 학교로 좁혀 보는 칩 (CMU · Pitt · Duquesne · 기타) — **이 탭에만 있다.** 명단을 학교로
+  // 갈라 보는 자리는 여기 하나이고, 출석부·통계·오늘이 세는 것은 그 주일에 누가 왔는가라
+  // 학교는 그 질문의 칸이 아니다.
   const [school, setSchool] = useState<SchoolFilter>('')
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -71,9 +79,20 @@ export function AdminMembers() {
   // 이름 검색과 학교 칩은 곱해진다 — 둘 다 "지금 보고 싶은 사람"을 좁히는 같은 종류의 도구라
   // 세 목록(명단·숨긴 멤버·스태프)에 똑같이 걸린다.
   const byName = (list: Member[]) =>
-    (q ? list.filter((m) => m.name.toLowerCase().includes(q)) : list).filter((m) => matchesSchool(m, school))
-  // 칩은 **검색 전 명단**에서 뽑는다 — 검색어를 치는 동안 칩이 사라졌다 나타나면 고르지 못한다.
-  const schools = schoolsOf(data.members)
+    (q ? list.filter((m) => m.name.toLowerCase().includes(q)) : list)
+      .filter((m) => matchesGroup(m, group))
+      .filter((m) => matchesCareer(m, career))
+      .filter((m) => matchesSchool(m, school))
+  // 칩 줄은 **위 줄에서 고른 것 안에서** 뽑는다 — 청년부 대학원생의 학교 칩은 그 사람들의
+  // 학교여야 고른 뒤에 빈 화면이 나오지 않는다. 대신 위 줄을 고치면 아래 줄의 선택은
+  // **비운다** (`pickGroup`/`pickCareer`): 사라진 칩으로 계속 좁히고 있으면 화면이 왜
+  // 비었는지 알 수가 없다. 이름 검색만은 어느 줄에도 걸리지 않는다 — 검색어를 치는 동안
+  // 칩이 사라졌다 나타나면 고를 수가 없다.
+  const groupChips = groupChipsOf(data.members)
+  const inGroup = data.members.filter((m) => matchesGroup(m, group))
+  const careerChips = careerAxis(group) ? careersOf(inGroup) : []
+  const inCareer = inGroup.filter((m) => matchesCareer(m, career))
+  const schools = schoolAxis(group, career) ? schoolsOf(inCareer) : []
   const showSchools = schools.length > 1 && schools.some((s) => s !== 'none')
   // useRoster has already taken the 숨긴 멤버 out of `data.members` — they are off the roster
   // everywhere in the app, and this tab is the one place they still surface: the 숨긴 멤버
@@ -107,6 +126,19 @@ export function AdminMembers() {
     ...groupsOf(members).map((g) => ({ group: g, list: members.filter((m) => m.group_name === g) })),
     { group: '', list: members.filter((m) => !m.group_name) },
   ].filter((s) => s.list.length > 0)
+
+  // 위 줄을 고르면 아래 줄은 처음으로 돌아간다 (부서 → 처지 → 학교). 축이 부서마다 다르므로
+  // (청년부는 처지, 그 밖은 학교) 남겨 두면 청년부에서 고른 '대학원생'이 대학부에서도 계속
+  // 걸린 채로 남는다.
+  function pickGroup(g: string) {
+    setGroup(g)
+    setCareer('')
+    setSchool('')
+  }
+  function pickCareer(c: CareerFilter) {
+    setCareer(c)
+    setSchool('')
+  }
 
   function toggleSel(id: string) {
     setSelected((s) => {
@@ -223,11 +255,44 @@ export function AdminMembers() {
         </div>
       )}
       </div>
-      {/* 학교 칩 — 부서는 아래 섹션 머리줄이 이미 가르고 있으므로, 여기서 고르는 것은 그와
-          곱해지는 다른 가름이다 (대학부 섹션 안의 CMU). 고를 것이 없는 부(장년부)에서는
+      {/* 부서 칩 — 한 부서만 놓고 보는 자리다. 아래 섹션 머리줄은 부서를 가르되 **함께**
+          보여주므로, 대학부만 훑으려면 청년부를 지나 내려가야 했다. 부서가 하나뿐인
+          부(장년부)에서는 고를 것이 없으므로 줄 자체가 뜨지 않는다. */}
+      {groupChips.length > 1 && (
+        // 두 줄의 '전체'가 같은 말이라 어느 가름의 전체인지는 줄이 말해 준다 — 눈에는
+        // 아이콘이, 스크린리더에는 이 이름표가.
+        <div role="group" aria-label={t('admin.members.group')} className="mb-2.5 flex flex-wrap items-center gap-1.5">
+          <Users className="mr-0.5 size-3.5 shrink-0 text-subtle" aria-hidden />
+          <Pill active={!group} onClick={() => pickGroup('')}>
+            {t('admin.filter.all')}
+          </Pill>
+          {groupChips.map((g) => (
+            <Pill key={g} active={group === g} onClick={() => pickGroup(g)}>
+              {g === NO_GROUP ? t('admin.members.noGroup') : g}
+            </Pill>
+          ))}
+        </div>
+      )}
+      {/* 처지 칩 — 청년부의 가름이다. 그 부서는 대학원생과 직장인이 반씩이라 학교 하나로는
+          갈리지 않고, 직장인에게 학교는 지금 어디에 있는지를 말해 주지 않는다. */}
+      {careerChips.length > 1 && (
+        <div role="group" aria-label={t('admin.members.careerFilter')} className="mb-2.5 flex flex-wrap items-center gap-1.5">
+          <Briefcase className="mr-0.5 size-3.5 shrink-0 text-subtle" aria-hidden />
+          <Pill active={!career} onClick={() => pickCareer('')}>
+            {t('admin.filter.all')}
+          </Pill>
+          {careerChips.map((c) => (
+            <Pill key={c} active={career === c} onClick={() => pickCareer(c)}>
+              {t(`admin.members.career.${c}`)}
+            </Pill>
+          ))}
+        </div>
+      )}
+      {/* 학교 칩 — 위 줄과 곱해지는 다른 가름이다 (대학부 안의 CMU, 청년부 대학원생 안의
+          Pitt). 청년부에서는 대학원생을 고른 뒤에만 뜨고, 고를 것이 없는 부(장년부)에서는
           줄 자체가 뜨지 않는다. */}
       {showSchools && (
-        <div className="mb-4 flex flex-wrap items-center gap-1.5">
+        <div role="group" aria-label={t('admin.members.schoolFilter')} className="mb-4 flex flex-wrap items-center gap-1.5">
           <GraduationCap className="mr-0.5 size-3.5 shrink-0 text-subtle" aria-hidden />
           <Pill active={!school} onClick={() => setSchool('')}>
             {t('admin.filter.all')}

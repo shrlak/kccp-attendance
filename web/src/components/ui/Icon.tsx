@@ -14,4 +14,5 @@ export {
   User, UserCheck, UserX, Phone, Mail, Calendar, TrendingUp, TrendingDown, Sparkles, Info,
   ArrowLeft, ArrowRight, ArrowUpRight, Copy, Save, ListChecks, PieChart, Activity, Bell,
   Cake, Heart, Church, HandHeart, Merge, ScanLine, ImagePlus, Archive, ArrowLeftRight, Link,
+  Briefcase,
 } from 'lucide-react'

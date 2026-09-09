@@ -8,7 +8,9 @@ import {
   genderOf,
   majorFieldOf,
   schoolOf,
+  SCHOOL_ORDER,
   type MajorField,
+  type School,
 } from './eduDongsanTraits'
 
 // 새가족 교육 동산 — **교육 시간에 어느 조로 앉는가**. 실제 동산 편성(`members.subgroup`)과는
@@ -277,20 +279,35 @@ function alikeRatio(group: Member[], key: Criterion): number {
   return same / pairs
 }
 
-// 흩는 힘이 보는 어긋남 — 그 기준의 두 값이 조 안에서 얼마나 기울었는가 (0이면 반반).
-function deviation(group: Member[], key: Criterion): number {
-  const { male, female, cmu, pitt } = composition(group)
-  if (key === 'gender') return Math.abs(male - female)
-  if (key === 'school') return Math.abs(cmu - pitt)
+// 이 배정에 실제로 나온 학교들 — 흩는 힘이 **셀 칸**이다. 고른 사람들에게서 한 번만 뽑고
+// (`balancedGroups`), 조마다 다시 뽑지 않는다: 한 조에 CMU만 모여 있다고 해서 그 조가
+// '기울지 않았다'가 되면 안 되기 때문이다. 아무도 없는 학교는 칸이 아니다 — Duquesne이 한
+// 명도 없는 주에 그 0이 모든 조에 얹히면 힘의 크기가 학교 수에 따라 달라진다.
+function schoolAxes(list: Member[]): Exclude<School, ''>[] {
+  return SCHOOL_ORDER.filter((s) => list.some((m) => schoolOf(m) === s))
+}
+
+// 흩는 힘이 보는 어긋남 — 그 기준의 값들이 조 안에서 얼마나 기울었는가 (0이면 반반).
+// 학교는 이제 셋이라(CMU · Pitt · Duquesne) 두 값이던 시절의 |cmu − pitt|를 **가장 많은
+// 학교와 가장 적은 학교의 차**로 넓힌다 — 학교가 둘뿐인 주에는 예전과 똑같은 값이다.
+// 학교를 못 읽은 사람은 여기서 빠진다 (모름은 균형 계산에서만 빠진다).
+function deviation(group: Member[], key: Criterion, axes: Exclude<School, ''>[]): number {
+  const c = composition(group)
+  if (key === 'gender') return Math.abs(c.male - c.female)
+  if (key === 'school') {
+    if (axes.length < 2) return 0 // 학교가 한 가지뿐이면 흩을 것이 없다
+    const counts = axes.map((s) => c.schools.find((x) => x.school === s)?.n ?? 0)
+    return Math.max(...counts) - Math.min(...counts)
+  }
   return 0
 }
 
 // 한 조의 나쁨. 흩을 것은 기울수록 나쁘고(더한다), 모을 것은 닮을수록 좋다(뺀다).
 // |남−여|를 줄이는 것이 곧 "5:5에 최대한 가깝게"다 — 인원이 홀수이거나 고른 사람들의 성비
 // 자체가 기울어 있으면 그 기울기를 조마다 고르게 나눠 가진다.
-function groupCost(group: Member[], rule: GroupRule): number {
+function groupCost(group: Member[], rule: GroupRule, axes: Exclude<School, ''>[]): number {
   let cost = 0
-  for (const { key, weight } of rule.spread) cost += weight * deviation(group, key)
+  for (const { key, weight } of rule.spread) cost += weight * deviation(group, key, axes)
   for (const { key, weight } of rule.cluster) cost -= weight * alikeRatio(group, key)
   return cost
 }
@@ -305,9 +322,10 @@ const MAX_PASSES = 6 // 한 시작에서 맞바꾸기를 훑는 횟수의 상한
 function balancedGroups(list: Member[], sizes: number[], rand: () => number, rule: GroupRule): Member[][] {
   let best: Member[][] | null = null
   let bestCost = Infinity
+  const axes = schoolAxes(list)
   for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
     const groups = deal(shuffled(list, rand), sizes)
-    let cost = groups.reduce((sum, g) => sum + groupCost(g, rule), 0)
+    let cost = groups.reduce((sum, g) => sum + groupCost(g, rule, axes), 0)
     for (let pass = 0; pass < MAX_PASSES; pass++) {
       let improved = false
       for (let a = 0; a < groups.length; a++) {
@@ -315,9 +333,9 @@ function balancedGroups(list: Member[], sizes: number[], rand: () => number, rul
           for (let i = 0; i < groups[a].length; i++) {
             for (let j = 0; j < groups[b].length; j++) {
               // 맞바꾸기가 바꾸는 것은 두 조뿐이라, 그 둘만 다시 센다.
-              const before = groupCost(groups[a], rule) + groupCost(groups[b], rule)
+              const before = groupCost(groups[a], rule, axes) + groupCost(groups[b], rule, axes)
               ;[groups[a][i], groups[b][j]] = [groups[b][j], groups[a][i]]
-              const after = groupCost(groups[a], rule) + groupCost(groups[b], rule)
+              const after = groupCost(groups[a], rule, axes) + groupCost(groups[b], rule, axes)
               if (after < before) {
                 cost += after - before
                 improved = true
