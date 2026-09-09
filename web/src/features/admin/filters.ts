@@ -102,14 +102,21 @@ export function matchesCareer(m: Pick<Member, 'school_or_work'>, career: CareerF
 
 // **부서마다 명단을 가르는 축이 다르다** — 멤버 탭·새가족 탭의 칩 줄이 그 축을 따른다:
 //   대학부 · 그 밖 — 학교로 (CMU · Pitt · Duquesne · 기타). 다 학부생이라 학교가 곧 자리다.
-//   청년부 — 처지로 (대학원생 · 직장인 · 기타), 그리고 **대학원생만** 다시 학교로. 직장인에게
-//     학교는 지금 어디에 있는지를 말해 주지 않으므로 그 줄을 내걸면 고를 뜻이 없다.
+//   청년부 — 처지로 (대학원생 · 직장인 · 기타)**와 함께** 학교로. 대학원생을 고르면 학교 줄이
+//     그 사람들의 학교로 좁혀지므로, 청년부 대학원생을 CMU · Pitt으로 가르는 자리가 그 두 줄의
+//     곱이다.
+//
+// **직장인을 고른 동안에만 학교 줄을 내린다** — 그 사람에게 학교는 지금 어디에 있는지를 말해
+// 주지 않으므로 고를 뜻이 없다. 예전에는 청년부에서 **대학원생을 고르기 전까지** 이 줄이 아예
+// 없었는데, 전체 명단에서는 보이던 학교 줄이 청년부를 고르는 순간 사라져 **"청년부는 학교로
+// 못 가른다"로 읽혔다** (실제로는 한 번 더 눌러야 나오는 것이었다). 줄이 사라지는 것은 고를
+// 것이 없다는 뜻이어야 한다.
 export function careerAxis(group: string): boolean {
   return group === '청년부'
 }
 
 export function schoolAxis(group: string, career: CareerFilter): boolean {
-  return careerAxis(group) ? career === 'grad' : true
+  return careerAxis(group) ? career !== 'work' : true
 }
 
 export function filterMembers(members: Member[], f: Filter): Member[] {

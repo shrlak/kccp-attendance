@@ -106,19 +106,27 @@ describe('AdminNewFamily — 처지 · 학교 칩', () => {
     expect(screen.queryByText('정미상')).toBeNull()
   })
 
-  it('청년부는 처지로 갈리고, 대학원생 안에서만 학교 줄이 뜬다', async () => {
+  it('청년부는 처지와 학교 두 줄을 함께 내건다 — 직장인일 때만 학교가 내려간다', async () => {
     const { default: userEvent } = await import('@testing-library/user-event')
     await renderTab([
       school('대학씨엠', '대학생 · CMU Math'),
       school('청년원생', '대학원생 · 씨엠유 기계공학', '청년부'),
+      school('청년핏', '대학원생 · Pitt Nursing', '청년부'),
       school('청년직장', '직장인 · 발레댄서', '청년부'),
     ])
 
     await userEvent.click(screen.getByRole('button', { name: '청년부' }))
     expect(screen.getByRole('group', { name: '학생/직장' })).toBeInTheDocument()
-    expect(screen.queryByRole('group', { name: '학교' })).toBeNull()
+    expect(screen.getByRole('group', { name: '학교' })).toBeInTheDocument()
+
+    // 대학원생을 고르면 학교 칩이 그 사람들의 학교로 좁혀진다 — CMU와 Pitt.
+    await userEvent.click(screen.getByRole('button', { name: '대학원생' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Pitt' }))
+    expect(screen.getAllByText('청년핏').length).toBeGreaterThan(0)
+    expect(screen.queryByText('청년원생')).toBeNull()
 
     await userEvent.click(screen.getByRole('button', { name: '직장인' }))
+    expect(screen.queryByRole('group', { name: '학교' })).toBeNull()
     expect(screen.getAllByText('청년직장').length).toBeGreaterThan(0)
     expect(screen.queryByText('청년원생')).toBeNull()
 

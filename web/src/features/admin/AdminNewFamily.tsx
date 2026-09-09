@@ -36,9 +36,10 @@ export function AdminNewFamily() {
   const { data: cfg } = useAppConfig()
   const partition = usePartition()
   const [filter, setFilter] = useState<Filter>(NO_FILTER)
-  // 처지(청년부: 대학원생 · 직장인 · 기타) · 학교(대학부와 청년부 대학원생: CMU · Pitt ·
-  // Duquesne · 기타) — 멤버 탭과 **같은 칩 줄**이다 (TraitFilter). 새가족을 학교로 갈라
-  // 보는 일이 실제로 있다: 학교별 모임에 누구를 부를지가 이 명단에서 나온다.
+  // 처지(청년부: 대학원생 · 직장인 · 기타) · 학교(CMU · Pitt · Duquesne · 기타) — 멤버 탭과
+  // **같은 칩 줄**이다 (TraitFilter). 새가족을 학교로 갈라 보는 일이 실제로 있다: 학교별
+  // 모임에 누구를 부를지가 이 명단에서 나온다. 청년부에서는 두 줄이 곱해져 대학원생을
+  // 학교로 가른다 (직장인을 고른 동안에만 학교 줄이 내려간다).
   const [career, setCareer] = useState<CareerFilter>('')
   const [school, setSchool] = useState<SchoolFilter>('')
   const [editing, setEditing] = useState<Member | null>(null)

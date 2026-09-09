@@ -302,13 +302,14 @@ describe('AdminMembers — 부서마다 다른 축', () => {
     expect(screen.queryByRole('group', { name: '학생/직장' })).toBeNull()
   })
 
-  it('청년부는 처지로 먼저 갈리고, 대학원생 안에서만 학교 줄이 뜬다', async () => {
+  it('청년부는 처지와 학교 두 줄을 함께 내걸고, 대학원생을 고르면 학교가 그 사람들의 것으로 좁혀진다', async () => {
     rosterData.data = roster(people)
     renderWithProviders(<AdminMembers />)
     await userEvent.click(row('부서').getByRole('button', { name: '청년부' }))
-    // 처지 줄이 서고, 학교 줄은 아직 없다 (직장인에게 학교는 지금 어디인지를 말해 주지 않는다).
+    // 두 줄이 함께 선다 — 청년부를 고르는 순간 학교 줄이 사라지면 "이 부서는 학교로 못
+    // 가른다"로 읽힌다 (실제로는 한 번 더 눌러야 나오는 것이었다).
     expect(screen.getByRole('group', { name: '학생/직장' })).toBeInTheDocument()
-    expect(screen.queryByRole('group', { name: '학교' })).toBeNull()
+    expect(screen.getByRole('group', { name: '학교' })).toBeInTheDocument()
 
     await userEvent.click(row('학생/직장').getByRole('button', { name: '대학원생' }))
     expect(screen.queryByText('청년직장')).toBeNull()
