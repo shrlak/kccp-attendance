@@ -300,7 +300,7 @@ describe('AdminNewFamilyEdu — 조 갯수와 사람 옮기기', () => {
     { ...member('m3', '마바'), group_name: '청년부', new_member_dongsan: '3조' },
   ]
 
-  it('한 단계를 몇 조로 나눌지 고르면 미리보기가 그만큼 갈린다', async () => {
+  it('조 갯수를 고르면 미리보기가 그만큼 갈린다', async () => {
     const { default: userEvent } = await import('@testing-library/user-event')
     renderAs('super_admin', [
       { ...member('a', '하나'), group_name: '대학부' },
@@ -314,8 +314,32 @@ describe('AdminNewFamilyEdu — 조 갯수와 사람 옮기기', () => {
     // 기본값 1 — 단계 하나가 곧 조 하나라 나눗셈을 적을 것이 없다 (인원이 곧 그 조다).
     expect(screen.getByText(/4명\s*→\s*1조$/)).toBeInTheDocument()
 
-    fireEvent.change(screen.getByLabelText('한 단계를 몇 조로'), { target: { value: '2' } })
+    // 한 묶음(대학부 미수강)뿐이라 적은 수가 곧 그 묶음의 조 수다.
+    expect(screen.getByText(/1~4조로 나눌 수 있습니다/)).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('조 갯수'), { target: { value: '2' } })
     expect(screen.getByText(/4명\s*→\s*1조 2 · 2조 2/)).toBeInTheDocument()
+  })
+
+  it('묶음보다 적게 적으면 칸이 최소 조 갯수로 당겨진다', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event')
+    renderAs('super_admin', [
+      { ...member('a', '대학하나'), group_name: '대학부' },
+      { ...member('b', '대학둘'), group_name: '대학부' },
+      { ...member('c', '청년하나'), group_name: '청년부' },
+      { ...member('d', '청년둘'), group_name: '청년부' },
+    ])
+
+    await userEvent.click(screen.getByRole('button', { name: '전체 선택' }))
+    await userEvent.click(screen.getByRole('button', { name: '동산 배정' }))
+    const input = screen.getByLabelText('조 갯수') as HTMLInputElement
+    // 두 부서 = 두 묶음이라 1조로는 나눌 수 없다 — 칸에도 당겨진 값이 그대로 보인다.
+    fireEvent.change(input, { target: { value: '1' } })
+    expect(input.value).toBe('2')
+    expect(screen.getByText(/2~4조로 나눌 수 있습니다/)).toBeInTheDocument()
+    // 인원보다 많이 적어도 마찬가지 — 한 조에 한 명씩이 끝이다.
+    fireEvent.change(input, { target: { value: '9' } })
+    expect(input.value).toBe('4')
   })
 
   it('이름을 누르면 같은 부서의 다른 조로만 옮길 수 있다', async () => {
