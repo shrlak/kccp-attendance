@@ -26,7 +26,7 @@ import {
   type EduAssignment,
   type EduDongsanGroup,
 } from './eduDongsan'
-import { composition } from './eduDongsanTraits'
+import { composition, schoolOf, SCHOOL_NAMES } from './eduDongsanTraits'
 import { presentToday, cameToday } from './today'
 import { GroupFilter, Pill } from './GroupFilter'
 import { assignEduDongsan, clearAllEduDongsan, configCalendar, updateMember, type Member } from '../../lib/api'
@@ -717,7 +717,10 @@ function EduCard({
             </span>
           )}
         </div>
-        <div className="mt-0.5 text-xs text-muted">{[member.group_name, member.subgroup].filter(Boolean).join(' · ') || '—'}</div>
+        <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted">
+          <span>{[member.group_name, member.subgroup].filter(Boolean).join(' · ') || '—'}</span>
+          <SchoolMark member={member} />
+        </div>
         {/* 이번 주 교육 동산 — 배정하면 카드에서 바로 읽힌다 (조별 명단은 위 블록에 있다). */}
         {member.new_member_dongsan && (
           <div className="mt-1.5">
@@ -761,6 +764,21 @@ function EduCard({
         />
       </div>
     </li>
+  )
+}
+
+// 학교 마크 — CMU인지 Pitt인지를 카드에서 바로 읽는다. **적어 주기만 하고 가르지는 않는다**:
+// 교육 조를 나누는 것은 부서와 교육 단계이고(eduDongsan), 학교는 이 시스템의 칸이 아니라
+// `school_or_work`에 손으로 적힌 말에서 읽어낸 값이라(`schoolOf`) 조를 세울 근거로 쓰기에는
+// 늘 맞지 않는다. 못 읽으면 아무것도 붙이지 않는다 — '모름' 딱지는 알려주는 것이 없다.
+function SchoolMark({ member }: { member: Member }) {
+  const school = schoolOf(member)
+  if (!school) return null
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-fill px-1.5 py-0.5 text-[10px] font-semibold text-subtle">
+      <GraduationCap className="size-2.5" aria-hidden />
+      {SCHOOL_NAMES[school]}
+    </span>
   )
 }
 

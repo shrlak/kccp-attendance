@@ -241,3 +241,39 @@ describe('AdminMembers — 여러 명 삭제', () => {
     expect(await screen.findByText('2명이 삭제되었습니다')).toBeInTheDocument()
   })
 })
+
+// 학교 칩 — **이 탭에만 있다.** 명단을 CMU/Pitt으로 갈라 보는 자리는 멤버 탭 하나이고,
+// 출석부·통계·오늘에는 이 줄이 없다 (그쪽이 세는 것은 그 주일에 누가 왔는가다).
+describe('AdminMembers — 학교 칩', () => {
+  const people = [
+    member('c1', '김씨엠', { school_or_work: '대학생 · CMU Math' }),
+    member('c2', '이씨엠', { group_name: '청년부', school_or_work: '대학원생 · 씨엠유 기계공학' }),
+    member('p1', '박핏', { school_or_work: '대학생 · UPitt nursing' }),
+    member('x1', '정미상', { school_or_work: '' }),
+  ]
+
+  it('CMU를 고르면 그 학교 사람만 남는다 — 한글로 적힌 이름도 같이', async () => {
+    rosterData.data = roster(people)
+    renderWithProviders(<AdminMembers />)
+    await userEvent.click(screen.getByRole('button', { name: 'CMU' }))
+    expect(screen.getByText('김씨엠')).toBeInTheDocument()
+    expect(screen.getByText('이씨엠')).toBeInTheDocument()
+    expect(screen.queryByText('박핏')).toBeNull()
+    expect(screen.queryByText('정미상')).toBeNull()
+  })
+
+  it('학교를 읽어낼 수 없는 사람도 자기 칩이 있다 — 세 칩을 더하면 전체가 된다', async () => {
+    rosterData.data = roster(people)
+    renderWithProviders(<AdminMembers />)
+    await userEvent.click(screen.getByRole('button', { name: '학교 미기재' }))
+    expect(screen.getByText('정미상')).toBeInTheDocument()
+    expect(screen.queryByText('김씨엠')).toBeNull()
+  })
+
+  it('아무도 학교를 적지 않은 부에서는 칩 줄이 없다 (장년부)', () => {
+    rosterData.data = roster([member('a', '김장년', { group_name: '장년부', school_or_work: '' })])
+    renderWithProviders(<AdminMembers />)
+    expect(screen.queryByRole('button', { name: 'CMU' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '학교 미기재' })).toBeNull()
+  })
+})

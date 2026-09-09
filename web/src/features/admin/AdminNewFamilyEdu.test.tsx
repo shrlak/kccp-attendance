@@ -346,3 +346,31 @@ describe('AdminNewFamilyEdu — 조 갯수와 사람 옮기기', () => {
     expect(screen.queryByRole('button', { name: '가나' })).not.toBeInTheDocument()
   })
 })
+
+// 학교는 **적어 주기만 한다** — 카드에 CMU/Pitt 마크가 붙지만 조를 가르지는 않는다
+// (조를 가르는 것은 부서와 교육 단계뿐이다).
+describe('AdminNewFamilyEdu — 학교 마크', () => {
+  it('카드에 CMU · Pitt을 적어 준다 — 한글로 적힌 이름도 읽는다', () => {
+    renderAs('super_admin', [
+      { ...member('m1', '김씨엠'), school_or_work: '대학생 · CMU Math' },
+      { ...member('m2', '박핏'), school_or_work: '핏대 심리학' },
+    ])
+    expect(screen.getByText('CMU')).toBeInTheDocument()
+    expect(screen.getByText('Pitt')).toBeInTheDocument()
+  })
+
+  it('학교를 읽어낼 수 없으면 아무것도 붙이지 않는다 — 모름 딱지는 알려주는 것이 없다', () => {
+    renderAs('super_admin', [{ ...member('m1', '정미상'), school_or_work: 'ballet' }])
+    expect(screen.queryByText('CMU')).toBeNull()
+    expect(screen.queryByText('Pitt')).toBeNull()
+  })
+
+  it('배정 창에는 학교로 가르는 칸이 없다 — 조는 부서와 단계로만 갈린다', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event')
+    renderAs('super_admin', [{ ...member('m1', '김씨엠'), school_or_work: '대학생 · CMU Math' }])
+    await userEvent.click(screen.getByRole('button', { name: '김씨엠 선택' }))
+    await userEvent.click(screen.getByRole('button', { name: '동산 배정' }))
+    expect(screen.queryByText(/학교로도 나누기/)).toBeNull()
+    expect(screen.getByText('청년부 미수강')).toBeInTheDocument()
+  })
+})
