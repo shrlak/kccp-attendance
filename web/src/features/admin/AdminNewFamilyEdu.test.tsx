@@ -228,16 +228,18 @@ describe('AdminNewFamilyEdu — 새가족 교육 동산 배정', () => {
     await userEvent.click(screen.getByRole('button', { name: '청년하나 선택' }))
 
     await userEvent.click(screen.getByRole('button', { name: '동산 배정' }))
-    // 미리보기가 곧 결과다 — 부서 × 교육 단계 한 줄이 조 하나. 셋 다 미수강이므로 두 줄.
-    expect(screen.getByText('대학부 미수강')).toBeInTheDocument()
-    expect(screen.getByText('청년부 미수강')).toBeInTheDocument()
+    // 미리보기가 곧 결과다 — 부서 한 줄씩 (조를 가르는 경계는 부서뿐이다).
+    // 부서 이름은 위쪽 필터 칩에도 있으므로 창 안에서 찾는다.
+    const dialog = within(screen.getByRole('dialog'))
+    expect(dialog.getByText('대학부')).toBeInTheDocument()
+    expect(dialog.getByText('청년부')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: '무작위 배정' }))
 
     const sent = apiMocks.assignEduDongsan.mock.calls.at(-1)![0] as { memberId: string; dongsan: string }[]
     const byId = new Map(sent.map((a) => [a.memberId, a.dongsan]))
     expect([...byId.keys()].sort()).toEqual(['m1', 'm2', 'm3']) // 고르지 않은 청년둘은 빠진다
-    // 부서를 넘지 않고, 같은 부서·같은 단계면 한 조다. 이름은 번호이고 번호는 배정 전체에서
-    // 이어진다 — 대학부 미수강이 1조, 청년부 미수강이 2조.
+    // 부서를 넘지 않는다. 이름은 번호이고 번호는 배정 전체에서 이어진다 — 대학부가 1조,
+    // 청년부가 2조.
     expect(byId.get('m1')).toBe('1조')
     expect(byId.get('m2')).toBe('1조')
     expect(byId.get('m3')).toBe('2조')
@@ -311,10 +313,10 @@ describe('AdminNewFamilyEdu — 조 갯수와 사람 옮기기', () => {
 
     await userEvent.click(screen.getByRole('button', { name: '전체 선택' }))
     await userEvent.click(screen.getByRole('button', { name: '동산 배정' }))
-    // 기본값 1 — 단계 하나가 곧 조 하나라 나눗셈을 적을 것이 없다 (인원이 곧 그 조다).
+    // 기본값 1 — 부서 하나가 곧 조 하나라 나눗셈을 적을 것이 없다 (인원이 곧 그 조다).
     expect(screen.getByText(/4명\s*→\s*1조$/)).toBeInTheDocument()
 
-    // 한 묶음(대학부 미수강)뿐이라 적은 수가 곧 그 묶음의 조 수다.
+    // 한 부서(대학부)뿐이라 적은 수가 곧 그 부서의 조 수다.
     expect(screen.getByText(/1~4조로 나눌 수 있습니다/)).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('조 갯수'), { target: { value: '2' } })
@@ -391,12 +393,12 @@ describe('AdminNewFamilyEdu — 학교 마크', () => {
     expect(screen.queryByText('Pitt')).toBeNull()
   })
 
-  it('배정 창에는 학교로 가르는 칸이 없다 — 조는 부서와 단계로만 갈린다', async () => {
+  it('배정 창에는 학교로 가르는 칸이 없다 — 조를 가르는 경계는 부서뿐이다', async () => {
     const { default: userEvent } = await import('@testing-library/user-event')
     renderAs('super_admin', [{ ...member('m1', '김씨엠'), school_or_work: '대학생 · CMU Math' }])
     await userEvent.click(screen.getByRole('button', { name: '김씨엠 선택' }))
     await userEvent.click(screen.getByRole('button', { name: '동산 배정' }))
     expect(screen.queryByText(/학교로도 나누기/)).toBeNull()
-    expect(screen.getByText('청년부 미수강')).toBeInTheDocument()
+    expect(within(screen.getByRole('dialog')).getByText('청년부')).toBeInTheDocument()
   })
 })
