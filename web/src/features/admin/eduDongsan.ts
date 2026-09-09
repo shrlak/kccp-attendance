@@ -16,27 +16,21 @@ import {
 // 않고, 학기 종료 롤오버도 이 값을 보지 않는다. 매주 다시 배정하는 것이 전제다.
 //
 // **부서를 넘지 않는다**: 대학부는 대학부끼리, 청년부는 청년부끼리 나눈다. 교육을 부서별로
-// 하기 때문이고, 그래서 조 이름에도 부서가 붙는다 — "1동산"만 적으면 두 부서의 1동산이 같은
-// 이름을 갖게 되어 명단을 읽는 사람이 어느 쪽인지 알 수 없다.
+// 하기 때문이다.
 export interface EduAssignment {
   memberId: string
   dongsan: string // "" = 배정 해제
 }
 
-// 조 이름에 **부서와 교육 단계**가 함께 들어간다 (`대학부 미수강` · `청년부 2주차만`).
-// 조를 가르는 것이 단계이므로 번호보다 단계 이름이 그 조를 가리키는 말이다 — 명단을 받는
-// 사람이 "1동산이 어느 쪽이었지"를 되묻지 않는다. 한 단계를 둘 이상으로 쪼갤 때만 번호가
-// 붙는다 (`대학부 미수강 2`).
-export const EDU_STAGE_NAMES: Record<EduStage, string> = {
-  none: '미수강',
-  week1: '1주차만',
-  week2: '2주차만',
-  both: '수강 완료',
-}
-
-export function eduDongsanLabel(group: string, stage: EduStage, n = 1, of = 1): string {
-  const name = [group, EDU_STAGE_NAMES[stage]].filter(Boolean).join(' ')
-  return of > 1 ? `${name} ${n}` : name
+// **조 이름은 번호다** (`1조` · `2조` …). 교육 시간에 부르는 말이 그것이라 이름도 그것이고,
+// 조가 어느 부서 어느 단계인지는 그 조에 앉은 사람들이 이미 말해 준다 (화면이 조 카드 밑에
+// 적어 준다). 번호는 **배정 전체에서 한 줄로 이어진다** — 부서마다 1조부터 다시 세면 두
+// 부서의 `1조`가 같은 이름이 되어 한 조로 합쳐진다 (이름이 곧 조의 열쇠다).
+//
+// 저장되는 값이라 화면 언어와 무관하게 한글 하나로 둔다 — 빈 이름을 채우는 자리표
+// (`이름 미기재 …`)와 같은 이유다.
+export function eduDongsanLabel(n: number): string {
+  return `${n}조`
 }
 
 // 부서별 묶음 (부서 이름순, 부서가 빈 사람은 자기들끼리 한 묶음).
@@ -82,23 +76,43 @@ export function eduBuckets(members: Member[]): EduBucket[] {
   return out
 }
 
+export interface EduBucketPlan extends EduBucket {
+  sizes: number[] // 이 묶음이 갈릴 조들의 인원 (0명짜리는 없다)
+  names: string[] // 그 조들의 이름 — `sizes`와 같은 자리
+}
+
+// **번호를 매기는 자리는 여기 하나다.** 미리보기와 실제 배정이 같은 함수를 걸어야 창에서 본
+// `1조`가 배정된 `1조`와 같은 조가 된다 — 두 곳에서 따로 세면 부서 순서가 조금만 달라져도
+// 이름이 어긋난다. 번호는 묶음을 넘어 이어진다 (부서마다 다시 세지 않는다).
+export function eduBucketPlans(members: Member[], count = 1): EduBucketPlan[] {
+  const n = Math.max(1, Math.floor(count))
+  let next = 1
+  return eduBuckets(members).map((bucket) => {
+    const sizes = bucketSizes(bucket.members.length, n).filter((size) => size > 0)
+    return { ...bucket, sizes, names: sizes.map(() => eduDongsanLabel(next++)) }
+  })
+}
+
 export interface EduDongsanPlanRow {
   group: string
   stage: EduStage
   total: number
   sizes: number[]
+  names: string[] // 이 묶음이 받게 될 조 이름 (`1조` · `2조`)
   rule: GroupRule | null // 이 부서에 걸리는 기준 (없으면 무작위)
   missing: { key: Criterion; n: number }[] // 그 기준으로 셀 수 없는 사람 수
 }
 
 // 배정 버튼을 누르기 전에 보여줄 미리보기 — 무작위가 섞는 것은 누가 어느 조에 가느냐뿐이고
-// 조마다 몇 명인지는 여기서 이미 정해진다. 어떤 기준으로 나뉘는지도 같이 적어 준다.
+// 조마다 몇 명인지, 그 조가 몇 조인지는 여기서 이미 정해진다. 어떤 기준으로 나뉘는지도 같이
+// 적어 준다.
 export function eduDongsanPlan(members: Member[], count = 1): EduDongsanPlanRow[] {
-  return eduBuckets(members).map(({ group, stage, members: list }) => ({
+  return eduBucketPlans(members, count).map(({ group, stage, members: list, sizes, names }) => ({
     group,
     stage,
     total: list.length,
-    sizes: bucketSizes(list.length, count),
+    sizes,
+    names,
     rule: ruleForGroup(group),
     missing: missingTraits(list, ruleForGroup(group)),
   }))
@@ -292,16 +306,12 @@ export function assignEduDongsan(
   count = 1,
   rand: () => number = Math.random,
 ): EduAssignment[] {
-  const n = Math.max(1, Math.floor(count))
   const out: EduAssignment[] = []
-  for (const { group, stage, members: list } of eduBuckets(members)) {
-    const sizes = bucketSizes(list.length, n).filter((size) => size > 0)
+  for (const { group, members: list, sizes, names } of eduBucketPlans(members, count)) {
     const rule = ruleForGroup(group)
     const groups = rule ? balancedGroups(list, sizes, rand, rule) : deal(shuffled(list, rand), sizes)
     groups.forEach((g, i) => {
-      for (const m of g) {
-        out.push({ memberId: m.id, dongsan: eduDongsanLabel(group, stage, i + 1, groups.length) })
-      }
+      for (const m of g) out.push({ memberId: m.id, dongsan: names[i] })
     })
   }
   return out
@@ -330,7 +340,7 @@ export interface EduDongsanGroup {
 }
 
 // 배정된 사람들을 조별로 묶어 돌려준다 — 배정 결과를 한자리에서 읽는 자리. 카드에 붙은
-// 배지만으로는 "1동산이 누구누구인지"를 알려면 화면을 훑어야 한다.
+// 배지만으로는 "1조가 누구누구인지"를 알려면 화면을 훑어야 한다.
 export function groupByEduDongsan(members: Member[]): EduDongsanGroup[] {
   const byName = new Map<string, Member[]>()
   for (const m of members) {
@@ -342,7 +352,7 @@ export function groupByEduDongsan(members: Member[]): EduDongsanGroup[] {
   }
   return [...byName.entries()]
     .map(([name, list]) => ({ name, members: [...list].sort((a, b) => a.name.localeCompare(b.name)) }))
-    // 이름 안의 숫자로 정렬한다 — 글자만으로 세우면 10동산이 2동산 앞에 온다.
+    // 이름 안의 숫자로 정렬한다 — 글자만으로 세우면 10조가 2조 앞에 온다.
     .sort((a, b) => {
       const pa = splitLabel(a.name)
       const pb = splitLabel(b.name)
