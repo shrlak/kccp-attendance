@@ -588,11 +588,9 @@ function EduDongsanDialog({
           <li className="rounded-xl bg-fill px-3 py-2 text-xs text-muted">{t('admin.newfamilyEdu.assign.none')}</li>
         ) : (
           plan.map((row) => (
-            <li key={`${row.group}/${row.stage}`} className="flex items-center gap-2 rounded-xl bg-fill px-3 py-2 text-xs text-text">
+            <li key={row.group} className="flex items-center gap-2 rounded-xl bg-fill px-3 py-2 text-xs text-text">
               <Sprout className="size-3.5 shrink-0 text-subtle" aria-hidden />
-              <span className="font-semibold">
-                {[row.group, t(`admin.newfamily.eduFilter.${row.stage}`)].filter(Boolean).join(' ')}
-              </span>
+              <span className="font-semibold">{row.group || t('admin.newfamilyEdu.assign.noGroup')}</span>
               <span className="ml-auto tabular-nums text-muted">
                 {t('admin.newfamilyEdu.assign.count', { n: row.total })}
                 {/* 어느 묶음이 몇 조가 되는지까지 적는다 — 이름이 번호뿐이라 창을 닫고 나면
