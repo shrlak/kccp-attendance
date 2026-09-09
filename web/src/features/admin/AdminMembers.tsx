@@ -7,14 +7,14 @@ import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
-import { Search, ListChecks, Merge as MergeIcon, Users, AlertTriangle, EyeOff, ChevronDown, GraduationCap, Briefcase, Trash2 } from '../../components/ui/Icon'
+import { Search, ListChecks, Merge as MergeIcon, Users, AlertTriangle, EyeOff, ChevronDown, Trash2 } from '../../components/ui/Icon'
 import { mergeTargets, canMerge, mergeSummary, type MergeState } from './merge'
 import {
-  groupsOf, groupChipsOf, matchesGroup, careersOf, matchesCareer, schoolsOf, matchesSchool,
-  careerAxis, schoolAxis, NO_GROUP, type CareerFilter, type SchoolFilter,
+  groupsOf, groupChipsOf, matchesGroup, matchesCareer, matchesSchool,
+  NO_GROUP, type CareerFilter, type SchoolFilter,
 } from './filters'
-import { SCHOOL_NAMES } from './eduDongsanTraits'
 import { Pill } from './GroupFilter'
+import { TraitFilter } from './TraitFilter'
 import { summerDongsanList } from './dongsan'
 import { newFamilyWeek } from './newFamily'
 import { NewFamilyWeekChip } from './NewFamilyWeekChip'
@@ -90,10 +90,6 @@ export function AdminMembers() {
   // 칩이 사라졌다 나타나면 고를 수가 없다.
   const groupChips = groupChipsOf(data.members)
   const inGroup = data.members.filter((m) => matchesGroup(m, group))
-  const careerChips = careerAxis(group) ? careersOf(inGroup) : []
-  const inCareer = inGroup.filter((m) => matchesCareer(m, career))
-  const schools = schoolAxis(group, career) ? schoolsOf(inCareer) : []
-  const showSchools = schools.length > 1 && schools.some((s) => s !== 'none')
   // useRoster has already taken the 숨긴 멤버 out of `data.members` — they are off the roster
   // everywhere in the app, and this tab is the one place they still surface: the 숨긴 멤버
   // section at the bottom. 지워진 게 아니라 접혀 있을 뿐이라, 카드를 눌러 표기를 풀거나
@@ -273,37 +269,9 @@ export function AdminMembers() {
           ))}
         </div>
       )}
-      {/* 처지 칩 — 청년부의 가름이다. 그 부서는 대학원생과 직장인이 반씩이라 학교 하나로는
-          갈리지 않고, 직장인에게 학교는 지금 어디에 있는지를 말해 주지 않는다. */}
-      {careerChips.length > 1 && (
-        <div role="group" aria-label={t('admin.members.careerFilter')} className="mb-2.5 flex flex-wrap items-center gap-1.5">
-          <Briefcase className="mr-0.5 size-3.5 shrink-0 text-subtle" aria-hidden />
-          <Pill active={!career} onClick={() => pickCareer('')}>
-            {t('admin.filter.all')}
-          </Pill>
-          {careerChips.map((c) => (
-            <Pill key={c} active={career === c} onClick={() => pickCareer(c)}>
-              {t(`admin.members.career.${c}`)}
-            </Pill>
-          ))}
-        </div>
-      )}
-      {/* 학교 칩 — 위 줄과 곱해지는 다른 가름이다 (대학부 안의 CMU, 청년부 대학원생 안의
-          Pitt). 청년부에서는 대학원생을 고른 뒤에만 뜨고, 고를 것이 없는 부(장년부)에서는
-          줄 자체가 뜨지 않는다. */}
-      {showSchools && (
-        <div role="group" aria-label={t('admin.members.schoolFilter')} className="mb-4 flex flex-wrap items-center gap-1.5">
-          <GraduationCap className="mr-0.5 size-3.5 shrink-0 text-subtle" aria-hidden />
-          <Pill active={!school} onClick={() => setSchool('')}>
-            {t('admin.filter.all')}
-          </Pill>
-          {schools.map((s) => (
-            <Pill key={s} active={school === s} onClick={() => setSchool(s)}>
-              {s === 'none' ? t('admin.members.school.none') : SCHOOL_NAMES[s]}
-            </Pill>
-          ))}
-        </div>
-      )}
+      {/* 처지 · 학교 줄 — 새가족 탭과 **같은 컴포넌트**다 (TraitFilter). 두 탭이 같은 명단을
+          다르게 가르면 '대학부 CMU'가 탭마다 다른 사람들을 뜻하게 된다. */}
+      <TraitFilter members={inGroup} group={group} career={career} school={school} onCareer={pickCareer} onSchool={setSchool} />
       {!selectMode && (
         <div className="mb-4 flex items-center gap-2 section-kicker">
           <Users className="size-4 text-subtle" aria-hidden />

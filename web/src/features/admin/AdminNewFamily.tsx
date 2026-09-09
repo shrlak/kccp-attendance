@@ -2,13 +2,14 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useRoster } from './useRoster'
 import { easternNow } from '../../lib/checkinWindow'
-import { filterMembers, NO_FILTER, type Filter } from './filters'
+import { filterMembers, matchesCareer, matchesSchool, NO_FILTER, type CareerFilter, type Filter, type SchoolFilter } from './filters'
 import { semesterKey, newFamilyBySemester, monthlyRegistrations, newFamilyWeek } from './newFamily'
 import { NewFamilyWeekChip } from './NewFamilyWeekChip'
 import { copyNewFamilyCards, saveNewFamilyCards } from './newFamilyCardImage'
 import { applyFontSize, newFamilySheets, newFamilyHeader } from './exports'
 import { toggleId } from './bulk'
 import { GroupFilter } from './GroupFilter'
+import { TraitFilter } from './TraitFilter'
 import { configCalendar, type Member } from '../../lib/api'
 import { seasonName, usesSemesters, type Season } from '../../lib/partition'
 import { Dialog } from '../../components/ui/Dialog'
@@ -35,6 +36,11 @@ export function AdminNewFamily() {
   const { data: cfg } = useAppConfig()
   const partition = usePartition()
   const [filter, setFilter] = useState<Filter>(NO_FILTER)
+  // 처지(청년부: 대학원생 · 직장인 · 기타) · 학교(대학부와 청년부 대학원생: CMU · Pitt ·
+  // Duquesne · 기타) — 멤버 탭과 **같은 칩 줄**이다 (TraitFilter). 새가족을 학교로 갈라
+  // 보는 일이 실제로 있다: 학교별 모임에 누구를 부를지가 이 명단에서 나온다.
+  const [career, setCareer] = useState<CareerFilter>('')
+  const [school, setSchool] = useState<SchoolFilter>('')
   const [editing, setEditing] = useState<Member | null>(null)
   const [attendanceFor, setAttendanceFor] = useState<Member | null>(null)
   const [exportOpen, setExportOpen] = useState(false)
@@ -60,7 +66,11 @@ export function AdminNewFamily() {
   const termName = (season: Season) =>
     usesSemesters(partition) ? t(`admin.newfamily.season.${season}`) : seasonName(season, partition, lang)
   const today = easternNow().date
-  const scopedMembers = filterMembers(data.members, filter)
+  // 부서·동산으로 좁힌 명단이 처지·학교 칩의 바탕이고(칩은 그 안에 있는 것만 내건다),
+  // 아래 화면 전부 — 학기 블록 · 월별 등록 · 내보내기 · 카톡 QR — 는 그 칩까지 걸린 명단을
+  // 읽는다. 골라 놓은 학교가 내보내기에는 안 걸리면 화면에 보이던 것과 다른 것이 나간다.
+  const inGroup = filterMembers(data.members, filter)
+  const scopedMembers = inGroup.filter((m) => matchesCareer(m, career) && matchesSchool(m, school))
   // 학기별 섹션: 이번 학기 + 새가족 표시가 붙어 있어(또는 내려간 지 1년이 안 돼) 넘어온 이전 학기들.
   const semesters = newFamilyBySemester(scopedMembers, today, configCalendar(cfg), partition)
   const allNewFamily = semesters.flatMap((s) => s.dates.flatMap((g) => g.members))
@@ -76,7 +86,29 @@ export function AdminNewFamily() {
 
   return (
     <>
-      <GroupFilter members={data.members} value={filter} onChange={setFilter} />
+      {/* 부서를 바꾸면 아래 두 줄의 선택은 비운다 — 축이 부서마다 다르므로(청년부는 처지,
+          그 밖은 학교) 남겨 두면 사라진 칩으로 계속 좁히게 되고, 화면이 왜 비었는지 알 수
+          없다. 멤버 탭의 pickGroup/pickCareer와 같은 규칙이다. */}
+      <GroupFilter
+        members={data.members}
+        value={filter}
+        onChange={(f) => {
+          setFilter(f)
+          setCareer('')
+          setSchool('')
+        }}
+      />
+      <TraitFilter
+        members={inGroup}
+        group={filter.group}
+        career={career}
+        school={school}
+        onCareer={(c) => {
+          setCareer(c)
+          setSchool('')
+        }}
+        onSchool={setSchool}
+      />
 
       <div className="mb-1.5 flex flex-wrap items-center gap-2">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">

@@ -2,14 +2,15 @@ import type { Member, LogEntry } from '../../lib/api'
 import { ADULT_GROUP } from '../../lib/partition'
 import { careerOf, schoolOf, SCHOOL_ORDER, type School } from './eduDongsanTraits'
 
-// 학교로 좁히는 칸 — **멤버 탭에서만 쓴다** (AdminMembers). 대학·청년부는 CMU · Pitt ·
-// Duquesne이 섞여 있고 그 값은 이미 `members.school_or_work`에 적혀 있다 (`schoolOf`가
-// 읽는다). '' = 전체, 'none' = 그 칸에서 학교를 읽어낼 수 없는 사람(= 화면의 '기타') —
-// 빈 묶음도 하나의 칩이라야 칩들의 인원을 더한 값이 전체가 된다 (안 그러면 사라진 사람을
-// 찾게 된다).
+// 학교로 좁히는 칸 — **명단을 그 자리에서 갈라 보는 두 탭이 쓴다**: 멤버 탭과 새가족 탭
+// (`TraitFilter`가 두 탭에 같은 줄을 그린다). 대학·청년부는 CMU · Pitt · Duquesne이 섞여
+// 있고 그 값은 이미 `members.school_or_work`에 적혀 있다 (`schoolOf`가 읽는다).
+// '' = 전체, 'none' = 그 칸에서 학교를 읽어낼 수 없는 사람(= 화면의 '기타') — 빈 묶음도
+// 하나의 칩이라야 칩들의 인원을 더한 값이 전체가 된다 (안 그러면 사라진 사람을 찾게 된다).
 //
-// 부서·동산 필터(Filter)에는 넣지 않는다: 출석부·통계·오늘이 세는 것은 그 주일에 누가
-// 왔는가이고 학교는 그 질문의 칸이 아니다. 명단을 학교로 갈라 보는 자리는 멤버 탭 하나다.
+// 부서·동산 필터(Filter)에는 넣지 않는다: 출석부·오늘이 세는 것은 그 주일에 누가 왔는가이고
+// 학교는 그 질문의 칸이 아니다 (출석 줄에는 학교가 없다). 통계 탭은 좁히는 대신 **세는
+// 쪽**으로 학교를 읽는다 — `analytics.ts` schoolSummary의 학교별 요약 표.
 export type SchoolChip = Exclude<School, ''> | 'none'
 export type SchoolFilter = '' | SchoolChip
 
@@ -99,7 +100,7 @@ export function matchesCareer(m: Pick<Member, 'school_or_work'>, career: CareerF
   return careerChipOf(m) === career
 }
 
-// **부서마다 명단을 가르는 축이 다르다** — 멤버 탭의 칩 줄이 그 축을 따른다:
+// **부서마다 명단을 가르는 축이 다르다** — 멤버 탭·새가족 탭의 칩 줄이 그 축을 따른다:
 //   대학부 · 그 밖 — 학교로 (CMU · Pitt · Duquesne · 기타). 다 학부생이라 학교가 곧 자리다.
 //   청년부 — 처지로 (대학원생 · 직장인 · 기타), 그리고 **대학원생만** 다시 학교로. 직장인에게
 //     학교는 지금 어디에 있는지를 말해 주지 않으므로 그 줄을 내걸면 고를 뜻이 없다.
