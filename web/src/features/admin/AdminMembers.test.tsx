@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest'
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query'
@@ -242,6 +242,98 @@ describe('AdminMembers — 여러 명 삭제', () => {
   })
 })
 
+// 부서 칩 — 아래 섹션 머리줄이 이미 부서를 가르지만 그것은 **함께** 놓고 보는 자리라,
+// 한 부서만 훑으려면 다른 부서를 지나 내려가야 했다.
+describe('AdminMembers — 부서 칩', () => {
+  const people = [
+    member('c1', '김대학'),
+    member('y1', '이청년', { group_name: '청년부' }),
+    member('n1', '박무소속', { group_name: '' }),
+  ]
+  const chips = () => within(screen.getByRole('group', { name: '부서' }))
+
+  it('부서를 고르면 그 부서 사람만 남는다', async () => {
+    rosterData.data = roster(people)
+    renderWithProviders(<AdminMembers />)
+    await userEvent.click(chips().getByRole('button', { name: '청년부' }))
+    expect(screen.getByText('이청년')).toBeInTheDocument()
+    expect(screen.queryByText('김대학')).toBeNull()
+    expect(screen.queryByText('박무소속')).toBeNull()
+    // 전체로 되돌리면 다시 다 보인다 — 고른 것을 무를 자리가 있어야 한다.
+    await userEvent.click(chips().getByRole('button', { name: '전체' }))
+    expect(screen.getByText('김대학')).toBeInTheDocument()
+  })
+
+  it('부서가 비어 있는 사람도 자기 칩이 있다 — 칩을 다 더하면 전체가 된다', async () => {
+    rosterData.data = roster(people)
+    renderWithProviders(<AdminMembers />)
+    await userEvent.click(chips().getByRole('button', { name: '부서 미기재' }))
+    expect(screen.getByText('박무소속')).toBeInTheDocument()
+    expect(screen.queryByText('김대학')).toBeNull()
+  })
+
+  it('부서가 하나뿐인 부(장년부)에서는 칩 줄이 없다', () => {
+    rosterData.data = roster([member('a', '김장년', { group_name: '장년부' })])
+    renderWithProviders(<AdminMembers />)
+    expect(screen.queryByRole('group', { name: '부서' })).toBeNull()
+  })
+})
+
+// 부서마다 명단을 가르는 축이 다르다 — 대학부는 학교로, 청년부는 처지로 갈라 보고 그 안에서
+// 대학원생만 다시 학교로 간다.
+describe('AdminMembers — 부서마다 다른 축', () => {
+  const people = [
+    member('c1', '대학씨엠', { school_or_work: '대학생 · CMU Math' }),
+    member('c2', '대학듀크', { school_or_work: '대학생 · Duquesne nursing' }),
+    member('y1', '청년원생씨엠', { group_name: '청년부', school_or_work: '대학원생 · CMU 기계공학' }),
+    member('y2', '청년원생듀크', { group_name: '청년부', school_or_work: '대학원생 · 듀케인 음악' }),
+    member('y3', '청년직장', { group_name: '청년부', school_or_work: '직장인 · 발레댄서' }),
+  ]
+  const row = (name: string) => within(screen.getByRole('group', { name }))
+
+  it('대학부는 학교로 갈린다 — CMU · Pitt · Duquesne · 기타', async () => {
+    rosterData.data = roster(people)
+    renderWithProviders(<AdminMembers />)
+    await userEvent.click(row('부서').getByRole('button', { name: '대학부' }))
+    await userEvent.click(row('학교').getByRole('button', { name: 'Duquesne' }))
+    expect(screen.getByText('대학듀크')).toBeInTheDocument()
+    expect(screen.queryByText('대학씨엠')).toBeNull()
+    // 처지는 대학부의 축이 아니다.
+    expect(screen.queryByRole('group', { name: '학생/직장' })).toBeNull()
+  })
+
+  it('청년부는 처지로 먼저 갈리고, 대학원생 안에서만 학교 줄이 뜬다', async () => {
+    rosterData.data = roster(people)
+    renderWithProviders(<AdminMembers />)
+    await userEvent.click(row('부서').getByRole('button', { name: '청년부' }))
+    // 처지 줄이 서고, 학교 줄은 아직 없다 (직장인에게 학교는 지금 어디인지를 말해 주지 않는다).
+    expect(screen.getByRole('group', { name: '학생/직장' })).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: '학교' })).toBeNull()
+
+    await userEvent.click(row('학생/직장').getByRole('button', { name: '대학원생' }))
+    expect(screen.queryByText('청년직장')).toBeNull()
+    await userEvent.click(row('학교').getByRole('button', { name: 'Duquesne' }))
+    expect(screen.getByText('청년원생듀크')).toBeInTheDocument()
+    expect(screen.queryByText('청년원생씨엠')).toBeNull()
+
+    // 직장인으로 옮기면 학교 줄과 그 선택이 함께 걷힌다 — 사라진 칩으로 계속 좁히고 있으면
+    // 화면이 왜 비었는지 알 수가 없다.
+    await userEvent.click(row('학생/직장').getByRole('button', { name: '직장인' }))
+    expect(screen.queryByRole('group', { name: '학교' })).toBeNull()
+    expect(screen.getByText('청년직장')).toBeInTheDocument()
+  })
+
+  it('부서를 바꾸면 그 아래 줄의 선택은 처음으로 돌아간다', async () => {
+    rosterData.data = roster(people)
+    renderWithProviders(<AdminMembers />)
+    await userEvent.click(row('부서').getByRole('button', { name: '청년부' }))
+    await userEvent.click(row('학생/직장').getByRole('button', { name: '직장인' }))
+    await userEvent.click(row('부서').getByRole('button', { name: '대학부' }))
+    expect(screen.getByText('대학씨엠')).toBeInTheDocument()
+    expect(screen.getByText('대학듀크')).toBeInTheDocument()
+  })
+})
+
 // 학교 칩 — **이 탭에만 있다.** 명단을 CMU/Pitt으로 갈라 보는 자리는 멤버 탭 하나이고,
 // 출석부·통계·오늘에는 이 줄이 없다 (그쪽이 세는 것은 그 주일에 누가 왔는가다).
 describe('AdminMembers — 학교 칩', () => {
@@ -265,7 +357,7 @@ describe('AdminMembers — 학교 칩', () => {
   it('학교를 읽어낼 수 없는 사람도 자기 칩이 있다 — 세 칩을 더하면 전체가 된다', async () => {
     rosterData.data = roster(people)
     renderWithProviders(<AdminMembers />)
-    await userEvent.click(screen.getByRole('button', { name: '학교 미기재' }))
+    await userEvent.click(screen.getByRole('button', { name: '기타' }))
     expect(screen.getByText('정미상')).toBeInTheDocument()
     expect(screen.queryByText('김씨엠')).toBeNull()
   })
@@ -274,6 +366,6 @@ describe('AdminMembers — 학교 칩', () => {
     rosterData.data = roster([member('a', '김장년', { group_name: '장년부', school_or_work: '' })])
     renderWithProviders(<AdminMembers />)
     expect(screen.queryByRole('button', { name: 'CMU' })).toBeNull()
-    expect(screen.queryByRole('button', { name: '학교 미기재' })).toBeNull()
+    expect(screen.queryByRole('group', { name: '학교' })).toBeNull()
   })
 })

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { groupsOf, subgroupsOf, schoolsOf, matchesSchool, filterMembers, filterLog } from './filters'
+import { groupsOf, groupChipsOf, matchesGroup, subgroupsOf, schoolsOf, matchesSchool, careersOf, matchesCareer, careerAxis, schoolAxis, filterMembers, filterLog, NO_GROUP } from './filters'
 import type { Member, LogEntry } from '../../lib/api'
 
 const m = (id: string, group: string, subgroup: string): Member => ({
@@ -14,6 +14,31 @@ const members = [m('1', '청년부', '건영'), m('2', '대학부', '호연'), m
 describe('groupsOf', () => {
   it('returns distinct groups in preferred department order', () => {
     expect(groupsOf(members)).toEqual(['대학부', '청년부'])
+  })
+})
+
+// ── 부서 칩 (멤버 탭) ─────────────────────────────────────────────────────────────────
+describe('groupChipsOf', () => {
+  it('명단에 있는 부서를 순서대로, 부서 없는 사람이 있으면 자리표를 뒤에 붙인다', () => {
+    expect(groupChipsOf(members)).toEqual(['대학부', '청년부', NO_GROUP])
+  })
+  it('모두 부서가 적혀 있으면 자리표는 없다', () => {
+    expect(groupChipsOf([m('1', '대학부', ''), m('2', '청년부', '')])).toEqual(['대학부', '청년부'])
+  })
+  it('부서가 하나뿐인 부(장년부)에서는 고를 것이 없다 — 칩 줄이 사라진다', () => {
+    expect(groupChipsOf([m('1', '장년부', ''), m('2', '장년부', '')])).toEqual(['장년부'])
+  })
+})
+
+describe('matchesGroup', () => {
+  it('부서로 가른다', () => {
+    expect(members.filter((x) => matchesGroup(x, '청년부')).map((x) => x.id)).toEqual(['1', '3'])
+  })
+  it('부서가 비어 있는 사람도 자기 묶음이 있다 — 칩을 다 더하면 전체가 된다', () => {
+    expect(members.filter((x) => matchesGroup(x, NO_GROUP)).map((x) => x.id)).toEqual(['4'])
+  })
+  it('빈 값은 전체다', () => {
+    expect(members.every((x) => matchesGroup(x, ''))).toBe(true)
   })
 })
 
@@ -59,11 +84,44 @@ const schooled = [
 ]
 
 describe('schoolsOf', () => {
-  it('명단에 실제로 있는 묶음만 CMU → Pitt → 학교 미기재 순으로', () => {
+  it('명단에 실제로 있는 묶음만 CMU → Pitt → Duquesne → 기타 순으로', () => {
     expect(schoolsOf(schooled)).toEqual(['cmu', 'pitt', 'none'])
+    expect(schoolsOf([...schooled, s('d1', '대학부', '대학생 · Duquesne nursing')])).toEqual([
+      'cmu', 'pitt', 'duq', 'none',
+    ])
   })
   it('아무도 학교를 적지 않은 부(장년부)에서는 고를 것이 없다 — 칩 줄이 사라진다', () => {
     expect(schoolsOf([s('a', '장년부', ''), s('b', '장년부', '직장인 · 회사원')])).toEqual(['none'])
+  })
+})
+
+// 처지 — 청년부의 축이다.
+describe('careersOf · matchesCareer', () => {
+  const young = [
+    s('g1', '청년부', '대학원생 · CMU 기계공학'),
+    s('w1', '청년부', '직장인 · 발레댄서'),
+    s('o1', '청년부', ''),
+  ]
+  it('대학원생 → 직장인 → 기타 순으로, 명단에 있는 것만', () => {
+    expect(careersOf(young)).toEqual(['grad', 'work', 'other'])
+    expect(careersOf([young[0], young[1]])).toEqual(['grad', 'work'])
+  })
+  it('대학원생도 직장인도 아닌 사람은 기타로 모인다 — 칩을 다 더하면 전체가 된다', () => {
+    expect(young.filter((x) => matchesCareer(x, 'other')).map((x) => x.id)).toEqual(['o1'])
+    expect(young.every((x) => matchesCareer(x, ''))).toBe(true)
+  })
+})
+
+describe('careerAxis · schoolAxis — 부서마다 다른 축', () => {
+  it('대학부는 학교로 바로 간다', () => {
+    expect(careerAxis('대학부')).toBe(false)
+    expect(schoolAxis('대학부', '')).toBe(true)
+  })
+  it('청년부는 처지로 먼저 갈리고, 대학원생만 다시 학교로 간다', () => {
+    expect(careerAxis('청년부')).toBe(true)
+    expect(schoolAxis('청년부', '')).toBe(false)
+    expect(schoolAxis('청년부', 'work')).toBe(false)
+    expect(schoolAxis('청년부', 'grad')).toBe(true)
   })
 })
 

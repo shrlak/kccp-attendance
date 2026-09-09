@@ -12,7 +12,7 @@ import type { Member } from '../../lib/api'
 // 시스템의 규칙은 여기서도 같다 — 대학부 65명 중 23명은 이 칸이 비어 있다).
 
 export type Gender = '남' | '여' | ''
-export type School = 'cmu' | 'pitt' | ''
+export type School = 'cmu' | 'pitt' | 'duq' | ''
 export type MajorField = 'engineering' | 'health' | 'math' | 'business' | 'arts' | 'social' | 'science' | ''
 
 export function genderOf(m: Pick<Member, 'gender'>): Gender {
@@ -31,11 +31,18 @@ const SCHOOL_PATTERNS: { school: School; re: RegExp }[] = [
   // 'Pittsburgh' · 'UPitt' · 'university of Pitt' 모두 'pitt'을 품는다. 한글로는 '피츠버그'와
   // 줄여 부르는 '핏대'·'핏츠'다 — 이 칸에 적힌 '핏대'는 학교 이름이지 다른 뜻일 수 없다.
   { school: 'pitt', re: /pitt|피츠|핏츠|핏대/i },
+  // Duquesne — 피츠버그의 세 번째 학교다. 영문 철자가 어려워 'Duq'까지만 적거나 소리 나는
+  // 대로 적는 사람이 있어 앞머리와 한글 표기를 함께 본다.
+  { school: 'duq', re: /duq|듀케인|듀퀘인|두케인|듀케인대/i },
 ]
+
+// 화면과 계산이 학교를 늘어놓는 **고정된 순서**. 자리가 움직이면 매주 같은 자리에서 찾던
+// 칩이 옮겨 다닌다.
+export const SCHOOL_ORDER = ['cmu', 'pitt', 'duq'] as const
 
 // 화면에 그대로 나가는 표기 (멤버 탭의 칩, 새가족 교육 카드의 마크). 두 언어가 같은 말로
 // 부르므로 번역 파일에 두지 않는다.
-export const SCHOOL_NAMES: Record<Exclude<School, ''>, string> = { cmu: 'CMU', pitt: 'Pitt' }
+export const SCHOOL_NAMES: Record<Exclude<School, ''>, string> = { cmu: 'CMU', pitt: 'Pitt', duq: 'Duquesne' }
 
 // 두 학교가 한 줄에 같이 적힌 경우(“서울대/CMU 비지팅”)에는 **먼저 나오는 쪽**을 그 사람의
 // 학교로 본다 — 자기 학교를 앞에 적기 때문이다.
@@ -123,8 +130,7 @@ export function faithStageOf(m: Pick<Member, 'faith_duration'>): FaithStage {
 export interface Composition {
   male: number
   female: number
-  cmu: number
-  pitt: number
+  schools: { school: Exclude<School, ''>; n: number }[] // SCHOOL_ORDER 순서, 없는 학교는 빠진다
   fields: { field: MajorField; n: number }[] // 많은 계열부터. '모름'은 빠진다.
   careers: { career: Career; n: number }[] // 대학원생 · 직장인 …
   faith: { stage: FaithStage; n: number }[] // 신앙기간, 짧은 쪽부터
@@ -137,17 +143,15 @@ export function composition(members: Member[]): Composition {
   const careerCounts = new Map<Career, number>()
   const faithCounts = new Map<FaithStage, number>()
   const years: number[] = []
+  const schoolCounts = new Map<Exclude<School, ''>, number>()
   let male = 0
   let female = 0
-  let cmu = 0
-  let pitt = 0
   for (const m of members) {
     const g = genderOf(m)
     if (g === '남') male++
     else if (g === '여') female++
     const s = schoolOf(m)
-    if (s === 'cmu') cmu++
-    else if (s === 'pitt') pitt++
+    if (s) schoolCounts.set(s, (schoolCounts.get(s) || 0) + 1)
     const f = majorFieldOf(m)
     if (f) counts.set(f, (counts.get(f) || 0) + 1)
     const c = careerOf(m)
@@ -166,11 +170,14 @@ export function composition(members: Member[]): Composition {
   const faith = [...faithCounts.entries()]
     .map(([stage, n]) => ({ stage, n }))
     .sort((a, b) => a.stage - b.stage)
+  const schools = SCHOOL_ORDER.filter((s) => schoolCounts.has(s)).map((school) => ({
+    school,
+    n: schoolCounts.get(school) as number,
+  }))
   return {
     male,
     female,
-    cmu,
-    pitt,
+    schools,
     fields,
     careers,
     faith,

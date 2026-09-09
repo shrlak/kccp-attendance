@@ -492,7 +492,8 @@ function GroupComposition({ members }: { members: Member[] }) {
   for (const { key } of [...rule.spread, ...rule.cluster]) {
     if (key === 'gender' && (c.male || c.female))
       parts.push(`${t('admin.newfamilyEdu.assign.male')} ${c.male} · ${t('admin.newfamilyEdu.assign.female')} ${c.female}`)
-    if (key === 'school' && (c.cmu || c.pitt)) parts.push(`CMU ${c.cmu} · Pitt ${c.pitt}`)
+    if (key === 'school' && c.schools.length)
+      parts.push(c.schools.map((x) => `${SCHOOL_NAMES[x.school]} ${x.n}`).join(' · '))
     if (key === 'age' && c.birthYears)
       parts.push(
         c.birthYears.min === c.birthYears.max
