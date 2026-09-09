@@ -1,5 +1,5 @@
 import type { Member } from '../../lib/api'
-import { EDU_STAGES, eduStage, type EduStage } from './eduSchedule'
+import { eduStage } from './eduSchedule'
 import {
   birthYearOf,
   careerOf,
@@ -54,26 +54,14 @@ export function bucketSizes(total: number, count: number): number[] {
   return Array.from({ length: n }, (_, i) => Math.floor(total / n) + (i < total % n ? 1 : 0))
 }
 
-// 부서 안에서 다시 **교육 단계**로 가른 묶음 — 이 한 묶음이 조 하나다.
-export interface EduBucket {
-  group: string
-  stage: EduStage
-  members: Member[]
-}
+// 배정의 뼈대이자 **유일한 경계는 부서다** (대학부는 대학부끼리, 청년부는 청년부끼리).
+// 교육 단계는 한때 여기서 함께 갈랐지만 이제 경계가 아니라 **가장 무거운 모으는 힘**이다
+// (`STAGE_WEIGHT`): 경계로 두면 단계 수만큼 조가 강제로 서서 "세 조로 나눠줘"를 들어줄 수
+// 없었기 때문이다. 조가 넉넉하면 예전처럼 단계별로 갈리고, 모자라면 섞이되 가장 덜 섞인다.
+export type EduBucket = { group: string; members: Member[] }
 
-// 배정의 뼈대. 부서를 넘지 않고(대학부는 대학부끼리), 그 안에서 교육 단계를 넘지 않는다
-// (미수강인 사람과 2주차를 이미 들은 사람이 한 조에 섞이지 않는다). 순서는 부서 이름 →
-// 단계 순(미수강 → 1주차만 → 2주차만 → 수강 완료)으로 고정한다 — 매주 같은 자리에서
-// 읽히도록.
 export function eduBuckets(members: Member[]): EduBucket[] {
-  const out: EduBucket[] = []
-  for (const { group, members: list } of membersByGroup(members)) {
-    for (const stage of EDU_STAGES) {
-      const inStage = list.filter((m) => eduStage(m) === stage)
-      if (inStage.length) out.push({ group, stage, members: inStage })
-    }
-  }
-  return out
+  return membersByGroup(members)
 }
 
 export interface EduBucketPlan extends EduBucket {
@@ -81,10 +69,10 @@ export interface EduBucketPlan extends EduBucket {
   names: string[] // 그 조들의 이름 — `sizes`와 같은 자리
 }
 
-// 정하는 것은 **조 갯수 하나**이고, 그 수를 부서×단계 묶음에 나눠 주는 자리가 여기다.
-// 묶음은 넘을 수 없으므로(대학부 미수강과 청년부 미수강은 다른 조다) **묶음마다 최소 한 조**이고
-// 사람보다 많은 조는 설 수 없다 — 그래서 고른 사람으로 만들 수 있는 조 갯수에는 아래위 끝이
-// 있다 (`eduGroupBounds`). 그 사이로 들어온 수만 그대로 선다.
+// 정하는 것은 **조 갯수 하나**이고, 그 수를 부서 묶음에 나눠 주는 자리가 여기다. 부서는 넘을
+// 수 없으므로 **부서마다 최소 한 조**이고 사람보다 많은 조는 설 수 없다 — 그래서 고른 사람으로
+// 만들 수 있는 조 갯수에는 아래위 끝이 있다 (`eduGroupBounds`). 그 사이로 들어온 수만 그대로
+// 선다.
 //
 // 남는 조는 **지금 한 조에 사람이 제일 많이 몰린 묶음**부터 준다 (`size / 지금 조 수`가 가장
 // 큰 곳). 큰 묶음이 먼저 쪼개지므로 조마다의 인원이 전체에서 고르게 맞춰진다 — 묶음 크기에
@@ -111,9 +99,9 @@ export function allocateGroups(sizes: number[], total: number): number[] {
   return out
 }
 
-// 고른 사람으로 만들 수 있는 조 갯수의 **아래위 끝**. 아래는 묶음 수(부서×단계는 넘지 않으므로
-// 그보다 적게는 나눌 수 없다), 위는 인원 수(한 조에 한 명씩). 화면이 이 값을 적어 주지 않으면
-// 3조라고 적었는데 4조가 나오는 이유를 알 수 없다.
+// 고른 사람으로 만들 수 있는 조 갯수의 **아래위 끝**. 아래는 **부서 수**(부서는 넘지 않으므로
+// 그보다 적게는 나눌 수 없다 — 단계는 이제 여기를 좁히지 않는다), 위는 인원 수(한 조에 한
+// 명씩). 화면이 이 값을 적어 주지 않으면 2조라고 적었는데 3조가 나오는 이유를 알 수 없다.
 export function eduGroupBounds(members: Member[]): { min: number; max: number } {
   const buckets = eduBuckets(members)
   return { min: buckets.length, max: buckets.reduce((n, b) => n + b.members.length, 0) }
@@ -137,7 +125,6 @@ export function eduBucketPlans(members: Member[], count = 1): EduBucketPlan[] {
 
 export interface EduDongsanPlanRow {
   group: string
-  stage: EduStage
   total: number
   sizes: number[]
   names: string[] // 이 묶음이 받게 될 조 이름 (`1조` · `2조`)
@@ -149,9 +136,8 @@ export interface EduDongsanPlanRow {
 // 조마다 몇 명인지, 그 조가 몇 조인지는 여기서 이미 정해진다. 어떤 기준으로 나뉘는지도 같이
 // 적어 준다.
 export function eduDongsanPlan(members: Member[], count = 1): EduDongsanPlanRow[] {
-  return eduBucketPlans(members, count).map(({ group, stage, members: list, sizes, names }) => ({
+  return eduBucketPlans(members, count).map(({ group, members: list, sizes, names }) => ({
     group,
-    stage,
     total: list.length,
     sizes,
     names,
@@ -191,7 +177,7 @@ function deal(list: Member[], sizes: number[]): Member[][] {
 //   (대학원생/직장인) · 같은 학교 · 비슷한 전공 · 비슷한 신앙 연차
 //
 // 기준이 없는 부서(EM 등)는 무작위 그대로다 — 표에 한 줄을 더하면 그 부서에도 붙는다.
-export type Criterion = 'gender' | 'school' | 'major' | 'age' | 'career' | 'faith'
+export type Criterion = 'gender' | 'school' | 'major' | 'age' | 'career' | 'faith' | 'stage'
 
 interface Term {
   key: Criterion
@@ -236,6 +222,21 @@ export function ruleForGroup(group: string): GroupRule | null {
   return RULES[group] ?? null
 }
 
+// **교육 단계는 경계가 아니라 힘이다.** 한 조에 같은 단계 사람들이 모이는 것은 여전히 이
+// 배정이 가장 지키려는 것이라 모으는 힘 중 제일 무겁지만(다른 모으는 힘을 다 합쳐도 못
+// 이긴다), 경계였을 때와 달리 **조 갯수를 이기지는 않는다** — 두 조로 나눠 달라면 네 단계가
+// 두 조에 담긴다. 부서마다의 기준이 없는 부서(EM 등)에도 이 힘만은 걸린다: 단계는 부서의
+// 사정이 아니라 이 탭 전체의 사정이기 때문.
+const STAGE_WEIGHT = 200
+
+export function solveRule(group: string): GroupRule {
+  const base = ruleForGroup(group)
+  return {
+    spread: base?.spread ?? [],
+    cluster: [{ key: 'stage', weight: STAGE_WEIGHT }, ...(base?.cluster ?? [])],
+  }
+}
+
 // 나이가 "비슷하다"고 보는 폭. 태어난 해가 이만큼 안에 들면 한 짝으로 센다 — 청년부는
 // 대학원생부터 직장인까지 나이 폭이 넓어서, 딱 같은 해만 세면 거의 아무 짝도 안 생긴다.
 const AGE_TOLERANCE = 2
@@ -249,6 +250,7 @@ function valueOf(m: Member, key: Criterion): string | number | null {
     case 'major': return majorFieldOf(m) || null
     case 'career': return careerOf(m) || null
     case 'age': return birthYearOf(m)
+    case 'stage': return eduStage(m)
     case 'faith': {
       const stage = faithStageOf(m)
       return stage >= 0 ? stage : null
@@ -338,12 +340,12 @@ function balancedGroups(list: Member[], sizes: number[], rand: () => number, rul
   return best ?? deal(list, sizes)
 }
 
-// 고른 사람들을 **부서 × 교육 단계**로 갈라 조를 만든다. `count`는 **전체를 몇 조로 나눌지**이고
-// (한 묶음을 몇으로 쪼갤지가 아니다), 그 수를 묶음마다 몇 조씩으로 풀어내는 것이
-// `allocateGroups`다. 묶음 수보다 작게 적으면 묶음 수만큼(단계 하나가 곧 조 하나 — 기본값 1이
-// 그 자리다), 인원보다 크게 적으면 인원만큼 선다. 한 묶음이 둘 이상으로 쪼개질 때 비로소 그
-// 부서의 기준(ruleForGroup — 성비·나이·학교·전공·신앙)이 누가 어느 쪽으로 갈지를 정한다 —
-// 조가 하나뿐인 묶음에서는 고를 것이 없으므로 기준이 아무것도 바꾸지 않는다.
+// 고른 사람들을 **부서별로** 갈라 조를 만든다. `count`는 **전체를 몇 조로 나눌지**이고 (한
+// 부서를 몇으로 쪼갤지가 아니다), 그 수를 부서마다 몇 조씩으로 풀어내는 것이 `allocateGroups`다.
+// 부서 수보다 작게 적으면 부서 수만큼, 인원보다 크게 적으면 인원만큼 선다. 한 부서가 둘 이상으로
+// 쪼개질 때 비로소 기준(`solveRule` — 교육 단계 + 그 부서의 성비·나이·학교·전공·신앙)이 누가
+// 어느 쪽으로 갈지를 정한다 — 조가 하나뿐인 부서에서는 고를 것이 없으므로 기준이 아무것도
+// 바꾸지 않는다.
 export function assignEduDongsan(
   members: Member[],
   count = 1,
@@ -351,8 +353,9 @@ export function assignEduDongsan(
 ): EduAssignment[] {
   const out: EduAssignment[] = []
   for (const { group, members: list, sizes, names } of eduBucketPlans(members, count)) {
-    const rule = ruleForGroup(group)
-    const groups = rule ? balancedGroups(list, sizes, rand, rule) : deal(shuffled(list, rand), sizes)
+    // 기준이 없는 부서에도 교육 단계만은 걸리므로 언제나 균형을 맞춰 나눈다 (시작 자리가
+    // 무작위라 매주 다른 답이 나오는 것은 그대로다).
+    const groups = balancedGroups(list, sizes, rand, solveRule(group))
     groups.forEach((g, i) => {
       for (const m of g) out.push({ memberId: m.id, dongsan: names[i] })
     })
