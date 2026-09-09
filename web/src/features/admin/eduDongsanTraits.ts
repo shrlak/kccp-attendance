@@ -25,10 +25,20 @@ export function genderOf(m: Pick<Member, 'gender'>): Gender {
 }
 
 const SCHOOL_PATTERNS: { school: School; re: RegExp }[] = [
-  { school: 'cmu', re: /cmu|carnegie|카네기/i },
-  // 'Pittsburgh' · 'UPitt' · 'university of Pitt' 모두 'pitt'을 품는다.
-  { school: 'pitt', re: /pitt|피츠버그/i },
+  // 학교 이름은 **부르는 말이 그대로 적혀 온다** — 자유 기입란이라 정식 이름을 쓰는 사람과
+  // 줄여 부르는 사람이 섞인다. 'Carnegie Mellon'·'카네기멜론' 옆에 '씨엠유'·'시엠유'가 있다.
+  { school: 'cmu', re: /cmu|carnegie|카네기|씨엠유|시엠유/i },
+  // 'Pittsburgh' · 'UPitt' · 'university of Pitt' 모두 'pitt'을 품는다. 한글로는 '피츠버그'와
+  // 줄여 부르는 '핏대'·'핏츠'다 — 이 칸에 적힌 '핏대'는 학교 이름이지 다른 뜻일 수 없다.
+  { school: 'pitt', re: /pitt|피츠|핏츠|핏대/i },
 ]
+
+// 화면과 조 이름에 그대로 나가는 표기. 두 언어가 같은 말로 부르므로 번역 파일에 두지 않는다.
+export const SCHOOL_NAMES: Record<Exclude<School, ''>, string> = { cmu: 'CMU', pitt: 'Pitt' }
+
+// 학교가 적히지 않은 사람들의 자리 이름 — 조 이름에 들어가는 값이라 EDU_STAGE_NAMES와 같이
+// 한글 하나로 둔다 (저장되는 것은 UI 문구가 아니다).
+export const NO_SCHOOL_NAME = '학교 미기재'
 
 // 두 학교가 한 줄에 같이 적힌 경우(“서울대/CMU 비지팅”)에는 **먼저 나오는 쪽**을 그 사람의
 // 학교로 본다 — 자기 학교를 앞에 적기 때문이다.

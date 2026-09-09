@@ -44,7 +44,7 @@ export function AdminAnalytics() {
   // 숨긴 멤버는 useRoster가 이미 빼뒀다 — 이미 떠난 사람이 계속 결석으로 세여 출석률을
   // 끌어내리지 않는다. (방학은 excludeOnBreak가 따로 걷어낸다.)
   const members = filterMembers(data.members, filter)
-  const log = excludeOnBreak(data.members, filterLog(data.log, filter))
+  const log = excludeOnBreak(data.members, filterLog(data.log, filter, data.members))
 
   return (
     <>

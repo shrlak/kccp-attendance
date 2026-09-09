@@ -13,8 +13,19 @@ describe('eduDongsanTraits — 학교 읽기', () => {
       expect(schoolOf(at(v))).toBe('cmu')
   })
 
+  // 적는 사람은 부르는 대로 적는다 — 정식 이름만 읽으면 그 사람들이 통째로 '모름'이 된다.
+  it('말로 부르는 이름도 읽는다 — 씨엠유', () => {
+    for (const v of ['대학생 · 씨엠유 기계공학', '시엠유 통계'])
+      expect(schoolOf(at(v))).toBe('cmu')
+  })
+
   it('Pitt도 마찬가지다', () => {
     for (const v of ['Pitt - Pre Pharm', '대학생 · UPitt nursing', '대학생 · University of Pittsburgh - Bio (Pre-Med)', '대학생 · university of Pitt', '대학생 · 피츠버그 대학교 화학공학과'])
+      expect(schoolOf(at(v))).toBe('pitt')
+  })
+
+  it('말로 부르는 이름도 읽는다 — 핏대', () => {
+    for (const v of ['대학생 · 핏대 간호학과', '핏츠버그 심리학', '핏대'])
       expect(schoolOf(at(v))).toBe('pitt')
   })
 
