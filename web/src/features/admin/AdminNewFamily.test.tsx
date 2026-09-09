@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest'
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query'
 import { i18n } from '../../lib/i18n'
 import { ToastProvider } from '../../components/ui/Toast'
-import type { Member } from '../../lib/api'
+import type { LogEntry, Member } from '../../lib/api'
 
 // 새가족 탭: 이번 학기 등록자와, 교육이 남아 이전 학기에서 넘어온 새가족이 학기별로
 // 나뉘어 보이는지 — 그리고 교육을 마친 사람은 더 이상 보이지 않는지.
@@ -30,9 +30,9 @@ vi.mock('./useRoster', () => ({ useRoster: () => roster() }))
 beforeAll(async () => { await i18n.init() })
 beforeEach(() => { vi.clearAllMocks() })
 
-async function renderTab(members: Member[]) {
+async function renderTab(members: Member[], log: LogEntry[] = []) {
   roster.mockReturnValue({
-    data: { role: 'super_admin', members, log: [], staffMembers: [] },
+    data: { role: 'super_admin', members, log, staffMembers: [] },
     isLoading: false,
     isError: false,
   })
@@ -140,5 +140,47 @@ describe('AdminNewFamily — 처지 · 학교 칩', () => {
     await renderTab([school('김장년', '', '장년부'), school('이장년', '', '장년부')])
     expect(screen.queryByRole('group', { name: '학교' })).toBeNull()
     expect(screen.queryByRole('group', { name: '학생/직장' })).toBeNull()
+  })
+})
+
+// ── 새가족 출석표 ───────────────────────────────────────────────────────────
+// 오른쪽 위 '출석표' 버튼 → 출석부와 **같은 표**(AttendanceGrid)를 이 탭의 새가족만으로
+// 그린다. 카드에는 등록일만 있어서 "그 뒤로 계속 오고 있나"는 출석부 탭으로 건너가 이름을
+// 하나씩 찾아야 알 수 있었다.
+describe('AdminNewFamily — 새가족 출석표', () => {
+  const log = (name: string, date: string, group = '대학부'): LogEntry =>
+    ({ id: `${name}-${date}`, name, date, time: '10:00', group, subgroup: '', member_id: null }) as unknown as LogEntry
+
+  it('출석표 버튼이 새가족만 담은 표를 연다 — 온 주일은 O', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event')
+    await renderTab(
+      [
+        member('새가족갑', '2026-05-10'),
+        member('새가족을', '2026-05-10', { group_name: '청년부' }),
+        member('일반멤버', null, { is_new_member: false }),
+      ],
+      [log('새가족갑', '2026-06-07'), log('일반멤버', '2026-06-07')],
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: '출석표' }))
+    const sheet = within(screen.getByRole('dialog'))
+    expect(sheet.getByText('새가족 출석표')).toBeInTheDocument()
+    // 블록은 부서로 갈린다 — 새가족은 아직 동산이 없는 사람이 많아 동산으로 묶으면 거의
+    // 전부가 '동산 미지정' 한 덩어리가 된다.
+    expect(sheet.getByRole('heading', { name: '대학부' })).toBeInTheDocument()
+    expect(sheet.getByRole('heading', { name: '청년부' })).toBeInTheDocument()
+    // 담기는 사람은 이 탭이 보여주는 새가족뿐이다.
+    expect(sheet.getByText('새가족갑')).toBeInTheDocument()
+    expect(sheet.getByText('새가족을')).toBeInTheDocument()
+    expect(sheet.queryByText('일반멤버')).toBeNull()
+    // 온 주일에는 그 사람 줄에 O가 서고, 예배 총 출석은 1이 된다.
+    const row = sheet.getByText('새가족갑').closest('tr') as HTMLElement
+    expect(within(row).getByText('O')).toBeInTheDocument()
+    expect(within(row).getByText('1')).toBeInTheDocument()
+  })
+
+  it('새가족이 없으면 그릴 표가 없어 버튼이 눌리지 않는다', async () => {
+    await renderTab([member('일반멤버', null, { is_new_member: false })])
+    expect(screen.getByRole('button', { name: '출석표' })).toBeDisabled()
   })
 })

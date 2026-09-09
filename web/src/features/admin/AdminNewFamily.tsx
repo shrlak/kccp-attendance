@@ -2,11 +2,11 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useRoster } from './useRoster'
 import { easternNow } from '../../lib/checkinWindow'
-import { filterMembers, matchesCareer, matchesSchool, NO_FILTER, type CareerFilter, type Filter, type SchoolFilter } from './filters'
+import { filterLog, filterMembers, matchesCareer, matchesSchool, NO_FILTER, type CareerFilter, type Filter, type SchoolFilter } from './filters'
 import { semesterKey, newFamilyBySemester, monthlyRegistrations, newFamilyWeek } from './newFamily'
 import { NewFamilyWeekChip } from './NewFamilyWeekChip'
 import { copyNewFamilyCards, saveNewFamilyCards } from './newFamilyCardImage'
-import { applyFontSize, newFamilySheets, newFamilyHeader } from './exports'
+import { applyFontSize, newFamilySheets, newFamilyHeader, type Lang } from './exports'
 import { toggleId } from './bulk'
 import { GroupFilter } from './GroupFilter'
 import { TraitFilter } from './TraitFilter'
@@ -17,11 +17,12 @@ import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
 import { Tag } from '../../components/ui/Tag'
 import { useToast } from '../../components/ui/Toast'
-import { ScanLine, Download, Search, HandHeart, Heart, Calendar, GraduationCap, AlertTriangle, QrCode, Copy } from '../../components/ui/Icon'
+import { ScanLine, Download, Search, HandHeart, Heart, Calendar, GraduationCap, AlertTriangle, QrCode, Copy, ClipboardList } from '../../components/ui/Icon'
 import { prefetchExcel } from '../../app/prefetch'
 import { EditModal, AttendanceModal } from './MemberDialogs'
 import { CardScanDialog } from './CardScanDialog'
 import { KakaoQrDialog } from './KakaoQrDialog'
+import { NewFamilySheetDialog } from './NewFamilySheetDialog'
 import { classifyKakaoId } from './contactQr'
 import { copyToClipboard } from '../../lib/clipboard'
 import { useAppConfig, usePartition } from '../../lib/useAppConfig'
@@ -47,6 +48,8 @@ export function AdminNewFamily() {
   const [exportOpen, setExportOpen] = useState(false)
   const [scanOpen, setScanOpen] = useState(false)
   const [qrOpen, setQrOpen] = useState(false)
+  // 새가족 출석표 — 출석부와 같은 표를 이 탭의 새가족만으로 그린다 (NewFamilySheetDialog).
+  const [sheetOpen, setSheetOpen] = useState(false)
 
   if (isLoading) return (
     <div className="fx-fade grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
@@ -61,7 +64,7 @@ export function AdminNewFamily() {
   )
   if (!data) return null
 
-  const lang = i18n.language === 'en' ? 'en' : 'ko'
+  const lang: Lang = i18n.language === 'en' ? 'en' : 'ko'
   // 토막 이름: 대학·청년부는 예전 그대로 번역 키("2026 여름학기"), 장년부는 학기가 없으므로
   // 상반기/하반기 (partition.ts seasonName).
   const termName = (season: Season) =>
@@ -128,6 +131,14 @@ export function AdminNewFamily() {
           </span>
         )}
         <div className="ml-auto flex gap-2">
+          {/* 출석표 — 이 탭이 보여주는 새가족만으로 그린 출석부의 그 표 (NewFamilySheetDialog).
+              카드에는 등록일만 있어서 "그 뒤로 계속 오고 있나"는 출석부 탭으로 건너가 이름을
+              하나씩 찾아야 알 수 있었다. 목사님(읽기 전용)에게도 보인다 — 읽는 화면이다.
+              새가족이 하나도 없으면 그릴 표가 없어 눌리지 않는다. */}
+          <Button variant="secondary" size="sm" onClick={() => setSheetOpen(true)} disabled={total === 0}>
+            <ClipboardList className="size-4" aria-hidden />
+            {t('admin.newfamily.sheet.action')}
+          </Button>
           {/* 카톡 추가 — 고른 새가족을 연락처 QR로 늘어놓는다 (KakaoQrDialog 머리말 참고).
               읽기 전용인 목사님에게도 보인다: 연락처를 받아 가는 것은 명단을 바꾸지 않는다. */}
           <Button variant="secondary" size="sm" onClick={() => setQrOpen(true)}>
@@ -239,6 +250,21 @@ export function AdminNewFamily() {
 
       {exportOpen && <ExportModal members={allNewFamily} today={today} onClose={() => setExportOpen(false)} />}
       {scanOpen && <CardScanDialog open onClose={() => setScanOpen(false)} />}
+      {/* 출석표: 화면에 보이는 그 새가족들(allNewFamily)과, 출석부와 같은 필터를 거친 출석
+          기록. 표가 이름으로 사람을 찾으므로 로그도 같은 부서·동산으로 좁혀 들어간다 —
+          안 그러면 다른 부서의 동명이인이 이 표의 칸을 채운다. */}
+      {sheetOpen && (
+        <NewFamilySheetDialog
+          members={allNewFamily}
+          log={filterLog(data.log, filter)}
+          dongsanLog={filterLog(data.dongsanLog ?? [], filter)}
+          filter={filter}
+          today={today}
+          lang={lang}
+          semesterDates={configCalendar(cfg)}
+          onClose={() => setSheetOpen(false)}
+        />
+      )}
       {qrOpen && <KakaoQrDialog members={allNewFamily} today={today} onClose={() => setQrOpen(false)} />}
 
       {editing && (
