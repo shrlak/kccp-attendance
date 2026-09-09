@@ -81,3 +81,56 @@ describe('AdminNewFamily 학기 분리', () => {
     expect(screen.queryByText('교육 미완료')).toBeNull()
   })
 })
+
+// ── 처지 · 학교 칩 ──────────────────────────────────────────────────────────
+// 멤버 탭과 같은 칩 줄이 이 탭에도 선다 (TraitFilter): 대학부는 학교로, 청년부는 처지로
+// 갈리고 그 안의 대학원생만 다시 학교로 간다. 새가족을 학교별로 모아 부를 일이 실제로 있고,
+// 그때 명단을 멤버 탭으로 옮겨 가서 다시 찾을 이유가 없다.
+describe('AdminNewFamily — 처지 · 학교 칩', () => {
+  const school = (name: string, school_or_work: string, group_name = '대학부'): Member =>
+    member(name, '2026-06-07', { group_name, school_or_work })
+
+  it('대학부 새가족을 학교로 좁힌다', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event')
+    await renderTab([
+      school('김씨엠', '대학생 · CMU Math'),
+      school('박핏', '대학생 · UPitt nursing'),
+      school('정미상', ''),
+    ])
+
+    await userEvent.click(screen.getByRole('button', { name: 'CMU' }))
+    // 학기 블록에도, 아래 월별 등록 롤업에도 남는 것은 CMU 한 사람뿐이다 — 한쪽만 좁히면
+    // 같은 화면의 두 곳이 다른 명단을 보여준다.
+    expect(screen.getAllByText('김씨엠').length).toBeGreaterThan(0)
+    expect(screen.queryByText('박핏')).toBeNull()
+    expect(screen.queryByText('정미상')).toBeNull()
+  })
+
+  it('청년부는 처지로 갈리고, 대학원생 안에서만 학교 줄이 뜬다', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event')
+    await renderTab([
+      school('대학씨엠', '대학생 · CMU Math'),
+      school('청년원생', '대학원생 · 씨엠유 기계공학', '청년부'),
+      school('청년직장', '직장인 · 발레댄서', '청년부'),
+    ])
+
+    await userEvent.click(screen.getByRole('button', { name: '청년부' }))
+    expect(screen.getByRole('group', { name: '학생/직장' })).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: '학교' })).toBeNull()
+
+    await userEvent.click(screen.getByRole('button', { name: '직장인' }))
+    expect(screen.getAllByText('청년직장').length).toBeGreaterThan(0)
+    expect(screen.queryByText('청년원생')).toBeNull()
+
+    // 부서를 되돌리면 아래 줄의 선택도 처음으로 돌아간다 — 사라진 칩으로 계속 좁히고
+    // 있으면 화면이 왜 비었는지 알 수 없다.
+    await userEvent.click(screen.getByRole('button', { name: '대학부' }))
+    expect(screen.getAllByText('대학씨엠').length).toBeGreaterThan(0)
+  })
+
+  it('학교를 아무도 적지 않은 부에서는 칩 줄이 없다', async () => {
+    await renderTab([school('김장년', '', '장년부'), school('이장년', '', '장년부')])
+    expect(screen.queryByRole('group', { name: '학교' })).toBeNull()
+    expect(screen.queryByRole('group', { name: '학생/직장' })).toBeNull()
+  })
+})

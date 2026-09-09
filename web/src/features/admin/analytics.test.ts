@@ -10,6 +10,7 @@ import {
   newFamilyTrend,
   newFamilyMonthly,
   newFamilyTotals,
+  schoolSummary,
 } from './analytics'
 import type { Member, LogEntry } from '../../lib/api'
 
@@ -320,5 +321,51 @@ describe('newFamilyTotals', () => {
   })
   it('reports how many Sundays were actually counted when the log is shorter', () => {
     expect(newFamilyTotals(members, [eid(inTerm, '2026-06-07')], term).recentWeeks).toBe(1)
+  })
+})
+
+// ── 학교별 요약 ─────────────────────────────────────────────────────────────
+describe('schoolSummary', () => {
+  const sm = (name: string, school_or_work: string, isNew = false): Member => ({
+    ...m(name),
+    school_or_work,
+    is_new_member: isNew,
+  })
+  const cmu = sm('가', '대학생 · CMU Math')
+  const cmuNew = sm('나', 'Carnegie Mellon ECE', true)
+  const pitt = sm('다', 'Pitt Bio (Pre-Dental)')
+  const unknown = sm('라', 'ballet', true)
+  const members = [cmu, cmuNew, pitt, unknown]
+
+  it('counts the roster by school, in the chip order, with 기타 kept as its own row', () => {
+    expect(schoolSummary(members, []).map((r) => [r.school, r.members, r.newFamily])).toEqual([
+      ['cmu', 2, 1],
+      ['pitt', 1, 0],
+      ['none', 1, 1],
+    ])
+  })
+
+  it('counts distinct recent attendees per school, over the last 4 recorded Sundays', () => {
+    const log = [
+      eid(cmu, '2026-05-03'), // 5주 전 — 창 밖
+      eid(cmu, '2026-06-07'),
+      eid(cmu, '2026-06-14'), // 같은 사람이 두 주 — 한 번으로 센다
+      eid(cmuNew, '2026-06-14'),
+      eid(pitt, '2026-06-21'),
+      eid(unknown, '2026-06-28'),
+    ]
+    const by = Object.fromEntries(schoolSummary(members, log).map((r) => [r.school, r.recent]))
+    expect(by).toEqual({ cmu: 2, pitt: 1, none: 1 })
+  })
+
+  it('leaves out a log row that belongs to nobody on the roster (guests)', () => {
+    const log = [eid(cmu, '2026-06-07'), e('손님', '2026-06-07')]
+    expect(schoolSummary(members, log).find((r) => r.school === 'cmu')?.recent).toBe(1)
+    // 손님은 어느 학교 줄에도 얹히지 않는다 — 명단에 없어 학교를 알 수 없다.
+    expect(schoolSummary(members, log).reduce((n, r) => n + r.recent, 0)).toBe(1)
+  })
+
+  it('is empty for an empty roster', () => {
+    expect(schoolSummary([], [])).toEqual([])
   })
 })

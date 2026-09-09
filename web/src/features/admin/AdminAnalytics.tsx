@@ -12,12 +12,15 @@ import {
   excludeOnBreak,
   newFamilyMonthly,
   newFamilyTotals,
+  schoolSummary,
   RECENT_WEEKS,
   type SemesterRow,
   type NewFamilyTotals,
   type NewFamilyMonthRow,
+  type SchoolRow,
   type Granularity,
 } from './analytics'
+import { SCHOOL_NAMES } from './eduDongsanTraits'
 import { semesterBounds } from './newFamily'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
@@ -56,6 +59,7 @@ export function AdminAnalytics() {
         <MonthlyTable members={members} log={log} />
         <WeeklyRecap log={log} />
       </div>
+      <SchoolTable members={members} log={log} />
       <NewFamilySection members={members} log={log} gran={gran} />
     </>
   )
@@ -164,6 +168,41 @@ function NewFamilyMonthlyTable({ rows }: { rows: NewFamilyMonthRow[] }) {
         />
       )}
     </Section>
+  )
+}
+
+// 학교별 요약 — 멤버 탭·새가족 탭의 학교 칩이 명단을 갈라 **보는** 자리라면 여기는 그것을
+// **세는** 자리다 (칩과 같은 묶음·같은 순서 — analytics.ts schoolSummary). 위 필터로 대학부만
+// 골라 놓으면 이 표도 대학부의 학교별 수가 된다.
+function SchoolTable({ members, log }: { members: Member[]; log: LogEntry[] }) {
+  const { t } = useTranslation()
+  const rows = schoolSummary(members, log)
+  // 학교를 하나도 읽어내지 못하는 부(장년부)에는 '기타' 한 줄만 남는데, 그 수는 명단 전체와
+  // 같아서 아무것도 말해 주지 않는다 — 그럴 때는 표를 내걸지 않는다 (칩 줄과 같은 규칙).
+  if (!rows.some((r) => r.school !== 'none')) return null
+
+  return (
+    <div className="fx-rise mt-4">
+      <Section title={t('admin.analytics.bySchool')} icon={<GraduationCap size={15} strokeWidth={2} aria-hidden />}>
+        <SummaryTable
+          head={[
+            t('admin.members.schoolFilter'),
+            t('admin.analytics.schoolMembers'),
+            t('admin.analytics.nfRecent', { n: RECENT_WEEKS }),
+            t('admin.analytics.schoolNewFamily'),
+          ]}
+          rows={rows.map((r: SchoolRow) => ({
+            key: r.school,
+            cells: [
+              r.school === 'none' ? t('admin.members.school.none') : SCHOOL_NAMES[r.school],
+              r.members,
+              r.recent,
+              r.newFamily,
+            ],
+          }))}
+        />
+      </Section>
+    </div>
   )
 }
 

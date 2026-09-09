@@ -1,5 +1,6 @@
 import type { Member, LogEntry } from '../../lib/api'
-import { groupsOf } from './filters'
+import { groupsOf, schoolsOf, type SchoolChip } from './filters'
+import { schoolOf } from './eduDongsanTraits'
 import { onBreak } from '../../lib/status'
 import { matchesEduFilter, worshipSunday, type EduFilter } from './newFamily'
 
@@ -350,4 +351,50 @@ export function newFamilyTotals(
     recentWeeks: recentDates.size,
     eduDone: nf.filter((m) => m.new_member_edu_week1 && m.new_member_edu_week2).length,
   }
+}
+
+// ── 학교별 요약 ─────────────────────────────────────────────────────────────
+// 명단을 학교로 갈라 세는 자리. 학교는 이 시스템의 칸이 아니라 `members.school_or_work`에
+// 손으로 적힌 말에서 읽어낸 값이라(`schoolOf`), 여기 나오는 수는 **그 칸을 읽어낼 수 있는
+// 사람들의 수**다 — 그래서 읽어내지 못한 사람도 '기타' 줄로 함께 세운다 (줄들을 더하면
+// 명단이 되어야 한다; 빼 두면 어느 줄에도 없는 사람이 생긴다).
+//
+// 부서·동산 필터가 이미 걸린 members + log을 받는 것은 이 파일의 다른 집계와 같고, 그래서
+// 대학부만 골라 놓으면 이 표도 대학부의 학교별 수가 된다.
+export interface SchoolRow {
+  school: SchoolChip // 'cmu' | 'pitt' | 'duq' | 'none'(기타)
+  members: number // 명단 인원
+  recent: number // 최근 RECENT_WEEKS 주일에 한 번이라도 출석한 사람
+  newFamily: number // 그중 새가족 (통계 탭의 다른 새가족 집계와 같이 `is_new_member` 하나로 센다)
+}
+
+export function schoolSummary(members: Member[], log: LogEntry[]): SchoolRow[] {
+  const chipOf = (m: Member): SchoolChip => schoolOf(m) || 'none'
+  // 출석 한 줄이 어느 학교의 것인가 — `memberId`가 열쇠고(동명이인이 갈린다), 없는 옛 줄·
+  // 손님 줄만 이름으로 되짚는다 (newFamilyMatcher와 같은 규칙). 명단에 없는 사람의 줄은
+  // 어느 학교에도 놓을 수 없으므로 빠진다 — 이 표가 세는 것은 명단의 사람들이다.
+  const byId = new Map(members.map((m) => [m.id, chipOf(m)]))
+  const byName = new Map<string, SchoolChip>()
+  for (const m of members) if (!byName.has(m.name)) byName.set(m.name, chipOf(m))
+  const recentDates = new Set(distinctDates(log).slice(-RECENT_WEEKS))
+  const attended = new Map<SchoolChip, Set<string>>()
+  for (const e of log) {
+    if (!recentDates.has(e.date)) continue
+    const school = e.memberId ? byId.get(e.memberId) : byName.get(e.name)
+    if (!school) continue
+    const seen = attended.get(school)
+    if (seen) seen.add(e.name)
+    else attended.set(school, new Set([e.name]))
+  }
+  // 자리는 `schoolsOf`가 정한다 — 멤버 탭·새가족 탭의 칩과 **같은 순서, 같은 묶음**이라
+  // 칩에서 본 학교가 표에서도 같은 자리에 있다.
+  return schoolsOf(members).map((school) => {
+    const mine = members.filter((m) => chipOf(m) === school)
+    return {
+      school,
+      members: mine.length,
+      recent: attended.get(school)?.size ?? 0,
+      newFamily: mine.filter((m) => m.is_new_member).length,
+    }
+  })
 }
