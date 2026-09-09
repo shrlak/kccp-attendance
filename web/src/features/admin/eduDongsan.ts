@@ -81,14 +81,56 @@ export interface EduBucketPlan extends EduBucket {
   names: string[] // 그 조들의 이름 — `sizes`와 같은 자리
 }
 
+// 정하는 것은 **조 갯수 하나**이고, 그 수를 부서×단계 묶음에 나눠 주는 자리가 여기다.
+// 묶음은 넘을 수 없으므로(대학부 미수강과 청년부 미수강은 다른 조다) **묶음마다 최소 한 조**이고
+// 사람보다 많은 조는 설 수 없다 — 그래서 고른 사람으로 만들 수 있는 조 갯수에는 아래위 끝이
+// 있다 (`eduGroupBounds`). 그 사이로 들어온 수만 그대로 선다.
+//
+// 남는 조는 **지금 한 조에 사람이 제일 많이 몰린 묶음**부터 준다 (`size / 지금 조 수`가 가장
+// 큰 곳). 큰 묶음이 먼저 쪼개지므로 조마다의 인원이 전체에서 고르게 맞춰진다 — 묶음 크기에
+// 비례해 미리 나눠 주는 셈이고, 같은 값이면 앞 묶음이 먼저다 (매주 같은 답이 나오도록).
+export function allocateGroups(sizes: number[], total: number): number[] {
+  const out = sizes.map(() => 1)
+  const people = sizes.reduce((a, b) => a + b, 0)
+  let left = Math.min(Math.max(Math.floor(total) || 0, sizes.length), people) - sizes.length
+  while (left > 0) {
+    let best = -1
+    let bestRatio = 0
+    for (let i = 0; i < sizes.length; i++) {
+      if (out[i] >= sizes[i]) continue // 한 조에 한 명보다 잘게 쪼갤 수는 없다
+      const ratio = sizes[i] / out[i]
+      if (ratio > bestRatio) {
+        bestRatio = ratio
+        best = i
+      }
+    }
+    if (best < 0) break
+    out[best]++
+    left--
+  }
+  return out
+}
+
+// 고른 사람으로 만들 수 있는 조 갯수의 **아래위 끝**. 아래는 묶음 수(부서×단계는 넘지 않으므로
+// 그보다 적게는 나눌 수 없다), 위는 인원 수(한 조에 한 명씩). 화면이 이 값을 적어 주지 않으면
+// 3조라고 적었는데 4조가 나오는 이유를 알 수 없다.
+export function eduGroupBounds(members: Member[]): { min: number; max: number } {
+  const buckets = eduBuckets(members)
+  return { min: buckets.length, max: buckets.reduce((n, b) => n + b.members.length, 0) }
+}
+
 // **번호를 매기는 자리는 여기 하나다.** 미리보기와 실제 배정이 같은 함수를 걸어야 창에서 본
 // `1조`가 배정된 `1조`와 같은 조가 된다 — 두 곳에서 따로 세면 부서 순서가 조금만 달라져도
 // 이름이 어긋난다. 번호는 묶음을 넘어 이어진다 (부서마다 다시 세지 않는다).
 export function eduBucketPlans(members: Member[], count = 1): EduBucketPlan[] {
-  const n = Math.max(1, Math.floor(count))
+  const buckets = eduBuckets(members)
+  const counts = allocateGroups(
+    buckets.map((b) => b.members.length),
+    count,
+  )
   let next = 1
-  return eduBuckets(members).map((bucket) => {
-    const sizes = bucketSizes(bucket.members.length, n).filter((size) => size > 0)
+  return buckets.map((bucket, i) => {
+    const sizes = bucketSizes(bucket.members.length, counts[i]).filter((size) => size > 0)
     return { ...bucket, sizes, names: sizes.map(() => eduDongsanLabel(next++)) }
   })
 }
@@ -296,11 +338,12 @@ function balancedGroups(list: Member[], sizes: number[], rand: () => number, rul
   return best ?? deal(list, sizes)
 }
 
-// 고른 사람들을 **부서 × 교육 단계**로 갈라 조를 만든다. `count`는 한 단계를 몇 조로 나눌지이고
-// **기본값은 1 — 단계 하나가 곧 조 하나다** (미수강인 사람들이 한 조, 2주차만 들은 사람들이
-// 다른 한 조). 2 이상으로 올리면 그 단계 안에서 다시 쪼개지고, 그때 비로소 그 부서의 기준
-// (ruleForGroup — 성비·나이·학교·전공·신앙)이 누가 어느 쪽으로 갈지를 정한다. 조가 하나뿐인
-// 동안에는 고를 것이 없으므로 기준이 아무것도 바꾸지 않는다.
+// 고른 사람들을 **부서 × 교육 단계**로 갈라 조를 만든다. `count`는 **전체를 몇 조로 나눌지**이고
+// (한 묶음을 몇으로 쪼갤지가 아니다), 그 수를 묶음마다 몇 조씩으로 풀어내는 것이
+// `allocateGroups`다. 묶음 수보다 작게 적으면 묶음 수만큼(단계 하나가 곧 조 하나 — 기본값 1이
+// 그 자리다), 인원보다 크게 적으면 인원만큼 선다. 한 묶음이 둘 이상으로 쪼개질 때 비로소 그
+// 부서의 기준(ruleForGroup — 성비·나이·학교·전공·신앙)이 누가 어느 쪽으로 갈지를 정한다 —
+// 조가 하나뿐인 묶음에서는 고를 것이 없으므로 기준이 아무것도 바꾸지 않는다.
 export function assignEduDongsan(
   members: Member[],
   count = 1,

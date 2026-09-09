@@ -6,8 +6,10 @@ import {
   missingTraits,
   bucketSizes,
   clearEduDongsan,
+  allocateGroups,
   eduDongsanLabel,
   eduDongsanPlan,
+  eduGroupBounds,
   groupByEduDongsan,
   membersByGroup,
 } from './eduDongsan'
@@ -38,7 +40,7 @@ describe('eduDongsan — 부서를 넘지 않는다', () => {
   })
 
   it('한 조에는 한 부서만 앉는다 — 이름이 번호뿐이라 사람으로 확인한다', () => {
-    const byId = new Map(assignEduDongsan(people, 2, seeded([0.1, 0.7, 0.3])).map((a) => [a.memberId, a.dongsan]))
+    const byId = new Map(assignEduDongsan(people, 4, seeded([0.1, 0.7, 0.3])).map((a) => [a.memberId, a.dongsan]))
     const groupsIn = new Map<string, Set<string>>()
     for (const p of people) {
       const name = byId.get(p.id)!
@@ -46,7 +48,7 @@ describe('eduDongsan — 부서를 넘지 않는다', () => {
     }
     for (const groups of groupsIn.values()) expect(groups.size).toBe(1)
     // 번호는 **배정 전체에서 이어진다** — 부서마다 1조부터 다시 세면 두 부서의 1조가 한 조가 된다.
-    // 이 표본은 모두 미수강이라 단계가 하나뿐 — count 2로 부서마다 둘씩 쪼개져 넷이 선다.
+    // 이 표본은 모두 미수강이라 묶음이 둘(대학부 2명 · 청년부 3명) — 4조를 시키면 둘씩 갈린다.
     expect(new Set([...byId.values()])).toEqual(new Set(['1조', '2조', '3조', '4조']))
   })
 })
@@ -58,9 +60,21 @@ describe('eduDongsan — 인원은 고르게, 미리보기와 결과가 같게',
     expect(bucketSizes(2, 5)).toEqual([1, 1, 0, 0, 0]) // 사람보다 조가 많으면 빈 조가 남는다
   })
 
+  it('조 갯수는 묶음마다 하나씩 깔고, 남는 것은 사람이 몰린 묶음부터 간다', () => {
+    // 묶음마다 최소 하나 — 그보다 적게는 나눌 수 없다 (묶음을 넘지 않으므로).
+    expect(allocateGroups([2, 3], 1)).toEqual([1, 1])
+    // 남는 하나는 사람이 더 많은 쪽으로.
+    expect(allocateGroups([2, 3], 3)).toEqual([1, 2])
+    // 그다음은 다시 '한 조에 사람이 제일 많은' 묶음으로 — 3명이 둘로 갈린 뒤에는 2명 쪽이다.
+    expect(allocateGroups([2, 3], 4)).toEqual([2, 2])
+    // 한 조에 한 명보다 잘게 쪼갤 수는 없다.
+    expect(allocateGroups([2, 3], 99)).toEqual([2, 3])
+    expect(allocateGroups([], 5)).toEqual([])
+  })
+
   it('실제 배정의 조별 인원이 미리보기와 일치한다', () => {
     const people = Array.from({ length: 7 }, (_, i) => m(`청${i}`, '청년부'))
-    const plan = eduDongsanPlan(people, 3)
+    const plan = eduDongsanPlan(people, 3) // 묶음이 하나뿐이라 3조가 그대로 그 묶음의 3조다
     expect(plan[0].group).toBe('청년부')
     expect(plan[0].total).toBe(7)
     expect(plan[0].sizes).toEqual([3, 2, 2])
@@ -411,11 +425,22 @@ describe('eduDongsan — 교육 단계가 조를 가른다', () => {
     ])
   })
 
-  it('갯수를 2 이상으로 올리면 그 단계 안에서만 다시 쪼개진다', () => {
-    const out = assignEduDongsan(people, 2, seededRand(9))
+  it('조 갯수를 올리면 사람이 많은 묶음부터 쪼개지고, 단계는 넘지 않는다', () => {
+    // 6명이 네 묶음(미수강 2 · 1주차만 1 · 2주차만 2 · 수강 완료 1)이라 6조가 최대다:
+    // 두 명짜리 두 묶음이 둘씩 갈리고 한 명짜리는 더 쪼갤 수 없다.
+    const out = assignEduDongsan(people, 6, seededRand(9))
     const labels = new Set(out.map((a) => a.dongsan))
-    // 두 명뿐인 단계는 둘로, 한 명뿐인 단계는 사람이 없어 빈 조가 생기지 않는다.
-    // 미수강 2명 → 1·2조, 1주차만 1명 → 3조, 2주차만 2명 → 4·5조, 수강 완료 1명 → 6조.
     expect(labels).toEqual(new Set(['1조', '2조', '3조', '4조', '5조', '6조']))
+    for (const g of groupsOf(people, out)) {
+      expect(new Set(g.map((p) => `${p.new_member_edu_week1}/${p.new_member_edu_week2}`)).size).toBe(1)
+    }
+  })
+
+  it('묶음보다 적게 적으면 묶음 수만큼, 인원보다 많이 적으면 인원만큼 선다', () => {
+    expect(eduGroupBounds(people)).toEqual({ min: 4, max: 6 })
+    // 1조라고 적어도 단계를 섞을 수는 없으므로 네 묶음 = 네 조가 최소다.
+    expect(new Set(assignEduDongsan(people, 1, seededRand(3)).map((a) => a.dongsan)).size).toBe(4)
+    // 20조를 적어도 한 조에 한 명씩이 끝이다.
+    expect(new Set(assignEduDongsan(people, 20, seededRand(3)).map((a) => a.dongsan)).size).toBe(6)
   })
 })

@@ -27,6 +27,7 @@ import {
   assignEduDongsan as planEduDongsan,
   clearEduDongsan,
   eduDongsanPlan,
+  eduGroupBounds,
   groupByEduDongsan,
   ruleForGroup,
   type EduAssignment,
@@ -509,12 +510,10 @@ function GroupComposition({ members }: { members: Member[] }) {
   return <div className="mt-1 text-[11px] tabular-nums text-subtle">{parts.join(' · ')}</div>
 }
 
-// 동산 배정 창 — 고른 사람을 **부서 안에서** 무작위로 나눈다. 정하는 것은 동산 갯수 하나이고,
-// 조마다 몇 명이 되는지는 누르기 전에 미리 보여준다 (무작위가 정하는 것은 누가 어디로
+// 동산 배정 창 — 고른 사람을 **부서 안에서** 무작위로 나눈다. 정하는 것은 **조 갯수 하나**이고,
+// 어느 묶음이 몇 조로 갈리는지도 누르기 전에 미리 보여준다 (무작위가 정하는 것은 누가 어디로
 // 가느냐뿐이다). 배정 규칙(누구를 같이 두고 누구를 갈라놓을지)이 정해지면 eduDongsan.ts의
 // 섞는 자리만 갈아 끼우면 되고 이 창은 그대로다.
-// 한 단계를 이보다 잘게 쪼갤 일은 없다 — 한 단계에 이만큼 사람이 모이는 주일 자체가 없다.
-const MAX_PER_STAGE = 12
 
 function EduDongsanDialog({
   open,
@@ -531,11 +530,14 @@ function EduDongsanDialog({
   const qc = useQueryClient()
   const toast = useToast()
   const [busy, setBusy] = useState(false)
-  // **한 단계를 몇 조로 나눌지.** 기본값 1 = 단계 하나가 곧 조 하나이고, 2 이상으로 올리면 그
-  // 단계 안에서만 다시 쪼개진다 (단계를 넘어 섞이지는 않는다). 2 이상일 때 비로소 부서별
-  // 기준(성비·나이·학교·전공·신앙)이 누가 어느 쪽으로 갈지를 정한다 — 조가 하나뿐이면 고를
-  // 것이 없으므로 기준이 아무것도 바꾸지 않는다.
-  const [count, setCount] = useState(1)
+  // **전체를 몇 조로 나눌지** (한 묶음을 몇으로 쪼갤지가 아니다). 적은 수는 부서×단계 묶음에
+  // 나뉘어 들어가고(`allocateGroups`), 묶음을 넘는 조는 설 수 없으므로 **아래위 끝이 있다** —
+  // 적은 값이 그 밖이면 끝으로 당겨 쓰고 칸에도 당겨진 값을 그대로 보여준다 (창에 3이 적혀
+  // 있는데 4조가 나오면 어디서 어긋났는지 알 수 없다). 한 묶음이 둘 이상으로 갈릴 때 비로소
+  // 부서별 기준(성비·나이·학교·전공·신앙)이 누가 어느 쪽으로 갈지를 정한다.
+  const bounds = eduGroupBounds(members)
+  const [wanted, setWanted] = useState(1)
+  const count = Math.min(Math.max(wanted, bounds.min), Math.max(bounds.max, 1))
   const plan = eduDongsanPlan(members, count)
 
   async function send(assignments: EduAssignment[], key: 'done' | 'cleared') {
@@ -562,12 +564,22 @@ function EduDongsanDialog({
       <Input
         id="edu-dongsan-count"
         type="number"
-        min={1}
-        max={MAX_PER_STAGE}
+        min={Math.max(bounds.min, 1)}
+        max={Math.max(bounds.max, 1)}
         value={count}
-        onChange={(e) => setCount(Math.min(MAX_PER_STAGE, Math.max(1, Number(e.target.value) || 1)))}
+        onChange={(e) => setWanted(Math.max(1, Math.floor(Number(e.target.value)) || 1))}
       />
-      <p className="mt-1 text-[11px] leading-relaxed text-subtle">{t('admin.newfamilyEdu.assign.groupsHint')}</p>
+      <p className="mt-1 text-[11px] leading-relaxed text-subtle">
+        {t('admin.newfamilyEdu.assign.groupsHint')}
+        {/* 왜 이 수보다 적게(많게) 못 나누는지를 그 자리에 적어 둔다 — 칸이 저절로 바뀌는
+            이유가 화면 어디에도 없으면 고장으로 읽힌다. */}
+        {members.length > 0 && (
+          <>
+            {' '}
+            {t('admin.newfamilyEdu.assign.groupsRange', { min: bounds.min, max: bounds.max })}
+          </>
+        )}
+      </p>
 
       {/* 누르기 전에 어떤 조가 생기는지 그대로 보여준다 — 단계마다 몇 조가 서고 조마다 몇 명이
           되는지까지. 무작위가 정하는 것은 누가 어디로 가느냐뿐이라 이 수는 그대로 맞는다. */}
