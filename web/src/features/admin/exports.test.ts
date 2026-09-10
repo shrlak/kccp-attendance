@@ -5,6 +5,7 @@ import {
   buildAttendanceModel,
   attendanceGroupBy,
   exportSundays,
+  newFamilySundays,
   semesterLabel,
   blockColors,
   cssColor,
@@ -286,6 +287,32 @@ describe('exportSundays', () => {
     expect(exportSundays('2026-07-20', custom)).toEqual(gapSundays)
     // …and the next term's first day switches again, to the fall columns.
     expect(exportSundays('2026-09-06', custom)[0]).toBe('2026-09-06')
+  })
+})
+
+describe('newFamilySundays', () => {
+  // 프로덕션의 저장된 일정: 여름 06-07~08-02 · 가을 09-06~12-13 (그 사이는 전환 기간).
+  const cfg: SemesterDates = {
+    spring: { start: '01-01', end: '05-09' },
+    summer: { start: '06-07', end: '08-02' },
+    fall: { start: '09-06', end: '12-13' },
+  }
+  it('2026 가을에는 학기가 열리기 전 8/16부터 연다', () => {
+    const dates = newFamilySundays('2026-09-10', cfg)
+    // 앞으로 늘어난 세 주일이 먼저 오고, 그 뒤는 출석부와 같은 가을 학기 주일 그대로.
+    expect(dates.slice(0, 4)).toEqual(['2026-08-16', '2026-08-23', '2026-08-30', '2026-09-06'])
+    expect(dates).toEqual(['2026-08-16', '2026-08-23', '2026-08-30', ...exportSundays('2026-09-10', cfg)])
+  })
+  it('다른 학기는 출석부와 똑같다', () => {
+    // 전환 기간에는 그 표가 이미 8/16을 담고 있고(8/9부터 열린다), 지난 학기·다음 학기에는
+    // 그 시작일이 아무 뜻이 없다 — 늘리기만 하고 자르지 않으므로 8/9도 그대로 남는다.
+    for (const day of ['2026-08-05', '2026-07-05', '2027-01-10']) {
+      expect(newFamilySundays(day, cfg)).toEqual(exportSundays(day, cfg))
+    }
+    expect(newFamilySundays('2026-08-05', cfg)[0]).toBe('2026-08-09')
+  })
+  it('장년부에는 걸리지 않는다 — 하반기가 이미 그 앞에서 열린다', () => {
+    expect(newFamilySundays('2026-09-10', cfg, 'adult')).toEqual(exportSundays('2026-09-10', cfg, 'adult'))
   })
 })
 

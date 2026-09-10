@@ -64,6 +64,7 @@ export function AttendanceGrid({
   today,
   filter,
   semesterDates,
+  sundays,
   groupBy,
   caption,
 }: {
@@ -74,6 +75,9 @@ export function AttendanceGrid({
   today: string
   filter: Filter
   semesterDates?: CalendarLike
+  // 날짜 열. 비우면 그 부의 학기 주일(exportSundays) — 출석부가 그것이다. 새가족 출석표는
+  // 학기가 열리기 전 주일까지 앞으로 늘려 받는다 (exports.ts newFamilySundays).
+  sundays?: string[]
   // 블록을 가르는 기준. 비우면 출석부와 같은 동산(전환 기간에는 부서) 편성이다.
   groupBy?: (m: Member) => string
   // 표 위 한 줄. 비우면 출석부의 '학기 · 필터' 줄.
@@ -94,7 +98,7 @@ export function AttendanceGrid({
   const model = buildAttendanceModel(
     ordered,
     log,
-    exportSundays(today, semesterDates, partition),
+    sundays ?? exportSundays(today, semesterDates, partition),
     today,
     { unassigned: L.unassigned, newFamily: L.newFamily },
     groupBy ?? attendanceGroupBy(today, semesterDates, L.unassigned, partition),
