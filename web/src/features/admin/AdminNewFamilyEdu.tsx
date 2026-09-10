@@ -15,6 +15,7 @@ import {
   type NewFamilyWeek,
 } from './newFamily'
 import { NewFamilyWeekChip } from './NewFamilyWeekChip'
+import { NewFamilyFacts } from './NewFamilyFacts'
 import {
   eduStage,
   eduUnfinished,
@@ -758,6 +759,10 @@ function EduCard({
           <span>{[member.group_name, member.subgroup].filter(Boolean).join(' · ') || '—'}</span>
           <SchoolMark member={member} />
         </div>
+        {/* 학교/직장 · 세례여부 · 신앙생활 — 새가족 탭의 카드와 **같은 컴포넌트**다
+            (NewFamilyFacts). 위의 SchoolMark는 배정 기준이 읽어낸 학교 하나를 짧게 짚는
+            자리이고, 여기 적히는 것은 그 칸에 실제로 적힌 말이다. */}
+        <NewFamilyFacts member={member} />
         {/* 이번 주 교육 동산 — 배정하면 카드에서 바로 읽힌다 (조별 명단은 위 블록에 있다). */}
         {member.new_member_dongsan && (
           <div className="mt-1.5">
