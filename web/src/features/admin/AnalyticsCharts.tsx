@@ -3,10 +3,19 @@ import { useTranslation } from 'react-i18next'
 import type { Chart as ChartType, ChartConfiguration, Plugin } from 'chart.js'
 import { useTheme } from '../../stores/useTheme'
 import { shortDate, shortMonth } from './sheet'
-import { trendSeries, groupSeries, newFamilyRegistrations, newFamilyTrend, type Granularity } from './analytics'
+import {
+  trendSeries,
+  groupSeries,
+  newFamilyRegistrations,
+  newFamilyTrend,
+  RECENT_WEEKS,
+  type Granularity,
+  type SchoolRow,
+} from './analytics'
+import { SCHOOL_NAMES } from './eduDongsanTraits'
 import { type Member, type LogEntry } from '../../lib/api'
 import { resolveGroupColor } from './groupColors'
-import { Activity, BarChart3, Sprout, UserPlus } from '../../components/ui/Icon'
+import { Activity, BarChart3, GraduationCap, Sprout, UserPlus } from '../../components/ui/Icon'
 import { Pill } from './GroupFilter'
 import { type EduFilter } from './newFamily'
 import { useAppConfig } from '../../lib/useAppConfig'
@@ -29,6 +38,33 @@ function pointValueLabels(tick: string): Plugin {
         const value = data[i]
         if (value == null) return
         ctx.fillText(String(value), point.x, point.y - 6)
+      })
+      ctx.restore()
+    },
+  }
+}
+
+// 막대 위에 값을 적는 짝. 선 그래프의 pointValueLabels가 첫 데이터셋만 도는 것과 달리
+// **모든 데이터셋**을 도는데, 학교별 막대는 한 자리에 셋이 나란히 서므로 한 줄만 적으면
+// 나머지 둘은 눈금으로 어림해 읽게 된다 — 옆에 같은 수의 표가 서 있는 자리라 그림 안의
+// 숫자가 표와 바로 맞물려야 한다. 숨긴(범례에서 끈) 데이터셋은 건너뛴다.
+function barValueLabels(tick: string): Plugin {
+  return {
+    id: 'barValueLabels',
+    afterDatasetsDraw(chart) {
+      const { ctx } = chart
+      ctx.save()
+      ctx.font = '600 10px ui-sans-serif, system-ui, sans-serif'
+      ctx.fillStyle = tick
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'bottom'
+      chart.data.datasets.forEach((ds, i) => {
+        if (!chart.isDatasetVisible(i)) return
+        chart.getDatasetMeta(i).data.forEach((bar, j) => {
+          const value = ds.data[j]
+          if (value == null) return
+          ctx.fillText(String(value), bar.x, bar.y - 4)
+        })
       })
       ctx.restore()
     },
@@ -323,6 +359,85 @@ export function NewFamilyCharts({
         </Panel>
       )}
     </div>
+  )
+}
+
+// ── 학교별 비교 ─────────────────────────────────────────────────────────────
+// 학교별 요약 표와 **같은 수를 같은 자리에서** 그린다 — 표가 `schoolSummary`를 부르고 그
+// 결과(`rows`)를 그대로 넘겨받으므로, 화면 위아래 두 그림이 갈릴 수가 없다 (각자 세면
+// 필터가 바뀌는 순간 어느 쪽이 맞는지 알 수 없게 된다).
+//
+// **쌓지 않고 나란히 세운다**: 세 수가 한 덩어리의 조각이 아니기 때문이다 — 새가족은 인원
+// 안의 일부이고 최근 출석은 그 주일들에 온 사람이라, 쌓으면 셋을 더한 높이가 무언가를
+// 뜻하는 것처럼 읽힌다 (더해도 아무것도 아니다).
+const SCHOOL_SERIES_COLOR = {
+  // 인원은 나머지 둘이 딛고 선 바탕이라 이 탭에 없던 세 번째 색(앰버)을 뒀고, 최근 출석과
+  // 새가족은 **이미 이 탭에서 뜻이 정해진 색을 그대로** 쓴다 — 출석 추이의 파랑, 새가족
+  // 그래프의 초록. 같은 사실이 화면 위아래에서 같은 색이라야 눈이 따라간다.
+  // 셋 다 밝은 바탕(#ffffff)·어두운 바탕(#1c1c1e) 양쪽에서 3:1을 넘고 색각 이상에서도
+  // 서로 갈린다.
+  members: '#D97706',
+  recent: '#0071E3',
+  newFamily: NEW_FAMILY_COLOR,
+}
+
+export function SchoolChart({ rows }: { rows: SchoolRow[] }) {
+  const { t } = useTranslation()
+  const build = useCallback(
+    (tick: string, grid: string): ChartConfiguration => ({
+      type: 'bar',
+      data: {
+        // 가로축의 학교와 그 순서는 `rows`가 들고 온 것 그대로다 (schoolSummary → schoolsOf) —
+        // 멤버 탭의 학교 칩, 옆의 표, 이 그래프가 모두 같은 순서라 셋을 오가며 볼 수 있다.
+        labels: rows.map((r) => (r.school === 'none' ? t('admin.members.school.none') : SCHOOL_NAMES[r.school])),
+        datasets: [
+          {
+            label: t('admin.analytics.schoolMembers'),
+            data: rows.map((r) => r.members),
+            backgroundColor: SCHOOL_SERIES_COLOR.members,
+            borderRadius: 4,
+            maxBarThickness: 28,
+          },
+          {
+            label: t('admin.analytics.nfRecent', { n: RECENT_WEEKS }),
+            data: rows.map((r) => r.recent),
+            backgroundColor: SCHOOL_SERIES_COLOR.recent,
+            borderRadius: 4,
+            maxBarThickness: 28,
+          },
+          {
+            label: t('admin.analytics.schoolNewFamily'),
+            data: rows.map((r) => r.newFamily),
+            backgroundColor: SCHOOL_SERIES_COLOR.newFamily,
+            borderRadius: 4,
+            maxBarThickness: 28,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        layout: { padding: { top: 16 } },
+        // 줄이 셋이라 범례는 언제나 켠다 — 색만으로는 어느 막대가 무엇인지 말해 주지 못한다.
+        plugins: { legend: { labels: { color: tick, boxHeight: 10 } } },
+        scales: {
+          x: { ticks: { color: tick }, grid: { display: false } },
+          // `grace`가 세로축을 제일 큰 값보다 한 뼘 높게 잡아 준다. 이 그래프에만 있는 이유는
+          // 범례가 그림 위에 앉기 때문 — 그러지 않으면 제일 높은 막대가 그림 꼭대기에 닿고
+          // 그 위에 적히는 숫자가 범례 글자와 겹친다 (layout.padding은 범례째로 밀어내므로
+          // 이 사이를 벌려 주지 못한다).
+          y: { beginAtZero: true, grace: '12%', ticks: { color: tick, precision: 0 }, grid: { color: grid } },
+        },
+      },
+      plugins: [barValueLabels(tick)],
+    }),
+    [rows, t],
+  )
+
+  return (
+    <Panel title={t('admin.analytics.schoolCompare')} icon={<GraduationCap size={16} strokeWidth={2} aria-hidden />}>
+      <ChartCanvas build={build} />
+    </Panel>
   )
 }
 

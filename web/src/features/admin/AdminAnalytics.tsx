@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useRoster } from './useRoster'
 import { filterMembers, filterLog, NO_FILTER, type Filter } from './filters'
 import { GroupFilter } from './GroupFilter'
-import { AnalyticsCharts, NewFamilyCharts, GranularityToggle } from './AnalyticsCharts'
+import { AnalyticsCharts, NewFamilyCharts, GranularityToggle, SchoolChart } from './AnalyticsCharts'
 import {
   monthlySummary,
   semesterSummary,
@@ -59,7 +59,7 @@ export function AdminAnalytics() {
         <MonthlyTable members={members} log={log} />
         <WeeklyRecap log={log} />
       </div>
-      <SchoolTable members={members} log={log} />
+      <SchoolBySchool members={members} log={log} />
       <NewFamilySection members={members} log={log} gran={gran} />
     </>
   )
@@ -171,18 +171,24 @@ function NewFamilyMonthlyTable({ rows }: { rows: NewFamilyMonthRow[] }) {
   )
 }
 
-// 학교별 요약 — 멤버 탭·새가족 탭의 학교 칩이 명단을 갈라 **보는** 자리라면 여기는 그것을
+// 학교별 — 멤버 탭·새가족 탭의 학교 칩이 명단을 갈라 **보는** 자리라면 여기는 그것을
 // **세는** 자리다 (칩과 같은 묶음·같은 순서 — analytics.ts schoolSummary). 위 필터로 대학부만
-// 골라 놓으면 이 표도 대학부의 학교별 수가 된다.
-function SchoolTable({ members, log }: { members: Member[]; log: LogEntry[] }) {
+// 골라 놓으면 그래프도 표도 대학부의 학교별 수가 된다.
+//
+// **그림과 표를 나란히 둔다**: 표는 정확한 수를 읽는 자리이고 그래프는 학교 사이의 크기를
+// 한눈에 견주는 자리라 서로를 대신하지 못한다 (셋을 가로로 견주려고 표의 숫자를 눈으로 빼고
+// 있던 것이 그래프가 생긴 이유다). 세는 일은 `schoolSummary` 한 번뿐이고 그 결과를 둘이
+// 나눠 쓴다 — 각자 세면 필터가 바뀌는 순간 어느 쪽이 맞는지 알 수 없게 된다.
+function SchoolBySchool({ members, log }: { members: Member[]; log: LogEntry[] }) {
   const { t } = useTranslation()
   const rows = schoolSummary(members, log)
   // 학교를 하나도 읽어내지 못하는 부(장년부)에는 '기타' 한 줄만 남는데, 그 수는 명단 전체와
-  // 같아서 아무것도 말해 주지 않는다 — 그럴 때는 표를 내걸지 않는다 (칩 줄과 같은 규칙).
+  // 같아서 아무것도 말해 주지 않는다 — 그럴 때는 그래프도 표도 내걸지 않는다 (칩 줄과 같은 규칙).
   if (!rows.some((r) => r.school !== 'none')) return null
 
   return (
-    <div className="fx-rise mt-4">
+    <div className="fx-rise mt-4 grid gap-4 lg:grid-cols-2">
+      <SchoolChart rows={rows} />
       <Section title={t('admin.analytics.bySchool')} icon={<GraduationCap size={15} strokeWidth={2} aria-hidden />}>
         <SummaryTable
           head={[
