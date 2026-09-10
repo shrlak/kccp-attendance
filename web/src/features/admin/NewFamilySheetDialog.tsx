@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { Dialog } from '../../components/ui/Dialog'
 import { AttendanceGrid } from './AttendanceGrid'
-import { semesterLabel, type Lang } from './exports'
+import { newFamilySundays, semesterLabel, type Lang } from './exports'
 import type { LogEntry, Member } from '../../lib/api'
 import type { CalendarLike } from '../../lib/semester'
 import { usePartition } from '../../lib/useAppConfig'
@@ -51,6 +51,10 @@ export function NewFamilySheetDialog({
         today={today}
         filter={filter}
         semesterDates={semesterDates}
+        // 날짜 열은 출석부의 그 주일들에 **학기 앞쪽**을 더한 것이다 (newFamilySundays):
+        // 2026 가을의 새가족은 학기가 열리기 전인 8/16부터 왔고, 그 주일들이 없으면
+        // 등록일 뒤로 몇 주가 통째로 표 밖에 남는다.
+        sundays={newFamilySundays(today, semesterDates, partition)}
         groupBy={(m) => m.group_name || noGroup}
         caption={`${semesterLabel(today, lang, semesterDates, partition)} · ${t('admin.newfamily.sheet.caption', { n: members.length })}`}
       />

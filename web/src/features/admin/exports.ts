@@ -1,7 +1,7 @@
 import type { Member, LogEntry } from '../../lib/api'
 import type { CalendarLike } from '../../lib/semester'
 import { buildGrid } from './sheet'
-import { semesterBounds, semesterKey, semesterSundays, transitionBounds, transitionSundays, isActiveNewFamily } from './newFamily'
+import { semesterBounds, semesterKey, semesterSundays, sundaysBetween, transitionBounds, transitionSundays, isActiveNewFamily } from './newFamily'
 import { splitAffiliation } from './newFamilyCard'
 import { classifyKakaoId } from './contactQr'
 import { awayForRange, noteOn } from '../../lib/status'
@@ -85,6 +85,26 @@ export function exportSundays(today: string, semesterDates?: CalendarLike, parti
   const dates = semesterSundays(today, end)
   const start = TERM_START_OVERRIDES[key]
   return start ? dates.filter((d) => d >= start) : dates
+}
+
+// 새가족 출석표만은 학기가 열리기 전에서 시작할 수 있다. 2026 가을의 새가족은 여름학기가
+// 끝난 뒤(8/2)와 가을학기가 열리기 전(9/6) 사이의 전환 기간부터 오기 시작했는데, 그 주일들이
+// 표에 없으면 이 표가 묻는 것 — "등록한 뒤로 계속 오고 있나" — 이 그 사람들에게는 답을 얻지
+// 못한다 (등록일만 남고 그 뒤 몇 주가 통째로 표 밖이다). semesterKey로 걸어 두므로 그 한
+// 학기에만 적용되고 다음 학기가 열리면 저절로 사라진다 — TERM_START_OVERRIDES와 같은 방식.
+const NEW_FAMILY_START_OVERRIDES: Record<string, string> = {
+  '2026-fall': '2026-08-16',
+}
+
+// 새가족 출석표의 날짜 열: 출석부와 **같은 주일들**(exportSundays)에, 그 학기에 시작일이
+// 적혀 있으면 그 날짜까지 앞으로 늘린 것. 늘리기만 하고 자르지는 않는다 — 학기 안의 주일을
+// 떨어내면 같은 표가 두 화면에서 다른 사실을 말하게 된다. 시작일이 이미 첫 열보다 뒤면
+// (전환 기간에 이 표를 열었거나, 학기 경계가 다른 부라면) 아무것도 달라지지 않는다.
+export function newFamilySundays(today: string, semesterDates?: CalendarLike, partition: Partition = 'youth'): string[] {
+  const dates = exportSundays(today, semesterDates, partition)
+  const from = NEW_FAMILY_START_OVERRIDES[semesterKey(today, semesterDates, partition)]
+  if (!from || dates.length === 0 || from >= dates[0]) return dates
+  return [...sundaysBetween(from, dates[0]).filter((d) => d < dates[0]), ...dates]
 }
 
 // A worship Sunday after `today` hasn't happened yet: its O/X cell and its 총 출석 stay blank
