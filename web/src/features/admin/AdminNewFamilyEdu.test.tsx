@@ -217,6 +217,25 @@ describe('AdminNewFamilyEdu — 새가족 교육 동산 배정', () => {
     expect(screen.queryByText('4명 선택')).not.toBeInTheDocument()
   })
 
+  // 전체 선택이 집는 것은 아직 교육이 남은 사람뿐이다 — 조에 앉을 사람이 그 사람들이라,
+  // 수강 완료한 사람까지 딸려 오면 배정 창에서 다시 하나씩 빼게 된다.
+  it('전체 선택은 아직 교육이 남은 사람만 고르고, 다시 누르면 그만큼만 푼다', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event')
+    const done = { ...member('m5', '수강완료'), new_member_edu_week1: true, new_member_edu_week2: true }
+    renderAs('super_admin', [...people, done])
+
+    await userEvent.click(screen.getByRole('button', { name: '전체 선택' }))
+    expect(screen.getByText('4명 선택')).toBeInTheDocument()
+
+    // 수강 완료한 사람은 카드에서 직접 고를 수 있다 (버튼이 그 길을 막지는 않는다).
+    await userEvent.click(screen.getByRole('button', { name: '수강완료 선택' }))
+    expect(screen.getByText('5명 선택')).toBeInTheDocument()
+
+    // 그 상태에서 해제하면 교육이 남은 넷만 풀리고, 손으로 고른 사람은 남는다.
+    await userEvent.click(screen.getByRole('button', { name: '선택 해제' }))
+    expect(screen.getByText('1명 선택')).toBeInTheDocument()
+  })
+
   it('고른 사람만, 부서 안에서만 나눈다', async () => {
     const { default: userEvent } = await import('@testing-library/user-event')
     apiMocks.assignEduDongsan.mockResolvedValue({ status: 'ok', updated: 3 })
