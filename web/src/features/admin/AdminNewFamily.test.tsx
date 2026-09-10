@@ -143,6 +143,30 @@ describe('AdminNewFamily — 처지 · 학교 칩', () => {
   })
 })
 
+// ── 카드의 신앙생활 · 세례여부 ──────────────────────────────────────────────
+// 종이 카드가 묻는 두 칸이고 새가족팀이 그 사람을 어떻게 맞을지가 거기서 갈리는데,
+// 여태는 편집 창을 열어야만 보였다. 값은 저장된 그대로 나온다 (다듬으면 손으로 적힌
+// '3년' 같은 값이 무엇이었는지 사라진다), 빈 칸은 줄을 만들지 않는다.
+describe('AdminNewFamily — 카드의 신앙생활 · 세례여부', () => {
+  it('카드에 세례여부와 신앙생활을 적힌 그대로 적는다', async () => {
+    await renderTab([
+      member('김세례', '2026-06-07', { baptism_status: '유아세례, 입교', faith_duration: '3년' }),
+    ])
+    const card = within(term('2026 여름학기')).getByText('김세례').closest('li')!
+    expect(within(card).getByText('유아세례, 입교')).toBeInTheDocument()
+    expect(within(card).getByText('3년')).toBeInTheDocument()
+    expect(within(card).getByText('세례')).toBeInTheDocument()
+    expect(within(card).getByText('신앙')).toBeInTheDocument()
+  })
+
+  it('빈 칸은 줄을 만들지 않는다', async () => {
+    await renderTab([member('빈칸', '2026-06-07', { baptism_status: '', faith_duration: '' })])
+    const card = within(term('2026 여름학기')).getByText('빈칸').closest('li')!
+    expect(within(card).queryByText('세례')).toBeNull()
+    expect(within(card).queryByText('신앙')).toBeNull()
+  })
+})
+
 // ── 새가족 출석표 ───────────────────────────────────────────────────────────
 // 오른쪽 위 '출석표' 버튼 → 출석부와 **같은 표**(AttendanceGrid)를 이 탭의 새가족만으로
 // 그린다. 카드에는 등록일만 있어서 "그 뒤로 계속 오고 있나"는 출석부 탭으로 건너가 이름을

@@ -475,6 +475,13 @@ function NewFamilyCard({ member, onOpen }: { member: Member; onOpen: () => void 
   // 카톡 아이디는 여태 이 화면에 나오지 않았다 — 보려면 사람마다 편집 창을 열어야 했고,
   // 그러면서 손으로 옮겨 적었다. 탭 한 번으로 복사되면 그 왕복이 사라진다.
   const kakao = classifyKakaoId(member.kakao_id)
+  // 신앙생활 · 세례여부도 같은 이유로 카드에 적는다: 종이 카드가 묻는 두 칸이고 새가족팀이
+  // 그 사람을 어떻게 맞을지가 거기서 갈리는데, 여태는 편집 창을 열어야만 보였다.
+  // **값은 적힌 그대로 보여준다** — 카드의 보기(유아세례 · 1-3년 …)가 곧 저장되는 말이고,
+  // 손으로 적힌 값('3년')도 있어 다듬으면 그 칸에 뭐가 있었는지가 사라진다. 라벨만 언어를
+  // 따르고, 빈 칸은 줄을 만들지 않는다 (없는 것을 '—'로 적어 두면 카드만 길어진다).
+  const baptism = (member.baptism_status || '').trim()
+  const faith = (member.faith_duration || '').trim()
 
   return (
     <li className="rounded-2xl border border-border bg-surface p-3.5 shadow-[var(--shadow-sm)] transition-[box-shadow,transform] duration-200 [transition-timing-function:var(--ease-out-soft)] hover:-translate-y-0.5 hover:shadow-[var(--shadow)]">
@@ -491,6 +498,22 @@ function NewFamilyCard({ member, onOpen }: { member: Member; onOpen: () => void 
         </div>
         <div className="mt-0.5 text-xs text-muted">{[member.group_name, member.subgroup].filter(Boolean).join(' · ') || '—'}</div>
         {member.phone && <div className="text-xs text-subtle">{member.phone}</div>}
+        {(baptism || faith) && (
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {baptism && (
+              <Tag className="text-[10px]">
+                <span className="font-normal text-subtle">{t('admin.newfamily.baptism')}</span>
+                {baptism}
+              </Tag>
+            )}
+            {faith && (
+              <Tag className="text-[10px]">
+                <span className="font-normal text-subtle">{t('admin.newfamily.faith')}</span>
+                {faith}
+              </Tag>
+            )}
+          </div>
+        )}
         {/* 새가족 표시가 이미 해제된 사람 — 1년 동안은 목록에 남는다 (newFamily.ts
             visibleNewFamily). 표시가 켜진 사람과 섞여 있으므로 어느 쪽인지 적어 준다:
             안 적으면 해제 버튼이 아무 일도 안 한 것처럼 보인다. */}
