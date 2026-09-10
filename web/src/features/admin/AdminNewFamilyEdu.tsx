@@ -125,21 +125,25 @@ export function AdminNewFamilyEdu() {
   // 위 블록은 **교육이 아직 안 끝난 사람 전부**다 (eduUnfinished 머리말): 오늘 여는 주차가
   // 비어 있는 사람에 더해, 오늘 것은 들었지만 나머지 한 주가 남은 사람까지. 그 안에서는
   // 오늘 그 자리에 앉을 사람(needsEduWeek)이 먼저 온다.
+  // 아직 두 주를 다 마치지 않은 사람 — 위 블록의 명단이자, 전체 선택이 집는 명단이다.
+  const unfinished = visible.filter(eduUnfinished)
   const due = session
-    ? visible
-        .filter(eduUnfinished)
-        .sort((a, b) => Number(needsEduWeek(b, session.week)) - Number(needsEduWeek(a, session.week)))
+    ? [...unfinished].sort((a, b) => Number(needsEduWeek(b, session.week)) - Number(needsEduWeek(a, session.week)))
     : []
   const rest = session ? visible.filter((m) => !eduUnfinished(m)) : visible
 
   // 배정은 **고른 사람 전부**를 대상으로 한다 (지금 화면에 남아 있는 사람이 아니라) —
   // 위 필터는 고르는 것을 돕는 도구일 뿐이다.
   const selectedMembers = inScope.filter((m) => selected.has(m.id))
-  const allVisibleSelected = visible.length > 0 && visible.every((m) => selected.has(m.id))
+  // 전체 선택이 집는 것은 **아직 교육이 남은 사람**뿐이다 (unfinished). 이 버튼이 있는
+  // 이유가 교육 동산 배정이고, 그 조에 앉을 사람은 아직 들을 주차가 남은 사람이기 때문 —
+  // 수강 완료한 사람까지 한 번에 딸려 들어가면 배정 창에서 다시 하나씩 빼게 된다. 그
+  // 사람들을 넣어야 할 때는 카드에서 직접 고른다 (이 버튼이 그 길을 막지는 않는다).
+  const allUnfinishedSelected = unfinished.length > 0 && unfinished.every((m) => selected.has(m.id))
   const toggleAll = () => {
     setSelected((prev) => {
       const next = new Set(prev)
-      for (const m of visible) if (allVisibleSelected) next.delete(m.id)
+      for (const m of unfinished) if (allUnfinishedSelected) next.delete(m.id)
         else next.add(m.id)
       return next
     })
@@ -178,19 +182,10 @@ export function AdminNewFamilyEdu() {
   return (
     <>
       {/* 고르고 → 배정한다. 배정 버튼이 오른쪽 위에 있는 이유는 그것이 이 탭에서 유일하게
-          여러 사람을 한 번에 바꾸는 일이기 때문 — 나머지는 카드 하나하나의 일이다. */}
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" variant="secondary" onClick={toggleAll} disabled={visible.length === 0}>
-            <ListChecks className="size-4" aria-hidden />
-            {t(allVisibleSelected ? 'admin.newfamilyEdu.select.none' : 'admin.newfamilyEdu.select.all')}
-          </Button>
-          {selected.size > 0 && (
-            <span className="text-xs font-semibold text-primary">
-              {t('admin.newfamilyEdu.select.count', { n: selected.size })}
-            </span>
-          )}
-        </div>
+          여러 사람을 한 번에 바꾸는 일이기 때문 — 나머지는 카드 하나하나의 일이다.
+          전체 선택은 여기가 아니라 **목록 머리줄**에 있다: 그 버튼이 집는 것은 필터를 거친
+          뒤의 명단이라, 필터 위에 있으면 무엇을 고르는 버튼인지가 순서에서 드러나지 않는다. */}
+      <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
         <Button size="sm" onClick={() => setAssignOpen(true)} disabled={readOnly}>
           <Sprout className="size-4" aria-hidden />
           {t('admin.newfamilyEdu.assign.action')}
@@ -227,9 +222,24 @@ export function AdminNewFamilyEdu() {
         </Pill>
       </div>
 
-      <div className="mb-3 flex items-center gap-2 section-kicker">
-        <GraduationCap className="size-4 text-subtle" aria-hidden />
-        {t('admin.newfamilyEdu.title')} · {visible.length}
+      {/* 목록 머리줄 — 전체 선택이 여기 앉는다. section-kicker는 라벨에만 걸린다
+          (그 클래스의 uppercase가 버튼 안까지 내려가면 영어 UI에서 버튼 글자가 대문자가 된다). */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2 section-kicker">
+          <GraduationCap className="size-4 text-subtle" aria-hidden />
+          {t('admin.newfamilyEdu.title')} · {visible.length}
+        </div>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          {selected.size > 0 && (
+            <span className="text-xs font-semibold text-primary">
+              {t('admin.newfamilyEdu.select.count', { n: selected.size })}
+            </span>
+          )}
+          <Button size="sm" variant="secondary" onClick={toggleAll} disabled={unfinished.length === 0}>
+            <ListChecks className="size-4" aria-hidden />
+            {t(allUnfinishedSelected ? 'admin.newfamilyEdu.select.none' : 'admin.newfamilyEdu.select.all')}
+          </Button>
+        </div>
       </div>
 
       <ScheduleBanner session={session} openToday={openToday} following={following} due={due.length} lang={i18n.language} />
