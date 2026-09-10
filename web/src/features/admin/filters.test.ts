@@ -117,11 +117,14 @@ describe('careerAxis · schoolAxis — 부서마다 다른 축', () => {
     expect(careerAxis('대학부')).toBe(false)
     expect(schoolAxis('대학부', '')).toBe(true)
   })
-  it('청년부는 처지로 먼저 갈리고, 대학원생만 다시 학교로 간다', () => {
+  it('청년부는 처지와 학교 두 줄을 함께 내건다 — 직장인일 때만 학교가 내려간다', () => {
     expect(careerAxis('청년부')).toBe(true)
-    expect(schoolAxis('청년부', '')).toBe(false)
-    expect(schoolAxis('청년부', 'work')).toBe(false)
+    // 청년부를 고르는 순간 학교 줄이 사라지면 "이 부서는 학교로 못 가른다"로 읽힌다.
+    expect(schoolAxis('청년부', '')).toBe(true)
     expect(schoolAxis('청년부', 'grad')).toBe(true)
+    expect(schoolAxis('청년부', 'other')).toBe(true)
+    // 직장인에게 학교는 지금 어디에 있는지를 말해 주지 않는다.
+    expect(schoolAxis('청년부', 'work')).toBe(false)
   })
 })
 
