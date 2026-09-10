@@ -402,3 +402,31 @@ describe('AdminNewFamilyEdu — 학교 마크', () => {
     expect(within(screen.getByRole('dialog')).getByText('청년부')).toBeInTheDocument()
   })
 })
+
+
+// ── 카드의 학교 · 신앙생활 · 세례여부 (NewFamilyFacts) ─────────────────────
+// 새가족 탭의 카드와 **같은 컴포넌트**다 — 같은 사실을 두 화면이 각자 그리면 한쪽만
+// 고쳐진다. 위의 SchoolMark는 배정 기준이 읽어낸 학교 하나를 짧게 짚는 자리이고,
+// 여기 적히는 것은 그 칸에 실제로 적힌 말이다.
+describe('AdminNewFamilyEdu — 카드의 학교 · 신앙생활 · 세례여부', () => {
+  it('카드에 학교/직장 · 세례여부 · 신앙생활을 적힌 그대로 적는다', () => {
+    renderAs('super_admin', [{
+      ...member('m1', '김세례'),
+      school_or_work: '대학원생 · 씨엠유 기계공학',
+      baptism_status: '유아세례, 입교',
+      faith_duration: '3년',
+    }])
+    const card = screen.getByText('김세례').closest('li')!
+    expect(within(card).getByText('대학원생 · 씨엠유 기계공학')).toBeInTheDocument()
+    expect(within(card).getByText('유아세례, 입교')).toBeInTheDocument()
+    expect(within(card).getByText('3년')).toBeInTheDocument()
+    // 읽어낸 학교 마크(CMU)는 그대로 함께 붙는다 — 짚는 것과 적힌 말은 다른 자리다.
+    expect(within(card).getByText('CMU')).toBeInTheDocument()
+  })
+
+  it('빈 칸은 줄을 만들지 않는다', () => {
+    renderAs('super_admin', [{ ...member('m1', '빈칸'), school_or_work: '', baptism_status: '', faith_duration: '' }])
+    const card = screen.getByText('빈칸').closest('li')!
+    for (const label of ['학교', '세례', '신앙']) expect(within(card).queryByText(label)).toBeNull()
+  })
+})
