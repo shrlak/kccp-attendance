@@ -70,6 +70,26 @@ export function subgroupsOf(members: Member[], group: string): string[] {
   return [...set].sort((a, b) => a.localeCompare(b))
 }
 
+// 멤버 탭의 동산 칩 — 부서 칩 바로 아래 줄이다. 부서 칩과 같은 규칙으로 '' = 전체,
+// NO_SUBGROUP = 동산이 비어 있는 사람: 칩들의 인원을 더하면 그 부서 전체가 되어야 한다
+// (학기 종료 롤오버가 편성을 비우고 난 뒤에는 그 묶음이 명단의 대부분이다).
+export const NO_SUBGROUP = 'none'
+
+// **고른 부서 안의 동산만 내건다** — 청년부를 고르면 청년부 동산, 대학부를 고르면 대학부
+// 동산. 부서를 고르지 않았으면(전체) 두 부서의 동산이 함께 나온다. 부서로 좁히는 일은
+// `matchesGroup`이 하므로 NO_GROUP(부서 미기재)도 그대로 따라온다.
+export function subgroupChipsOf(members: Member[], group: string): string[] {
+  const inGroup = members.filter((m) => matchesGroup(m, group))
+  const chips = subgroupsOf(inGroup, '')
+  return inGroup.some((m) => !m.subgroup) ? [...chips, NO_SUBGROUP] : chips
+}
+
+export function matchesSubgroup(m: Pick<Member, 'subgroup'>, subgroup: string): boolean {
+  if (!subgroup) return true
+  if (subgroup === NO_SUBGROUP) return !m.subgroup
+  return m.subgroup === subgroup
+}
+
 // 학교 칩이 실제로 나올 자리가 있는가 — 그 명단에 있는 묶음만 순서대로 (CMU → Pitt →
 // 학교 미기재). 장년부에는 CMU도 Pitt도 없으므로 빈 목록이 되고 칩 줄 자체가 사라진다.
 export function schoolsOf(members: Member[]): SchoolChip[] {

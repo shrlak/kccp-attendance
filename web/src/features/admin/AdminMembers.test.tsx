@@ -370,3 +370,105 @@ describe('AdminMembers — 학교 칩', () => {
     expect(screen.queryByRole('group', { name: '학교' })).toBeNull()
   })
 })
+
+// 동산 칩 — 부서 줄 바로 아래다. 청년부를 누르면 청년부 동산만, 대학부를 누르면 대학부
+// 동산만 내걸린다 (동산은 부서 안에 있으므로).
+describe('AdminMembers — 동산 칩', () => {
+  const people = [
+    member('c1', '대학가', { subgroup: '호연동산' }),
+    member('c2', '대학나', { subgroup: '선규동산' }),
+    member('y1', '청년가', { group_name: '청년부', subgroup: '민서셀' }),
+    member('y2', '청년나', { group_name: '청년부', subgroup: '' }),
+  ]
+  const row = (name: string) => within(screen.getByRole('group', { name }))
+
+  it('동산을 고르면 그 동산 사람만 남는다', async () => {
+    rosterData.data = roster(people)
+    renderWithProviders(<AdminMembers />)
+    await userEvent.click(row('동산').getByRole('button', { name: '호연동산' }))
+    expect(screen.getByText('대학가')).toBeInTheDocument()
+    expect(screen.queryByText('대학나')).toBeNull()
+    expect(screen.queryByText('청년가')).toBeNull()
+    // 전체로 되돌리면 다시 다 보인다.
+    await userEvent.click(row('동산').getByRole('button', { name: '전체' }))
+    expect(screen.getByText('대학나')).toBeInTheDocument()
+  })
+
+  it('부서를 고르면 그 부서의 동산만 내걸린다 — 청년부를 누르면 청년부 동산만', async () => {
+    rosterData.data = roster(people)
+    renderWithProviders(<AdminMembers />)
+    await userEvent.click(row('부서').getByRole('button', { name: '청년부' }))
+    expect(row('동산').getByRole('button', { name: '민서셀' })).toBeInTheDocument()
+    expect(row('동산').queryByRole('button', { name: '호연동산' })).toBeNull()
+
+    await userEvent.click(row('부서').getByRole('button', { name: '대학부' }))
+    expect(row('동산').getByRole('button', { name: '호연동산' })).toBeInTheDocument()
+    expect(row('동산').getByRole('button', { name: '선규동산' })).toBeInTheDocument()
+    expect(row('동산').queryByRole('button', { name: '민서셀' })).toBeNull()
+  })
+
+  it('동산이 비어 있는 사람도 자기 칩이 있다 — 칩을 다 더하면 그 부서가 된다', async () => {
+    rosterData.data = roster(people)
+    renderWithProviders(<AdminMembers />)
+    await userEvent.click(row('동산').getByRole('button', { name: '동산 미지정' }))
+    expect(screen.getByText('청년나')).toBeInTheDocument()
+    expect(screen.queryByText('청년가')).toBeNull()
+  })
+
+  it('부서를 바꾸면 고른 동산은 비워진다 — 그 부서에 있지도 않은 동산으로 좁히고 있으면 화면이 왜 비었는지 알 수 없다', async () => {
+    rosterData.data = roster(people)
+    renderWithProviders(<AdminMembers />)
+    await userEvent.click(row('동산').getByRole('button', { name: '호연동산' }))
+    await userEvent.click(row('부서').getByRole('button', { name: '청년부' }))
+    expect(screen.getByText('청년가')).toBeInTheDocument()
+    expect(screen.getByText('청년나')).toBeInTheDocument()
+  })
+
+  it('모두 같은 동산이면 고를 것이 없어 줄이 뜨지 않는다', () => {
+    rosterData.data = roster([
+      member('a', '가', { subgroup: '호연동산' }),
+      member('b', '나', { subgroup: '호연동산' }),
+    ])
+    renderWithProviders(<AdminMembers />)
+    expect(screen.queryByRole('group', { name: '동산' })).toBeNull()
+  })
+})
+
+// 카드에 적히는 사실 — 새가족 탭의 카드와 같은 것을 보여준다. 전화번호 하나를 보려고
+// 사람마다 편집 창을 열던 것이 이 카드가 넓어진 이유다.
+describe('AdminMembers — 멤버 카드', () => {
+  it('전화 · 학교/직장 · 세례여부 · 신앙생활 · 카톡 아이디가 카드에 적힌다', () => {
+    rosterData.data = roster([
+      member('m1', '김멤버', {
+        phone: '412-555-0100',
+        school_or_work: '대학생 · CMU Math',
+        baptism_status: '유아세례',
+        faith_duration: '5년 이상',
+        kakao_id: 'kccp_hoyeon',
+      }),
+    ])
+    renderWithProviders(<AdminMembers />)
+    const card = screen.getByText('김멤버').closest('li') as HTMLElement
+    expect(card).toHaveTextContent('412-555-0100')
+    expect(card).toHaveTextContent('CMU Math')
+    expect(card).toHaveTextContent('유아세례')
+    expect(card).toHaveTextContent('5년 이상')
+    expect(within(card).getByRole('button', { name: /kccp_hoyeon/ })).toBeInTheDocument()
+  })
+
+  it('빈 칸은 줄을 만들지 않는다', () => {
+    rosterData.data = roster([member('m1', '빈칸멤버')])
+    renderWithProviders(<AdminMembers />)
+    const card = screen.getByText('빈칸멤버').closest('li') as HTMLElement
+    expect(card).not.toHaveTextContent('—')
+    expect(within(card).queryAllByRole('button')).toHaveLength(1) // 카드를 여는 버튼 하나뿐
+  })
+
+  it('여러 명 선택 중에는 카톡 타일을 내린다 — 그때 카드가 하는 일은 고르는 것 하나뿐이다', async () => {
+    rosterData.data = roster([member('m1', '김멤버', { kakao_id: 'kccp_hoyeon' })])
+    renderWithProviders(<AdminMembers />)
+    expect(screen.getByRole('button', { name: /kccp_hoyeon/ })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: '여러 명 선택' }))
+    expect(screen.queryByRole('button', { name: /kccp_hoyeon/ })).toBeNull()
+  })
+})
