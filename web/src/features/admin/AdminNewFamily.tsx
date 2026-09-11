@@ -17,15 +17,14 @@ import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
 import { Tag } from '../../components/ui/Tag'
 import { useToast } from '../../components/ui/Toast'
-import { ScanLine, Download, Search, HandHeart, Heart, Calendar, GraduationCap, AlertTriangle, QrCode, Copy, ClipboardList } from '../../components/ui/Icon'
+import { ScanLine, Download, Search, HandHeart, Heart, Calendar, GraduationCap, AlertTriangle, QrCode, ClipboardList } from '../../components/ui/Icon'
 import { prefetchExcel } from '../../app/prefetch'
 import { EditModal, AttendanceModal } from './MemberDialogs'
 import { CardScanDialog } from './CardScanDialog'
 import { KakaoQrDialog } from './KakaoQrDialog'
 import { NewFamilySheetDialog } from './NewFamilySheetDialog'
 import { NewFamilyFacts } from './NewFamilyFacts'
-import { classifyKakaoId } from './contactQr'
-import { copyToClipboard } from '../../lib/clipboard'
+import { KakaoTile } from './KakaoTile'
 import { useAppConfig, usePartition } from '../../lib/useAppConfig'
 
 // 새가족 (new-family) tab: registration tracking — current-semester new members grouped
@@ -472,10 +471,6 @@ function ExportModal({ members, today, onClose }: { members: Member[]; today: st
 
 function NewFamilyCard({ member, onOpen }: { member: Member; onOpen: () => void }) {
   const { t } = useTranslation()
-  const toast = useToast()
-  // 카톡 아이디는 여태 이 화면에 나오지 않았다 — 보려면 사람마다 편집 창을 열어야 했고,
-  // 그러면서 손으로 옮겨 적었다. 탭 한 번으로 복사되면 그 왕복이 사라진다.
-  const kakao = classifyKakaoId(member.kakao_id)
 
   return (
     <li className="rounded-2xl border border-border bg-surface p-3.5 shadow-[var(--shadow-sm)] transition-[box-shadow,transform] duration-200 [transition-timing-function:var(--ease-out-soft)] hover:-translate-y-0.5 hover:shadow-[var(--shadow)]">
@@ -514,21 +509,9 @@ function NewFamilyCard({ member, onOpen }: { member: Member; onOpen: () => void 
           </div>
         )}
       </button>
-      {/* 카드를 여는 버튼 밖에 둔다 — 안에 넣으면 복사 탭이 편집 창까지 같이 연다.
-          고정폭 글꼴은 장식이 아니다: 아이디는 사전이 없어 l/I/1, O/0을 눈으로만 갈라야 한다. */}
-      {kakao.kind !== 'none' && (
-        <button
-          type="button"
-          onClick={() => void copyToClipboard(kakao.raw).then((ok) =>
-            toast({ title: t(ok ? 'admin.kakaoQr.idCopied' : 'admin.kakaoQr.copyFailed'), tone: ok ? 'ok' : 'err' }),
-          )}
-          className="mt-1.5 flex w-full items-center gap-1 rounded-lg bg-fill px-1.5 py-1 font-mono text-[11px] text-muted transition-colors hover:bg-fill-hover hover:text-text"
-          title={t('admin.kakaoQr.copyOne')}
-        >
-          <Copy className="size-3 shrink-0 text-subtle" aria-hidden />
-          <span className="truncate">{kakao.raw}</span>
-        </button>
-      )}
+      {/* 카톡 아이디 — 멤버 탭의 카드와 **같은 컴포넌트**다 (KakaoTile). 카드를 여는 버튼
+          밖에 있는 이유도 거기 적혀 있다. */}
+      <KakaoTile member={member} />
     </li>
   )
 }

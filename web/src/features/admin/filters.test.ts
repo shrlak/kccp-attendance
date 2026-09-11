@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { groupsOf, groupChipsOf, matchesGroup, subgroupsOf, schoolsOf, matchesSchool, careersOf, matchesCareer, careerAxis, schoolAxis, filterMembers, filterLog, NO_GROUP } from './filters'
+import { groupsOf, groupChipsOf, matchesGroup, subgroupsOf, subgroupChipsOf, matchesSubgroup, schoolsOf, matchesSchool, careersOf, matchesCareer, careerAxis, schoolAxis, filterMembers, filterLog, NO_GROUP, NO_SUBGROUP } from './filters'
 import type { Member, LogEntry } from '../../lib/api'
 
 const m = (id: string, group: string, subgroup: string): Member => ({
@@ -48,6 +48,35 @@ describe('subgroupsOf', () => {
   })
   it('lists 동산 across all groups when group is empty', () => {
     expect(subgroupsOf(members, '')).toEqual(['건영', '호연'])
+  })
+})
+
+// ── 동산 칩 (멤버 탭) ─────────────────────────────────────────────────────────────────
+describe('subgroupChipsOf', () => {
+  it('고른 부서 안의 동산만 내건다 — 청년부를 누르면 청년부 동산만', () => {
+    expect(subgroupChipsOf(members, '청년부')).toEqual(['건영', '호연'])
+    expect(subgroupChipsOf(members, '대학부')).toEqual(['호연'])
+  })
+  it('부서를 고르지 않았으면 두 부서의 동산이 함께 나온다', () => {
+    expect(subgroupChipsOf(members, '')).toEqual(['건영', '호연', NO_SUBGROUP])
+  })
+  it('동산이 비어 있는 사람이 있으면 자리표를 뒤에 붙인다 — 부서 칩과 같은 규칙', () => {
+    expect(subgroupChipsOf([m('1', '대학부', '호연'), m('2', '대학부', '')], '대학부')).toEqual(['호연', NO_SUBGROUP])
+  })
+  it('부서 미기재 칩 안에서도 그 사람들의 동산만 본다', () => {
+    expect(subgroupChipsOf(members, NO_GROUP)).toEqual([NO_SUBGROUP])
+  })
+})
+
+describe('matchesSubgroup', () => {
+  it('동산으로 가른다', () => {
+    expect(members.filter((x) => matchesSubgroup(x, '호연')).map((x) => x.id)).toEqual(['2', '3'])
+  })
+  it('동산이 비어 있는 사람도 자기 묶음이 있다', () => {
+    expect(members.filter((x) => matchesSubgroup(x, NO_SUBGROUP)).map((x) => x.id)).toEqual(['4'])
+  })
+  it('빈 값은 전체다', () => {
+    expect(members.filter((x) => matchesSubgroup(x, '')).map((x) => x.id)).toEqual(['1', '2', '3', '4'])
   })
 })
 
