@@ -6,6 +6,7 @@ import { availableCardModels, buildCardRequest, cardModelChain, hasGen3Options, 
 import { csvUrl, matchPerson, mergeSheetMarks, nameCounts, normalizeMarks, parseAttendanceSheet, parseSheetUrl, sameMarks, type ParsedSheet } from "./sheetSync.ts";
 import { findLink, findLinkFor, leadersOf, newLinkToken, parseLinks, recentSundays, reconcileTermLinks, sundaysBetween, type DongsanLink } from "./dongsanLink.ts";
 import { deleteMembersKeepingAttendance } from "./memberDelete.ts";
+import { selectAll } from "./page.ts";
 // Decrypt-side of the weekly R2 backup pipeline (see scripts/backup/). age-encryption is
 // FiloSottile's own pure-JS port of `age` (no native/subprocess dependency, which Deno
 // edge functions can't shell out to anyway); postgres.js's .unsafe() with no parameters
@@ -1071,12 +1072,12 @@ async function geoForIps(sb: SB, ips: string[]): Promise<Record<string,IpGeo>> {
 }
 
 async function buildCsvLog(sb: SB, gf: string, sf: string) {
-  const [{data:logs},{data:devs}]=await Promise.all([
-    (()=>{let q:any=(sb.from("attendance_log").select("*").eq("kind","worship").order("ts",{ascending:false}));if(gf)q=q.eq("group_name",gf);if(sf)q=q.eq("subgroup",sf);return q;})(),
+  const [logs,{data:devs}]=await Promise.all([
+    selectAll(()=>{let q:any=(sb.from("attendance_log").select("*").eq("kind","worship").order("ts",{ascending:false}).order("id",{ascending:false}));if(gf)q=q.eq("group_name",gf);if(sf)q=q.eq("subgroup",sf);return q;}),
     (sb.from("devices").select("*"))
   ]);
   const dm: Record<string,any>={}; (devs||[]).forEach((d:any)=>{dm[d.id]=d;});
-  const allLogs=(await (sb.from("attendance_log").select("device_id,name,date").eq("kind","worship"))).data||[];
+  const allLogs=await selectAll<any>(()=>sb.from("attendance_log").select("device_id,name,date").eq("kind","worship").order("id",{ascending:true}));
   const nt: Record<string,Set<string>>={};
   for(const e of allLogs){const nm=dm[e.device_id]?.name||e.name||"";if(!nt[nm])nt[nm]=new Set();nt[nm].add(e.date);}
   const h=["Name","Group","Subgroup","Day","Date","Time","Total"];
@@ -1090,8 +1091,7 @@ async function buildCsvGrid(sb: SB, gf: string, sf: string) {
   const members: Record<string,{group:string;subgroup:string;devices:string[]}>={};
   (devs||[]).forEach((d:any)=>{if(!members[d.name])members[d.name]={group:d.group_name||"",subgroup:d.subgroup||"",devices:[]};members[d.name].devices.push(d.id);});
   const names=Object.keys(members).sort();
-  let lq: any=(sb.from("attendance_log").select("*").eq("kind","worship").order("date",{ascending:true})); if(gf) lq=lq.eq("group_name",gf); if(sf) lq=lq.eq("subgroup",sf);
-  const {data:logs}=await lq;
+  const logs=await selectAll<any>(()=>{let lq:any=(sb.from("attendance_log").select("*").eq("kind","worship").order("date",{ascending:true}).order("id",{ascending:true})); if(gf) lq=lq.eq("group_name",gf); if(sf) lq=lq.eq("subgroup",sf); return lq;});
   const dates=[...new Set((logs||[]).map((e:any)=>e.date as string))].sort();
   const h=["Name","Group","Subgroup","Total",...dates.map(fmtDateWithDay)];
   const r=names.map((name:string)=>{ const dids=members[name].devices; const total=dates.filter((d:string)=>(logs||[]).find((e:any)=>dids.includes(e.device_id)&&e.date===d)).length; return [name,members[name].group,members[name].subgroup,total,...dates.map((d:string)=>{const e=(logs||[]).find((x:any)=>dids.includes(x.device_id)&&x.date===d);return e?e.time_str:"";})]; });
@@ -1165,9 +1165,9 @@ Deno.serve(async (req: Request) => {
       const role=await auth();
       if(role?.role!=="super_admin") return fail(403,"Not authorized");
       const dumpScope=scopeFilter(role,summerNow(await getCfg(sb,actingPartition),role.partition));
-      const [{data:devData},{data:logData}]=await Promise.all([
+      const [{data:devData},logData]=await Promise.all([
         scopeQuery(adb.from("devices").select("*"),dumpScope),
-        scopeQuery(adb.from("attendance_log").select("*").order("ts",{ascending:false}),dumpScope),
+        selectAll(()=>scopeQuery(adb.from("attendance_log").select("*").order("ts",{ascending:false}).order("id",{ascending:false}),dumpScope)),
       ]);
       const devices: Record<string,any>={}; (devData||[]).forEach((d:any)=>{devices[d.id]=rowToDev(d);});
       return ok({devices,log:(logData||[]).map(rowToLog)});
@@ -1209,7 +1209,7 @@ Deno.serve(async (req: Request) => {
       scheduleSheetPull(sb,part,cfg);
       const summer=summerNow(cfg,part);
       const scope=scopeFilter(role,summer);
-      const mq:any=scopeQuery(adb.from("members").select("*").order("name",{ascending:true}),scope);
+      const mq=()=>scopeQuery(adb.from("members").select("*").order("name",{ascending:true}),scope);
       // 멤버 목록 · 방문자 출석 · (리더/새가족팀이면) 본인 이름 — 셋 다 서로 독립이라 한 번에.
       // 방문자(guests) have no member_id and no 동산, so the member-id filter below drops
       // them. Fold them in for admins who see their whole 부 (대학·청년부 super/pastor, and
@@ -1218,16 +1218,17 @@ Deno.serve(async (req: Request) => {
       // same scope query keeps each department's visitors on its own sheet.
       const seesWholePartition=scope.all||(part==="adult"&&!scope.subgroup);
       const needsTag=role.role==="leader"||role.role==="welcoming";
-      const [mRes,gRes,meRes]:any[]=await Promise.all([
-        mq,
-        seesWholePartition?scopeQuery(adb.from("attendance_log").select("*").eq("kind","worship").eq("is_guest",true),scope).order("ts",{ascending:false}):Promise.resolve({data:[]}),
+      const [members,guests,meRes]:any[]=await Promise.all([
+        selectAll(mq),
+        seesWholePartition?selectAll(()=>scopeQuery(adb.from("attendance_log").select("*").eq("kind","worship").eq("is_guest",true),scope).order("ts",{ascending:false}).order("id",{ascending:false})):Promise.resolve([]),
         needsTag?adb.from("members").select("name").eq("id",role.memberId).single():Promise.resolve({data:null}),
       ]);
-      const members=mRes?.data;
       const ids=(members||[]).map((m:any)=>m.id);
-      const {data:md}=ids.length?await adb.from("attendance_log").select("*").in("member_id",ids).order("ts",{ascending:false}):{data:[] as any[]};
-      let logs:any[]=md||[];
-      const gd=gRes?.data; if(gd&&gd.length)logs=logs.concat(gd);
+      // 이 부의 출석 기록 **전부** — 지난 학기 아카이브와 학기별 통계가 옛 주일까지 되짚으므로
+      // 창을 좁힐 수 없다. 1000줄에서 잘리면 잘린 쪽은 **최근이 아니라 그 정렬의 끝**이라,
+      // 조용히 사라지는 것이 하필 몇 주 전의 주일들이다 (selectAll 위의 설명).
+      let logs:any[]=ids.length?await selectAll(()=>adb.from("attendance_log").select("*").in("member_id",ids).order("ts",{ascending:false}).order("id",{ascending:false})):[];
+      if(guests.length)logs=logs.concat(guests);
       // Bulk 동산 reassignment: super-admins + staff + 리더/새가족팀 who are NOT 동산지기/
       // 부동산지기 (canAssignDongsan in auth.ts — the bulk-subgroup route reads the same rule).
       // Clear-all-attendance: super (direct) + staff/leader/welcoming non-동산지기 (request).
@@ -2808,7 +2809,7 @@ Deno.serve(async (req: Request) => {
 
     if(req.method==="GET"&&p==="/api/backup") {
       const adminId=xDev||url.searchParams.get("deviceId")||""; if(!await isAdmin(sb,adminId)) return fail(403,"Not authorized");
-      const [{data:dd},{data:ld},{data:ed},{data:ad},{data:pd},cfg]=await Promise.all([(sb.from("devices").select("*")),(sb.from("attendance_log").select("*").order("ts",{ascending:false})),sb.from("events").select("*, event_attendees(device_id, name)"),sb.from("audit_log").select("*").order("ts",{ascending:false}),sb.from("pending_registrations").select("*"),getCfg(sb)]);
+      const [{data:dd},ld,{data:ed},ad,{data:pd},cfg]=await Promise.all([(sb.from("devices").select("*")),selectAll(()=>sb.from("attendance_log").select("*").order("ts",{ascending:false}).order("id",{ascending:false})),sb.from("events").select("*, event_attendees(device_id, name)"),selectAll(()=>sb.from("audit_log").select("*").order("ts",{ascending:false}).order("id",{ascending:false})),sb.from("pending_registrations").select("*"),getCfg(sb)]);
       const devices: Record<string,any>={}; (dd||[]).forEach((d:any)=>{devices[d.id]=rowToDev(d);});
       const bk={version:2,exportedAt:Date.now(),attendance:{devices,log:(ld||[]).map(rowToLog)},config:{adminDevices:cfg.admin_devices||[],nameOrder:cfg.name_order||[],dongsanNames:cfg.dongsan_names,checkinDays:cfg.checkin_days||[0],checkinStartMin:cfg.checkin_start_min??780,checkinEndMin:cfg.checkin_end_min??900,dongsanLeaders:cfg.dongsan_leaders||{},requireApproval:cfg.require_approval||false,individualCheckinEnabled:cfg.individual_checkin_enabled||false,semesterDates:validSemesterDates(cfg.semester_dates)?cfg.semester_dates:null},events:{events:(ed||[]).map((e:any)=>({id:e.id,name:e.name,date:e.date,type:e.type,group:e.group_name,notes:e.notes,createdBy:e.created_by,createdAt:new Date(e.created_at).getTime(),attendees:(e.event_attendees||[]).map((a:any)=>a.name||a.device_id)}))},audit:(ad||[]).map((e:any)=>({ts:e.ts,action:e.action,adminId:e.admin_id,adminName:e.admin_name,details:e.details})),pending:(pd||[]).map((p:any)=>({deviceId:p.device_id,name:p.name,group:p.group_name,subgroup:p.subgroup,requestedAt:new Date(p.requested_at).getTime()}))};
       return new Response(JSON.stringify(bk,null,2),{headers:{...CORS,"Content-Type":"application/json","Content-Disposition":'attachment; filename="kccp-backup-'+localDate()+'.json"'}});
@@ -2829,13 +2830,15 @@ Deno.serve(async (req: Request) => {
       const today=localDate();
       let dq: any=(sb.from("devices").select("*")); if(gf) dq=dq.eq("group_name",gf); if(sf) dq=dq.eq("subgroup",sf);
       const {data:devData}=await dq;
-      let lq: any=(sb.from("attendance_log").select("*").eq("kind","worship").order("date",{ascending:true}));
-      if(gf) lq=lq.eq("group_name",gf); if(sf) lq=lq.eq("subgroup",sf);
-      if(period==="today") lq=lq.eq("date",today);
-      else if(period==="weekly"){const d=new Date();d.setDate(d.getDate()-6);lq=lq.gte("date",d.toLocaleDateString("en-CA",{timeZone:"America/New_York"})).lte("date",today);}
-      else if(period==="monthly") lq=lq.like("date",today.slice(0,7)+"%");
-      else if(fromP||toP){if(fromP) lq=lq.gte("date",fromP);if(toP) lq=lq.lte("date",toP);}
-      const {data:logData}=await lq;
+      const logData=await selectAll<any>(()=>{
+        let lq: any=(sb.from("attendance_log").select("*").eq("kind","worship").order("date",{ascending:true}).order("id",{ascending:true}));
+        if(gf) lq=lq.eq("group_name",gf); if(sf) lq=lq.eq("subgroup",sf);
+        if(period==="today") lq=lq.eq("date",today);
+        else if(period==="weekly"){const d=new Date();d.setDate(d.getDate()-6);lq=lq.gte("date",d.toLocaleDateString("en-CA",{timeZone:"America/New_York"})).lte("date",today);}
+        else if(period==="monthly") lq=lq.like("date",today.slice(0,7)+"%");
+        else if(fromP||toP){if(fromP) lq=lq.gte("date",fromP);if(toP) lq=lq.lte("date",toP);}
+        return lq;
+      });
       const logs=logData||[],devices=devData||[];
       const dates=[...new Set(logs.map((e:any)=>e.date as string))].sort();
       // regDate = earliest 등록일자 across the member's device rows; dates before it are
