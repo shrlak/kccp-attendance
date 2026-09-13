@@ -230,6 +230,15 @@ live** at https://shrlak.github.io/kccp-attendance/.
   `/api/admin/members/delete` 모두 `members` 행만 지운다. 연결 기기·권한은 CASCADE로 없어지고,
   `attendance_log.member_id`는 `ON DELETE SET NULL`이 되지만 이름·날짜·당시 부서/동산이 담긴
   출석 행은 그대로 남는다. 다중 삭제는 요청한 전원이 관리자 범위 안일 때만 한 번에 처리한다.
+- **방문 기록은 지울 수 있다** (`POST /api/admin/visitor/delete`, 방문자 탭의 줄마다 휴지통).
+  키오스크에서 손으로 찍히는 이름이라 오타·중복·시험 삼아 찍어 본 줄이 남는데, 방문자는 멤버가
+  아니라 멤버 탭에서 고칠 자리조차 없었다. **지우는 단위는 화면의 한 줄, 곧 이름+날짜다** —
+  `visitors.ts` `visitorsByDate`가 같은 이름·같은 날의 줄을 하나로 접어 보여주므로, id 하나만
+  지우면 접혀 있던 줄이 다음 새로고침에 그 사람을 되살린다. 그래서 서버가 그 이름·그 날의
+  `is_guest` 행을 **전부** 지운다 (멤버 삭제와 반대로 여기서는 출석 행 자체가 그 방문자다 —
+  멤버 행이 없어 남겨 둘 사람이 없다). 볼 수 있는 사람만 지운다: 방문자는 동산이 없어
+  `/api/roster`가 자기 부 전체를 보는 관리자에게만 실어 보내므로(`seesWholePartition`) 같은
+  조건을 서버가 다시 걸고, 목사(읽기 전용)에게는 버튼이 없다. 감사 기록 `visitor-delete`.
 - **상태 표기 = a list per member** (`members.status_marks` `[{note,start,end}]`; the old single
   `status_note/start/end` trio is still mirrored by the server and read as a one-entry fallback).
   `web/src/lib/status.ts` is the single reader: 귀국/이주 hides the member from the **출석부**

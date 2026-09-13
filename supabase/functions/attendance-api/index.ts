@@ -2315,6 +2315,33 @@ Deno.serve(async (req: Request) => {
       return ok({status:"ok",time,name});
     }
 
+    // 방문자(guest) 방문 한 건 지우기 — 잘못 찍힌 이름, 두 번 찍힌 사람, 시험 삼아 찍어 본 줄.
+    // 지우는 단위가 **이름+날짜**인 것은 방문자 탭의 한 줄이 그것이기 때문이다 (visitors.ts
+    // visitorsByDate가 같은 이름·같은 날의 줄을 하나로 접어 보여준다) — id 하나만 지우면
+    // 화면에서 사라진 사람이 접혀 있던 줄과 함께 다음 새로고침에 되돌아온다.
+    //
+    // 볼 수 있는 사람만 지운다: 방문자는 동산이 없어 /api/roster가 자기 부 전체를 보는
+    // 관리자에게만 실어 보내므로(seesWholePartition), 그 조건을 여기에 그대로 건다 — 동산에
+    // 묶인 리더의 화면에는 방문자가 애초에 없다. 목사는 읽기 전용.
+    if(req.method==="POST"&&p==="/api/admin/visitor/delete") {
+      const role=await auth();
+      if(!role) return fail(401,"Not authorized");
+      if(role.role==="pastor") return fail(403,"Read-only");
+      const name=(body.name||"").trim(); const date=(body.date||"").trim();
+      if(!name||!/^\d{4}-\d{2}-\d{2}$/.test(date)) return fail(400,"name and date required");
+      const scope=scopeFilter(role,summerNow(await getCfg(sb,actingPartition),role.partition));
+      if(!(scope.all||(role.partition==="adult"&&!scope.subgroup))) return fail(403,"Not authorized");
+      // 범위 조건은 지울 때도 함께 건다 — 부서를 달고 기록된 방문자라, 이 부의 줄만 지워진다.
+      const {data:rows,error:findErr}=await scopeQuery(adb.from("attendance_log").select("id").eq("is_guest",true).eq("name",name).eq("date",date),scope);
+      if(findErr) return fail(500,findErr.message);
+      const ids=(rows||[]).map((r:any)=>r.id);
+      if(!ids.length) return fail(404,"Visitor not found");
+      const {error:delErr}=await adb.from("attendance_log").delete().in("id",ids);
+      if(delErr) return fail(500,delErr.message);
+      await addAudit(adb,"visitor-delete",xDev,name+" | "+date,role.partition);
+      return ok({status:"ok",deleted:ids.length});
+    }
+
     // Kiosk 새가족 (new-family) registration (Phase 3.8): creates a member with
     // is_new_member=true and the extended profile fields, links a NEW-{ts} device, then
     // immediately records today's attendance (first_visit) — unless body.skipCheckin
