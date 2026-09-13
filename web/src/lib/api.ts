@@ -553,6 +553,12 @@ export interface MemberCheckinResponse {
   firstVisit?: boolean
 }
 
+// 방문자(guest)의 방문 한 건을 지운다 — 지우는 단위는 방문자 탭의 한 줄, 즉 **이름+날짜**다
+// (같은 이름·같은 날의 줄은 그 탭에서 하나로 접혀 보이므로 한 줄만 지우면 되살아난다).
+// 자기 부 전체를 보는 관리자만; 목사(읽기 전용)는 막힌다. 서버가 범위 확인 + 감사 기록.
+export const deleteVisitor = (name: string, date: string) =>
+  api<{ status: string; deleted: number }>('POST', '/api/admin/visitor/delete', { name, date })
+
 // Manually mark a member present for today (bypasses day/time/location). Scoped +
 // audited server-side; pastor read-only. Returns 'already' if they're in for today.
 export const memberCheckin = (memberId: string) =>
