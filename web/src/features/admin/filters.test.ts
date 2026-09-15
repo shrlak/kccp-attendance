@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { groupsOf, groupChipsOf, matchesGroup, subgroupsOf, subgroupChipsOf, matchesSubgroup, schoolsOf, matchesSchool, careersOf, matchesCareer, careerAxis, schoolAxis, filterMembers, filterLog, NO_GROUP, NO_SUBGROUP } from './filters'
+import { groupsOf, groupChipsOf, matchesGroup, subgroupsOf, subgroupSectionsOf, matchesSubgroup, schoolsOf, matchesSchool, careersOf, matchesCareer, careerAxis, schoolAxis, filterMembers, filterLog, NO_GROUP, NO_SUBGROUP } from './filters'
 import type { Member, LogEntry } from '../../lib/api'
 
 const m = (id: string, group: string, subgroup: string): Member => ({
@@ -51,20 +51,31 @@ describe('subgroupsOf', () => {
   })
 })
 
-// ── 동산 칩 (멤버 탭) ─────────────────────────────────────────────────────────────────
-describe('subgroupChipsOf', () => {
-  it('고른 부서 안의 동산만 내건다 — 청년부를 누르면 청년부 동산만', () => {
-    expect(subgroupChipsOf(members, '청년부')).toEqual(['건영', '호연'])
-    expect(subgroupChipsOf(members, '대학부')).toEqual(['호연'])
+// ── 동산 줄 (멤버 탭 · 오늘 · 출석부 · 새가족) ────────────────────────────────────────
+// 동산은 부서 안에 있으므로 줄도 부서마다 하나다 — 이름만 늘어놓으면 그 동산이 청년부
+// 것인지 대학부 것인지는 이름을 아는 사람만 안다.
+describe('subgroupSectionsOf', () => {
+  it('부서마다 한 묶음으로 가른다', () => {
+    expect(subgroupSectionsOf([m('1', '청년부', '건영'), m('2', '대학부', '호연')], '')).toEqual([
+      { group: '대학부', subgroups: ['호연'] },
+      { group: '청년부', subgroups: ['건영'] },
+    ])
   })
-  it('부서를 고르지 않았으면 두 부서의 동산이 함께 나온다', () => {
-    expect(subgroupChipsOf(members, '')).toEqual(['건영', '호연', NO_SUBGROUP])
+  it('고른 부서 안의 동산만 내건다 — 청년부를 누르면 청년부 묶음 하나', () => {
+    expect(subgroupSectionsOf(members, '청년부')).toEqual([{ group: '청년부', subgroups: ['건영', '호연'] }])
   })
-  it('동산이 비어 있는 사람이 있으면 자리표를 뒤에 붙인다 — 부서 칩과 같은 규칙', () => {
-    expect(subgroupChipsOf([m('1', '대학부', '호연'), m('2', '대학부', '')], '대학부')).toEqual(['호연', NO_SUBGROUP])
+  it('같은 이름이 두 부서에 함께 있으면(여름 합동) 가르지 않는다 — 어느 쪽을 눌러도 같은 사람들이다', () => {
+    // 위 members에는 '호연'이 대학부에도 청년부에도 있다.
+    expect(subgroupSectionsOf(members, '')).toEqual([{ group: '', subgroups: ['건영', '호연'] }])
+  })
+  it('부서가 비어 있는 사람의 동산은 마지막 묶음으로 모인다', () => {
+    expect(subgroupSectionsOf([m('1', '대학부', '호연'), m('2', '', '무소속동산')], '')).toEqual([
+      { group: '대학부', subgroups: ['호연'] },
+      { group: '', subgroups: ['무소속동산'] },
+    ])
   })
   it('부서 미기재 칩 안에서도 그 사람들의 동산만 본다', () => {
-    expect(subgroupChipsOf(members, NO_GROUP)).toEqual([NO_SUBGROUP])
+    expect(subgroupSectionsOf(members, NO_GROUP)).toEqual([])
   })
 })
 

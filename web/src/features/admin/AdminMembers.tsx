@@ -7,15 +7,15 @@ import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
-import { Search, ListChecks, Merge as MergeIcon, Users, AlertTriangle, EyeOff, ChevronDown, Trash2, Sprout, HandHeart } from '../../components/ui/Icon'
+import { Search, ListChecks, Merge as MergeIcon, Users, AlertTriangle, EyeOff, ChevronDown, Trash2, HandHeart } from '../../components/ui/Icon'
 import { mergeTargets, canMerge, mergeSummary, type MergeState } from './merge'
 import {
-  groupsOf, groupChipsOf, subgroupChipsOf, matchesGroup, matchesSubgroup, matchesCareer, matchesSchool,
-  NO_GROUP, NO_SUBGROUP, type CareerFilter, type SchoolFilter,
+  groupsOf, groupChipsOf, subgroupSectionsOf, matchesGroup, matchesSubgroup, matchesCareer, matchesSchool,
+  NO_GROUP, type CareerFilter, type SchoolFilter,
 } from './filters'
-import { Pill } from './GroupFilter'
+import { Pill, SubgroupChips } from './GroupFilter'
 import { TraitFilter } from './TraitFilter'
-import { summerDongsanList } from './dongsan'
+import { dongsanSectionsOf, flatDongsan } from './dongsan'
 import { newFamilyWeek } from './newFamily'
 import { NewFamilyWeekChip } from './NewFamilyWeekChip'
 import { easternNow } from '../../lib/checkinWindow'
@@ -101,7 +101,11 @@ export function AdminMembers() {
   const inGroup = data.members.filter((m) => matchesGroup(m, group))
   // 동산 칩은 고른 부서 안에서 뽑고(청년부를 고르면 청년부 동산만), 처지·학교 줄은 그
   // **동산까지 좁혀진 뒤의** 명단에서 뽑는다 — 아래 줄의 칩은 늘 위에서 고른 것 안에 있다.
-  const subgroupChips = subgroupChipsOf(data.members, group)
+  // 동산 줄은 **부서마다 한 줄**로 갈린다 (subgroupSectionsOf) — 이름만 늘어놓으면 그 동산이
+  // 청년부 것인지 대학부 것인지는 이름을 아는 사람만 안다. '동산 미지정'은 그 부서에 실제로
+  // 편성이 안 된 사람이 있을 때만 (칩을 다 더하면 그 부서 전체가 되어야 한다).
+  const subgroupSections = subgroupSectionsOf(data.members, group)
+  const hasUnassigned = inGroup.some((m) => !m.subgroup)
   const inSubgroup = inGroup.filter((m) => matchesSubgroup(m, subgroup))
   // useRoster has already taken the 숨긴 멤버 out of `data.members` — they are off the roster
   // everywhere in the app, and this tab is the one place they still surface: the 숨긴 멤버
@@ -120,14 +124,15 @@ export function AdminMembers() {
   )
   const nameGroups = Object.keys(dongsanNames ?? {})
   const activeGroups = selectedGroups.size ? [...selectedGroups] : nameGroups
-  const configuredDongsan = cfg?.summerMode
-    ? summerDongsanList(dongsanNames ?? {})
-    : activeGroups.flatMap((g) => dongsanNames?.[g] ?? [])
-  // 이미 그 부서 누군가가 속해 있는 동산도 (설정에서 빠졌더라도) 고를 수 있게 둔다.
-  const inUse = selectableMembers
-    .filter((m) => (selectedGroups.size ? selectedGroups.has(m.group_name) : true))
-    .map((m) => m.subgroup)
-  const dongsanOptions = [...new Set([...configuredDongsan, ...inUse].filter(Boolean))].sort() as string[]
+  // 드롭다운도 **부서마다 묶어서** 내건다 (optgroup) — 이미 그 부서 누군가가 속해 있는 동산은
+  // 설정에서 빠졌더라도 함께 담긴다. 여름 합동처럼 두 부서가 같은 이름을 나눠 가지면
+  // `dongsanSectionsOf`가 한 묶음으로 돌려주므로 여기서 여름 모드를 따로 볼 일이 없다.
+  const dongsanGroups = dongsanSectionsOf(
+    dongsanNames ?? {},
+    activeGroups,
+    selectableMembers.filter((m) => (selectedGroups.size ? selectedGroups.has(m.group_name) : true)),
+  )
+  const dongsanOptions = flatDongsan(dongsanGroups)
 
   // The card grid is split into one section per 부서 (대학부 first, then 청년부, …);
   // members without a 부서 gather in a trailing "—" section.
@@ -203,12 +208,14 @@ export function AdminMembers() {
 
   return (
     <>
-      {/* 검색 · 동산 이동 · 병합은 명단을 한참 내려가도 계속 손이 닿아야 한다 — 아래에서
-          사람을 고르다가 이동시키려고 매번 맨 위로 되돌아가지 않도록 패널 헤더 바로 밑에
-          붙여 둔다. 카드가 이 줄 뒤로 지나가므로 배경은 불투명해야 하고, 좌우 여백만큼
-          늘려서(-mx/px) 카드가 가장자리로 비어져 나오지 않게 한다. */}
-      <div className="sticky top-[var(--admin-header-h,4.5rem)] z-10 -mx-[var(--gutter)] mb-5 bg-canvas px-[var(--gutter)] pt-1">
-      <div className="flex flex-wrap gap-2 border-b border-separator pb-5">
+      {/* 검색 · 동산 이동 · 병합 **그리고 부서·동산 칩**은 명단을 한참 내려가도 계속 손이
+          닿아야 한다 — 아래에서 사람을 고르다가 이동시키려고, 또 동산을 바꿔 보려고 매번 맨
+          위로 되돌아가지 않도록 패널 헤더 바로 밑에 붙여 둔다 (엑셀의 행 고정과 같은 뜻).
+          카드가 이 줄 뒤로 지나가므로 배경은 불투명해야 하고, 좌우 여백만큼 늘려서(-mx/px)
+          카드가 가장자리로 비어져 나오지 않게 한다. 높이는 화면의 40%까지만 — 고정은 명단을
+          보면서 고르라고 두는 것이라 명단이 안 보이면 뜻이 없다 (넘치면 이 줄 안에서 스크롤). */}
+      <div className="sticky top-[var(--admin-header-h,4.5rem)] z-10 -mx-[var(--gutter)] mb-5 flex max-h-[40vh] flex-col gap-3 overflow-y-auto border-b border-separator bg-canvas px-[var(--gutter)] pb-3 pt-1">
+      <div className="flex flex-wrap gap-2">
         <div className="relative min-w-[220px] flex-1">
           <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-subtle" aria-hidden />
           <Input
@@ -234,7 +241,7 @@ export function AdminMembers() {
       </div>
       {/* 선택 모드의 이동 줄도 같이 붙어 있어야 쓸모가 있다 — 아래에서 체크하고 바로 옮긴다. */}
       {selectMode && (
-        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-primary/25 bg-primary/[0.06] px-4 py-3 shadow-[var(--shadow-sm)]">
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-primary/25 bg-primary/[0.06] px-4 py-3 shadow-[var(--shadow-sm)]">
           <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary">
             <ListChecks className="size-4" aria-hidden />
             {t('admin.members.bulkMove.selected', { n: selected.size })}
@@ -243,11 +250,25 @@ export function AdminMembers() {
             <>
               <Select value={target} onChange={(e) => setTarget(e.target.value)} className="min-w-[8rem] flex-1">
                 <option value="">{t('admin.members.bulkMove.placeholder')}</option>
-                {dongsanOptions.map((d) => (
-                  <option key={d} value={d}>
-                    {d}
-                  </option>
-                ))}
+                {dongsanGroups.map((section) =>
+                  // 묶음이 하나뿐이면(부서가 하나인 부, 여름 합동) 이름표가 늘 같은 값이라
+                  // 아무것도 말해 주지 않으므로 그냥 평평하게 둔다.
+                  dongsanGroups.length > 1 && section.group ? (
+                    <optgroup key={section.group} label={section.group}>
+                      {section.list.map((d) => (
+                        <option key={d} value={d}>
+                          {d}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ) : (
+                    section.list.map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))
+                  ),
+                )}
               </Select>
               <Button size="sm" disabled={selected.size === 0 || !target || bulkBusy} onClick={() => applyBulk(target)}>
                 {t('admin.members.bulkMove.moveTo')}
@@ -270,14 +291,13 @@ export function AdminMembers() {
           )}
         </div>
       )}
-      </div>
       {/* 부서 칩 — 한 부서만 놓고 보는 자리다. 아래 섹션 머리줄은 부서를 가르되 **함께**
           보여주므로, 대학부만 훑으려면 청년부를 지나 내려가야 했다. 부서가 하나뿐인
           부(장년부)에서는 고를 것이 없으므로 줄 자체가 뜨지 않는다. */}
       {groupChips.length > 1 && (
         // 두 줄의 '전체'가 같은 말이라 어느 가름의 전체인지는 줄이 말해 준다 — 눈에는
         // 아이콘이, 스크린리더에는 이 이름표가.
-        <div role="group" aria-label={t('admin.members.group')} className="mb-2.5 flex flex-wrap items-center gap-1.5">
+        <div role="group" aria-label={t('admin.members.group')} className="flex flex-wrap items-center gap-1.5">
           <Users className="mr-0.5 size-3.5 shrink-0 text-subtle" aria-hidden />
           <Pill active={!group} onClick={() => pickGroup('')}>
             {t('admin.filter.all')}
@@ -289,23 +309,13 @@ export function AdminMembers() {
           ))}
         </div>
       )}
-      {/* 동산 칩 — 부서 줄 바로 아래다 (동산은 부서 안에 있으므로). **고른 부서의 동산만**
-          내걸리고, 부서를 바꾸면 이 선택은 비운다: 청년부에서 고른 동산이 대학부에서도 계속
-          걸려 있으면 화면이 왜 비었는지 알 수가 없다. 동산이 하나뿐이거나 아무도 편성돼 있지
-          않으면(학기 종료 롤오버 직후) 고를 것이 없어 줄 자체가 뜨지 않는다. */}
-      {subgroupChips.length > 1 && (
-        <div role="group" aria-label={t('admin.members.subgroup')} className="mb-2.5 flex flex-wrap items-center gap-1.5">
-          <Sprout className="mr-0.5 size-3.5 shrink-0 text-subtle" aria-hidden />
-          <Pill active={!subgroup} onClick={() => pickSubgroup('')}>
-            {t('admin.filter.all')}
-          </Pill>
-          {subgroupChips.map((sg) => (
-            <Pill key={sg} active={subgroup === sg} onClick={() => pickSubgroup(sg)}>
-              {sg === NO_SUBGROUP ? t('admin.members.noSubgroup') : sg}
-            </Pill>
-          ))}
-        </div>
-      )}
+      {/* 동산 칩 — 부서 줄 바로 아래다 (동산은 부서 안에 있으므로) **그리고 부서마다 한 줄로
+          갈린다**: 청년부 동산은 청년부 줄에, 대학부 동산은 대학부 줄에. 그리는 자리는 하나라
+          (SubgroupChips) 오늘·출석부·새가족 탭의 같은 줄과 어긋나지 않는다. 부서를 바꾸면 이
+          선택은 비운다: 청년부에서 고른 동산이 대학부에서도 계속 걸려 있으면 화면이 왜 비었는지
+          알 수가 없다. 고를 것이 하나뿐이면(학기 종료 롤오버 직후) 줄 자체가 뜨지 않는다. */}
+      <SubgroupChips sections={subgroupSections} value={subgroup} onChange={pickSubgroup} noneChip={hasUnassigned} />
+      </div>
       {/* 처지 · 학교 줄 — 새가족 탭과 **같은 컴포넌트**다 (TraitFilter). 두 탭이 같은 명단을
           다르게 가르면 '대학부 CMU'가 탭마다 다른 사람들을 뜻하게 된다. */}
       <TraitFilter members={inSubgroup} group={group} career={career} school={school} onCareer={pickCareer} onSchool={setSchool} />

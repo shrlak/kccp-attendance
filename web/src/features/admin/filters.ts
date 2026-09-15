@@ -75,13 +75,47 @@ export function subgroupsOf(members: Member[], group: string): string[] {
 // (학기 종료 롤오버가 편성을 비우고 난 뒤에는 그 묶음이 명단의 대부분이다).
 export const NO_SUBGROUP = 'none'
 
-// **고른 부서 안의 동산만 내건다** — 청년부를 고르면 청년부 동산, 대학부를 고르면 대학부
-// 동산. 부서를 고르지 않았으면(전체) 두 부서의 동산이 함께 나온다. 부서로 좁히는 일은
-// `matchesGroup`이 하므로 NO_GROUP(부서 미기재)도 그대로 따라온다.
-export function subgroupChipsOf(members: Member[], group: string): string[] {
+// **동산 줄을 부서로 가른다** — `[{group:'대학부', subgroups:[...]}, {group:'청년부', ...}]`.
+// **고른 부서 안의 동산만 내건다**: 청년부를 고르면 청년부 묶음 하나, 부서를 고르지 않았으면
+// (전체) 두 부서의 묶음이 나란히. 부서로 좁히는 일은 `matchesGroup`이 하므로 NO_GROUP(부서
+// 미기재)도 그대로 따라온다.
+// 동산 이름만 늘어놓으면 그 이름이 어느 부서의 것인지는 이름을 아는 사람만 안다 (칩 줄도,
+// 드롭다운도 그랬다). 부서는 동산의 바깥 테두리이므로 그 테두리를 줄의 머리에 적어 준다.
+//
+// **같은 이름이 두 부서에 함께 있으면 가르지 않는다** (하나의 이름 없는 묶음으로 돌아간다):
+// 여름학기의 합동 동산이 그렇고, 그때 두 부서 밑에 같은 이름을 한 번씩 적으면 **어느 쪽을
+// 눌러도 같은 사람들이 나온다** — 칩이 좁히는 것은 동산 이름 하나뿐이라 그 둘은 실제로
+// 갈리지 않는다. 있지도 않은 구분을 그려 두는 것보다 한 줄로 두는 편이 정직하다.
+//
+// 부서가 비어 있는 사람들의 동산은 마지막 묶음('')으로 모인다 — 멤버 탭의 섹션 머리줄이
+// 그 사람들을 '—'로 모으는 것과 같은 자리다.
+export interface SubgroupSection {
+  group: string
+  subgroups: string[]
+}
+
+export function subgroupSectionsOf(members: Member[], group: string): SubgroupSection[] {
   const inGroup = members.filter((m) => matchesGroup(m, group))
-  const chips = subgroupsOf(inGroup, '')
-  return inGroup.some((m) => !m.subgroup) ? [...chips, NO_SUBGROUP] : chips
+  const sections: SubgroupSection[] = [
+    ...groupsOf(inGroup).map((g) => ({ group: g, subgroups: subgroupsOf(inGroup.filter((m) => m.group_name === g), '') })),
+    { group: '', subgroups: subgroupsOf(inGroup.filter((m) => !m.group_name), '') },
+  ].filter((s) => s.subgroups.length > 0)
+  const seen = new Set<string>()
+  let shared = false
+  for (const s of sections) {
+    for (const sg of s.subgroups) {
+      if (seen.has(sg)) shared = true
+      seen.add(sg)
+    }
+  }
+  if (!shared) return sections
+  const all = subgroupsOf(inGroup, '')
+  return all.length > 0 ? [{ group: '', subgroups: all }] : []
+}
+
+// 묶음들이 내걸 칩의 수 — 고를 것이 하나뿐이면 줄을 그리지 않는 규칙이 이것을 본다.
+export function countSubgroups(sections: SubgroupSection[]): number {
+  return sections.reduce((n, s) => n + s.subgroups.length, 0)
 }
 
 export function matchesSubgroup(m: Pick<Member, 'subgroup'>, subgroup: string): boolean {

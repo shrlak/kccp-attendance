@@ -123,6 +123,56 @@ export function summerDongsanList(names: DongsanNames): string[] {
   return out
 }
 
+// **부서별로 가른 동산 목록** — 일괄 이동 드롭다운의 optgroup이 이것으로 그려진다. 칩 줄의
+// `filters.ts subgroupSectionsOf`와 같은 규칙이다: 부서마다 한 묶음, 그리고 **같은 이름이 두
+// 부서에 함께 있으면 가르지 않는다** (여름 합동이 그렇다 — 두 부서 밑에 같은 이름을 한 번씩
+// 적어 봐야 어느 쪽을 골라도 같은 값이 저장된다).
+//
+// 한 묶음에 담기는 것은 **설정된 이름 + 그 부서 사람이 실제로 속해 있는 동산**이다: 설정에서
+// 빠진 동산이라도 거기 사람이 있으면 고를 수 있어야 하고(예전 `inUse`가 하던 일), 아무도 없는
+// 새 학기 동산이라도 설정에 있으면 거기로 옮길 수 있어야 한다.
+export interface DongsanSection {
+  group: string
+  list: string[]
+}
+
+export function dongsanSectionsOf(
+  names: DongsanNames,
+  groups: string[],
+  members: Pick<Member, 'group_name' | 'subgroup'>[],
+): DongsanSection[] {
+  const extra = members.map((m) => m.group_name).filter((g) => g && !groups.includes(g))
+  // 부서가 비어 있는 사람들의 동산은 마지막 묶음('')으로 — 멤버 탭 섹션 머리줄의 '—'와 같은 자리.
+  const order = [...new Set([...groups, ...extra, ''])]
+  const sections = order
+    .map((group) => ({
+      group,
+      list: [
+        ...new Set(
+          [...(names[group] ?? []), ...members.filter((m) => (m.group_name || '') === group).map((m) => m.subgroup)]
+            .filter(Boolean) as string[],
+        ),
+      ].sort((a, b) => a.localeCompare(b)),
+    }))
+    .filter((s) => s.list.length > 0)
+  const seen = new Set<string>()
+  let shared = false
+  for (const s of sections) {
+    for (const d of s.list) {
+      if (seen.has(d)) shared = true
+      seen.add(d)
+    }
+  }
+  if (!shared) return sections
+  const all = [...seen].sort((a, b) => a.localeCompare(b))
+  return all.length > 0 ? [{ group: '', list: all }] : []
+}
+
+// 묶음을 그대로 편 목록 — 고른 값이 아직 후보에 있는지 확인하는 자리가 쓴다.
+export function flatDongsan(sections: DongsanSection[]): string[] {
+  return sections.flatMap((s) => s.list)
+}
+
 // Member names in a 동산, de-duped + sorted. `group` null matches across all groups
 // (summer-mode 합동); otherwise it must match the member's 부서.
 export function membersInDongsan(members: Member[], group: string | null, subgroup: string): string[] {

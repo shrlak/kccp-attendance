@@ -100,11 +100,9 @@ export function AdminToday() {
 
   return (
     <>
-      <GroupFilter members={data.members} value={filter} onChange={setFilter} />
-
       {/* One row: 오늘 · 지난 주 · 증감 (thisWeek === today's count for a weekly-service
           church, so it doubles as 오늘 출석 인원 next to the numbers it's compared with). */}
-      <div className="mb-6 grid grid-cols-3 gap-3">
+      <div className="mb-5 grid grid-cols-3 gap-3">
         <Stat icon={<CalendarCheck className="size-4" aria-hidden />} label={t('admin.stats.today')} value={String(wk.thisWeek)} accent />
         <Stat icon={<Clock className="size-4" aria-hidden />} label={t('admin.today.lastWeek')} value={String(wk.lastWeek)} />
         <Stat
@@ -114,6 +112,12 @@ export function AdminToday() {
           valueClass={arrowClass}
         />
       </div>
+
+      {/* 부서·동산 줄은 **통계 밑**이다 — 출석부 탭과 같은 차례다 (수를 먼저 보고, 그 수를
+          어느 부서·어느 동산의 것으로 좁힐지 고른다). 헤더 밑에 붙어 스크롤을 따라오므로
+          (GroupFilter의 StickyFilterBar) 오늘 온 사람을 한참 내려가며 보다가도 동산을 바로
+          바꿀 수 있다. */}
+      <GroupFilter members={data.members} value={filter} onChange={setFilter} />
 
       {dash && (
         <Card className="mb-6 fx-rise border-primary/25 bg-primary/[0.05] p-4">

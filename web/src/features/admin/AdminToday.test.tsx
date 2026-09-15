@@ -197,3 +197,51 @@ describe('AdminToday — 오늘 명단을 종류로 좁혀 보기', () => {
     expect(screen.queryByText('아직 출석이 없습니다')).not.toBeInTheDocument()
   })
 })
+
+// 부서·동산 줄은 통계 밑이다 (출석부 탭과 같은 차례), 그리고 헤더 밑에 붙어 스크롤을
+// 따라온다 — 오늘 온 사람을 한참 내려가며 보다가도 동산을 바로 바꿀 수 있도록.
+describe('AdminToday — 부서·동산 줄의 자리', () => {
+  function renderTwoGroups() {
+    const today = easternNow().date
+    const a = { ...member('m1', '대학가'), subgroup: '호연동산' }
+    const b = { ...member('m2', '청년가'), group_name: '청년부', subgroup: '민서셀' }
+    rosterData.data = {
+      role: 'super_admin',
+      canBulkSubgroup: true,
+      canClearAttendance: true,
+      members: [a, b],
+      staffMembers: [],
+      log: [memberRow(a, today, 1), memberRow(b, today, 2)],
+    } as unknown as RosterResponse & { staffMembers: Member[] }
+    return renderWithProviders(<AdminToday />)
+  }
+
+  it('통계 타일 뒤에 온다', () => {
+    const { container } = renderTwoGroups()
+    const stats = screen.getByText('지난 주 출석 인원').closest('div')!
+    const filter = screen.getByRole('group', { name: '동산' })
+    expect(container.contains(stats) && container.contains(filter)).toBe(true)
+    // DOCUMENT_POSITION_FOLLOWING — 통계가 먼저, 필터가 뒤.
+    expect(stats.compareDocumentPosition(filter) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('헤더 밑에 붙어서 스크롤을 따라온다', () => {
+    const { container } = renderTwoGroups()
+    const bar = container.querySelector('.sticky')
+    expect(bar).toBeTruthy()
+    expect(bar!.className).toContain('top-[var(--admin-header-h,4.5rem)]')
+    expect(bar!.className).toContain('bg-canvas')
+    expect(bar!.contains(screen.getByRole('group', { name: '동산' }))).toBe(true)
+  })
+
+  it('동산 줄이 부서마다 갈린다 — 청년부 동산은 청년부 줄에', () => {
+    renderTwoGroups()
+    const row = screen.getByRole('group', { name: '동산' })
+    const line = (group: string) =>
+      [...row.querySelectorAll('div')].find((d) => d.firstElementChild?.textContent === group)!
+    expect(line('대학부')).toBeTruthy()
+    expect(line('대학부').textContent).toContain('호연동산')
+    expect(line('대학부').textContent).not.toContain('민서셀')
+    expect(line('청년부').textContent).toContain('민서셀')
+  })
+})
