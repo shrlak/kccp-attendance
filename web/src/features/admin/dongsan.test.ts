@@ -8,6 +8,8 @@ import {
   orderByDongsanRole,
   leaderEntry,
   summerDongsanList,
+  dongsanSectionsOf,
+  flatDongsan,
   membersInDongsan,
   leaderOptions,
   pickerHits,
@@ -251,5 +253,38 @@ describe('pickerHits — 셀장 고르기 검색', () => {
 
   it('대소문자를 가리지 않는다', () => {
     expect(pickerHits('mi', ['Mike Miller'], ['Mike Miller']).cell).toEqual(['Mike Miller'])
+  })
+})
+
+// 일괄 이동 드롭다운의 optgroup — 부서마다 한 묶음이고, 설정된 이름과 실제로 쓰이고 있는
+// 동산이 한 묶음에 함께 담긴다.
+describe('dongsanSectionsOf — 부서별 동산 묶음', () => {
+  const people = [
+    { id: '1', name: '가', group_name: '대학부', subgroup: '동산1' },
+    { id: '2', name: '나', group_name: '청년부', subgroup: '옛동산' },
+  ] as Member[]
+
+  it('부서마다 묶고, 설정에서 빠졌어도 사람이 있는 동산은 남긴다', () => {
+    expect(dongsanSectionsOf(base, ['대학부', '청년부'], people)).toEqual([
+      { group: '대학부', list: ['동산1', '동산2'] },
+      { group: '청년부', list: ['건영동산', '옛동산'] },
+    ])
+  })
+
+  it('아무도 없는 새 학기 동산도 고를 수 있다 — 설정에 있으면 담긴다', () => {
+    expect(dongsanSectionsOf(base, ['대학부'], [])).toEqual([{ group: '대학부', list: ['동산1', '동산2'] }])
+  })
+
+  it('두 부서가 같은 이름을 나눠 가지면(여름 합동) 한 묶음으로 돌려준다', () => {
+    const summer: DongsanNames = { 대학부: ['합동1', '합동2'], 청년부: ['합동1', '합동2'] }
+    expect(dongsanSectionsOf(summer, ['대학부', '청년부'], [])).toEqual([
+      { group: '', list: ['합동1', '합동2'] },
+    ])
+  })
+
+  it('flatDongsan은 묶음을 그대로 편다 — 고른 값이 아직 후보인지 보는 자리가 쓴다', () => {
+    expect(flatDongsan(dongsanSectionsOf(base, ['대학부', '청년부'], people))).toEqual([
+      '동산1', '동산2', '건영동산', '옛동산',
+    ])
   })
 })

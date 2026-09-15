@@ -424,6 +424,26 @@ describe('AdminMembers — 동산 칩', () => {
     expect(screen.getByText('청년나')).toBeInTheDocument()
   })
 
+  it('동산 줄이 부서마다 갈린다 — 대학부 동산은 대학부 줄에, 청년부 동산은 청년부 줄에', () => {
+    rosterData.data = roster(people)
+    renderWithProviders(<AdminMembers />)
+    const line = (group: string) =>
+      [...screen.getByRole('group', { name: '동산' }).querySelectorAll('div')]
+        .find((d) => d.firstElementChild?.textContent === group)!
+    expect(line('대학부').textContent).toContain('호연동산')
+    expect(line('대학부').textContent).toContain('선규동산')
+    expect(line('대학부').textContent).not.toContain('민서셀')
+    expect(line('청년부').textContent).toContain('민서셀')
+  })
+
+  it('동산 줄도 고정 영역 안에 있다 — 명단을 내려가면서도 동산을 바꿀 수 있어야 한다', () => {
+    rosterData.data = roster(people)
+    const { container } = renderWithProviders(<AdminMembers />)
+    const bar = container.querySelector('.sticky')!
+    expect(bar.contains(screen.getByRole('group', { name: '동산' }))).toBe(true)
+    expect(bar.contains(screen.getByRole('group', { name: '부서' }))).toBe(true)
+  })
+
   it('모두 같은 동산이면 고를 것이 없어 줄이 뜨지 않는다', () => {
     rosterData.data = roster([
       member('a', '가', { subgroup: '호연동산' }),
