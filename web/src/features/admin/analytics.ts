@@ -1,5 +1,6 @@
 import type { Member, LogEntry } from '../../lib/api'
-import { groupsOf, schoolsOf, type SchoolChip } from './filters'
+import { groupsOf, schoolsOf, type SchoolChip, type Filter } from './filters'
+import { subgroupsResetEachTerm, type Partition } from '../../lib/partition'
 import { schoolOf } from './eduDongsanTraits'
 import { onBreak } from '../../lib/status'
 import { matchesEduFilter, worshipSunday, type EduFilter } from './newFamily'
@@ -40,6 +41,33 @@ export function excludeOnBreak(members: Member[], log: LogEntry[]): LogEntry[] {
     const m = byId.get(e.memberId)
     return !m || !onBreak(m, e.date)
   })
+}
+
+// ── 동산으로 좁혔을 때의 창 ──────────────────────────────────────────────────
+// **동산은 학기마다 새로 짜인다** (서버 `rolloverDongsan`: 학기가 끝나면 편성이 통째로
+// 비워지고 다음 학기에 다시 묶인다). 출석 줄에는 **그날의 동산**이 박혀 있으므로, 동산
+// 이름 하나로 지난 학기까지 세면 그때 그 이름이던 **다른 사람들**의 출석이 같은 선에
+// 얹힌다 — 이름은 같아도 그 동산이 아니고, 그렇게 그린 추이는 사람이 늘었는지 편성이
+// 바뀌었는지를 구별해 주지 못한다. 그래서 동산을 고르면 그 학기의 기록만 센다.
+//
+// 자르는 자리는 **탭에 하나뿐이다** (`AdminAnalytics`가 log을 만들 때 한 번): 그래프만
+// 자르고 표를 그대로 두면 같은 화면의 두 곳이 다른 기간을 세게 된다.
+export interface TermWindow {
+  start: string
+  end: string
+}
+
+// 창이 서는 조건: **동산을 골랐고**, 편성이 학기마다 새로 짜이는 부일 것. 장년부의 셀은
+// 학기가 끝나도 그대로 남고(RESETS_SUBGROUPS_EACH_TERM) 그 부에는 학기 자체가 없으므로,
+// 거기서는 자를 이유도 자를 기준도 없다. 부서(대학부·청년부)는 학기를 타지 않는 값이라
+// 부서만 골랐을 때도 자르지 않는다.
+export function termWindowFor(filter: Filter, partition: Partition, term: TermWindow): TermWindow | null {
+  return filter.subgroup && subgroupsResetEachTerm(partition) ? term : null
+}
+
+export function clipToTerm(log: LogEntry[], term: TermWindow | null): LogEntry[] {
+  if (!term) return log
+  return log.filter((e) => e.date >= term.start && e.date <= term.end)
 }
 
 export interface TrendPoint {
