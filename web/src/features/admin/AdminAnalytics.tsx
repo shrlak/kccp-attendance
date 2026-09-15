@@ -10,6 +10,8 @@ import {
   weeklyRecap,
   recapText,
   excludeOnBreak,
+  clipToTerm,
+  termWindowFor,
   newFamilyMonthly,
   newFamilyTotals,
   schoolSummary,
@@ -19,9 +21,12 @@ import {
   type NewFamilyMonthRow,
   type SchoolRow,
   type Granularity,
+  type TermWindow,
 } from './analytics'
 import { SCHOOL_NAMES } from './eduDongsanTraits'
 import { semesterBounds } from './newFamily'
+import { seasonLabel } from '../../lib/partition'
+import { shortDate } from './sheet'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
 import { GraduationCap, Calendar, ListChecks, Copy, BarChart3, Sprout, UserPlus, CalendarCheck, Heart, type LucideIcon } from '../../components/ui/Icon'
@@ -33,7 +38,9 @@ import { easternNow } from '../../lib/checkinWindow'
 // a weekly recap — all derived client-side from the scoped roster and reactive to the
 // shared 부서/동산 filter.
 export function AdminAnalytics() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const { data: cfg } = useAppConfig()
+  const partition = usePartition()
   const [filter, setFilter] = useState<Filter>(NO_FILTER)
   // 그래프의 가로축 단위. 이 화면의 그래프 넷이 이 값 하나를 함께 쓴다 — 기본은 주별이다
   // (출석이 주일마다 찍히므로 한 칸이 곧 그 주일이고, 달은 그것을 묶어 보는 자리다).
@@ -44,14 +51,32 @@ export function AdminAnalytics() {
   if (isError) return <p className="text-sm text-danger">{t('common.error')}</p>
   if (!data) return null
 
+  const today = easternNow().date
+  // 이번 토막(학기 / 장년부는 반기)의 경계. 아래 새가족 블록의 '이번 학기 등록'이 쓰는 그
+  // 값이고, 동산을 골랐을 때는 이 탭 전체가 세는 창이기도 하다 — 한 번만 구해 둘이 나눠 쓴다.
+  const term = semesterBounds(today, configCalendar(cfg), partition)
+  // **동산을 고르면 그 학기의 기록만 센다** (analytics.ts clipToTerm). 편성이 학기마다 새로
+  // 짜이는 부에서만 걸린다 — 장년부의 셀은 학기가 끝나도 그대로이고 그 부에는 학기가 없다.
+  const termWindow: TermWindow | null = termWindowFor(filter, partition, term)
   // 숨긴 멤버는 useRoster가 이미 빼뒀다 — 이미 떠난 사람이 계속 결석으로 세여 출석률을
   // 끌어내리지 않는다. (방학은 excludeOnBreak가 따로 걷어낸다.)
   const members = filterMembers(data.members, filter)
-  const log = excludeOnBreak(data.members, filterLog(data.log, filter))
+  const log = clipToTerm(excludeOnBreak(data.members, filterLog(data.log, filter)), termWindow)
 
   return (
     <>
       <GroupFilter members={data.members} value={filter} onChange={setFilter} />
+      {/* 창이 좁아진 것은 화면에 적어 둔다 — 안 적으면 동산을 고른 순간 수가 줄어든 이유를
+          알 수 없고, 그 동산이 요즘 뜸한 것으로 읽힌다. */}
+      {termWindow && (
+        <p className="mb-4 flex flex-wrap items-center gap-x-1.5 gap-y-1 rounded-xl border border-border bg-fill/60 px-3.5 py-2 text-xs text-muted">
+          <Calendar className="size-3.5 shrink-0 text-subtle" aria-hidden />
+          {t('admin.analytics.termOnly', {
+            term: seasonLabel(term.year, term.season, i18n.language === 'en' ? 'en' : 'ko', partition),
+            range: `${shortDate(termWindow.start)}–${shortDate(termWindow.end)}`,
+          })}
+        </p>
+      )}
       <GranularityToggle value={gran} onChange={setGran} />
       <AnalyticsCharts members={members} log={log} gran={gran} />
       <div className="fx-rise grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -60,7 +85,7 @@ export function AdminAnalytics() {
         <WeeklyRecap log={log} />
       </div>
       <SchoolBySchool members={members} log={log} />
-      <NewFamilySection members={members} log={log} gran={gran} />
+      <NewFamilySection members={members} log={log} gran={gran} today={today} term={term} />
     </>
   )
 }
@@ -69,14 +94,24 @@ export function AdminAnalytics() {
 // 위쪽 통계가 전체를 세는 자리라면 여기부터는 새가족만 센다 — 숫자 타일 · 주별 등록/출석 추이
 // 그래프 · 월별 표. 입력은 위와 같은(부서/동산 필터가 이미 걸린) members + log이므로 필터를
 // 바꾸면 이 블록도 같이 좁혀진다.
-function NewFamilySection({ members, log, gran }: { members: Member[]; log: LogEntry[]; gran: Granularity }) {
-  const { t } = useTranslation()
-  const { data: cfg } = useAppConfig()
-  const partition = usePartition()
-  const today = easternNow().date
+function NewFamilySection({
+  members,
+  log,
+  gran,
+  today,
   // "이번 학기"의 경계. 부마다 한 해를 나누는 방식이 다르므로(장년부는 상·하반기) 판단은
-  // newFamily.ts가 하고 통계는 그 결과만 받는다.
-  const term = semesterBounds(today, configCalendar(cfg), partition)
+  // newFamily.ts가 하고 통계는 그 결과만 받는다 — 위에서 한 번 구한 값을 그대로 받는다
+  // (동산을 골랐을 때 탭 전체를 자르는 창이 그것이라, 둘이 갈리면 안 된다).
+  term,
+}: {
+  members: Member[]
+  log: LogEntry[]
+  gran: Granularity
+  today: string
+  term: { start: string; end: string }
+}) {
+  const { t } = useTranslation()
+  const partition = usePartition()
   const totals = newFamilyTotals(members, log, term)
   const rows = newFamilyMonthly(members, log)
   // 장년부에는 새가족 교육이 없다 — 이수 타일도, 출석 추이의 단계별 칩도 그 부에서는 뜻이 없다.

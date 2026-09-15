@@ -11,6 +11,8 @@ import {
   newFamilyMonthly,
   newFamilyTotals,
   schoolSummary,
+  clipToTerm,
+  termWindowFor,
 } from './analytics'
 import type { Member, LogEntry } from '../../lib/api'
 
@@ -367,5 +369,48 @@ describe('schoolSummary', () => {
 
   it('is empty for an empty roster', () => {
     expect(schoolSummary([], [])).toEqual([])
+  })
+})
+
+// 동산은 학기마다 새로 짜인다 — 동산 이름 하나로 지난 학기까지 세면 그때 그 이름이던 다른
+// 사람들의 출석이 같은 선에 얹힌다. 그래서 동산을 고르면 그 학기의 기록만 센다.
+describe('termWindowFor — 언제 창이 서는가', () => {
+  const term = { start: '2026-08-16', end: '2026-12-20' }
+
+  it('동산을 고르면 그 학기의 창이 선다', () => {
+    expect(termWindowFor({ group: '', subgroup: '호연' }, 'youth', term)).toEqual(term)
+    expect(termWindowFor({ group: '청년부', subgroup: '호연' }, 'youth', term)).toEqual(term)
+  })
+
+  it('부서만 골랐거나 아무것도 안 골랐으면 자르지 않는다 — 부서는 학기를 타지 않는다', () => {
+    expect(termWindowFor({ group: '', subgroup: '' }, 'youth', term)).toBeNull()
+    expect(termWindowFor({ group: '청년부', subgroup: '' }, 'youth', term)).toBeNull()
+  })
+
+  it('장년부의 셀은 학기가 끝나도 그대로라 자르지 않는다', () => {
+    expect(termWindowFor({ group: '', subgroup: '마나도셀' }, 'adult', term)).toBeNull()
+  })
+})
+
+describe('clipToTerm — 동산으로 좁혔을 때의 창', () => {
+  const log = [
+    e('지난학기', '2026-05-03'),
+    e('학기첫날', '2026-08-16'),
+    e('학기중', '2026-10-04'),
+    e('학기끝날', '2026-12-20'),
+    e('다음학기', '2027-01-10'),
+  ]
+  const term = { start: '2026-08-16', end: '2026-12-20' }
+
+  it('학기 밖의 줄을 걷어낸다 — 경계의 두 날은 학기 안이다', () => {
+    expect(clipToTerm(log, term).map((x) => x.date)).toEqual(['2026-08-16', '2026-10-04', '2026-12-20'])
+  })
+
+  it('창이 없으면(동산을 안 골랐으면) 그대로 둔다 — 같은 배열을 돌려준다', () => {
+    expect(clipToTerm(log, null)).toBe(log)
+  })
+
+  it('그 학기에 기록이 없으면 빈 목록이다 — 다른 학기 기록으로 채우지 않는다', () => {
+    expect(clipToTerm(log, { start: '2026-06-01', end: '2026-08-02' })).toEqual([])
   })
 })
