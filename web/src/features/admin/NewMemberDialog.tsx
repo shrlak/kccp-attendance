@@ -2,26 +2,37 @@ import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Dialog } from '../../components/ui/Dialog'
 import { Button } from '../../components/ui/Button'
-import { Sparkles } from '../../components/ui/Icon'
+import { Switch } from '../../components/ui/Switch'
+import { Sparkles, CheckCircle2 } from '../../components/ui/Icon'
 import { useToast } from '../../components/ui/Toast'
 import { kioskNewMember, type NewMemberFields } from '../../lib/api'
 import { easternNow } from '../../lib/checkinWindow'
-import { NewFamilyCardForm } from '../admin/NewFamilyCardForm'
-import { AdultCardForm } from '../admin/AdultCardForm'
-import { blankAdultCard, type AdultCardValue } from '../admin/adultCard'
-import { adultPayload } from '../admin/adultRegistration'
-import { newHouseholdId, spouseName, spousePayload, spouseRows } from '../admin/adultSpouse'
-import { blankCardForm, groupForAffiliation, joinAffiliation, type CardFormValue } from '../admin/newFamilyCard'
-import { UNNAMED_CARD_NAME, cardMemberName } from '../admin/cardRegistration'
+import { NewFamilyCardForm } from './NewFamilyCardForm'
+import { AdultCardForm } from './AdultCardForm'
+import { blankAdultCard, type AdultCardValue } from './adultCard'
+import { adultPayload } from './adultRegistration'
+import { newHouseholdId, spouseName, spousePayload, spouseRows } from './adultSpouse'
+import { blankCardForm, groupForAffiliation, joinAffiliation, type CardFormValue } from './newFamilyCard'
+import { UNNAMED_CARD_NAME, cardMemberName } from './cardRegistration'
 import { usePartition, usePartitionT } from '../../lib/useAppConfig'
 import { refreshRoster } from '../../lib/live'
 
-// 새가족 (new-family) registration from the kiosk: a blank paper 새가족 등록 카드 to
-// fill in directly — type into the card's cells, tap its checkboxes. 등록일 is stamped
-// to the day the person is added (the server stamps the same date authoritatively).
-// There are no 부서/동산 controls: 부서 is derived from the card's 소속 category
-// (대학생 → 대학부, else → 청년부) and 동산 is assigned later in the Members tab.
-// Creates the member/device and checks them in for today.
+// 새가족 (new-family) registration by hand: a blank paper 새가족 등록 카드 to fill in
+// directly — type into the card's cells, tap its checkboxes. 등록일 is stamped to the day
+// the person is added (the server stamps the same date authoritatively). There are no
+// 부서/동산 controls: 부서 is derived from the card's 소속 category (대학생 → 대학부,
+// else → 청년부) and 동산 is assigned later in the Members tab.
+//
+// **부르는 자리가 둘이다 — 키오스크와 새가족 탭**, 그리는 화면은 하나다 (`AttendanceGrid`·
+// `NewFamilyFacts`와 같은 규칙). 같은 종이를 손으로 옮겨 적는 일이라 두 곳이 각자 그리면
+// 한쪽만 고쳐지고 어느 쪽이 이 시스템의 등록 화면인지 알 수 없게 된다. 컴포넌트가 admin
+// 밑에 사는 것은 카드 그림(`NewFamilyCardForm`)도, 장년부 카드와 배우자·자리표 규칙도 전부
+// 여기 있기 때문이고, 키오스크는 그 중 한 명의 호출자다.
+// 갈리는 것은 **오늘 출석까지 찍는가** 하나뿐이라 `checkinChoice`로 받는다:
+//   · 키오스크는 언제나 찍는다 — 그 화면은 지금 그 자리에 선 사람을 맞는 자리다.
+//   · 새가족 탭은 고를 수 있다 (기본은 찍기). 카드 사진 등록이 이미 그 선택을 들고 있고
+//     (`scan.checkinToday`), 밀린 카드를 주중에 옮겨 적는 일이 실제로 있기 때문이다 —
+//     그때 오늘 출석이 함께 찍히면 오지 않은 주일에 사람이 선다.
 //
 // **필수는 이름과 소속(=부서) 둘뿐이다.** 나머지 칸은 비어 있어도 등록된다 — 빈 칸은
 // 나중에 멤버 탭에서 언제든 채운다. 그 둘만 남은 이유는 둘 다 **그 사람이 명단의 어디에
@@ -40,7 +51,16 @@ import { refreshRoster } from '../../lib/live'
 // 등록과 **같은 자리표**를 넣는다 (`cardMemberName` — '이름 미기재 08-17 14:23:05', 시각까지
 // 붙는 이유는 서버의 중복 병합이 이름+부서로 사람을 찾기 때문이다: 자리표가 같으면 연락처
 // 없는 두 사람이 한 줄로 합쳐진다). 지어낸 값은 조용히 넣지 않고 등록 버튼 위에 적어 준다.
-export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function NewMemberDialog({
+  open,
+  onClose,
+  checkinChoice = false,
+}: {
+  open: boolean
+  onClose: () => void
+  // 오늘 출석까지 찍을지 고르게 할 것인가 (새가족 탭). 키오스크는 고르지 않는다.
+  checkinChoice?: boolean
+}) {
   // 문구는 부(部)를 따른다 — 장년부에서는 아래 안내가 그 부의 규칙(필수 없음)을 말한다.
   const t = usePartitionT()
   const qc = useQueryClient()
@@ -57,6 +77,9 @@ export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose
   // 종이를 그대로 옮긴 그림이기 때문 — 종이에 없는 칸을 그 안에 그리면 받아 적는 사람이
   // 어느 것이 종이의 칸인지 알 수 없게 된다.
   const [extraNotes, setExtraNotes] = useState('')
+  // 기본은 찍기 — 이 화면이 열리는 대부분의 순간은 그 사람이 와 있는 주일이다. 끄는 것은
+  // 밀린 카드를 옮겨 적는 주중이고, 그 선택은 카드 사진 등록과 같은 스위치다.
+  const [checkinToday, setCheckinToday] = useState(true)
   const [busy, setBusy] = useState(false)
   // 장년부에서 이름 칸이 빈 채로 등록되려는 중 — 그때만 자리표가 들어간다.
   const autoName = isAdult && !adultCard.name.trim()
@@ -68,9 +91,16 @@ export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose
     setCard(blankCardForm(easternNow().date))
     setAdultCard(blankAdultCard(easternNow().date))
     setExtraNotes('')
+    setCheckinToday(true)
     setBusy(false)
     onClose()
   }
+
+  // 오늘 출석을 찍지 않기로 했으면 그 뜻을 요청에 싣는다 — 본인도 배우자도 같은 규칙이다
+  // (한 세대가 같은 날 온 것으로 적히거나 함께 빠져야 한다).
+  const skipCheckin = checkinChoice && !checkinToday
+  const withCheckin = (fields: NewMemberFields): NewMemberFields =>
+    skipCheckin ? { ...fields, skipCheckin: true } : fields
 
   async function submit() {
     const typed = (isAdult ? adultCard.name : card.name).trim()
@@ -118,13 +148,13 @@ export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose
         registrationDate: card.registrationDate || null,
         pastoralVisitRequested: card.pastoralVisitRequested,
       }
-      await kioskNewMember(payload)
+      await kioskNewMember(withCheckin(payload))
       // 배우자는 본인 등록이 끝난 뒤에 한 명씩. 한 명이 실패해도 이미 들어간 본인을
       // 되돌리지 않는다 — 빠진 사람만 다시 넣으면 된다.
       const failed: string[] = []
       for (const row of spouses) {
         try {
-          await kioskNewMember(spousePayload(adultCard, row, householdId))
+          await kioskNewMember(withCheckin(spousePayload(adultCard, row, householdId)))
         } catch {
           failed.push(spouseName(row))
         }
@@ -171,9 +201,29 @@ export function KioskNewMemberDialog({ open, onClose }: { open: boolean; onClose
       <p className="mt-4 rounded-xl bg-fill px-3 py-2 text-[11px] leading-5 text-subtle">
         {t('kiosk.newMember.optionalHint')}
       </p>
+      {/* 새가족 탭에서만 뜬다 — 카드 사진 등록의 그 스위치·그 문구다 (같은 선택을 두 화면이
+          다르게 부르면 무엇이 켜져 있는지 매번 다시 읽게 된다). */}
+      {checkinChoice && (
+        <div className="mt-4 inset-list">
+          <label className="inset-row min-h-12 cursor-pointer justify-between gap-3">
+            <span className="flex items-center gap-2 text-sm font-medium text-text">
+              <CheckCircle2 size={17} strokeWidth={2} className="text-success" aria-hidden />
+              {t('admin.newfamily.scan.checkinToday')}
+            </span>
+            <Switch
+              checked={checkinToday}
+              onChange={setCheckinToday}
+              disabled={busy}
+              label={t('admin.newfamily.scan.checkinToday')}
+            />
+          </label>
+        </div>
+      )}
+      {/* 버튼의 말이 그 스위치를 따라간다: 출석까지 찍을 때만 '등록 후 출석'이다 — 누르기
+          전에 무엇이 일어나는지가 버튼에 적혀 있어야 한다. */}
       <Button onClick={() => void submit()} disabled={busy} className="mt-3 w-full">
         <Sparkles className="size-4" strokeWidth={2} aria-hidden />
-        {busy ? t('common.loading') : t('kiosk.newMember.submit')}
+        {busy ? t('common.loading') : skipCheckin ? t('admin.newfamily.scan.submit') : t('kiosk.newMember.submit')}
       </Button>
     </Dialog>
   )
