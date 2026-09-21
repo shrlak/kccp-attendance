@@ -30,9 +30,9 @@ vi.mock('./useRoster', () => ({ useRoster: () => roster() }))
 beforeAll(async () => { await i18n.init() })
 beforeEach(() => { vi.clearAllMocks() })
 
-async function renderTab(members: Member[], log: LogEntry[] = []) {
+async function renderTab(members: Member[], log: LogEntry[] = [], role = 'super_admin') {
   roster.mockReturnValue({
-    data: { role: 'super_admin', members, log, staffMembers: [] },
+    data: { role, members, log, staffMembers: [] },
     isLoading: false,
     isError: false,
   })
@@ -210,5 +210,32 @@ describe('AdminNewFamily — 새가족 출석표', () => {
   it('새가족이 없으면 그릴 표가 없어 버튼이 눌리지 않는다', async () => {
     await renderTab([member('일반멤버', null, { is_new_member: false })])
     expect(screen.getByRole('button', { name: '출석표' })).toBeDisabled()
+  })
+})
+
+// ── 직접 등록 ────────────────────────────────────────────────────────────────────
+// 같은 종이를 옮겨 적는 길이 둘(손으로 · 사진으로)이고, 손으로 적는 쪽은 키오스크의 그
+// 등록 카드 그대로다 (NewMemberDialog) — 두 화면이 각자 그리면 한쪽만 고쳐진다.
+describe('AdminNewFamily 직접 등록', () => {
+  it('직접 등록 버튼이 키오스크의 그 등록 카드를 연다 — 오늘 출석은 고를 수 있다', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event')
+    await renderTab([member('이번학기', '2026-06-07')])
+
+    await userEvent.click(screen.getByRole('button', { name: '직접 등록' }))
+    const dialog = within(screen.getByRole('dialog'))
+    expect(dialog.getByLabelText('이름')).toBeInTheDocument()
+    // 소속 네모가 곧 부서다 — 카드가 통째로 그 화면이다.
+    expect(dialog.getByRole('button', { name: '대학생' })).toBeInTheDocument()
+    // 밀린 카드를 주중에 옮겨 적을 수 있도록, 이 자리에서만 오늘 출석을 끌 수 있다.
+    expect(dialog.getByLabelText('오늘 출석 체크')).toBeChecked()
+  })
+
+  it('목사(읽기 전용)에게는 등록하는 버튼이 없다', async () => {
+    await renderTab([member('이번학기', '2026-06-07')], [], 'pastor')
+
+    expect(screen.queryByRole('button', { name: '직접 등록' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '카드 사진 등록' })).toBeNull()
+    // 읽는 화면(출석표 · 카톡 추가)은 그대로 있다.
+    expect(screen.getByRole('button', { name: '출석표' })).toBeInTheDocument()
   })
 })

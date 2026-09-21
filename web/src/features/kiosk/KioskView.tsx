@@ -19,7 +19,7 @@ import {
 } from './kiosk'
 import { useAttendanceLive, refreshRosterSettled } from '../../lib/live'
 import { KioskGuestDialog } from './KioskGuestDialog'
-import { KioskNewMemberDialog } from './KioskNewMemberDialog'
+import { NewMemberDialog } from '../admin/NewMemberDialog'
 import { ThemeLangToggle } from '../../components/ui/ThemeLangToggle'
 import {
   Search, Check, ClipboardList, RotateCcw, AlertTriangle,
@@ -346,7 +346,8 @@ export function KioskView({ onExit }: { onExit: () => void }) {
       {overlay && <SuccessOverlay tone={overlay.tone} name={overlay.name} detail={overlay.detail} />}
 
       <KioskGuestDialog open={dialog === 'guest'} onClose={() => setDialog(null)} />
-      <KioskNewMemberDialog open={dialog === 'newMember'} onClose={() => setDialog(null)} />
+      {/* 키오스크는 오늘 출석까지 찍는다 — 고르지 않는다 (checkinChoice 없음). */}
+      <NewMemberDialog open={dialog === 'newMember'} onClose={() => setDialog(null)} />
     </div>
   )
 }

@@ -17,10 +17,11 @@ import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
 import { Tag } from '../../components/ui/Tag'
 import { useToast } from '../../components/ui/Toast'
-import { ScanLine, Download, Search, HandHeart, Heart, Calendar, GraduationCap, AlertTriangle, QrCode, ClipboardList } from '../../components/ui/Icon'
+import { ScanLine, Download, Search, HandHeart, Heart, Calendar, GraduationCap, AlertTriangle, QrCode, ClipboardList, UserPlus } from '../../components/ui/Icon'
 import { prefetchExcel } from '../../app/prefetch'
 import { EditModal, AttendanceModal } from './MemberDialogs'
 import { CardScanDialog } from './CardScanDialog'
+import { NewMemberDialog } from './NewMemberDialog'
 import { KakaoQrDialog } from './KakaoQrDialog'
 import { NewFamilySheetDialog } from './NewFamilySheetDialog'
 import { NewFamilyFacts } from './NewFamilyFacts'
@@ -47,6 +48,9 @@ export function AdminNewFamily() {
   const [attendanceFor, setAttendanceFor] = useState<Member | null>(null)
   const [exportOpen, setExportOpen] = useState(false)
   const [scanOpen, setScanOpen] = useState(false)
+  // 직접 등록 — 키오스크의 그 등록 화면 그대로다 (NewMemberDialog). 사진이 없는 카드,
+  // 전화로 받아 적은 사람은 그 길로 들어올 수가 없었다.
+  const [manualOpen, setManualOpen] = useState(false)
   const [qrOpen, setQrOpen] = useState(false)
   // 새가족 출석표 — 출석부와 같은 표를 이 탭의 새가족만으로 그린다 (NewFamilySheetDialog).
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -145,11 +149,21 @@ export function AdminNewFamily() {
             <QrCode className="size-4" aria-hidden />
             {t('admin.kakaoQr.action')}
           </Button>
+          {/* 직접 등록 · 카드 사진 등록 — 같은 종이를 어떻게 옮겨 적느냐만 다른 두 길이라
+              나란히 둔다. 손으로 적는 쪽이 앞인 것은 사진이 없어도 되는 길이기 때문이고,
+              화면은 키오스크의 그 등록 카드 그대로다 (NewMemberDialog). 명단을 바꾸는
+              일이라 목사님(읽기 전용)에게는 둘 다 없다. */}
           {!readOnly && (
-            <Button variant="secondary" size="sm" onClick={() => setScanOpen(true)}>
-              <ScanLine className="size-4" aria-hidden />
-              {t('admin.newfamily.scan.action')}
-            </Button>
+            <>
+              <Button variant="secondary" size="sm" onClick={() => setManualOpen(true)}>
+                <UserPlus className="size-4" aria-hidden />
+                {t('admin.newfamily.manual.action')}
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => setScanOpen(true)}>
+                <ScanLine className="size-4" aria-hidden />
+                {t('admin.newfamily.scan.action')}
+              </Button>
+            </>
           )}
           {/* Same as the 출석부 menu: opening the confirm dialog starts SheetJS downloading,
               so the actual export doesn't wait on the library. */}
@@ -250,6 +264,9 @@ export function AdminNewFamily() {
 
       {exportOpen && <ExportModal members={allNewFamily} today={today} onClose={() => setExportOpen(false)} />}
       {scanOpen && <CardScanDialog open onClose={() => setScanOpen(false)} />}
+      {/* 밀린 카드를 주중에 옮겨 적는 일이 있어 오늘 출석은 고르게 한다 (checkinChoice) —
+          카드 사진 등록이 이미 들고 있는 그 선택이다. */}
+      {manualOpen && <NewMemberDialog open checkinChoice onClose={() => setManualOpen(false)} />}
       {/* 출석표: 화면에 보이는 그 새가족들(allNewFamily)과, 출석부와 같은 필터를 거친 출석
           기록. 표가 이름으로 사람을 찾으므로 로그도 같은 부서·동산으로 좁혀 들어간다 —
           안 그러면 다른 부서의 동명이인이 이 표의 칸을 채운다. */}
