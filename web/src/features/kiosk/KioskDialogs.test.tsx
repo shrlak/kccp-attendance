@@ -177,20 +177,36 @@ describe('KioskNewMemberDialog (새가족 등록)', () => {
     expect(await screen.findByText('이름을 입력해주세요')).toBeInTheDocument()
   })
 
-  // 필수는 이름 하나뿐이다: 소속은 부서를 정하는 칸일 뿐이고, 비었을 때 넣을 값이 이미
-  // 있으므로(청년부) 그 칸 때문에 사람을 명단에 못 올리는 일은 없다.
-  it('registers with only a name — an unticked 소속 falls back to 청년부', async () => {
+  // 필수는 이름과 소속 둘뿐이다: 소속 네모가 곧 부서라(대학생 → 대학부, 나머지 → 청년부)
+  // 비었을 때 기본값으로 떨어뜨리면 그 사람이 틀린 명단에 조용히 앉는다.
+  it('blocks submission without a 소속 and does not call the API', async () => {
     const { kioskNewMember } = await import('../../lib/api')
     renderWithProviders(<KioskNewMemberDialog open onClose={vi.fn()} />)
 
     await userEvent.type(screen.getByLabelText('이름'), '무소속')
     await userEvent.click(screen.getByRole('button', { name: '등록 후 출석' }))
 
+    expect(kioskNewMember).not.toHaveBeenCalled()
+    expect(await screen.findByText(/소속을 선택해주세요/)).toBeInTheDocument()
+  })
+
+  // 그 둘만 채우면 나머지 칸은 비어 있어도 등록된다 — 빈 칸은 멤버 탭에서 채운다.
+  it('registers with just a name + 소속, leaving every other field blank', async () => {
+    const { kioskNewMember } = await import('../../lib/api')
+    ;(kioskNewMember as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ok', memberId: 'm1' })
+    renderWithProviders(<KioskNewMemberDialog open onClose={vi.fn()} />)
+
+    await userEvent.type(screen.getByLabelText('이름'), '무연락')
+    await userEvent.click(screen.getByRole('button', { name: '직장인' }))
+    await userEvent.click(screen.getByRole('button', { name: '등록 후 출석' }))
+
     await waitFor(() => expect(kioskNewMember).toHaveBeenCalled())
     expect((kioskNewMember as ReturnType<typeof vi.fn>).mock.calls[0][0]).toMatchObject({
-      name: '무소속',
+      name: '무연락',
       group: '청년부',
-      schoolOrWork: '',
+      schoolOrWork: '직장인',
+      phone: '',
+      subgroup: '',
     })
   })
 })

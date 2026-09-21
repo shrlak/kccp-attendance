@@ -22,8 +22,7 @@ import { AdultCardForm } from './AdultCardForm'
 import { blankAdultCard, type AdultCardValue } from './adultCard'
 import { adultPayload } from './adultRegistration'
 import { newHouseholdId, spouseName, spousePayload, spouseRows } from './adultSpouse'
-import { groupsOfPartition, type Partition } from '../../lib/partition'
-import { useAdminAuth } from '../../stores/useAdminAuth'
+import { type Partition } from '../../lib/partition'
 import { blankCardForm, groupForAffiliation, joinAffiliation, type CardFormValue } from './newFamilyCard'
 import { UNNAMED_CARD_NAME, cardMemberName } from './cardRegistration'
 import { usePartition } from '../../lib/useAppConfig'
@@ -37,10 +36,16 @@ import { refreshRoster, broadcastAttendanceChange } from '../../lib/live'
 // taps 등록. Registration goes through the same endpoint as the kiosk 새가족 등록, with
 // an optional "오늘 출석 체크" (unchecked → skipCheckin, e.g. entering a stack of cards
 // later in the week).
-// **빈 칸은 등록을 막지 않는다** (두 부 모두): 종이는 사람이 손으로 채우는 것이라 이름이 안
-// 읽히거나 소속 네모가 안 찍힌 카드가 늘 있고, 그때 등록을 거절하면 그 사람은 어디에도 남지
-// 않는다 — 빈 칸은 나중에 멤버 탭에서 채운다. 우리가 대신 채운 칸(이름 자리표·기본 부서)은
-// 등록 버튼 위에 적어 준다. 규칙은 cardRegistration.ts.
+// **빈 칸은 대부분 등록을 막지 않는다**: 종이는 사람이 손으로 채우는 것이라 빈 칸이 늘
+// 있고, 그때 등록을 거절하면 그 사람은 어디에도 남지 않는다 — 빈 칸은 나중에 멤버 탭에서
+// 채운다. 빈 이름이 자리표로 들어가는 것이 그 규칙이다 (cardRegistration.ts), 우리가 대신
+// 채운 값은 등록 버튼 위에 적어 준다.
+// **예외가 하나 — 대학·청년부 카드의 소속이다.** 그 네모가 곧 부서이고(대학생 → 대학부,
+// 나머지 → 청년부) 부서는 명단·출석부·통계·내보내기가 모두 갈라 보는 축이라, 비었을 때
+// 기본 부서로 떨어뜨리면 그 사람은 명단에 들어가되 **틀린 칸에** 들어간다 — 이름 자리표와
+// 달리 화면에 임시라는 표가 남지 않아 아무도 고치러 오지 않는다. 그래서 이 카드만은
+// 소속을 찍어야 등록된다 (키오스크 새가족 등록과 같은 규칙). 네모는 이 화면에서 바로
+// 찍으면 되므로 종이가 사라지기 전에 끝난다. 장년부 카드에는 그 물음 자체가 없다.
 // Two dimensions of batching, both walked one card at a time (extract → review →
 // 등록/건너뛰기 → next): several photos can be picked at once, and a single photo can
 // hold several cards (a stack laid out on the table) — every card in it is recognized
@@ -223,23 +228,24 @@ export function CardScanDialog({
   // 사람이 명단에 없는 것보다, 우리가 채운 칸을 적어 두고 등록하는 편이 낫다. 무엇을
   // 대신 채웠는지는 등록 버튼 위에 그대로 보여준다.
   const autoName = !(isAdultCard ? adultCard.name : card.name).trim()
-  // 소속이 곧 부서인데(대학생 → 대학부, 나머지 → 청년부) 아무 네모도 안 찍힌 카드가 있다.
-  // 그때 넣을 부서: **적는 사람이 한 부서에 묶여 있으면 그 부서**다 (리더). 서버는 자기
-  // 부서 밖으로의 등록을 막으므로(inScopeGroup), 여기서 늘 청년부로 떨어뜨리면 대학부
-  // 리더가 소속 없는 카드를 등록할 때 403이 나고 — 빈 칸 때문에 등록이 막히는 일이 그대로
-  // 남는다. super_admin·공유 링크는 부서가 비어 있으므로 예전 규칙(청년부)으로 간다.
-  const scopedGroup = useAdminAuth((s) => s.identity?.group ?? '')
-  const fallbackGroup = groupsOfPartition(partition).includes(scopedGroup)
-    ? scopedGroup
-    : groupForAffiliation('', partition)
+  // 소속이 곧 부서라(대학생 → 대학부, 나머지 → 청년부) 그 네모가 비어 있으면 이 카드는
+  // 등록되지 않는다 — 찍어 넣은 부서는 틀려도 아무 표가 남지 않기 때문이다(위 주석).
+  // 안내는 등록을 누르기 전에 떠 있어야 한다: 거절당한 뒤에야 무엇이 빠졌는지 아는 것은
+  // 카드를 한 장씩 넘기는 이 화면에서 한 번의 헛걸음이다.
   // 장년부 카드에는 소속을 묻는 칸이 없다 — 고를 부서가 하나뿐이므로.
-  const guessedGroup = !isAdultCard && !card.affiliationCategory.trim() ? fallbackGroup : ''
+  const needGroup = !isAdultCard && !card.affiliationCategory.trim()
   // 동행가족 표의 배우자 줄은 멤버 행을 하나 더 만든다 (adultSpouse.ts) — 배우자도 자기
   // 출석을 찍으므로 명단에 자기 행이 있어야 한다. 누가 함께 등록되는지는 아래 SpouseNotice가
   // 등록 버튼 위에 이름으로 적어 준다.
   const spouses = isAdultCard ? spouseRows(adultCard.family) : []
 
   async function submit() {
+    // 소속 없이는 부서를 정할 수 없다 — 이 카드만 멈춘다 (묶음의 나머지는 그대로 이어진다;
+    // 정 못 읽는 카드는 '이 카드 건너뛰기'가 그 자리다).
+    if (needGroup) {
+      toast({ title: t('admin.newfamily.scan.groupRequired'), tone: 'warn' })
+      return
+    }
     setBusy(true)
     try {
       // 이름 칸이 비어 있어도 멈추지 않는다 — 자리표를 만들어 등록한다.
@@ -256,10 +262,8 @@ export function CardScanDialog({
       } : {
         name,
         // Same mapping as the kiosk 새가족 등록: 부서 from 소속, 동산 assigned later.
-        // 소속이 비었으면 위에서 정한 기본 부서 — 등록을 멈추지 않는다.
-        group: card.affiliationCategory.trim()
-          ? groupForAffiliation(card.affiliationCategory, partition)
-          : fallbackGroup,
+        // 위에서 막았으므로 이 자리에서 소속은 언제나 찍혀 있다.
+        group: groupForAffiliation(card.affiliationCategory, partition),
         subgroup: '',
         gender: card.gender,
         phone: card.phone.trim(),
@@ -393,12 +397,14 @@ export function CardScanDialog({
               <NewFamilyCardForm value={card} onChange={patchCard} />
             )}
           </div>
-          {/* 빈 칸 때문에 등록이 막히지는 않지만, 우리가 대신 채운 값은 등록을 누르기 전에
-              읽을 수 있어야 한다 — 조용히 지어낸 이름·부서는 나중에 아무도 못 찾는다. */}
-          {(autoName || guessedGroup) && (
+          {/* 한 블록에 두 가지가 선다: 우리가 대신 채운 값(이름 자리표)과 채울 수 없어
+              **등록을 막는** 값(소속). 둘 다 등록을 누르기 전에 읽을 수 있어야 한다 —
+              조용히 지어낸 이름은 나중에 아무도 못 찾고, 막히는 이유를 모르면 버튼을
+              누르고서야 알게 된다. */}
+          {(autoName || needGroup) && (
             <ul className="mt-4 flex flex-col gap-1 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-[11px] leading-5 text-warning">
               {autoName && <li>{t('admin.newfamily.scan.autoName', { name: UNNAMED_CARD_NAME })}</li>}
-              {guessedGroup && <li>{t('admin.newfamily.scan.autoGroup', { group: guessedGroup })}</li>}
+              {needGroup && <li>{t('admin.newfamily.scan.needGroup')}</li>}
             </ul>
           )}
           {/* 배우자는 고칠 것이 아니라 알려 줄 것이라 경고가 아닌 자리에 둔다 — 등록을
