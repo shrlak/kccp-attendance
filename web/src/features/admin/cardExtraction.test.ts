@@ -106,8 +106,8 @@ describe('normalizeExtractedCard', () => {
     expect(card.affiliationCategory).toBe('')
     expect(card.baptismStatus).toBe('')
     expect(card.faithDuration).toBe('')
-    // 카드에 없는 기간('5년')도 같은 규칙 — 지어내지 않고 비운다.
-    expect(card.stayDuration).toBe('')
+    // 기간만은 보기로 묶지 않는다 — '기타'에 손으로 적는 자리가 있어 적힌 말이 곧 값이다.
+    expect(card.stayDuration).toBe('5년')
   })
   it('keeps valid enum values, trimming whitespace', () => {
     const card = normalizeExtractedCard(
