@@ -7,6 +7,8 @@ import {
   toggleBaptism,
   BAPTISM_CAPTIONS,
   FAITH_OPTIONS,
+  STAY_LABEL,
+  STAY_OPTIONS,
   PASTORAL_CONSENT_TEXT,
   formatCardDate,
   type CardFormValue,
@@ -98,6 +100,8 @@ export function NewFamilyCardForm({
                 />
               </ValueCell>
             </tr>
+            {/* 왼쪽 반이 위아래로 갈리는 줄: 학교/전공 위, 향후 기간 아래. 오른쪽 신앙생활은
+                종이처럼 그 둘을 함께 덮는다 (rowSpan) — 다섯 줄짜리 칸이라 갈리지 않는다. */}
             <tr>
               <LabelCell
                 text={
@@ -115,12 +119,25 @@ export function NewFamilyCardForm({
                   onChange={(v) => onChange({ affiliationDetail: v })}
                 />
               </ValueCell>
-              <LabelCell text="신앙생활" />
-              <ValueCell>
+              <LabelCell text="신앙생활" rowSpan={2} />
+              <ValueCell rowSpan={2}>
                 <CheckColumn
                   options={FAITH_OPTIONS.map((o) => ({ value: o, label: o }))}
                   selected={value.faithDuration}
                   onSelect={(v) => onChange({ faithDuration: v })}
+                />
+              </ValueCell>
+            </tr>
+            <tr>
+              <LabelCell text={STAY_LABEL} />
+              <ValueCell>
+                {/* 좁은 반 칸이라 보기를 나란히 흘린다 — 세로로 쌓으면 이 칸이 다시 다섯
+                    줄이 되어 갈라 놓은 뜻이 없어진다 (카드 렌더러의 flow와 같은 규칙). */}
+                <CheckColumn
+                  flow
+                  options={STAY_OPTIONS.map((o) => ({ value: o, label: o }))}
+                  selected={value.stayDuration}
+                  onSelect={(v) => onChange({ stayDuration: v })}
                 />
               </ValueCell>
             </tr>
@@ -155,13 +172,18 @@ export function NewFamilyCardForm({
   )
 }
 
-function LabelCell({ text }: { text: ReactNode }) {
-  return <td className="border border-[#111] bg-[#d9d9d9] px-1 py-1.5 text-center font-bold">{text}</td>
+function LabelCell({ text, rowSpan }: { text: ReactNode; rowSpan?: number }) {
+  return (
+    // break-keep: 한글 라벨이 낱말 가운데서 끊기지 않게 ('향후 피츠버그에 있 / 을 기간').
+    <td rowSpan={rowSpan} className="border border-[#111] bg-[#d9d9d9] px-1 py-1.5 text-center font-bold break-keep">
+      {text}
+    </td>
+  )
 }
 
-function ValueCell({ children, colSpan }: { children: ReactNode; colSpan?: number }) {
+function ValueCell({ children, colSpan, rowSpan }: { children: ReactNode; colSpan?: number; rowSpan?: number }) {
   return (
-    <td colSpan={colSpan} className="border border-[#111] px-2 py-1.5 align-middle">
+    <td colSpan={colSpan} rowSpan={rowSpan} className="border border-[#111] px-2 py-1.5 align-middle">
       {children}
     </td>
   )
@@ -262,15 +284,18 @@ function CheckColumn({
   selected,
   onSelect,
   multi = false,
+  flow = false,
 }: {
   options: { value: string; label: string; caption?: string }[]
   selected: string
   onSelect: (v: string) => void
   multi?: boolean
+  // 한 줄에 나란히 흘리고 넘치면 다음 줄로 (반 칸에 앉는 향후 기간).
+  flow?: boolean
 }) {
   const picked = multi ? parseBaptism(selected) : []
   return (
-    <span className="flex flex-col gap-0.5">
+    <span className={flow ? 'flex flex-wrap items-center gap-x-3 gap-y-0.5' : 'flex flex-col gap-0.5'}>
       {options.map((o) => {
         const checked = multi ? picked.includes(o.value) : selected === o.value
         return (

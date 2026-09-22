@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { cardModel, cardFilenames, formatCardDate, joinAffiliation, splitAffiliation } from './newFamilyCardImage'
-import { DATE_BLANK, PASTORAL_CONSENT_TEXT, groupForAffiliation, type CardCellContent } from './newFamilyCard'
+import { DATE_BLANK, PASTORAL_CONSENT_TEXT, STAY_LABEL, groupForAffiliation, type CardCellContent } from './newFamilyCard'
 import type { Member } from '../../lib/api'
 
 const member = (extra: Partial<Member> = {}): Member => ({
@@ -173,6 +173,22 @@ describe('cardModel (새가족 등록 카드, paper layout)', () => {
     expect(optionsOf(cells['신앙생활']).map((o) => o.label)).toEqual(['모태신앙', '1년 미만', '1-3년', '3-5년', '5년 이상'])
     expect(checkedOf(cells['신앙생활'])).toEqual(['1-3년'])
     expect(checkedOf(cellsByLabel(member({ faith_duration: '' }))['신앙생활'])).toEqual([])
+  })
+
+  it('splits the 학교/전공 row: 향후 피츠버그에 머물 기간 below it, options side by side', () => {
+    const row = cardModel(member({ stay_duration: '2년' })).rows[3]
+    expect(row.left.label).toBe('학교/전공 or 직장')
+    // 오른쪽(신앙생활)은 갈리지 않고 그 둘을 함께 덮는다 — 아래 칸은 왼쪽 반에만 있다.
+    expect(row.right.label).toBe('신앙생활')
+    expect(row.leftBelow?.label).toBe(STAY_LABEL)
+    expect(optionsOf(row.leftBelow!.content).map((o) => o.label)).toEqual(['1년 미만', '2년', '3년', '4년', '기타'])
+    expect(checkedOf(row.leftBelow!.content)).toEqual(['2년'])
+    // 좁은 반 칸이라 보기가 나란히 흐른다 (세로로 쌓으면 다시 다섯 줄이 된다).
+    expect(row.leftBelow!.content).toMatchObject({ flow: true })
+  })
+
+  it('checks no 기간 box when the member has none', () => {
+    expect(checkedOf(cardModel(member())['rows'][3].leftBelow!.content)).toEqual([])
   })
 
   it('prints the 목회자 연락 동의 줄, ticked only when the member confirmed it', () => {

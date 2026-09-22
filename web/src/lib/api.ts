@@ -237,6 +237,8 @@ export interface Member {
   baptism_status?: string
   school_or_work?: string
   faith_duration?: string
+  // 향후 피츠버그에 머물 기간 — 카드의 보기 그대로 ('1년 미만' · '2년' … '기타').
+  stay_duration?: string
   is_staff?: boolean
   // 상태 표기 (master-sheet grey marks: 한국 귀국 / 이주 / 돌아옴 …). The 출석부 renders the
   // note as a grey cell spanning status_start → status_end (null = the term's last Sunday).
@@ -510,6 +512,7 @@ export interface MemberEdit {
   baptismStatus?: string
   schoolOrWork?: string
   faithDuration?: string
+  stayDuration?: string
   pastoralVisitRequested?: boolean | null
   // 상태 표기 목록 (여러 개). 서버가 여기서 예전 단일 컬럼도 채운다.
   statusMarks?: { note: string; start: string | null; end: string | null }[]
@@ -644,6 +647,7 @@ export interface NewMemberFields {
   baptismStatus?: string
   schoolOrWork?: string
   faithDuration?: string
+  stayDuration?: string
   // 추가 정보 — 카드에 칸이 없는 사실을 적는 자유 기입. members.notes로 들어가고, 나중에
   // 멤버 편집 창의 '메모'에서 이어 쓴다. 이미 있던 사람으로 병합되면 서버가 기존 메모에
   // 덮어쓰지 않고 잇는다.

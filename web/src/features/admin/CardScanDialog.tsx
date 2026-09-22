@@ -272,6 +272,7 @@ export function CardScanDialog({
         baptismStatus: card.baptismStatus,
         schoolOrWork: joinAffiliation(card.affiliationCategory, card.affiliationDetail),
         faithDuration: card.faithDuration.trim(),
+        stayDuration: card.stayDuration.trim(),
         registrationDate: card.registrationDate || null,
         pastoralVisitRequested: card.pastoralVisitRequested,
         skipCheckin: !checkinToday,

@@ -40,6 +40,7 @@ const PAD_Y = 12 // value-cell vertical padding around stacked checkbox lines
 const LINE_H = 26 // one checkbox line
 const TEXT_LINE_H = 22 // one wrapped plain-text line (학교/전공 or 직장, …)
 const BOX = 13 // checkbox square
+const FLOW_GAP = 14 // 한 줄에 나란히 흐르는 옵션 사이 (flow)
 
 const INK = '#111111'
 const LABEL_GREY = '#d9d9d9'
@@ -110,18 +111,39 @@ interface PlacedCheck {
   w: number
 }
 
-// The printed card stacks every ☐ 옵션 on its own line (소속·세례·신앙생활 columns)
-// — no horizontal flow.
-function layoutChecks(ctx: CanvasRenderingContext2D, options: CardCheckOption[]): { placed: PlacedCheck[]; lines: number } {
-  const placed = options.map((opt, i) => ({ opt, line: i, w: checkWidth(ctx, opt) }))
-  return { placed, lines: options.length }
+// The printed card stacks every ☐ 옵션 on its own line (소속·세례·신앙생활 columns).
+// `flow` 옵션만 한 줄에 나란히 흐르고, 칸 폭을 넘치면 다음 줄로 넘어간다 — 반 칸에 앉는
+// '향후 피츠버그에 머물 기간'이 그것이다.
+function layoutChecks(
+  ctx: CanvasRenderingContext2D,
+  content: Extract<CardCell['content'], { kind: 'checks' }>,
+  innerW: number,
+): { placed: PlacedCheck[]; lines: number; x: number[] } {
+  if (!content.flow) {
+    return { placed: content.options.map((opt, i) => ({ opt, line: i, w: checkWidth(ctx, opt) })), lines: content.options.length, x: [] }
+  }
+  const placed: PlacedCheck[] = []
+  const x: number[] = []
+  let line = 0
+  let cursor = 0
+  for (const opt of content.options) {
+    const w = checkWidth(ctx, opt)
+    if (cursor > 0 && cursor + w > innerW) {
+      line += 1
+      cursor = 0
+    }
+    placed.push({ opt, line, w })
+    x.push(cursor)
+    cursor += w + FLOW_GAP
+  }
+  return { placed, lines: line + 1, x }
 }
 
 // Height one value cell needs: one line per checkbox option, or as many wrapped lines
 // as a long text value (학교/전공 or 직장, …) needs to fit `width`.
 function cellHeight(ctx: CanvasRenderingContext2D, cell: CardCell, width: number): number {
   if (cell.content.kind === 'checks') {
-    const { lines } = layoutChecks(ctx, cell.content.options)
+    const { lines } = layoutChecks(ctx, cell.content, width - PAD_X * 2)
     return Math.max(MIN_ROW_H, PAD_Y * 2 + lines * LINE_H)
   }
   if (cell.content.kind === 'consent') {
@@ -151,7 +173,18 @@ function drawLabel(ctx: CanvasRenderingContext2D, text: string, x: number, y: nu
   const cx = x + LABEL_W / 2
   const words = text.split(' ')
   if (ctx.measureText(text).width > maxW && words.length > 1) {
-    const lines = [words[0], words.slice(1).join(' ')]
+    // 가운데에 가장 가까운 빈칸에서 가른다 — 첫 빈칸에서 자르면 '향후 / 피츠버그에 있을
+    // 기간'처럼 한쪽 줄만 길어져 글자가 잘게 줄어든다.
+    const at = words.reduce<{ i: number; d: number }>(
+      (best, _word, i) => {
+        if (i === 0) return best
+        const head = words.slice(0, i).join(' ').length
+        const d = Math.abs(head - (text.length - head))
+        return d < best.d ? { i, d } : best
+      },
+      { i: 1, d: Infinity },
+    ).i
+    const lines = [words.slice(0, at).join(' '), words.slice(at).join(' ')]
     let size = 15
     while (size > 11 && lines.some((l) => ctx.measureText(l).width > maxW)) {
       size -= 1
@@ -195,11 +228,11 @@ function drawChecksCell(
   h: number,
 ) {
   const innerW = w - PAD_X * 2
-  const { placed, lines } = layoutChecks(ctx, content.options)
+  const { placed, lines, x: flowX } = layoutChecks(ctx, content, innerW)
   const top = y + (h - lines * LINE_H) / 2
-  for (const p of placed) {
+  for (const [i, p] of placed.entries()) {
     const cy = top + p.line * LINE_H + LINE_H / 2
-    const bx = x + PAD_X
+    const bx = x + PAD_X + (content.flow ? flowX[i] : 0)
     drawCheckbox(ctx, bx, cy, p.opt.checked)
     ctx.fillStyle = INK
     ctx.font = OPTION_FONT
@@ -214,7 +247,7 @@ function drawChecksCell(
   // Free text after the last option (the paper's "Other: ____" blank).
   if (content.extra) {
     const last = placed[placed.length - 1]
-    const ex = x + PAD_X + last.w + 6
+    const ex = x + PAD_X + (content.flow ? flowX[placed.length - 1] : 0) + last.w + 6
     const cy = top + last.line * LINE_H + LINE_H / 2
     const room = x + PAD_X + innerW - ex
     if (room > 24) {
@@ -300,7 +333,14 @@ export function renderNewFamilyCard(m: Member): HTMLCanvasElement {
   // (checkbox groups wrap), then size the real canvas exactly.
   const meas = document.createElement('canvas').getContext('2d')
   if (!meas) throw new Error('canvas 2d context unavailable')
-  const rowHeights = model.rows.map((r) => Math.max(cellHeight(meas, r.left, VALUE1_W), cellHeight(meas, r.right, rightValueW(r.right))))
+  // 왼쪽이 갈리는 줄은 두 칸의 합이 그 반쪽의 높이다 (오른쪽 칸이 그 둘을 함께 덮는다).
+  const leftHeights = model.rows.map((r) =>
+    r.leftBelow ? cellHeight(meas, r.left, VALUE1_W) + cellHeight(meas, r.leftBelow, VALUE1_W) : cellHeight(meas, r.left, VALUE1_W),
+  )
+  const rowHeights = model.rows.map((r, i) => Math.max(leftHeights[i], cellHeight(meas, r.right, rightValueW(r.right))))
+  // 아래 칸은 자기에게 필요한 만큼만 쓰고 남는 높이는 위 칸이 가져간다 — 오른쪽 다섯 줄
+  // 때문에 늘어난 높이가 학교/전공 칸으로 가야 손글씨 자리가 남는다.
+  const belowHeights = model.rows.map((r) => (r.leftBelow ? cellHeight(meas, r.leftBelow, VALUE1_W) : 0))
   const tableH = TITLE_H + rowHeights.reduce((a, b) => a + b, 0)
   const H = MARGIN * 2 + tableH
 
@@ -336,28 +376,31 @@ export function renderNewFamilyCard(m: Member): HTMLCanvasElement {
     const h = rowHeights[i]
     // A cell with no label (the 목회자 연락 동의 줄) starts where its grey label would
     // have been and keeps that width — the two cells read as one merged cell.
-    for (const { cell, lx, vx, vw } of [
-      { cell: row.left, lx: colX[0], vx: colX[1], vw: VALUE1_W },
+    const belowH = belowHeights[i]
+    const topH = h - belowH
+    for (const { cell, lx, vx, vw, cy, ch } of [
+      { cell: row.left, lx: colX[0], vx: colX[1], vw: VALUE1_W, cy: y, ch: topH },
+      ...(row.leftBelow ? [{ cell: row.leftBelow, lx: colX[0], vx: colX[1], vw: VALUE1_W, cy: y + topH, ch: belowH }] : []),
       row.right.label === undefined
-        ? { cell: row.right, lx: null, vx: colX[2], vw: LABEL_W + VALUE2_W }
-        : { cell: row.right, lx: colX[2], vx: colX[3], vw: VALUE2_W },
+        ? { cell: row.right, lx: null, vx: colX[2], vw: LABEL_W + VALUE2_W, cy: y, ch: h }
+        : { cell: row.right, lx: colX[2], vx: colX[3], vw: VALUE2_W, cy: y, ch: h },
     ]) {
-      if (lx !== null && cell.label !== undefined) drawLabel(ctx, cell.label, lx, y, h)
+      if (lx !== null && cell.label !== undefined) drawLabel(ctx, cell.label, lx, cy, ch)
       const c = cell.content
       if (c.kind === 'text') {
         ctx.fillStyle = INK
         ctx.font = VALUE_FONT
         if (c.text) {
           const lines = wrapLines(ctx, c.text, vw - PAD_X * 2)
-          const top2 = y + (h - lines.length * TEXT_LINE_H) / 2
+          const top2 = cy + (ch - lines.length * TEXT_LINE_H) / 2
           lines.forEach((ln, li) => ctx.fillText(ln, vx + PAD_X, top2 + li * TEXT_LINE_H + TEXT_LINE_H / 2 + 1))
         }
       } else if (c.kind === 'name') {
-        drawNameCell(ctx, c, vx, y, vw, h)
+        drawNameCell(ctx, c, vx, cy, vw, ch)
       } else if (c.kind === 'consent') {
-        drawConsentCell(ctx, c, vx, y, vw, h)
+        drawConsentCell(ctx, c, vx, cy, vw, ch)
       } else {
-        drawChecksCell(ctx, c, vx, y, vw, h)
+        drawChecksCell(ctx, c, vx, cy, vw, ch)
       }
     }
     y += h
@@ -378,11 +421,17 @@ export function renderNewFamilyCard(m: Member): HTMLCanvasElement {
   }
   // Vertical column separators (below the full-width title bar only), drawn row by row:
   // the row whose right cell carries no label has no separator before its value.
+  // 왼쪽이 갈리는 줄에는 그 반쪽에만 가로선을 하나 더 긋는다 (오른쪽 칸은 안 갈린다).
   let vy = top + TITLE_H
   model.rows.forEach((row, i) => {
     for (const cx of row.right.label === undefined ? [colX[1], colX[2]] : [colX[1], colX[2], colX[3]]) {
       ctx.moveTo(cx + 0.5, vy)
       ctx.lineTo(cx + 0.5, vy + rowHeights[i])
+    }
+    if (row.leftBelow) {
+      const sy = vy + rowHeights[i] - belowHeights[i]
+      ctx.moveTo(left, sy + 0.5)
+      ctx.lineTo(colX[2], sy + 0.5)
     }
     vy += rowHeights[i]
   })

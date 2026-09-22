@@ -2,6 +2,7 @@ import {
   AFFILIATION_CATEGORIES,
   BAPTISM_OPTIONS,
   FAITH_OPTIONS,
+  STAY_OPTIONS,
   blankCardForm,
   type CardFormValue,
 } from './newFamilyCard'
@@ -86,6 +87,7 @@ export function normalizeExtractedCard(raw: unknown, today: string): CardFormVal
     affiliationDetail: str(r.affiliationDetail),
     baptismStatus: clampEnum(r.baptismStatus, BAPTISM_OPTIONS),
     faithDuration: clampEnum(r.faithDuration, FAITH_OPTIONS),
+    stayDuration: clampEnum(r.stayDuration, STAY_OPTIONS),
     registrationDate: normalizeCardDate(r.registrationDate, 'registration') || today,
     // Only a definite true/false reading counts — anything else (null, missing, garbage)
     // stays blank, same as a freshly opened card.
@@ -98,7 +100,7 @@ export function normalizeExtractedCard(raw: unknown, today: string): CardFormVal
 function hasContent(c: CardFormValue): boolean {
   return Boolean(
     c.name || c.gender || c.phone || c.kakaoId || c.birthDate || c.affiliationCategory ||
-      c.affiliationDetail || c.baptismStatus || c.faithDuration,
+      c.affiliationDetail || c.baptismStatus || c.faithDuration || c.stayDuration,
   ) || c.pastoralVisitRequested !== null
 }
 

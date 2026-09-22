@@ -107,6 +107,7 @@ Deno.test("CARD_SCHEMA: every property is nullable and the youth-card fields are
     "affiliationDetail",
     "baptismStatus",
     "faithDuration",
+    "stayDuration",
     "registrationDate",
     "pastoralVisitRequested",
   ];

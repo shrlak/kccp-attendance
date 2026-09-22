@@ -91,6 +91,13 @@ export const BAPTISM_CAPTIONS: Record<string, string> = {
 // 신앙생활 options (stored verbatim in `faith_duration`).
 export const FAITH_OPTIONS = ['모태신앙', '1년 미만', '1-3년', '3-5년', '5년 이상'] as const
 
+// 향후 피츠버그에 머물 기간 — 종이 카드가 새로 묻는 칸. 대학·청년부는 학교를 마치면
+// 떠나는 사람이 많아, 이 사람이 얼마나 여기 있을 예정인가가 동산 편성과 새가족 챙김의
+// 실제 근거가 된다. 저장은 `members.stay_duration`에 **적힌 말 그대로** (신앙생활과 같은
+// 규칙 — 카드의 보기가 곧 저장되는 문자열이다).
+export const STAY_LABEL = '향후 피츠버그에 머물 기간'
+export const STAY_OPTIONS = ['1년 미만', '2년', '3년', '4년', '기타'] as const
+
 // 목사님 심방 — 종이 카드의 그 칸은 이제 **O/X 두 네모가 아니라 동의 한 줄**이다.
 // O와 X는 묻는 사람이 대신 골라 적던 칸이라 "아직 안 물어봤다"(빈 칸)와 "안 원한다"(X)가
 // 종이에서 구별되지 않았고, 정작 새가족이 읽고 표시할 문장은 어디에도 없었다. 한 줄로
@@ -123,6 +130,7 @@ export interface CardFormValue {
   affiliationDetail: string // 학교/전공 or 직장
   baptismStatus: string
   faithDuration: string
+  stayDuration: string // 향후 피츠버그에 머물 기간 — STAY_OPTIONS 중 하나 or ''
   registrationDate: string // ISO or ''
   // true = 동의 줄에 체크됨. null = 아직 체크되지 않음 (갓 꺼낸 카드의 기본값). 예전
   // 카드에서 X로 읽혀 온 false도 그대로 들고 다닌다 — 화면에서는 체크 안 된 것으로 보인다.
@@ -142,6 +150,7 @@ export function cardFormFromMember(m: Member): CardFormValue {
     affiliationDetail: aff.detail,
     baptismStatus: m.baptism_status || '',
     faithDuration: m.faith_duration || '',
+    stayDuration: m.stay_duration || '',
     registrationDate: m.registration_date || '',
     pastoralVisitRequested: m.pastoral_visit_requested ?? null,
   }
@@ -157,6 +166,7 @@ const EMPTY_CARD: CardFormValue = {
   affiliationDetail: '',
   baptismStatus: '',
   faithDuration: '',
+  stayDuration: '',
   registrationDate: '',
   // Blank by default — the paper card starts with the 목회자 연락 동의 줄 unticked.
   pastoralVisitRequested: null,
@@ -178,7 +188,10 @@ export interface CardCheckOption {
 export type CardCellContent =
   | { kind: 'text'; text: string }
   | { kind: 'name'; name: string; circled: '남' | '여' | null } // 이름 cell: name + ( 남 / 여 ) with the gender circled
-  | { kind: 'checks'; options: CardCheckOption[]; extra: string } // extra = free text after the last option (Other: …)
+  // extra = free text after the last option (Other: …). flow = 한 줄에 여러 보기를 나란히
+  // (좁은 반 칸에 앉는 '향후 피츠버그에 머물 기간'만 그렇다 — 세로로 쌓으면 그 반 칸이
+  // 다시 다섯 줄이 되어 가른 뜻이 없어진다).
+  | { kind: 'checks'; options: CardCheckOption[]; extra: string; flow?: boolean }
   // 동의 한 줄 — 읽고 표시하는 문장 + 그 뒤의 네모 (목회자 연락 동의). 라벨 칸 없이 그
   // 줄이 칸 전체를 쓰므로, 문장이 칸보다 길면 줄바꿈된다 (checks의 옵션 라벨은 한 줄짜리다).
   | { kind: 'consent'; text: string; checked: boolean }
@@ -193,6 +206,10 @@ export interface CardCell {
 export interface CardRow {
   left: CardCell
   right: CardCell
+  // 왼쪽 반이 위아래로 갈리는 줄 — 그 아래 칸. 오른쪽 칸(신앙생활)은 그 둘을 함께 덮는다
+  // (종이의 세로 병합). 학교/전공 칸이 오른쪽 다섯 줄 때문에 혼자 길어져 있던 자리를
+  // 반으로 갈라, 남는 반에 '향후 피츠버그에 머물 기간'이 앉는다.
+  leftBelow?: CardCell
 }
 
 export interface CardModel {
@@ -207,6 +224,7 @@ export function cardModel(m: Member): CardModel {
   const aff = splitAffiliation(m.school_or_work || '')
   const baptism = (m.baptism_status || '').trim()
   const faith = (m.faith_duration || '').trim()
+  const stay = (m.stay_duration || '').trim()
   return {
     title: CARD_TITLE,
     rows: [
@@ -243,6 +261,15 @@ export function cardModel(m: Member): CardModel {
       },
       {
         left: { label: '학교/전공 or 직장', content: { kind: 'text', text: aff.detail } },
+        leftBelow: {
+          label: STAY_LABEL,
+          content: {
+            kind: 'checks',
+            options: STAY_OPTIONS.map((o) => ({ label: o, checked: stay === o })),
+            extra: '',
+            flow: true,
+          },
+        },
         right: {
           label: '신앙생활',
           content: {
