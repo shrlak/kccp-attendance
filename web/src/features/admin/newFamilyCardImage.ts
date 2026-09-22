@@ -293,6 +293,8 @@ function drawConsentCell(
 
 // 이름 cell: the name plus "( 남 / 여 )", with the member's gender circled in pen —
 // an ellipse around 남 or 여 (nothing circled when the gender is blank/unknown).
+// The "( 남 / 여 )" sits pinned to the cell's right edge, as on the printed card and
+// the form — trailing the name would move it with every name's length.
 function drawNameCell(
   ctx: CanvasRenderingContext2D,
   content: Extract<CardCell['content'], { kind: 'name' }>,
@@ -309,7 +311,7 @@ function drawNameCell(
   const nameMax = w - PAD_X * 2 - genderW - 14
   const name = truncate(ctx, content.name, Math.max(nameMax, 40))
   ctx.fillText(name, x + PAD_X, cy)
-  let gx = x + PAD_X + ctx.measureText(name).width + 14
+  let gx = x + w - PAD_X - genderW
   for (const part of genderParts) {
     ctx.fillText(part, gx, cy)
     const w = ctx.measureText(part).width
