@@ -7,6 +7,7 @@ import {
   toggleBaptism,
   BAPTISM_CAPTIONS,
   FAITH_OPTIONS,
+  PASTORAL_CONSENT_TEXT,
   formatCardDate,
   type CardFormValue,
 } from './newFamilyCard'
@@ -137,17 +138,13 @@ export function NewFamilyCardForm({
                   />
                 )}
               </ValueCell>
-              <LabelCell text="목사님 심방 요청" />
-              <ValueCell>
-                <CheckColumn
-                  options={[
-                    { value: 'O', label: 'O' },
-                    { value: 'X', label: 'X' },
-                  ]}
-                  // Blank (neither box) until the operator taps a side — the default for a
-                  // fresh card; tapping the ticked side again clears it back to blank.
-                  selected={value.pastoralVisitRequested === true ? 'O' : value.pastoralVisitRequested === false ? 'X' : ''}
-                  onSelect={(v) => onChange({ pastoralVisitRequested: v === 'O' ? true : v === 'X' ? false : null })}
+              {/* 목회자 연락 동의 — 종이와 같이 라벨 칸 없이 문장 하나가 오른쪽 반을 쓴다.
+                  체크는 확인을 받았다는 뜻 하나뿐이라, 풀면 다시 빈 네모로 돌아간다. */}
+              <ValueCell colSpan={2}>
+                <ConsentCheck
+                  text={PASTORAL_CONSENT_TEXT}
+                  checked={value.pastoralVisitRequested === true}
+                  onToggle={() => onChange({ pastoralVisitRequested: value.pastoralVisitRequested === true ? null : true })}
                 />
               </ValueCell>
             </tr>
@@ -162,8 +159,33 @@ function LabelCell({ text }: { text: ReactNode }) {
   return <td className="border border-[#111] bg-[#d9d9d9] px-1 py-1.5 text-center font-bold">{text}</td>
 }
 
-function ValueCell({ children }: { children: ReactNode }) {
-  return <td className="border border-[#111] px-2 py-1.5 align-middle">{children}</td>
+function ValueCell({ children, colSpan }: { children: ReactNode; colSpan?: number }) {
+  return (
+    <td colSpan={colSpan} className="border border-[#111] px-2 py-1.5 align-middle">
+      {children}
+    </td>
+  )
+}
+
+// 동의 한 줄: 네모 하나 + 읽고 표시하는 문장. 문장이 칸보다 길어 줄바꿈되므로 네모는
+// 첫 줄 옆에 두고(items-start), 접근성 이름은 그 문장 그대로다.
+function ConsentCheck({ text, checked, onToggle }: { text: string; checked: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={checked}
+      onClick={onToggle}
+      className="flex w-full min-h-6 items-start gap-1.5 rounded-sm text-left leading-snug hover:bg-[#f3f4f6]"
+    >
+      <span
+        aria-hidden
+        className="mt-0.5 grid h-3.5 w-3.5 shrink-0 place-items-center border border-[#111] text-[11px] font-bold"
+      >
+        {checked ? '✓' : ''}
+      </span>
+      {text}
+    </button>
+  )
 }
 
 // Borderless input living inside a card cell — the pen writing on the paper form.
@@ -232,20 +254,17 @@ function GenderChoice({ char, value, onChange }: { char: string; value: string; 
 }
 
 // The card's ☐ option column — one tappable checkbox row per option. Single-select by
-// default (tapping the checked one clears it, unless allowClear is off, e.g. O/X); with
-// `multi` any number of options can be ticked at once (세례 여부) and `selected` carries
-// them as a ", "-joined string.
+// default (tapping the checked one clears it); with `multi` any number of options can
+// be ticked at once (세례 여부) and `selected` carries them as a ", "-joined string.
 function CheckColumn({
   options,
   selected,
   onSelect,
-  allowClear = true,
   multi = false,
 }: {
   options: { value: string; label: string; caption?: string }[]
   selected: string
   onSelect: (v: string) => void
-  allowClear?: boolean
   multi?: boolean
 }) {
   const picked = multi ? parseBaptism(selected) : []
@@ -259,7 +278,7 @@ function CheckColumn({
             type="button"
             aria-pressed={checked}
             aria-label={o.caption ? `${o.label} ${o.caption}` : o.label}
-            onClick={() => onSelect(multi ? toggleBaptism(selected, o.value) : checked ? (allowClear ? '' : o.value) : o.value)}
+            onClick={() => onSelect(multi ? toggleBaptism(selected, o.value) : checked ? '' : o.value)}
             className="inline-flex min-h-6 items-center gap-1.5 rounded-sm text-left leading-tight hover:bg-[#f3f4f6]"
           >
             <span aria-hidden className="grid h-3.5 w-3.5 shrink-0 place-items-center border border-[#111] text-[11px] font-bold">

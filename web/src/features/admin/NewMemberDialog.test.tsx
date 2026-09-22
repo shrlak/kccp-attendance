@@ -5,6 +5,7 @@ import { QueryClientProvider, QueryClient } from '@tanstack/react-query'
 import { i18n } from '../../lib/i18n'
 import { ToastProvider } from '../../components/ui/Toast'
 import { NewMemberDialog } from './NewMemberDialog'
+import { PASTORAL_CONSENT_TEXT } from './newFamilyCard'
 
 // 손으로 옮겨 적는 새가족 등록 창 — **키오스크와 새가족 탭이 함께 쓴다**. 갈리는 것은
 // 오늘 출석까지 찍는가 하나뿐이라(`checkinChoice`), 그 하나를 뺀 나머지는 두 자리에서
@@ -82,7 +83,7 @@ describe('NewMemberDialog (새가족 등록)', () => {
     expect(payload.registrationDate).toMatch(/^\d{4}-\d{2}-\d{2}$/)
   })
 
-  it('card checkboxes enter data directly: 소속/세례/신앙생활/심방 land in the payload', async () => {
+  it('card checkboxes enter data directly: 소속/세례/신앙생활/목회자 연락 동의 land in the payload', async () => {
     const { kioskNewMember } = await import('../../lib/api')
     ;(kioskNewMember as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ok', memberId: 'm1' })
     renderWithProviders(<NewMemberDialog open onClose={vi.fn()} />)
@@ -92,7 +93,7 @@ describe('NewMemberDialog (새가족 등록)', () => {
     await userEvent.click(screen.getByRole('button', { name: '대학생' }))
     await userEvent.click(screen.getByRole('button', { name: /^세례 Baptism$/ }))
     await userEvent.click(screen.getByRole('button', { name: '1-3년' }))
-    await userEvent.click(screen.getByRole('button', { name: 'O' }))
+    await userEvent.click(screen.getByRole('button', { name: PASTORAL_CONSENT_TEXT }))
     await userEvent.click(screen.getByRole('button', { name: '등록 후 출석' }))
 
     const payload = (kioskNewMember as ReturnType<typeof vi.fn>).mock.calls[0][0]
