@@ -99,18 +99,20 @@ const CARD_RULES_COMMON = [
   "   옛 카드: '목사님 심방 요청' O/X — O에 표시가 있으면 true, X에 표시가 있으면 false입니다.",
   "   네모가 비어 있거나 O와 X 어디에도 아무 표시가 없으면 반드시 null입니다.",
   "   표시가 없는 것을 false로 쓰지 마세요.",
-  "6. 비어 있거나 판독할 수 없는 칸은 null로 두세요. 절대 추측하지 마세요.",
-  "7. 카드가 여러 장이면 사진 속 위치 순서(위→아래, 왼쪽→오른쪽)로 배열에 담으세요.",
+  "6. '향후 피츠버그에 머물 기간'과 '신앙생활'은 서로 다른 줄입니다 — 둘 다 '1년 미만'이라는",
+  "   보기를 갖고 있으므로, 표시된 네모가 어느 줄의 것인지 라벨을 보고 가르세요.",
+  "7. 비어 있거나 판독할 수 없는 칸은 null로 두세요. 절대 추측하지 마세요.",
+  "8. 카드가 여러 장이면 사진 속 위치 순서(위→아래, 왼쪽→오른쪽)로 배열에 담으세요.",
   "   카드끼리 내용을 섞지 말고, 각 카드는 그 카드에 적힌 값만으로 채우세요.",
   "   카드가 한 장이면 원소가 하나인 배열을 반환하세요.",
-  "8. 일부만 보이거나 기울어진 카드도 칸을 읽을 수 있으면 포함하고, 보이지 않는 칸은 null로 두세요.",
+  "9. 일부만 보이거나 기울어진 카드도 칸을 읽을 수 있으면 포함하고, 보이지 않는 칸은 null로 두세요.",
   "   카드가 아닌 배경·빈 종이·중복 촬영본은 배열에 넣지 마세요.",
-  "9. 장년부 카드의 동행가족 표는 적힌 줄만 family 배열에 담고, 빈 줄은 넣지 마세요.",
-  "   동행가족은 카드가 아닙니다 — 그 카드의 family 안에만 두고, 배열에 따로 원소를 만들지 마세요.",
-  "   관계 칸(relation)은 **적힌 그대로** 옮기세요 (배우자·남편·아내·자녀·HUSBAND·WIFE·SON …).",
-  "   이 칸으로 배우자를 가려내 명단에 따로 올리므로, 다른 말로 바꾸거나 비워 두면 그 사람이 빠집니다.",
-  "10. 같은 카드를 두 번 담지 마세요. 다만 이름이 같아도 다른 종이에 적혀 있으면 서로 다른 카드입니다",
-  "    (가족이 나란히 적어 낸 카드가 그렇습니다) — 한 장으로 합치지 마세요.",
+  "10. 장년부 카드의 동행가족 표는 적힌 줄만 family 배열에 담고, 빈 줄은 넣지 마세요.",
+  "    동행가족은 카드가 아닙니다 — 그 카드의 family 안에만 두고, 배열에 따로 원소를 만들지 마세요.",
+  "    관계 칸(relation)은 **적힌 그대로** 옮기세요 (배우자·남편·아내·자녀·HUSBAND·WIFE·SON …).",
+  "    이 칸으로 배우자를 가려내 명단에 따로 올리므로, 다른 말로 바꾸거나 비워 두면 그 사람이 빠집니다.",
+  "11. 같은 카드를 두 번 담지 마세요. 다만 이름이 같아도 다른 종이에 적혀 있으면 서로 다른 카드입니다",
+  "     (가족이 나란히 적어 낸 카드가 그렇습니다) — 한 장으로 합치지 마세요.",
 ];
 
 // 장년부 링크로 들어온 사진은 장년부 카드만 받는다 — 그 링크가 그 부의 것이기 때문이다.
@@ -138,6 +140,9 @@ export const CARD_SCHEMA = {
     affiliationDetail: { type: "STRING", nullable: true, description: "학교/전공 or 직장" },
     baptismStatus: { type: "STRING", enum: ["유아세례", "입교", "세례", "해당없음"], nullable: true },
     faithDuration: { type: "STRING", enum: ["모태신앙", "1년 미만", "1-3년", "3-5년", "5년 이상"], nullable: true },
+    // 향후 피츠버그에 머물 기간 — 대학·청년부 카드에만 있는 칸 ('1년 미만'은 신앙생활에도
+    // 있는 말이라, 어느 줄의 네모인지는 라벨로 가른다).
+    stayDuration: { type: "STRING", enum: ["1년 미만", "2년", "3년", "4년", "기타"], nullable: true },
     registrationDate: { type: "STRING", nullable: true, description: "YYYY-MM-DD" },
     // Structured output makes the model fill every field, and an unmarked box is exactly
     // where it likes to volunteer `false` — spell out that no mark means null. 두 판의
@@ -182,7 +187,7 @@ export const CARD_SCHEMA = {
   required: [
     "cardType",
     "name", "gender", "phone", "kakaoId", "birthDate", "affiliationCategory",
-    "affiliationDetail", "baptismStatus", "faithDuration", "registrationDate",
+    "affiliationDetail", "baptismStatus", "faithDuration", "stayDuration", "registrationDate",
     "pastoralVisitRequested",
   ],
 };
@@ -201,6 +206,7 @@ const SCHEMA_HINT = [
     '"birthDate":"YYYY-MM-DD"|null,"affiliationCategory":"대학생"|"대학원생"|"직장인"|"Other"|null,' +
     '"affiliationDetail":string|null,"baptismStatus":"유아세례"|"입교"|"세례"|"해당없음"|null,' +
     '"faithDuration":"모태신앙"|"1년 미만"|"1-3년"|"3-5년"|"5년 이상"|null,' +
+    '"stayDuration":"1년 미만"|"2년"|"3년"|"4년"|"기타"|null,' +
     '"registrationDate":"YYYY-MM-DD"|null,"pastoralVisitRequested":true|false|null,' +
     '"cardType":"youth"|"adult",' +
     '"nameEn":string|null,"phoneHome":string|null,"email":string|null,"address":string|null,' +

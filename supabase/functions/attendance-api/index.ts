@@ -253,6 +253,7 @@ function mergedMemberFields(existing: any, body: any, subgroup: string, today: s
   put("gender",body.gender); put("phone",body.phone); put("kakao_id",body.kakaoId);
   put("birth_date",body.birthDate); put("baptism_status",body.baptismStatus);
   put("school_or_work",body.schoolOrWork); put("faith_duration",body.faithDuration);
+  put("stay_duration",body.stayDuration);
   if(body.pastoralVisitRequested===true||body.pastoralVisitRequested===false) upd.pastoral_visit_requested=body.pastoralVisitRequested;
   const notes=mergeNotes(existing.notes,body.notes);
   if(notes!==undefined) upd.notes=notes;
@@ -1880,7 +1881,7 @@ Deno.serve(async (req: Request) => {
       if(!inScope(editScope,m.group_name,m.subgroup)) return fail(403,"Out of scope");
       // 부서를 옮기는 것도 자기 부 안에서만 (장년부 사람을 청년부로 넘길 수 없다).
       if(body.group!==undefined&&!inScopeGroup(editScope,body.group)) return fail(403,"Out of scope");
-      const COLS: Record<string,string>={name:"name",group:"group_name",subgroup:"subgroup",notes:"notes",memberRole:"member_role",gender:"gender",phone:"phone",birthDate:"birth_date",baptismStatus:"baptism_status",schoolOrWork:"school_or_work",faithDuration:"faith_duration",registrationDate:"registration_date",pastoralVisitRequested:"pastoral_visit_requested",isNewMember:"is_new_member",newMemberEduWeek1:"new_member_edu_week1",newMemberEduWeek2:"new_member_edu_week2",kakaoId:"kakao_id",statusNote:"status_note",statusStart:"status_start",statusEnd:"status_end"};
+      const COLS: Record<string,string>={name:"name",group:"group_name",subgroup:"subgroup",notes:"notes",memberRole:"member_role",gender:"gender",phone:"phone",birthDate:"birth_date",baptismStatus:"baptism_status",schoolOrWork:"school_or_work",faithDuration:"faith_duration",stayDuration:"stay_duration",registrationDate:"registration_date",pastoralVisitRequested:"pastoral_visit_requested",isNewMember:"is_new_member",newMemberEduWeek1:"new_member_edu_week1",newMemberEduWeek2:"new_member_edu_week2",kakaoId:"kakao_id",statusNote:"status_note",statusStart:"status_start",statusEnd:"status_end"};
       const DATE_COLS=new Set(["birth_date","registration_date","status_start","status_end","visit_date"]);
       const upd: any={updated_at:new Date().toISOString()};
       for(const [k,col] of Object.entries(COLS)){ if(body[k]!==undefined) upd[col]=DATE_COLS.has(col)?(body[k]||null):body[k]; }
@@ -2390,6 +2391,9 @@ Deno.serve(async (req: Request) => {
           gender:body.gender||"",phone:body.phone||"",kakao_id:body.kakaoId||"",
           birth_date:body.birthDate||null,baptism_status:body.baptismStatus||"해당없음",
           school_or_work:body.schoolOrWork||"",faith_duration:body.faithDuration||"",
+          // 비어 있으면 아예 싣지 않는다 — 기본값이 ''이라 담기는 것이 없고, 함수 배포가
+          // 마이그레이션보다 몇十초 앞설 수 있는 그 틈에 등록이 통째로 깨지지 않는다.
+          ...(body.stayDuration?{stay_duration:body.stayDuration}:{}),
           // 장년부 카드는 묻는 것이 다르다 (이름 영문·집 전화·주소·참석동기·동행가족 …).
           // 그 칸들은 adult.members에만 있으므로 그 부일 때만 얹는다.
           ...(newMemberPart==="adult"?adultCardFields(body):{}),

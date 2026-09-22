@@ -76,6 +76,7 @@ describe('normalizeExtractedCard', () => {
         affiliationDetail: 'Pitt 컴퓨터공학',
         baptismStatus: '세례',
         faithDuration: '1-3년',
+        stayDuration: '2년',
         registrationDate: '2026-07-05',
         pastoralVisitRequested: true,
       },
@@ -91,26 +92,30 @@ describe('normalizeExtractedCard', () => {
       affiliationDetail: 'Pitt 컴퓨터공학',
       baptismStatus: '세례',
       faithDuration: '1-3년',
+      stayDuration: '2년',
       registrationDate: '2026-07-05',
       pastoralVisitRequested: true,
     })
   })
   it('clamps out-of-vocabulary enums to blank', () => {
     const card = normalizeExtractedCard(
-      { gender: 'M', affiliationCategory: '학생', baptismStatus: '세례받음', faithDuration: '오래' },
+      { gender: 'M', affiliationCategory: '학생', baptismStatus: '세례받음', faithDuration: '오래', stayDuration: '5년' },
       TODAY,
     )
     expect(card.gender).toBe('')
     expect(card.affiliationCategory).toBe('')
     expect(card.baptismStatus).toBe('')
     expect(card.faithDuration).toBe('')
+    // 카드에 없는 기간('5년')도 같은 규칙 — 지어내지 않고 비운다.
+    expect(card.stayDuration).toBe('')
   })
   it('keeps valid enum values, trimming whitespace', () => {
     const card = normalizeExtractedCard(
-      { gender: ' 여 ', affiliationCategory: 'Other', baptismStatus: '해당없음', faithDuration: '모태신앙' },
+      { gender: ' 여 ', affiliationCategory: 'Other', baptismStatus: '해당없음', faithDuration: '모태신앙', stayDuration: ' 1년 미만 ' },
       TODAY,
     )
     expect(card.gender).toBe('여')
+    expect(card.stayDuration).toBe('1년 미만')
     expect(card.affiliationCategory).toBe('Other')
     expect(card.baptismStatus).toBe('해당없음')
     expect(card.faithDuration).toBe('모태신앙')

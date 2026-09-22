@@ -196,6 +196,7 @@ export function EditModal({
         // 소속 category stored as a prefix inside school_or_work (no DB column).
         schoolOrWork: joinAffiliation(card.affiliationCategory, card.affiliationDetail),
         faithDuration: card.faithDuration,
+        stayDuration: card.stayDuration,
         registrationDate: card.registrationDate || null,
         pastoralVisitRequested: card.pastoralVisitRequested,
       })

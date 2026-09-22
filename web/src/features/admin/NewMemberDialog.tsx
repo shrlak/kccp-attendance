@@ -143,6 +143,7 @@ export function NewMemberDialog({
         // the category — the 등록 카드 export splits it back out).
         schoolOrWork: joinAffiliation(card.affiliationCategory, card.affiliationDetail),
         faithDuration: card.faithDuration.trim(),
+        stayDuration: card.stayDuration.trim(),
         // 등록일 = the day they were added (shown stamped on the card; the kiosk
         // endpoint stamps the same date server-side regardless).
         registrationDate: card.registrationDate || null,
