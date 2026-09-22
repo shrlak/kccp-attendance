@@ -12,8 +12,9 @@ import { cardModel, type CardCell, type CardCheckOption } from './newFamilyCard'
 // Renders each 새가족 as a faithful copy of the paper registration card: a centered
 // grey title bar (< KCCP 빛주사랑 대학청년부 - 새가족 등록 카드 >) over a solid-bordered
 // table of [grey label | value | grey label | value] rows, with the member's data
-// filled in — gender circled in the 이름 cell, the matching 소속/세례/신앙생활/심방
-// checkbox ticked, dates as MM / DD / YYYY (underscore blanks when missing). Each
+// filled in — gender circled in the 이름 cell, the matching 소속/세례/신앙생활 checkbox
+// ticked, the 목회자 연락 동의 줄 ticked when confirmed (a label-less cell spanning the
+// last row's right half), dates as MM / DD / YYYY (underscore blanks when missing). Each
 // person ships as their own JPG; the clipboard gets all selected cards stacked into one
 // merged image. The card's content comes from the pure `cardModel` in ./newFamilyCard
 // (shared with the kiosk entry form); this module only draws it.
@@ -109,8 +110,8 @@ interface PlacedCheck {
   w: number
 }
 
-// The printed card stacks every ☐ 옵션 on its own line (소속·세례·신앙생활 columns,
-// and O over X for 심방 요청) — no horizontal flow.
+// The printed card stacks every ☐ 옵션 on its own line (소속·세례·신앙생활 columns)
+// — no horizontal flow.
 function layoutChecks(ctx: CanvasRenderingContext2D, options: CardCheckOption[]): { placed: PlacedCheck[]; lines: number } {
   const placed = options.map((opt, i) => ({ opt, line: i, w: checkWidth(ctx, opt) }))
   return { placed, lines: options.length }
@@ -122,6 +123,11 @@ function cellHeight(ctx: CanvasRenderingContext2D, cell: CardCell, width: number
   if (cell.content.kind === 'checks') {
     const { lines } = layoutChecks(ctx, cell.content.options)
     return Math.max(MIN_ROW_H, PAD_Y * 2 + lines * LINE_H)
+  }
+  if (cell.content.kind === 'consent') {
+    ctx.font = OPTION_FONT
+    const lines = wrapLines(ctx, cell.content.text, consentTextW(width))
+    return Math.max(MIN_ROW_H, PAD_Y * 2 + lines.length * LINE_H)
   }
   if (cell.content.kind === 'text' && cell.content.text) {
     ctx.font = VALUE_FONT
@@ -178,8 +184,8 @@ function drawCheckbox(ctx: CanvasRenderingContext2D, x: number, cy: number, chec
   }
 }
 
-// Value cell with a checkbox group (소속 / 세례 여부 / 신앙생활 / 심방 요청 O·X),
-// options stacked one per line like the printed card.
+// Value cell with a checkbox group (소속 / 세례 여부 / 신앙생활), options stacked one
+// per line like the printed card.
 function drawChecksCell(
   ctx: CanvasRenderingContext2D,
   content: Extract<CardCell['content'], { kind: 'checks' }>,
@@ -217,6 +223,37 @@ function drawChecksCell(
       ctx.fillText(truncate(ctx, content.extra, room), ex, cy + 1)
     }
   }
+}
+
+// 라벨 없는 오른쪽 칸(동의 줄)은 회색 라벨 자리까지 함께 쓴다 — 재는 자리와 그리는
+// 자리가 같은 폭을 보아야 줄 수와 칸 높이가 맞는다.
+function rightValueW(cell: CardCell): number {
+  return cell.label === undefined ? LABEL_W + VALUE2_W : VALUE2_W
+}
+
+// 동의 줄이 문장에 쓸 수 있는 폭 — 칸 안쪽에서 네모와 그 뒤 여백을 뺀 나머지.
+function consentTextW(width: number): number {
+  return width - PAD_X * 2 - BOX - 6
+}
+
+// 동의 한 줄 (목회자 연락): 네모 하나 + 문장. 옵션 줄과 달리 문장이 길어 줄바꿈되므로,
+// 네모는 첫 줄 옆에 두고 이어지는 줄은 문장 왼쪽에 맞춰 들여쓴다.
+function drawConsentCell(
+  ctx: CanvasRenderingContext2D,
+  content: Extract<CardCell['content'], { kind: 'consent' }>,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+) {
+  ctx.font = OPTION_FONT
+  const textX = x + PAD_X + BOX + 6
+  const lines = wrapLines(ctx, content.text, consentTextW(w))
+  const top = y + (h - lines.length * LINE_H) / 2
+  drawCheckbox(ctx, x + PAD_X, top + LINE_H / 2, content.checked)
+  ctx.fillStyle = INK
+  ctx.font = OPTION_FONT
+  lines.forEach((ln, i) => ctx.fillText(ln, textX, top + i * LINE_H + LINE_H / 2 + 1))
 }
 
 // 이름 cell: the name plus "( 남 / 여 )", with the member's gender circled in pen —
@@ -261,7 +298,7 @@ export function renderNewFamilyCard(m: Member): HTMLCanvasElement {
   // (checkbox groups wrap), then size the real canvas exactly.
   const meas = document.createElement('canvas').getContext('2d')
   if (!meas) throw new Error('canvas 2d context unavailable')
-  const rowHeights = model.rows.map((r) => Math.max(cellHeight(meas, r.left, VALUE1_W), cellHeight(meas, r.right, VALUE2_W)))
+  const rowHeights = model.rows.map((r) => Math.max(cellHeight(meas, r.left, VALUE1_W), cellHeight(meas, r.right, rightValueW(r.right))))
   const tableH = TITLE_H + rowHeights.reduce((a, b) => a + b, 0)
   const H = MARGIN * 2 + tableH
 
@@ -295,11 +332,15 @@ export function renderNewFamilyCard(m: Member): HTMLCanvasElement {
   let y = top + TITLE_H
   model.rows.forEach((row, i) => {
     const h = rowHeights[i]
-    for (const [cell, lx, vx, vw] of [
-      [row.left, colX[0], colX[1], VALUE1_W],
-      [row.right, colX[2], colX[3], VALUE2_W],
-    ] as const) {
-      drawLabel(ctx, cell.label, lx, y, h)
+    // A cell with no label (the 목회자 연락 동의 줄) starts where its grey label would
+    // have been and keeps that width — the two cells read as one merged cell.
+    for (const { cell, lx, vx, vw } of [
+      { cell: row.left, lx: colX[0], vx: colX[1], vw: VALUE1_W },
+      row.right.label === undefined
+        ? { cell: row.right, lx: null, vx: colX[2], vw: LABEL_W + VALUE2_W }
+        : { cell: row.right, lx: colX[2], vx: colX[3], vw: VALUE2_W },
+    ]) {
+      if (lx !== null && cell.label !== undefined) drawLabel(ctx, cell.label, lx, y, h)
       const c = cell.content
       if (c.kind === 'text') {
         ctx.fillStyle = INK
@@ -311,6 +352,8 @@ export function renderNewFamilyCard(m: Member): HTMLCanvasElement {
         }
       } else if (c.kind === 'name') {
         drawNameCell(ctx, c, vx, y, vw, h)
+      } else if (c.kind === 'consent') {
+        drawConsentCell(ctx, c, vx, y, vw, h)
       } else {
         drawChecksCell(ctx, c, vx, y, vw, h)
       }
@@ -331,11 +374,16 @@ export function renderNewFamilyCard(m: Member): HTMLCanvasElement {
     ctx.moveTo(left, gy + 0.5)
     ctx.lineTo(left + TABLE_W, gy + 0.5)
   }
-  // Vertical column separators (below the full-width title bar only)
-  for (const cx of [colX[1], colX[2], colX[3]]) {
-    ctx.moveTo(cx + 0.5, top + TITLE_H)
-    ctx.lineTo(cx + 0.5, top + tableH)
-  }
+  // Vertical column separators (below the full-width title bar only), drawn row by row:
+  // the row whose right cell carries no label has no separator before its value.
+  let vy = top + TITLE_H
+  model.rows.forEach((row, i) => {
+    for (const cx of row.right.label === undefined ? [colX[1], colX[2]] : [colX[1], colX[2], colX[3]]) {
+      ctx.moveTo(cx + 0.5, vy)
+      ctx.lineTo(cx + 0.5, vy + rowHeights[i])
+    }
+    vy += rowHeights[i]
+  })
   ctx.stroke()
 
   // Outer border, heavier

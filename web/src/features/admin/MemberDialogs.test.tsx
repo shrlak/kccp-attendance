@@ -5,6 +5,7 @@ import { QueryClientProvider, QueryClient } from '@tanstack/react-query'
 import { i18n } from '../../lib/i18n'
 import { ToastProvider } from '../../components/ui/Toast'
 import { EditModal } from './MemberDialogs'
+import { PASTORAL_CONSENT_TEXT } from './newFamilyCard'
 import type { Member } from '../../lib/api'
 
 vi.mock('../../lib/api', () => ({
@@ -70,12 +71,13 @@ describe('EditModal — 새가족 등록 카드 as the form', () => {
     expect(screen.getByLabelText('생년월일')).toHaveValue('2004-03-15')
     expect(screen.getByLabelText('등록일')).toHaveValue('2026-07-05')
     expect(screen.getByLabelText('학교/전공 or 직장')).toHaveValue('Pitt 컴퓨터공학')
-    // Checkboxes reflect the stored choices (aria-pressed) — 남 circled, 대학생/세례/1-3년/O.
+    // Checkboxes reflect the stored choices (aria-pressed) — 남 circled, 대학생/세례/1-3년,
+    // and the 목회자 연락 동의 줄.
     expect(screen.getByRole('button', { name: '남' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: '대학생' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: /^세례 Baptism$/ })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: '1-3년' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('button', { name: 'O' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: PASTORAL_CONSENT_TEXT })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: '카드 다운로드 (JPG)' })).toBeInTheDocument()
   })
 

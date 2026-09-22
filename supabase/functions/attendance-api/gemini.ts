@@ -94,8 +94,11 @@ const CARD_RULES_COMMON = [
   "   두 자리 연도는 생년월일이면 19xx/20xx 중 자연스러운 쪽으로, 등록일이면 20xx로 해석하세요.",
   "   장년부 카드의 생년월일은 년만 적혀 있는 경우가 많습니다. 그럴 때는 birthDate를 \"2006\"처럼 년만 쓰고, 월·일을 지어내지 마세요.",
   "4. 전화번호는 적힌 숫자 그대로 옮기세요 (하이픈 등 구분 기호 포함 가능).",
-  "5. '목사님 심방 요청'은 O에 표시가 있으면 true, X에 표시가 있으면 false입니다.",
-  "   O와 X 어디에도 아무 표시가 없으면 반드시 null입니다. 표시가 없는 것을 false로 쓰지 마세요.",
+  "5. 목회자 연락 칸은 카드 판에 따라 두 모양입니다.",
+  "   새 카드: '…목회자가 연락드릴 수 있음을 확인합니다' 한 줄 앞의 네모 — 표시가 있으면 true.",
+  "   옛 카드: '목사님 심방 요청' O/X — O에 표시가 있으면 true, X에 표시가 있으면 false입니다.",
+  "   네모가 비어 있거나 O와 X 어디에도 아무 표시가 없으면 반드시 null입니다.",
+  "   표시가 없는 것을 false로 쓰지 마세요.",
   "6. 비어 있거나 판독할 수 없는 칸은 null로 두세요. 절대 추측하지 마세요.",
   "7. 카드가 여러 장이면 사진 속 위치 순서(위→아래, 왼쪽→오른쪽)로 배열에 담으세요.",
   "   카드끼리 내용을 섞지 말고, 각 카드는 그 카드에 적힌 값만으로 채우세요.",
@@ -136,12 +139,13 @@ export const CARD_SCHEMA = {
     baptismStatus: { type: "STRING", enum: ["유아세례", "입교", "세례", "해당없음"], nullable: true },
     faithDuration: { type: "STRING", enum: ["모태신앙", "1년 미만", "1-3년", "3-5년", "5년 이상"], nullable: true },
     registrationDate: { type: "STRING", nullable: true, description: "YYYY-MM-DD" },
-    // Structured output makes the model fill every field, and an unmarked O/X box is
-    // exactly where it likes to volunteer `false` — spell out that no mark means null.
+    // Structured output makes the model fill every field, and an unmarked box is exactly
+    // where it likes to volunteer `false` — spell out that no mark means null. 두 판의
+    // 카드가 함께 들어온다: 새 카드는 동의 줄의 네모 하나, 옛 카드는 O/X 두 네모다.
     pastoralVisitRequested: {
       type: "BOOLEAN",
       nullable: true,
-      description: "O 표시=true, X 표시=false, 아무 표시 없음=null",
+      description: "동의 줄 네모에 표시=true, 옛 카드의 O 표시=true·X 표시=false, 아무 표시 없음=null",
     },
     // ── 장년부 카드에만 있는 칸들 (cardType "youth"이면 전부 null) ──
     nameEn: { type: "STRING", nullable: true, description: "영문 성명" },

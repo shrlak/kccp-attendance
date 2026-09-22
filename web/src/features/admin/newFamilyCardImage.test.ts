@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { cardModel, cardFilenames, formatCardDate, joinAffiliation, splitAffiliation } from './newFamilyCardImage'
-import { DATE_BLANK, groupForAffiliation, type CardCellContent } from './newFamilyCard'
+import { DATE_BLANK, PASTORAL_CONSENT_TEXT, groupForAffiliation, type CardCellContent } from './newFamilyCard'
 import type { Member } from '../../lib/api'
 
 const member = (extra: Partial<Member> = {}): Member => ({
@@ -23,10 +23,18 @@ const member = (extra: Partial<Member> = {}): Member => ({
   ...extra,
 })
 
-// Handles into the model: flatten [left,right] cells and index by label.
+// Handles into the model: flatten [left,right] cells and index by label. The one
+// label-less cell (목회자 연락 동의) is reached through `consentOf` instead.
 const cellsByLabel = (m: Member): Record<string, CardCellContent> => {
   const model = cardModel(m)
-  return Object.fromEntries(model.rows.flatMap((r) => [r.left, r.right]).map((c) => [c.label, c.content]))
+  const labelled = model.rows.flatMap((r) => [r.left, r.right]).filter((c) => c.label !== undefined)
+  return Object.fromEntries(labelled.map((c) => [c.label as string, c.content]))
+}
+const consentOf = (m: Member) => {
+  const cell = cardModel(m)
+    .rows.flatMap((r) => [r.left, r.right])
+    .find((c) => c.content.kind === 'consent')
+  return cell?.content.kind === 'consent' ? cell.content : null
 }
 const optionsOf = (content: CardCellContent) => (content.kind === 'checks' ? content.options : [])
 const checkedOf = (content: CardCellContent) =>
@@ -97,12 +105,13 @@ describe('cardModel (새가족 등록 카드, paper layout)', () => {
   it('lays out the paper card\'s five label|value|label|value rows in order', () => {
     const model = cardModel(member())
     expect(model.title).toBe('< KCCP 빛주사랑 대학청년부 - 새가족 등록 카드 >')
+    // 마지막 줄의 오른쪽은 라벨이 없다 — 동의 문장 하나가 그 반쪽을 통째로 쓴다.
     expect(model.rows.map((r) => [r.left.label, r.right.label])).toEqual([
       ['이름', '전화번호'],
       ['생년월일', '카톡 아이디'],
       ['소속 (학교/직장)', '세례 여부'],
       ['학교/전공 or 직장', '신앙생활'],
-      ['등록일', '목사님 심방 요청'],
+      ['등록일', undefined],
     ])
   })
 
@@ -166,9 +175,11 @@ describe('cardModel (새가족 등록 카드, paper layout)', () => {
     expect(checkedOf(cellsByLabel(member({ faith_duration: '' }))['신앙생활'])).toEqual([])
   })
 
-  it('checks 심방 요청 O when requested, X otherwise', () => {
-    expect(checkedOf(cellsByLabel(member())['목사님 심방 요청'])).toEqual(['O'])
-    expect(checkedOf(cellsByLabel(member({ pastoral_visit_requested: false }))['목사님 심방 요청'])).toEqual(['X'])
+  it('prints the 목회자 연락 동의 줄, ticked only when the member confirmed it', () => {
+    expect(consentOf(member())).toEqual({ kind: 'consent', text: PASTORAL_CONSENT_TEXT, checked: true })
+    // 확인을 받지 않았으면 빈 네모다 — 옛 카드의 X(false)도, 아직 안 물은 null도 같다.
+    expect(consentOf(member({ pastoral_visit_requested: false }))).toMatchObject({ checked: false })
+    expect(consentOf(member({ pastoral_visit_requested: null }))).toMatchObject({ checked: false })
   })
 })
 

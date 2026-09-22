@@ -83,9 +83,12 @@ Deno.test("한 사진 여러 장: the prompt makes the array length the card cou
   assertEquals(CARD_PROMPT_FREEFORM.includes("배열의 길이를 그 장수와 똑같이"), true);
 });
 
-Deno.test("심방 요청: an unmarked O/X box must read as null, never false", () => {
+Deno.test("목회자 연락: an unmarked box (동의 줄이든 옛 O/X든) must read as null, never false", () => {
   const visit = CARD_SCHEMA.properties.pastoralVisitRequested as { description?: string };
-  assertEquals(visit.description, "O 표시=true, X 표시=false, 아무 표시 없음=null");
+  assertEquals(
+    visit.description,
+    "동의 줄 네모에 표시=true, 옛 카드의 O 표시=true·X 표시=false, 아무 표시 없음=null",
+  );
   // The same rule in the prompt, so the freeform (OpenRouter) path follows it too.
   assertEquals(CARD_PROMPT.includes("표시가 없으면 반드시 null"), true);
   assertEquals(CARD_PROMPT_FREEFORM.includes("표시가 없으면 반드시 null"), true);

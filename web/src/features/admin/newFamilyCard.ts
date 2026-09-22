@@ -91,6 +91,13 @@ export const BAPTISM_CAPTIONS: Record<string, string> = {
 // 신앙생활 options (stored verbatim in `faith_duration`).
 export const FAITH_OPTIONS = ['모태신앙', '1년 미만', '1-3년', '3-5년', '5년 이상'] as const
 
+// 목사님 심방 — 종이 카드의 그 칸은 이제 **O/X 두 네모가 아니라 동의 한 줄**이다.
+// O와 X는 묻는 사람이 대신 골라 적던 칸이라 "아직 안 물어봤다"(빈 칸)와 "안 원한다"(X)가
+// 종이에서 구별되지 않았고, 정작 새가족이 읽고 표시할 문장은 어디에도 없었다. 한 줄로
+// 바꾸면 체크는 그 사람이 직접 한 확인이고, 비어 있는 것은 확인을 받지 않았다는 뜻이다.
+// 인쇄된 문구 그대로 — 화면의 카드는 손에 든 종이와 한 글자도 달라지지 않는다.
+export const PASTORAL_CONSENT_TEXT = '새가족 정착을 위해 목회자가 연락드릴 수 있음을 확인합니다.'
+
 // Unfilled date blanks, exactly as printed on the paper card (MM / DD / YYYY).
 export const DATE_BLANK = '____ / ____ / ______'
 
@@ -117,8 +124,8 @@ export interface CardFormValue {
   baptismStatus: string
   faithDuration: string
   registrationDate: string // ISO or ''
-  // null = blank (neither O nor X ticked yet) — the default for a fresh card. true/false
-  // once the operator taps a side.
+  // true = 동의 줄에 체크됨. null = 아직 체크되지 않음 (갓 꺼낸 카드의 기본값). 예전
+  // 카드에서 X로 읽혀 온 false도 그대로 들고 다닌다 — 화면에서는 체크 안 된 것으로 보인다.
   pastoralVisitRequested: boolean | null
 }
 
@@ -151,7 +158,7 @@ const EMPTY_CARD: CardFormValue = {
   baptismStatus: '',
   faithDuration: '',
   registrationDate: '',
-  // Blank by default — the paper card starts with neither 목사님 심방 요청 box ticked.
+  // Blank by default — the paper card starts with the 목회자 연락 동의 줄 unticked.
   pastoralVisitRequested: null,
 }
 
@@ -172,9 +179,14 @@ export type CardCellContent =
   | { kind: 'text'; text: string }
   | { kind: 'name'; name: string; circled: '남' | '여' | null } // 이름 cell: name + ( 남 / 여 ) with the gender circled
   | { kind: 'checks'; options: CardCheckOption[]; extra: string } // extra = free text after the last option (Other: …)
+  // 동의 한 줄 — 네모 하나 + 읽고 표시하는 문장 (목회자 연락 동의). 라벨 칸 없이 그 줄이
+  // 칸 전체를 쓰므로, 문장이 칸보다 길면 줄바꿈된다 (checks의 옵션 라벨은 한 줄짜리다).
+  | { kind: 'consent'; text: string; checked: boolean }
 
 export interface CardCell {
-  label: string
+  // 없으면 회색 라벨 칸을 그리지 않고 값이 그 자리까지 함께 쓴다 — 동의 줄처럼 묻는 말이
+  // 곧 값인 칸이다 (라벨 '목사님 심방 요청' + O/X 값이던 자리가 그렇게 바뀌었다).
+  label?: string
   content: CardCellContent
 }
 
@@ -242,18 +254,9 @@ export function cardModel(m: Member): CardModel {
       },
       {
         left: { label: '등록일', content: { kind: 'text', text: formatCardDate(m.registration_date) } },
-        right: {
-          label: '목사님 심방 요청',
-          content: {
-            kind: 'checks',
-            options: [
-              // Neither ticks when the value is null/undefined (blank — not yet asked).
-              { label: 'O', checked: m.pastoral_visit_requested === true },
-              { label: 'X', checked: m.pastoral_visit_requested === false },
-            ],
-            extra: '',
-          },
-        },
+        // 목회자 연락 동의 — 라벨 칸 없이 문장 하나가 오른쪽 반을 쓴다. 체크는 확인을
+        // 받았다는 뜻 하나뿐이라, null(아직 안 물음)도 false(옛 카드의 X)도 빈 네모다.
+        right: { content: { kind: 'consent', text: PASTORAL_CONSENT_TEXT, checked: m.pastoral_visit_requested === true } },
       },
     ],
   }
