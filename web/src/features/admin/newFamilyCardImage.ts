@@ -13,8 +13,8 @@ import { cardModel, type CardCell, type CardCheckOption } from './newFamilyCard'
 // grey title bar (< KCCP 빛주사랑 대학청년부 - 새가족 등록 카드 >) over a solid-bordered
 // table of [grey label | value | grey label | value] rows, with the member's data
 // filled in — gender circled in the 이름 cell, the matching 소속/세례/신앙생활 checkbox
-// ticked, the 목회자 연락 동의 줄 ticked when confirmed (a label-less cell spanning the
-// last row's right half), dates as MM / DD / YYYY (underscore blanks when missing). Each
+// ticked, the 목회자 연락 동의 줄 (문장 뒤의 네모) ticked when confirmed — a label-less
+// cell spanning the last row's right half — dates as MM / DD / YYYY (blanks when missing). Each
 // person ships as their own JPG; the clipboard gets all selected cards stacked into one
 // merged image. The card's content comes from the pure `cardModel` in ./newFamilyCard
 // (shared with the kiosk entry form); this module only draws it.
@@ -231,13 +231,15 @@ function rightValueW(cell: CardCell): number {
   return cell.label === undefined ? LABEL_W + VALUE2_W : VALUE2_W
 }
 
-// 동의 줄이 문장에 쓸 수 있는 폭 — 칸 안쪽에서 네모와 그 뒤 여백을 뺀 나머지.
+// 동의 줄이 문장에 쓸 수 있는 폭 — 칸 안쪽에서 문장 뒤에 올 네모와 그 앞 여백을 뺀 나머지.
 function consentTextW(width: number): number {
   return width - PAD_X * 2 - BOX - 6
 }
 
-// 동의 한 줄 (목회자 연락): 네모 하나 + 문장. 옵션 줄과 달리 문장이 길어 줄바꿈되므로,
-// 네모는 첫 줄 옆에 두고 이어지는 줄은 문장 왼쪽에 맞춰 들여쓴다.
+// 동의 한 줄 (목회자 연락): 읽는 문장이 먼저고 **네모가 그 뒤**다 — 옵션 줄(☐ 라벨)과
+// 반대인데, 여기서 표시하는 사람은 고르는 것이 아니라 문장을 다 읽고 확인하기 때문이다.
+// 문장이 길어 줄바꿈되면 네모는 마지막 줄 끝에 붙는다 (모든 줄이 네모 자리를 비워 두고
+// 줄바꿈되므로 — consentTextW — 마지막 줄 끝에 언제나 자리가 있다).
 function drawConsentCell(
   ctx: CanvasRenderingContext2D,
   content: Extract<CardCell['content'], { kind: 'consent' }>,
@@ -247,13 +249,13 @@ function drawConsentCell(
   h: number,
 ) {
   ctx.font = OPTION_FONT
-  const textX = x + PAD_X + BOX + 6
+  const textX = x + PAD_X
   const lines = wrapLines(ctx, content.text, consentTextW(w))
   const top = y + (h - lines.length * LINE_H) / 2
-  drawCheckbox(ctx, x + PAD_X, top + LINE_H / 2, content.checked)
   ctx.fillStyle = INK
-  ctx.font = OPTION_FONT
   lines.forEach((ln, i) => ctx.fillText(ln, textX, top + i * LINE_H + LINE_H / 2 + 1))
+  const lastW = ctx.measureText(lines[lines.length - 1]).width
+  drawCheckbox(ctx, textX + lastW + 6, top + (lines.length - 1) * LINE_H + LINE_H / 2, content.checked)
 }
 
 // 이름 cell: the name plus "( 남 / 여 )", with the member's gender circled in pen —

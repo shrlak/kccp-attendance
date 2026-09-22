@@ -167,23 +167,24 @@ function ValueCell({ children, colSpan }: { children: ReactNode; colSpan?: numbe
   )
 }
 
-// 동의 한 줄: 네모 하나 + 읽고 표시하는 문장. 문장이 칸보다 길어 줄바꿈되므로 네모는
-// 첫 줄 옆에 두고(items-start), 접근성 이름은 그 문장 그대로다.
+// 동의 한 줄: 읽고 표시하는 문장 + 그 **뒤**의 네모 (옵션 줄과 반대 차례 — 여기서는
+// 고르는 것이 아니라 문장을 다 읽고 확인한다). 네모가 글 흐름을 따라가야 줄바꿈된 뒤에도
+// 마지막 글자 옆에 남으므로 flex가 아니라 inline이고, 접근성 이름은 그 문장 그대로다.
 function ConsentCheck({ text, checked, onToggle }: { text: string; checked: boolean; onToggle: () => void }) {
   return (
     <button
       type="button"
       aria-pressed={checked}
       onClick={onToggle}
-      className="flex w-full min-h-6 items-start gap-1.5 rounded-sm text-left leading-snug hover:bg-[#f3f4f6]"
+      className="block w-full min-h-6 rounded-sm text-left leading-snug hover:bg-[#f3f4f6]"
     >
+      {text}
       <span
         aria-hidden
-        className="mt-0.5 grid h-3.5 w-3.5 shrink-0 place-items-center border border-[#111] text-[11px] font-bold"
+        className="ml-1.5 inline-grid h-3.5 w-3.5 place-items-center border border-[#111] align-middle text-[11px] font-bold"
       >
         {checked ? '✓' : ''}
       </span>
-      {text}
     </button>
   )
 }
