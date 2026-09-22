@@ -307,6 +307,12 @@ export function AdminMembers() {
           ))}
         </PillTrack>
       )}
+      {/* 동산 칩 — 부서 트랙 바로 옆이다 (동산은 부서 안에 있으므로) **그리고 부서마다 갈린다**:
+          한 트랙 안에서 청년부 동산은 청년부 이름표 뒤에, 대학부 동산은 대학부 이름표 뒤에.
+          그리는 자리는 하나라 (SubgroupChips) 오늘·출석부·새가족 탭의 같은 줄과 어긋나지 않는다.
+          부서를 바꾸면 이 선택은 비운다: 청년부에서 고른 동산이 대학부에서도 계속 걸려 있으면
+          화면이 왜 비었는지 알 수가 없다. 고를 것이 하나뿐이면(학기 종료 롤오버 직후) 트랙
+          자체가 뜨지 않는다. */}
       <SubgroupChips sections={subgroupSections} value={subgroup} onChange={pickSubgroup} noneChip={hasUnassigned} />
       </div>
       </div>
