@@ -179,8 +179,8 @@ export type CardCellContent =
   | { kind: 'text'; text: string }
   | { kind: 'name'; name: string; circled: '남' | '여' | null } // 이름 cell: name + ( 남 / 여 ) with the gender circled
   | { kind: 'checks'; options: CardCheckOption[]; extra: string } // extra = free text after the last option (Other: …)
-  // 동의 한 줄 — 네모 하나 + 읽고 표시하는 문장 (목회자 연락 동의). 라벨 칸 없이 그 줄이
-  // 칸 전체를 쓰므로, 문장이 칸보다 길면 줄바꿈된다 (checks의 옵션 라벨은 한 줄짜리다).
+  // 동의 한 줄 — 읽고 표시하는 문장 + 그 뒤의 네모 (목회자 연락 동의). 라벨 칸 없이 그
+  // 줄이 칸 전체를 쓰므로, 문장이 칸보다 길면 줄바꿈된다 (checks의 옵션 라벨은 한 줄짜리다).
   | { kind: 'consent'; text: string; checked: boolean }
 
 export interface CardCell {
