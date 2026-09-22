@@ -7,7 +7,7 @@ import { registeredOnDate } from './newFamily'
 import { checkinTag } from './todaySheet'
 import { filterMembers, filterLog, NO_FILTER, type Filter } from './filters'
 import { leaderDashboard } from './stats'
-import { GroupFilter, Pill } from './GroupFilter'
+import { GroupFilter, Pill, PillTrack } from './GroupFilter'
 import { IconKey } from './IconKey'
 import { type Member } from '../../lib/api'
 import { resolveGroupColor, hexTint } from './groupColors'
@@ -169,19 +169,21 @@ export function AdminToday() {
           않는다. 수가 0인 칩도 남겨 둔다: 종류는 닫힌 집합이라 자리가 움직이면 매번 다시
           찾게 되고, 0이라는 사실 자체가 답이기 때문 (오늘 새가족이 없다). */}
       {allTodays.length > 0 && (
-        <div className="mb-3 flex flex-wrap gap-1.5">
-          <Pill active={kind === 'all'} onClick={() => setKind('all')}>
-            {t('admin.filter.all')} {allTodays.length}
-          </Pill>
-          <Pill active={kind === 'newFamily'} onClick={() => setKind('newFamily')}>
-            {t('admin.iconKey.newFamily')} {kindCounts.newFamily}
-          </Pill>
-          <Pill active={kind === 'visitor'} onClick={() => setKind('visitor')}>
-            {t('admin.iconKey.visitor')} {kindCounts.visitor}
-          </Pill>
-          <Pill active={kind === 'member'} onClick={() => setKind('member')}>
-            {t('admin.today.kind.member')} {kindCounts.member}
-          </Pill>
+        <div>
+          <PillTrack className="mb-3">
+            <Pill active={kind === 'all'} onClick={() => setKind('all')}>
+              {t('admin.filter.all')} {allTodays.length}
+            </Pill>
+            <Pill active={kind === 'newFamily'} onClick={() => setKind('newFamily')}>
+              {t('admin.iconKey.newFamily')} {kindCounts.newFamily}
+            </Pill>
+            <Pill active={kind === 'visitor'} onClick={() => setKind('visitor')}>
+              {t('admin.iconKey.visitor')} {kindCounts.visitor}
+            </Pill>
+            <Pill active={kind === 'member'} onClick={() => setKind('member')}>
+              {t('admin.today.kind.member')} {kindCounts.member}
+            </Pill>
+          </PillTrack>
         </div>
       )}
       <IconKey items={['newFamily', 'visitor']} />

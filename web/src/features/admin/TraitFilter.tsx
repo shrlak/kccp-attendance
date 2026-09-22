@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import type { Member } from '../../lib/api'
-import { Pill } from './GroupFilter'
+import { Pill, PillTrack } from './GroupFilter'
 import {
   careersOf, matchesCareer, schoolsOf, careerAxis, schoolAxis,
   type CareerFilter, type SchoolFilter,
@@ -43,13 +43,13 @@ export function TraitFilter({
   if (!showCareers && !showSchools) return null
 
   return (
-    <>
+    <div className="mb-4 flex flex-wrap items-start gap-2">
       {/* 처지 칩 — 청년부의 가름이다. 그 부서는 대학원생과 직장인이 반씩이라 학교 하나로는
           갈리지 않는다. 아래 학교 줄과 **곱해진다**: 대학원생을 고르면 학교 칩이 그 사람들의
           학교로 좁혀져, 청년부 대학원생을 CMU · Pitt으로 가르는 자리가 된다. */}
       {showCareers && (
-        <div role="group" aria-label={t('admin.members.careerFilter')} className="mb-2.5 flex flex-wrap items-center gap-1.5">
-          <Briefcase className="mr-0.5 size-3.5 shrink-0 text-subtle" aria-hidden />
+        <PillTrack label={t('admin.members.careerFilter')}>
+          <Briefcase className="mx-1.5 size-3.5 shrink-0 text-subtle" aria-hidden />
           <Pill active={!career} onClick={() => onCareer('')}>
             {t('admin.filter.all')}
           </Pill>
@@ -58,14 +58,14 @@ export function TraitFilter({
               {t(`admin.members.career.${c}`)}
             </Pill>
           ))}
-        </div>
+        </PillTrack>
       )}
       {/* 학교 칩 — 위 줄과 곱해지는 다른 가름이다 (대학부 안의 CMU, 청년부 대학원생 안의
           Pitt). 청년부에서는 **직장인을 고른 동안에만** 내려간다 — 그 사람에게 학교는 지금
           어디에 있는지를 말해 주지 않는다. */}
       {showSchools && (
-        <div role="group" aria-label={t('admin.members.schoolFilter')} className="mb-4 flex flex-wrap items-center gap-1.5">
-          <GraduationCap className="mr-0.5 size-3.5 shrink-0 text-subtle" aria-hidden />
+        <PillTrack label={t('admin.members.schoolFilter')}>
+          <GraduationCap className="mx-1.5 size-3.5 shrink-0 text-subtle" aria-hidden />
           <Pill active={!school} onClick={() => onSchool('')}>
             {t('admin.filter.all')}
           </Pill>
@@ -74,8 +74,8 @@ export function TraitFilter({
               {s === 'none' ? t('admin.members.school.none') : SCHOOL_NAMES[s]}
             </Pill>
           ))}
-        </div>
+        </PillTrack>
       )}
-    </>
+    </div>
   )
 }

@@ -36,7 +36,7 @@ import {
 } from './eduDongsan'
 import { composition, schoolOf, SCHOOL_NAMES } from './eduDongsanTraits'
 import { presentToday, cameToday } from './today'
-import { GroupFilter, Pill } from './GroupFilter'
+import { GroupFilter, Pill, PillTrack } from './GroupFilter'
 import { assignEduDongsan, clearAllEduDongsan, configCalendar, updateMember, type Member } from '../../lib/api'
 import { Tag } from '../../components/ui/Tag'
 import { useToast } from '../../components/ui/Toast'
@@ -195,31 +195,35 @@ export function AdminNewFamilyEdu() {
       <GroupFilter members={data.members} value={filter} onChange={setFilter} />
 
       {/* 새가족 교육 이수 필터: 1주차만 / 2주차만 / 둘 다 / 아무것도 안 들음 */}
-      <div className="mb-2 flex flex-wrap gap-1.5">
-        <Pill active={eduFilter === 'all'} onClick={() => setEduFilter('all')}>
-          {t('admin.filter.all')}
-        </Pill>
-        {EDU_FILTERS.map(({ key, labelKey }) => (
-          <Pill key={key} active={eduFilter === key} onClick={() => setEduFilter(key)}>
-            {t(labelKey)}
+      <div>
+        <PillTrack className="mb-2">
+          <Pill active={eduFilter === 'all'} onClick={() => setEduFilter('all')}>
+            {t('admin.filter.all')}
           </Pill>
-        ))}
+          {EDU_FILTERS.map(({ key, labelKey }) => (
+            <Pill key={key} active={eduFilter === key} onClick={() => setEduFilter(key)}>
+              {t(labelKey)}
+            </Pill>
+          ))}
+        </PillTrack>
       </div>
 
       {/* 오늘 출석 필터 — 위의 이수 필터와 곱해진다 (예: 1주차만 이수 × 오늘 출석 =
           오늘 2주차를 들을 사람). 카드마다 붙는 '오늘 출석' 표와 같은 기준이라 고른 칩과
           카드가 어긋나지 않는다. */}
-      <div className="mb-4 flex flex-wrap items-center gap-1.5">
-        <span className="mr-1 h-4 w-1 shrink-0 rounded-full bg-primary/40" aria-hidden />
-        <Pill active={attendFilter === 'all'} onClick={() => setAttendFilter('all')}>
-          {t('admin.filter.all')}
-        </Pill>
-        <Pill active={attendFilter === 'today'} onClick={() => setAttendFilter('today')}>
-          {t('admin.newfamilyEdu.attend.today')} {todayCount}
-        </Pill>
-        <Pill active={attendFilter === 'notToday'} onClick={() => setAttendFilter('notToday')}>
-          {t('admin.newfamilyEdu.attend.notToday')} {byEdu.length - todayCount}
-        </Pill>
+      <div>
+        <PillTrack className="mb-4">
+          <span className="mx-1.5 h-4 w-1 shrink-0 rounded-full bg-primary/40" aria-hidden />
+          <Pill active={attendFilter === 'all'} onClick={() => setAttendFilter('all')}>
+            {t('admin.filter.all')}
+          </Pill>
+          <Pill active={attendFilter === 'today'} onClick={() => setAttendFilter('today')}>
+            {t('admin.newfamilyEdu.attend.today')} {todayCount}
+          </Pill>
+          <Pill active={attendFilter === 'notToday'} onClick={() => setAttendFilter('notToday')}>
+            {t('admin.newfamilyEdu.attend.notToday')} {byEdu.length - todayCount}
+          </Pill>
+        </PillTrack>
       </div>
 
       {/* 목록 머리줄 — 전체 선택이 여기 앉는다. section-kicker는 라벨에만 걸린다
