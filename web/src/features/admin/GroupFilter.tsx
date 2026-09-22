@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { Fragment, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import type { Member } from '../../lib/api'
 import { groupsOf, subgroupSectionsOf, countSubgroups, NO_SUBGROUP, type Filter, type SubgroupSection } from './filters'
 
@@ -96,7 +96,8 @@ export function SubgroupChips({
         </Pill>
       )}
       {sections.map((section) => (
-        <Fragment key={section.group || 'none'}>
+        // 묶음은 DOM에 남기되(contents) 칩은 트랙의 칩으로 흐른다 — 한 트랙 안에서 줄을 바꾼다.
+        <div key={section.group || 'none'} className="contents">
           {labelled && (
             <span className="section-kicker ml-1.5 border-l border-separator pl-2.5 pr-1">{section.group || '—'}</span>
           )}
@@ -105,7 +106,7 @@ export function SubgroupChips({
               {sg}
             </Pill>
           ))}
-        </Fragment>
+        </div>
       ))}
     </PillTrack>
   )
