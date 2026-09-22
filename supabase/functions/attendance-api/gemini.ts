@@ -101,6 +101,8 @@ const CARD_RULES_COMMON = [
   "   표시가 없는 것을 false로 쓰지 마세요.",
   "6. '향후 피츠버그에 머물 기간'과 '신앙생활'은 서로 다른 줄입니다 — 둘 다 '1년 미만'이라는",
   "   보기를 갖고 있으므로, 표시된 네모가 어느 줄의 것인지 라벨을 보고 가르세요.",
+  "   그 줄의 '기타:'가 표시돼 있으면 옆에 적힌 말을 stayDuration에 **그대로** 옮기세요",
+  "   (적힌 것이 없으면 \"기타\").",
   "7. 비어 있거나 판독할 수 없는 칸은 null로 두세요. 절대 추측하지 마세요.",
   "8. 카드가 여러 장이면 사진 속 위치 순서(위→아래, 왼쪽→오른쪽)로 배열에 담으세요.",
   "   카드끼리 내용을 섞지 말고, 각 카드는 그 카드에 적힌 값만으로 채우세요.",
@@ -141,8 +143,13 @@ export const CARD_SCHEMA = {
     baptismStatus: { type: "STRING", enum: ["유아세례", "입교", "세례", "해당없음"], nullable: true },
     faithDuration: { type: "STRING", enum: ["모태신앙", "1년 미만", "1-3년", "3-5년", "5년 이상"], nullable: true },
     // 향후 피츠버그에 머물 기간 — 대학·청년부 카드에만 있는 칸 ('1년 미만'은 신앙생활에도
-    // 있는 말이라, 어느 줄의 네모인지는 라벨로 가른다).
-    stayDuration: { type: "STRING", enum: ["1년 미만", "2년", "3년", "4년", "기타"], nullable: true },
+    // 있는 말이라, 어느 줄의 네모인지는 라벨로 가른다). 기타에는 손으로 적는 자리가 있어
+    // enum으로 묶지 않는다: 적힌 말이 곧 저장되는 값이다 (소속의 'Other: …'와 같은 규칙).
+    stayDuration: {
+      type: "STRING",
+      nullable: true,
+      description: "'1년 미만'·'2년'·'3년'·'4년' 중 표시된 것, 기타면 그 옆에 적힌 말 그대로",
+    },
     registrationDate: { type: "STRING", nullable: true, description: "YYYY-MM-DD" },
     // Structured output makes the model fill every field, and an unmarked box is exactly
     // where it likes to volunteer `false` — spell out that no mark means null. 두 판의
@@ -206,7 +213,7 @@ const SCHEMA_HINT = [
     '"birthDate":"YYYY-MM-DD"|null,"affiliationCategory":"대학생"|"대학원생"|"직장인"|"Other"|null,' +
     '"affiliationDetail":string|null,"baptismStatus":"유아세례"|"입교"|"세례"|"해당없음"|null,' +
     '"faithDuration":"모태신앙"|"1년 미만"|"1-3년"|"3-5년"|"5년 이상"|null,' +
-    '"stayDuration":"1년 미만"|"2년"|"3년"|"4년"|"기타"|null,' +
+    '"stayDuration":"1년 미만"|"2년"|"3년"|"4년"|string|null,' +
     '"registrationDate":"YYYY-MM-DD"|null,"pastoralVisitRequested":true|false|null,' +
     '"cardType":"youth"|"adult",' +
     '"nameEn":string|null,"phoneHome":string|null,"email":string|null,"address":string|null,' +

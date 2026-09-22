@@ -2,7 +2,6 @@ import {
   AFFILIATION_CATEGORIES,
   BAPTISM_OPTIONS,
   FAITH_OPTIONS,
-  STAY_OPTIONS,
   blankCardForm,
   type CardFormValue,
 } from './newFamilyCard'
@@ -87,7 +86,9 @@ export function normalizeExtractedCard(raw: unknown, today: string): CardFormVal
     affiliationDetail: str(r.affiliationDetail),
     baptismStatus: clampEnum(r.baptismStatus, BAPTISM_OPTIONS),
     faithDuration: clampEnum(r.faithDuration, FAITH_OPTIONS),
-    stayDuration: clampEnum(r.stayDuration, STAY_OPTIONS),
+    // 기타에 손으로 적는 자리가 있어 보기로 묶지 않는다 — 적힌 말이 곧 값이다
+    // (카드의 다른 자유 기입 칸과 같은 규칙).
+    stayDuration: str(r.stayDuration).slice(0, 40),
     registrationDate: normalizeCardDate(r.registrationDate, 'registration') || today,
     // Only a definite true/false reading counts — anything else (null, missing, garbage)
     // stays blank, same as a freshly opened card.

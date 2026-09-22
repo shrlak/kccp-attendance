@@ -9,6 +9,8 @@ import {
   FAITH_OPTIONS,
   STAY_LABEL,
   STAY_OPTIONS,
+  splitStay,
+  joinStay,
   PASTORAL_CONSENT_TEXT,
   formatCardDate,
   type CardFormValue,
@@ -132,12 +134,23 @@ export function NewFamilyCardForm({
               <LabelCell text={STAY_LABEL} />
               <ValueCell>
                 {/* 좁은 반 칸이라 보기를 나란히 흘린다 — 세로로 쌓으면 이 칸이 다시 다섯
-                    줄이 되어 갈라 놓은 뜻이 없어진다 (카드 렌더러의 flow와 같은 규칙). */}
+                    줄이 되어 갈라 놓은 뜻이 없어진다 (카드 렌더러의 flow와 같은 규칙).
+                    '기타'를 고르면 종이처럼 그 옆 빈칸에 직접 적는다 (소속의 Other와 같다). */}
                 <CheckColumn
                   flow
-                  options={STAY_OPTIONS.map((o) => ({ value: o, label: o }))}
-                  selected={value.stayDuration}
-                  onSelect={(v) => onChange({ stayDuration: v })}
+                  options={STAY_OPTIONS.map((o) => ({ value: o, label: o === '기타' ? '기타:' : o }))}
+                  selected={splitStay(value.stayDuration).option}
+                  onSelect={(v) => onChange({ stayDuration: joinStay(v, splitStay(value.stayDuration).detail) })}
+                  trailing={
+                    splitStay(value.stayDuration).option === '기타' ? (
+                      <CardInput
+                        aria-label={STAY_LABEL + ' 기타'}
+                        value={splitStay(value.stayDuration).detail}
+                        onChange={(v) => onChange({ stayDuration: joinStay('기타', v) })}
+                        className="w-24 border-b border-[#111]"
+                      />
+                    ) : null
+                  }
                 />
               </ValueCell>
             </tr>
@@ -285,6 +298,7 @@ function CheckColumn({
   onSelect,
   multi = false,
   flow = false,
+  trailing,
 }: {
   options: { value: string; label: string; caption?: string }[]
   selected: string
@@ -292,6 +306,9 @@ function CheckColumn({
   multi?: boolean
   // 한 줄에 나란히 흘리고 넘치면 다음 줄로 (반 칸에 앉는 향후 기간).
   flow?: boolean
+  // 마지막 보기 뒤에 이어 붙는 것 (기타의 직접 적는 칸) — 같은 흐름 안에 있어야 종이처럼
+  // '기타:' 바로 옆에 붙는다.
+  trailing?: ReactNode
 }) {
   const picked = multi ? parseBaptism(selected) : []
   return (
@@ -315,6 +332,7 @@ function CheckColumn({
           </button>
         )
       })}
+      {trailing}
     </span>
   )
 }

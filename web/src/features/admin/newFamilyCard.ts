@@ -98,6 +98,22 @@ export const FAITH_OPTIONS = ['모태신앙', '1년 미만', '1-3년', '3-5년',
 export const STAY_LABEL = '향후 피츠버그에 머물 기간'
 export const STAY_OPTIONS = ['1년 미만', '2년', '3년', '4년', '기타'] as const
 
+// '기타'를 고르면 직접 적는다 — 종이의 '기타: ____'가 그것이고, 저장되는 것은 **적은 말
+// 그대로**다 ('5년', '미정', '학기만' …). 소속의 'Other: ____'와 같은 규칙이라 컬럼을 하나
+// 더 두지 않는다: 고정 보기 넷 중 하나면 그 보기이고, 그 밖의 말이면 기타에 적은 것이다.
+// 아무것도 안 적고 기타만 고른 상태는 '기타'라는 값 자체로 남는다 (고르긴 했다는 사실).
+export function splitStay(value: string | null | undefined): { option: string; detail: string } {
+  const v = (value || '').trim()
+  if (!v) return { option: '', detail: '' }
+  if (STAY_OPTIONS.includes(v as (typeof STAY_OPTIONS)[number])) return { option: v, detail: '' }
+  return { option: '기타', detail: v }
+}
+
+export function joinStay(option: string, detail: string): string {
+  if (option !== '기타') return option
+  return detail.trim() || '기타'
+}
+
 // 목사님 심방 — 종이 카드의 그 칸은 이제 **O/X 두 네모가 아니라 동의 한 줄**이다.
 // O와 X는 묻는 사람이 대신 골라 적던 칸이라 "아직 안 물어봤다"(빈 칸)와 "안 원한다"(X)가
 // 종이에서 구별되지 않았고, 정작 새가족이 읽고 표시할 문장은 어디에도 없었다. 한 줄로
@@ -224,7 +240,7 @@ export function cardModel(m: Member): CardModel {
   const aff = splitAffiliation(m.school_or_work || '')
   const baptism = (m.baptism_status || '').trim()
   const faith = (m.faith_duration || '').trim()
-  const stay = (m.stay_duration || '').trim()
+  const stay = splitStay(m.stay_duration)
   return {
     title: CARD_TITLE,
     rows: [
@@ -265,8 +281,9 @@ export function cardModel(m: Member): CardModel {
           label: STAY_LABEL,
           content: {
             kind: 'checks',
-            options: STAY_OPTIONS.map((o) => ({ label: o, checked: stay === o })),
-            extra: '',
+            options: STAY_OPTIONS.map((o) => ({ label: o === '기타' ? '기타:' : o, checked: stay.option === o })),
+            // 종이의 '기타: ____'에 적힌 말 (소속의 'Other: …'와 같은 자리).
+            extra: stay.detail,
             flow: true,
           },
         },

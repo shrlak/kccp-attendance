@@ -181,7 +181,7 @@ describe('cardModel (새가족 등록 카드, paper layout)', () => {
     // 오른쪽(신앙생활)은 갈리지 않고 그 둘을 함께 덮는다 — 아래 칸은 왼쪽 반에만 있다.
     expect(row.right.label).toBe('신앙생활')
     expect(row.leftBelow?.label).toBe(STAY_LABEL)
-    expect(optionsOf(row.leftBelow!.content).map((o) => o.label)).toEqual(['1년 미만', '2년', '3년', '4년', '기타'])
+    expect(optionsOf(row.leftBelow!.content).map((o) => o.label)).toEqual(['1년 미만', '2년', '3년', '4년', '기타:'])
     expect(checkedOf(row.leftBelow!.content)).toEqual(['2년'])
     // 좁은 반 칸이라 보기가 나란히 흐른다 (세로로 쌓으면 다시 다섯 줄이 된다).
     expect(row.leftBelow!.content).toMatchObject({ flow: true })
@@ -189,6 +189,18 @@ describe('cardModel (새가족 등록 카드, paper layout)', () => {
 
   it('checks no 기간 box when the member has none', () => {
     expect(checkedOf(cardModel(member())['rows'][3].leftBelow!.content)).toEqual([])
+  })
+
+  it('files a 기간 outside the printed options under 기타, with the words beside it', () => {
+    // 보기에 없는 말은 '기타'에 손으로 적은 것이다 (소속의 'Other: …'와 같은 규칙) —
+    // 값을 버리지 않고 그대로 카드에 적는다.
+    const cell = cardModel(member({ stay_duration: '학기만' })).rows[3].leftBelow!.content
+    expect(checkedOf(cell)).toEqual(['기타:'])
+    expect(cell).toMatchObject({ extra: '학기만' })
+    // 고르기만 하고 아무것도 안 적었으면 '기타'라는 값 자체가 남는다.
+    const bare = cardModel(member({ stay_duration: '기타' })).rows[3].leftBelow!.content
+    expect(checkedOf(bare)).toEqual(['기타:'])
+    expect(bare).toMatchObject({ extra: '' })
   })
 
   it('prints the 목회자 연락 동의 줄, ticked only when the member confirmed it', () => {
