@@ -920,6 +920,13 @@ live** at https://shrlak.github.io/kccp-attendance/.
   복원도 스키마 단위다 — 그 스키마의 표를 전부 `TRUNCATE ... RESTART IDENTITY CASCADE` 하고
   백업을 흘려 넣으므로, 시퀀스를 손으로 밀 필요가 없고 다른 부서는 어느 쪽으로도 닿지 않는다.
   **재해복구는 이제 두 파일 다 필요하다** — `backups/`만으로는 장년부가 복구되지 않는다.
+  - **검증은 이 저장소의 마이그레이션만 재생한다** — 그래서 프로덕션의 `public`/`adult`에
+    저장소 밖에서 생긴 표·칸이 있으면 그 부의 백업이 검증 단계에서 깨진다 (2026-09-20:
+    저장소에 파일이 없는 20260826~30이 만든 슬라이드 표들, `20260901`이 옮겨 적었다).
+    프로덕션 스키마를 바꾸면 **저장소에도 파일이 있어야 한다.**
+  - `backup_reader` 비밀번호를 대시보드에서 바꾸면 GitHub 시크릿
+    `SUPABASE_BACKUP_DB_PASSWORD`도 **같이** 바꿔야 한다 — 안 그러면 두 줄기 다
+    "Verify backup database login"에서 `password authentication failed`로 멈춘다.
 - **Edge function deploys via CI**, not MCP: `mcp__Supabase__deploy_edge_function` and
   `get_edge_function` are **permission-denied** in this environment. `.github/workflows/deploy.yml`
   runs `supabase functions deploy` when the `SUPABASE_ACCESS_TOKEN` repo secret is set (it is).
