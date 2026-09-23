@@ -13,7 +13,7 @@ import {
   groupsOf, groupChipsOf, subgroupSectionsOf, matchesGroup, matchesSubgroup, matchesCareer, matchesSchool,
   NO_GROUP, type CareerFilter, type SchoolFilter,
 } from './filters'
-import { Pill, SubgroupChips } from './GroupFilter'
+import { Pill, PillTrack, SubgroupChips } from './GroupFilter'
 import { TraitFilter } from './TraitFilter'
 import { dongsanSectionsOf, flatDongsan } from './dongsan'
 import { newFamilyWeek } from './newFamily'
@@ -294,11 +294,9 @@ export function AdminMembers() {
       {/* 부서 칩 — 한 부서만 놓고 보는 자리다. 아래 섹션 머리줄은 부서를 가르되 **함께**
           보여주므로, 대학부만 훑으려면 청년부를 지나 내려가야 했다. 부서가 하나뿐인
           부(장년부)에서는 고를 것이 없으므로 줄 자체가 뜨지 않는다. */}
+      <div className="flex flex-wrap items-start gap-2">
       {groupChips.length > 1 && (
-        // 두 줄의 '전체'가 같은 말이라 어느 가름의 전체인지는 줄이 말해 준다 — 눈에는
-        // 아이콘이, 스크린리더에는 이 이름표가.
-        <div role="group" aria-label={t('admin.members.group')} className="flex flex-wrap items-center gap-1.5">
-          <Users className="mr-0.5 size-3.5 shrink-0 text-subtle" aria-hidden />
+        <PillTrack label={t('admin.members.group')}>
           <Pill active={!group} onClick={() => pickGroup('')}>
             {t('admin.filter.all')}
           </Pill>
@@ -307,14 +305,16 @@ export function AdminMembers() {
               {g === NO_GROUP ? t('admin.members.noGroup') : g}
             </Pill>
           ))}
-        </div>
+        </PillTrack>
       )}
-      {/* 동산 칩 — 부서 줄 바로 아래다 (동산은 부서 안에 있으므로) **그리고 부서마다 한 줄로
-          갈린다**: 청년부 동산은 청년부 줄에, 대학부 동산은 대학부 줄에. 그리는 자리는 하나라
-          (SubgroupChips) 오늘·출석부·새가족 탭의 같은 줄과 어긋나지 않는다. 부서를 바꾸면 이
-          선택은 비운다: 청년부에서 고른 동산이 대학부에서도 계속 걸려 있으면 화면이 왜 비었는지
-          알 수가 없다. 고를 것이 하나뿐이면(학기 종료 롤오버 직후) 줄 자체가 뜨지 않는다. */}
+      {/* 동산 칩 — 부서 트랙 바로 옆이다 (동산은 부서 안에 있으므로) **그리고 부서마다 갈린다**:
+          한 트랙 안에서 청년부 동산은 청년부 이름표 뒤에, 대학부 동산은 대학부 이름표 뒤에.
+          그리는 자리는 하나라 (SubgroupChips) 오늘·출석부·새가족 탭의 같은 줄과 어긋나지 않는다.
+          부서를 바꾸면 이 선택은 비운다: 청년부에서 고른 동산이 대학부에서도 계속 걸려 있으면
+          화면이 왜 비었는지 알 수가 없다. 고를 것이 하나뿐이면(학기 종료 롤오버 직후) 트랙
+          자체가 뜨지 않는다. */}
       <SubgroupChips sections={subgroupSections} value={subgroup} onChange={pickSubgroup} noneChip={hasUnassigned} />
+      </div>
       </div>
       {/* 처지 · 학교 줄 — 새가족 탭과 **같은 컴포넌트**다 (TraitFilter). 두 탭이 같은 명단을
           다르게 가르면 '대학부 CMU'가 탭마다 다른 사람들을 뜻하게 된다. */}

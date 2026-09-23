@@ -2,7 +2,6 @@ import { useTranslation } from 'react-i18next'
 import type { ReactNode } from 'react'
 import type { Member } from '../../lib/api'
 import { groupsOf, subgroupSectionsOf, countSubgroups, NO_SUBGROUP, type Filter, type SubgroupSection } from './filters'
-import { Sprout, Users } from '../../components/ui/Icon'
 
 // 필터 줄이 앉는 자리 — **패널 헤더 바로 밑에 붙어 스크롤을 따라온다** (엑셀의 행 고정과
 // 같은 뜻이다). 명단·출석부는 한 화면에 안 들어가는 표라, 아래로 내려가 있는 동안 지금
@@ -31,24 +30,26 @@ export function GroupFilter({ members, value, onChange }: { members: Member[]; v
 
   return (
     <StickyFilterBar>
-      {groups.length > 1 && (
-        <div role="group" aria-label={t('admin.members.group')} className="flex flex-wrap items-center gap-1.5">
-          <Users className="mr-0.5 size-3.5 shrink-0 text-subtle" aria-hidden />
-          <Pill active={!value.group} onClick={() => onChange({ group: '', subgroup: '' })}>
-            {t('admin.filter.all')}
-          </Pill>
-          {groups.map((g) => (
-            <Pill key={g} active={value.group === g} onClick={() => onChange({ group: g, subgroup: '' })}>
-              {g}
+      {/* 부서 트랙과 동산 트랙이 한 줄에 나란히 선다 — 폭이 모자라면 동산 트랙이 다음 줄로 내려간다. */}
+      <div className="flex flex-wrap items-start gap-2">
+        {groups.length > 1 && (
+          <PillTrack label={t('admin.members.group')}>
+            <Pill active={!value.group} onClick={() => onChange({ group: '', subgroup: '' })}>
+              {t('admin.filter.all')}
             </Pill>
-          ))}
-        </div>
-      )}
-      <SubgroupChips
-        sections={sections}
-        value={value.subgroup}
-        onChange={(subgroup) => onChange({ ...value, subgroup })}
-      />
+            {groups.map((g) => (
+              <Pill key={g} active={value.group === g} onClick={() => onChange({ group: g, subgroup: '' })}>
+                {g}
+              </Pill>
+            ))}
+          </PillTrack>
+        )}
+        <SubgroupChips
+          sections={sections}
+          value={value.subgroup}
+          onChange={(subgroup) => onChange({ ...value, subgroup })}
+        />
+      </div>
     </StickyFilterBar>
   )
 }
@@ -82,23 +83,23 @@ export function SubgroupChips({
   // 아무것도 말해 주지 않는다 (부서가 하나뿐인 장년부가 그렇다).
   const labelled = sections.length > 1
 
+  // 트랙 하나에 '전체'부터 동산까지 다 담는다 (부서 트랙과 같은 모양). 부서마다 갈라야
+  // 할 때는 같은 트랙 안에서 그 부서의 동산 앞에 부서 이름을 작게 적는다.
   return (
-    <div role="group" aria-label={t('admin.members.subgroup')} className="flex flex-col gap-1.5">
-      <div className="flex flex-wrap items-center gap-1.5">
-        <Sprout className="mr-0.5 size-3.5 shrink-0 text-subtle" aria-hidden />
-        <Pill active={!value} onClick={() => onChange('')}>
-          {t('admin.filter.all')}
+    <PillTrack label={t('admin.members.subgroup')}>
+      <Pill active={!value} onClick={() => onChange('')}>
+        {t('admin.filter.all')}
+      </Pill>
+      {noneChip && (
+        <Pill active={value === NO_SUBGROUP} onClick={() => onChange(NO_SUBGROUP)}>
+          {t('admin.members.noSubgroup')}
         </Pill>
-        {noneChip && (
-          <Pill active={value === NO_SUBGROUP} onClick={() => onChange(NO_SUBGROUP)}>
-            {t('admin.members.noSubgroup')}
-          </Pill>
-        )}
-      </div>
+      )}
       {sections.map((section) => (
-        <div key={section.group || 'none'} className="flex flex-wrap items-center gap-1.5">
+        // 묶음은 DOM에 남기되(contents) 칩은 트랙의 칩으로 흐른다 — 한 트랙 안에서 줄을 바꾼다.
+        <div key={section.group || 'none'} className="contents">
           {labelled && (
-            <span className="section-kicker mr-0.5 shrink-0">{section.group || '—'}</span>
+            <span className="section-kicker ml-1.5 border-l border-separator pl-2.5 pr-1">{section.group || '—'}</span>
           )}
           {section.subgroups.map((sg) => (
             <Pill key={sg} active={value === sg} onClick={() => onChange(sg)}>
@@ -107,6 +108,20 @@ export function SubgroupChips({
           ))}
         </div>
       ))}
+    </PillTrack>
+  )
+}
+
+// 칩이 앉는 회색 트랙 (세그먼트 컨트롤). 고른 칩만 흰 알약으로 떠오르고 나머지는 트랙 위의
+// 글자다. 칩이 많으면 트랙 안에서 줄을 바꾼다.
+export function PillTrack({ label, className = '', children }: { label?: string; className?: string; children: ReactNode }) {
+  return (
+    <div
+      role="group"
+      aria-label={label}
+      className={'inline-flex max-w-full flex-wrap items-center gap-0.5 rounded-[1.4rem] bg-fill p-1 ' + className}
+    >
+      {children}
     </div>
   )
 }
@@ -115,13 +130,14 @@ export function Pill({ active, onClick, children }: { active: boolean; onClick: 
   return (
     <button
       type="button"
+      aria-pressed={active}
       onClick={onClick}
       className={
-        'min-h-9 rounded-full px-3.5 py-1 text-xs font-semibold ' +
+        'min-h-8 rounded-full px-3.5 py-1 text-xs font-semibold ' +
         'transition-[background-color,border-color,color,transform,box-shadow] duration-200 [transition-timing-function:var(--ease-out-soft)] active:scale-[0.94] ' +
         (active
-          ? 'bg-primary text-primary-fg shadow-[var(--shadow-sm)]'
-          : 'bg-fill text-muted hover:bg-fill-hover hover:text-text')
+          ? 'bg-surface text-text shadow-[var(--shadow-sm)]'
+          : 'text-muted hover:bg-fill-hover hover:text-text')
       }
     >
       {children}

@@ -16,7 +16,7 @@ import { SCHOOL_NAMES } from './eduDongsanTraits'
 import { type Member, type LogEntry } from '../../lib/api'
 import { resolveGroupColor } from './groupColors'
 import { Activity, BarChart3, GraduationCap, Sprout, UserPlus } from '../../components/ui/Icon'
-import { Pill } from './GroupFilter'
+import { Pill, PillTrack } from './GroupFilter'
 import { type EduFilter } from './newFamily'
 import { useAppConfig } from '../../lib/useAppConfig'
 
@@ -478,15 +478,17 @@ const EDU_COHORTS: EduFilter[] = ['both', 'week1', 'week2', 'none']
 function EduPills({ value, onChange }: { value: EduFilter; onChange: (v: EduFilter) => void }) {
   const { t } = useTranslation()
   return (
-    <div className="flex flex-wrap gap-1.5">
-      <Pill active={value === 'all'} onClick={() => onChange('all')}>
-        {t('admin.filter.all')}
-      </Pill>
-      {EDU_COHORTS.map((key) => (
-        <Pill key={key} active={value === key} onClick={() => onChange(key)}>
-          {t(`admin.newfamily.eduFilter.${key}`)}
+    <div>
+      <PillTrack>
+        <Pill active={value === 'all'} onClick={() => onChange('all')}>
+          {t('admin.filter.all')}
         </Pill>
-      ))}
+        {EDU_COHORTS.map((key) => (
+          <Pill key={key} active={value === key} onClick={() => onChange(key)}>
+            {t(`admin.newfamily.eduFilter.${key}`)}
+          </Pill>
+        ))}
+      </PillTrack>
     </div>
   )
 }
