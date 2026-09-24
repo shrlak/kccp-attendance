@@ -136,6 +136,17 @@ ALTER ROLE backup_reader WITH PASSWORD '<new-strong-password>';    -- or backup_
 ```
 
 Then update the password-only `SUPABASE_BACKUP_DB_PASSWORD` GitHub secret to match.
+For `backup_restorer`, update the password inside the `RESTORE_DB_URL` Edge Function secret
+instead — otherwise in-app restore fails the same way.
+
+Generate the password with `openssl rand -hex 32`: hex needs no URL-encoding inside
+`RESTORE_DB_URL` and no quoting inside the SQL.
+
+**Changing either password is always a two-place edit** (database + the secret that holds
+it). Nothing can block a reset — the Supabase dashboard runs as a superuser — so a reset
+made in only one place stops every backup at "Verify backup database login", which now
+says so in an error titled *Backup password out of sync* (2026-09-21 is when this last
+happened).
 The workflow supplies the host, port, database, username, and SSL mode separately.
 
 ## Quarterly restore drill

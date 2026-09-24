@@ -110,7 +110,16 @@ jobs:
 
       - name: Verify backup database login
         run: |
-          connected_user=$(psql -X -v ON_ERROR_STOP=1 -Atc "select current_user")
+          # A password reset in the Supabase dashboard (ALTER ROLE backup_reader …) cannot be
+          # blocked — the dashboard runs as a superuser — and it silently leaves this secret
+          # stale. Say so plainly instead of leaving a bare libpq error to decode.
+          if ! connected_user=$(psql -X -v ON_ERROR_STOP=1 -Atc "select current_user" 2>"$RUNNER_TEMP/login.err"); then
+            cat "$RUNNER_TEMP/login.err"
+            if grep -q "password authentication failed" "$RUNNER_TEMP/login.err"; then
+              echo "::error title=Backup password out of sync::The backup_reader password in the database no longer matches the SUPABASE_BACKUP_DB_PASSWORD GitHub secret (someone reset it in the Supabase dashboard). Fix: set a new one with ALTER ROLE backup_reader WITH PASSWORD '…' in the Supabase SQL editor, paste the same value into the GitHub secret, and re-run. See scripts/backup/README.md → Rotating a DB password."
+            fi
+            exit 1
+          fi
           if [ "$connected_user" != "backup_reader" ]; then
             echo "::error::Expected backup_reader, connected as $connected_user."
             exit 1
