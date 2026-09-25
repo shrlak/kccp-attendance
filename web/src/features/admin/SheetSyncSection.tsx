@@ -2,11 +2,14 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  addSheetExportTarget,
   addSheetSource,
   getSheetSync,
+  removeSheetExportTarget,
   removeSheetSource,
   rotateSheetExportToken,
   rotateSheetSyncToken,
+  runSheetPush,
   runSheetSync,
   type SheetSyncSettings,
   type SheetSyncOutcome,
@@ -200,10 +203,137 @@ export function SheetSyncSection() {
   )
 }
 
-// 반대 방향 — 출석부의 예배 출석을 구글 시트로. 서버에는 구글 계정이 없어서 시트가 당긴다:
-// 받을 스프레드시트에 Export.gs를 붙이면 그 스크립트가 몇 분마다 서버에서 표를 받아 적는다.
-// 여기서 하는 일은 키를 내주고 그 키가 들어간 스크립트를 복사해 주는 것뿐이다.
+// 반대 방향 — 출석부의 예배 출석을 구글 시트로. **링크를 붙여넣는 것이 전부다**: 서버가 자기
+// 구글 계정(서비스 계정)으로 그 시트에 부서마다 탭 하나씩 10분마다 다시 쓴다 (googleSheets.ts).
+// 구글은 로그인 없는 쓰기를 받지 않으므로 그 계정이 서버에 있어야 하고, 없으면 이 칸은 그렇다고
+// 말한다. 스크립트로 당기는 옛 길(Export.gs)은 서버 계정 없이도 되는 대안이라 접어서 남긴다.
 function ExportPanel({ data, copy }: { data: SheetSyncSettings | undefined; copy: (text: string) => Promise<void> }) {
+  const { t } = useTranslation()
+  const toast = useToast()
+  const qc = useQueryClient()
+  const [url, setUrl] = useState('')
+  const [title, setTitle] = useState('')
+  const saEmail = data?.serviceAccountEmail ?? null
+  const targets = data?.exportTargets ?? []
+  const invalidate = () => qc.invalidateQueries({ queryKey: ['sheetSync'] })
+
+  const add = useMutation({
+    mutationFn: () => addSheetExportTarget(url.trim(), title.trim()),
+    onSuccess: (res) => {
+      setUrl(''); setTitle('')
+      invalidate()
+      // 붙이는 즉시 한 번 써 본 결과 — 권한이 없으면 지금 말한다.
+      const failed = res.lastPush?.outcomes.find((o) => o.error)
+      if (failed) toast({ title: failed.error!, tone: 'err' })
+      else toast({ title: t('admin.sheetSync.pushAdded'), tone: 'ok' })
+    },
+    onError: (e: Error) => toast({ title: e.message || t('common.error'), tone: 'err' }),
+  })
+  const remove = useMutation({
+    mutationFn: (id: string) => removeSheetExportTarget(id),
+    onSuccess: () => invalidate(),
+    onError: () => toast({ title: t('common.error'), tone: 'err' }),
+  })
+  const push = useMutation({
+    mutationFn: runSheetPush,
+    onSuccess: (res) => {
+      invalidate()
+      const failed = res.lastPush.outcomes.filter((o) => o.error).length
+      toast(failed
+        ? { title: t('admin.sheetSync.pushFailedCount', { count: failed }), tone: 'err' }
+        : { title: t('admin.sheetSync.pushDone'), tone: 'ok' })
+    },
+    onError: (e: Error) => toast({ title: e.message || t('common.error'), tone: 'err' }),
+  })
+
+  const outcomeOf = (id: string) => data?.lastPush?.outcomes.find((o) => o.id === id)
+
+  return (
+    <div className="surface-panel flex flex-col gap-3 p-4">
+      <span className="text-sm font-semibold text-text">{t('admin.sheetSync.exportTitle')}</span>
+      <p className="text-xs text-muted">{t('admin.sheetSync.exportDesc')}</p>
+
+      {!saEmail && <p className="text-xs font-semibold text-warning">{t('admin.sheetSync.pushNoAccount')}</p>}
+
+      {!!targets.length && (
+        <div className="inset-list">
+          {targets.map((target) => {
+            const o = outcomeOf(target.id)
+            return (
+              <div key={target.id} className="inset-row min-h-14 justify-between gap-3 py-3">
+                <div className="min-w-0">
+                  <a
+                    href={`https://docs.google.com/spreadsheets/d/${target.id}/edit`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block truncate text-sm font-semibold text-text underline-offset-2 hover:underline"
+                  >
+                    {target.title || target.id}
+                  </a>
+                  {o?.error
+                    ? <div className="text-xs font-semibold text-danger">{o.error}</div>
+                    : o
+                      ? <div className="truncate text-xs text-muted">{o.tabs.join(' · ')}</div>
+                      : null}
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  {o && <Tag tone={o.error ? 'danger' : 'success'}>{o.error ? t('admin.sheetSync.failed') : t('admin.sheetSync.ok')}</Tag>}
+                  <Button variant="ghost" onClick={() => remove.mutate(target.id)} disabled={remove.isPending}>
+                    {t('admin.sheetSync.remove')}
+                  </Button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      <label>
+        <span className="field-label">{t('admin.sheetSync.pushLinkLabel')}</span>
+        <Input
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="https://docs.google.com/spreadsheets/d/..."
+          className="font-mono text-xs"
+        />
+      </label>
+      <label>
+        <span className="field-label">{t('admin.sheetSync.titleLabel')}</span>
+        <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t('admin.sheetSync.pushTitlePlaceholder')} />
+      </label>
+      <div className="flex flex-wrap gap-2">
+        <Button onClick={() => add.mutate()} disabled={!saEmail || add.isPending || !url.trim()}>
+          {add.isPending ? t('common.loading') : t('admin.sheetSync.pushAdd')}
+        </Button>
+        <Button variant="secondary" onClick={() => push.mutate()} disabled={!saEmail || push.isPending || !targets.length}>
+          {push.isPending ? t('admin.sheetSync.running') : t('admin.sheetSync.pushNow')}
+        </Button>
+      </div>
+      <p className="text-xs text-muted">
+        {t('admin.sheetSync.pushShareHint')}
+        {saEmail && <> {t('admin.sheetSync.pushShareAlt')} <code className="font-mono">{saEmail}</code></>}
+      </p>
+      {data?.lastPush && (
+        <p className="text-xs text-muted">
+          {t('admin.sheetSync.pushLast')}{' '}
+          {new Date(data.lastPush.at).toLocaleString('ko-KR', { timeZone: 'America/New_York' })}
+          {' · '}
+          {t(data.lastPush.by === 'auto' ? 'admin.sheetSync.byAuto' : 'admin.sheetSync.byAdmin')}
+        </p>
+      )}
+
+      <details className="mt-1">
+        <summary className="cursor-pointer text-xs font-semibold text-muted">{t('admin.sheetSync.scriptAlt')}</summary>
+        <div className="mt-2">
+          <ScriptExport data={data} copy={copy} />
+        </div>
+      </details>
+    </div>
+  )
+}
+
+// 서버에 구글 계정이 없어도 되는 대안 — 시트에 Export.gs를 붙이면 그 스크립트가 당긴다.
+function ScriptExport({ data, copy }: { data: SheetSyncSettings | undefined; copy: (text: string) => Promise<void> }) {
   const { t } = useTranslation()
   const toast = useToast()
   const qc = useQueryClient()
@@ -226,9 +356,7 @@ function ExportPanel({ data, copy }: { data: SheetSyncSettings | undefined; copy
   }
 
   return (
-    <div className="surface-panel flex flex-col gap-3 p-4">
-      <span className="text-sm font-semibold text-text">{t('admin.sheetSync.exportTitle')}</span>
-      <p className="text-xs text-muted">{t('admin.sheetSync.exportDesc')}</p>
+    <div className="flex flex-col gap-3">
       <span className="field-label">{t('admin.sheetSync.exportTokenLabel')}</span>
       {token ? (
         <div className="flex flex-wrap items-center gap-2">

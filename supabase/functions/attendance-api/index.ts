@@ -8,6 +8,7 @@ import { findLink, findLinkFor, leadersOf, newLinkToken, parseLinks, recentSunda
 import { deleteMembersKeepingAttendance } from "./memberDelete.ts";
 import { selectAll } from "./page.ts";
 import { buildExportGrid, exportWindow } from "./sheetExport.ts";
+import { explainSheetError, serviceAccountOf, writeGridToSpreadsheet } from "./googleSheets.ts";
 // Decrypt-side of the weekly R2 backup pipeline (see scripts/backup/). age-encryption is
 // FiloSottile's own pure-JS port of `age` (no native/subprocess dependency, which Deno
 // edge functions can't shell out to anyway); postgres.js's .unsafe() with no parameters
@@ -570,7 +571,10 @@ const SHEET_SOURCE="sheet";
 interface SyncSource { id: string; gid: string; title: string; group: string; term: string }
 // exportToken은 반대 방향(출석부 → 시트, /api/sheet/export)의 열쇠다. 읽기 전용이라 sync
 // 토큰과 따로 둔다 — 내보내기 시트에 붙인 키가 새어도 명단에 무언가를 부어 넣을 수는 없다.
-interface SyncSettings { token: string; exportToken: string; sources: SyncSource[]; lastRun: unknown }
+// exportTargets는 링크만 붙여 둔 내보내기 시트들이다 — 서버가 자기 구글 계정(서비스 계정)으로
+// 직접 쓴다 (googleSheets.ts). 스크립트도 키도 필요 없다. lastPush는 그 마지막 결과.
+interface ExportTarget { id: string; title: string }
+interface SyncSettings { token: string; exportToken: string; sources: SyncSource[]; lastRun: unknown; exportTargets: ExportTarget[]; lastPush: unknown }
 
 // deno-lint-ignore no-explicit-any
 function syncSettings(cfg: any): SyncSettings {
@@ -580,7 +584,13 @@ function syncSettings(cfg: any): SyncSettings {
     .filter((x: any)=>x&&typeof x.id==="string"&&x.id)
     // deno-lint-ignore no-explicit-any
     .map((x: any)=>({id:String(x.id),gid:String(x.gid||""),title:String(x.title||""),group:String(x.group||""),term:String(x.term||"")}));
-  return {token:typeof s.token==="string"?s.token:"",exportToken:typeof s.exportToken==="string"?s.exportToken:"",sources,lastRun:s.lastRun??null};
+  const exportTargets=(Array.isArray(s.exportTargets)?s.exportTargets:[])
+    // deno-lint-ignore no-explicit-any
+    .filter((x: any)=>x&&typeof x.id==="string"&&x.id)
+    // deno-lint-ignore no-explicit-any
+    .map((x: any)=>({id:String(x.id),title:String(x.title||"")}));
+  return {token:typeof s.token==="string"?s.token:"",exportToken:typeof s.exportToken==="string"?s.exportToken:"",sources,lastRun:s.lastRun??null,
+    exportTargets,lastPush:s.lastPush??null};
 }
 
 function newSyncToken() {
@@ -936,6 +946,78 @@ function scheduleSheetPull(sb: SB, part: Partition, cfg: any): void {
   try{(globalThis as any).EdgeRuntime?.waitUntil?.(task);}catch(_){/* best effort */}
 }
 
+// ── 출석부 → 시트 (링크만 붙여 둔 시트에 서버가 직접 쓴다) ─────────────────────────────
+// 표는 /api/sheet/export(스크립트가 당기는 길)와 **같은 함수**가 짠다 — 두 길이 같은 시트에
+// 다른 표를 쓰면 어느 쪽이 맞는지 알 수 없게 된다.
+// deno-lint-ignore no-explicit-any
+async function exportGridFor(sb: SB, part: Partition, cfg: any, term: string) {
+  const win=exportWindow(localDate(),cfg,term,USES_SEMESTERS.includes(part));
+  if(!win) return null;
+  const pdb=db(sb,part);
+  const [members,log]=await Promise.all([
+    // deno-lint-ignore no-explicit-any
+    selectAll<any>(()=>pdb.from("members").select("*").order("id",{ascending:true})),
+    // deno-lint-ignore no-explicit-any
+    selectAll<any>(()=>pdb.from("attendance_log").select("id,member_id,name,date,is_guest").eq("kind","worship")
+      .gte("date",win.start).lte("date",win.end).order("date",{ascending:true}).order("id",{ascending:true})),
+  ]);
+  // 끝난 학기는 그 학기의 편성 스냅숏으로 가른다 (롤오버가 지금 편성을 비웠다).
+  const snap=win.term?cfg?.dongsan_history?.[win.term]?.subgroups:null;
+  const grid=buildExportGrid(members,log,win,snap&&typeof snap==="object"?snap:null);
+  return {partition:part,term:win.term,start:win.start,end:win.end,generatedAt:new Date().toISOString(),...grid};
+}
+
+function serviceAccount() { return serviceAccountOf(Deno.env.get("GOOGLE_SERVICE_ACCOUNT_JSON")); }
+
+interface PushOutcome { id: string; title: string; tabs: string[]; error?: string }
+
+// 붙여 둔 시트마다 부서별 탭을 통째로 다시 쓴다. 표는 한 번만 짜서 모든 시트에 나눠 준다.
+// deno-lint-ignore no-explicit-any
+async function runSheetPush(sb: SB, part: Partition, cfg: any, onlyId?: string): Promise<PushOutcome[]> {
+  const sa=serviceAccount();
+  const targets=syncSettings(cfg).exportTargets.filter((t)=>!onlyId||t.id===onlyId);
+  if(!sa||!targets.length) return [];
+  const grid=await exportGridFor(sb,part,cfg,"");
+  if(!grid) return [];
+  const out: PushOutcome[]=[];
+  for(const t of targets) {
+    try { out.push({id:t.id,title:t.title,tabs:await writeGridToSpreadsheet(sa,t.id,grid)}); }
+    catch(e) { out.push({id:t.id,title:t.title,tabs:[],error:explainSheetError(e,sa.email)}); }
+  }
+  return out;
+}
+
+// deno-lint-ignore no-explicit-any
+async function recordPush(sb: SB, part: Partition, by: string, outcomes: PushOutcome[]) {
+  // 쓰기 직전에 설정을 다시 읽는다 — 그 사이 관리자가 시트를 붙였다 뗐을 수 있다.
+  const fresh=await getCfg(sb,part);
+  const lastPush={at:Date.now(),by,outcomes};
+  await db(sb,part).from("config").update({sheet_sync:{...syncSettings(fresh),lastPush}}).eq("id",1);
+  return lastPush;
+}
+
+// 시트 당기기(maybeSheetPull)와 같은 시계다: /api/roster에 얹고, 조건부 UPDATE 하나가 청구권이라
+// 쿨다운(기본 10분)마다 한 번만 쓴다. 붙은 시트가 없거나 서버에 구글 계정이 없으면 문장 하나도
+// 나가지 않는다.
+// deno-lint-ignore no-explicit-any
+async function maybeSheetPush(sb: SB, part: Partition, cfg: any): Promise<void> {
+  const cooldownMin=Number(Deno.env.get("SHEET_PUSH_COOLDOWN_MIN")||"10");
+  if(!(Number.isFinite(cooldownMin)&&cooldownMin>0)) return;
+  if(!syncSettings(cfg).exportTargets.length||!serviceAccount()) return;
+  const claimCol="last_sheet_push_at";
+  const cutoff=new Date(Date.now()-cooldownMin*60_000).toISOString();
+  const {data:claimed}=await db(sb,part).from("config").update({[claimCol]:new Date().toISOString()})
+    .eq("id",1).or(`${claimCol}.is.null,${claimCol}.lt.${cutoff}`).select("id");
+  if(!claimed?.length) return;
+  await recordPush(sb,part,"auto",await runSheetPush(sb,part,cfg));
+}
+// deno-lint-ignore no-explicit-any
+function scheduleSheetPush(sb: SB, part: Partition, cfg: any): void {
+  const task=maybeSheetPush(sb,part,cfg).catch((e)=>console.error("sheet auto-push error",e));
+  // deno-lint-ignore no-explicit-any
+  try{(globalThis as any).EdgeRuntime?.waitUntil?.(task);}catch(_){/* best effort */}
+}
+
 const SEMESTER_SEASONS=["spring","summer","fall"] as const;
 function monthDayNumber(value: unknown): number | null {
   if(typeof value!=="string"||!/^\d{2}-\d{2}$/.test(value)) return null;
@@ -1211,6 +1293,7 @@ Deno.serve(async (req: Request) => {
       // 같은 시계가 구글 시트도 당겨 온다 (쿨다운마다 한 번, 응답은 기다리지 않는다). 이번에
       // 읽은 것은 다음 요청에 실려 온다 — 화면이 15초마다 다시 부르므로 저절로 따라온다.
       scheduleSheetPull(sb,part,cfg);
+      scheduleSheetPush(sb,part,cfg); // 반대 방향 — 링크를 붙여 둔 시트에 출석부를 써 준다
       const summer=summerNow(cfg,part);
       const scope=scopeFilter(role,summer);
       const mq=()=>scopeQuery(adb.from("members").select("*").order("name",{ascending:true}),scope);
@@ -1271,6 +1354,7 @@ Deno.serve(async (req: Request) => {
       const s=syncSettings(await getCfg(sb,actingPartition));
       const base=`${url.origin}${raw.slice(0,raw.indexOf("/api"))}`;
       return ok({token:s.token,exportToken:s.exportToken,sources:s.sources,lastRun:s.lastRun,
+        exportTargets:s.exportTargets,lastPush:s.lastPush,serviceAccountEmail:serviceAccount()?.email||null,
         pingUrl:`${base}/api/sheet/sync`,exportUrl:`${base}/api/sheet/export`});
     }
 
@@ -1283,6 +1367,12 @@ Deno.serve(async (req: Request) => {
       let next={...s};
       if(action==="rotate-token") next.token=newSyncToken();
       else if(action==="rotate-export-token") next.exportToken=newSyncToken();
+      else if(action==="add-export-target") {
+        const parsedUrl=parseSheetUrl(String(body.url||""));
+        if(!parsedUrl) return fail(400,"구글 시트 링크가 아닙니다");
+        next.exportTargets=[...s.exportTargets.filter((x)=>x.id!==parsedUrl.id),{id:parsedUrl.id,title:String(body.title||"").slice(0,120)}];
+      }
+      else if(action==="remove-export-target") next.exportTargets=s.exportTargets.filter((x)=>x.id!==String(body.id||""));
       else if(action==="add-source") {
         const parsedUrl=parseSheetUrl(String(body.url||""));
         if(!parsedUrl) return fail(400,"구글 시트 링크가 아닙니다");
@@ -1309,7 +1399,14 @@ Deno.serve(async (req: Request) => {
       else return fail(400,"Unknown action");
       await db(sb,actingPartition).from("config").update({sheet_sync:{...next},updated_at:new Date().toISOString()}).eq("id",1);
       await addAudit(adb,"sheet-sync-config",xDev,String(action),actingPartition);
-      return ok({token:next.token,exportToken:next.exportToken,sources:next.sources,lastRun:next.lastRun});
+      // 시트를 붙이면 그 자리에서 한 번 써 본다 — 권한이 없으면 지금 알아야 한다 (10분 뒤
+      // 아무도 안 보는 결과 칸에 적히면 "왜 안 채워지지"가 된다).
+      if(action==="add-export-target") {
+        const id=next.exportTargets[next.exportTargets.length-1].id;
+        const lastPush=await recordPush(sb,actingPartition,"admin",await runSheetPush(sb,actingPartition,{...cfg,sheet_sync:next},id));
+        return ok({...next,lastPush,serviceAccountEmail:serviceAccount()?.email||null});
+      }
+      return ok({...next,serviceAccountEmail:serviceAccount()?.email||null});
     }
 
     // 지금 동기화 — 관리자가 버튼을 눌렀을 때. 시트가 두드리는 경로와 같은 일을 한다.
@@ -1322,6 +1419,17 @@ Deno.serve(async (req: Request) => {
       await db(sb,actingPartition).from("config").update({sheet_sync:{...syncSettings(cfg),lastRun}}).eq("id",1);
       await addAudit(adb,"sheet-sync-run",xDev,`${outcomes.reduce((n,o)=>n+o.added,0)} added, ${outcomes.reduce((n,o)=>n+o.removed,0)} removed`,actingPartition);
       return ok({lastRun});
+    }
+
+    // 지금 보내기 — 링크를 붙여 둔 시트 전부에 바로 쓴다.
+    if(req.method==="POST"&&p==="/api/admin/sheet-push/run") {
+      const role=await auth();
+      if(role?.role!=="super_admin") return fail(403,"Not authorized");
+      if(!serviceAccount()) return fail(400,"서버에 구글 계정이 아직 연결되지 않았습니다");
+      const cfg=await getCfg(sb,actingPartition);
+      const lastPush=await recordPush(sb,actingPartition,"admin",await runSheetPush(sb,actingPartition,cfg));
+      await addAudit(adb,"sheet-push-run",xDev,`${lastPush.outcomes.length} sheets`,actingPartition);
+      return ok({lastPush});
     }
 
     // 시트가 바뀌었다고 알려 오는 자리. 스프레드시트에 붙인 Apps Script가 여기를 두드리고,
@@ -1360,19 +1468,9 @@ Deno.serve(async (req: Request) => {
         :tokenEq(syncSettings(adultCfg).exportToken,token)?"adult":null;
       if(!part) return fail(401,"Not authorized");
       const cfg=part==="adult"?adultCfg:youthCfg;
-      const today=localDate();
-      const win=exportWindow(today,cfg,url.searchParams.get("term")||"",USES_SEMESTERS.includes(part));
-      if(!win) return fail(400,"모르는 학기입니다 — 2026-fall처럼 적어 주세요");
-      const pdb=db(sb,part);
-      const [members,log]=await Promise.all([
-        selectAll<any>(()=>pdb.from("members").select("*").order("id",{ascending:true})),
-        selectAll<any>(()=>pdb.from("attendance_log").select("id,member_id,name,date,is_guest").eq("kind","worship")
-          .gte("date",win.start).lte("date",win.end).order("date",{ascending:true}).order("id",{ascending:true})),
-      ]);
-      // 끝난 학기는 그 학기의 편성 스냅숏으로 가른다 (롤오버가 지금 편성을 비웠다).
-      const snap=win.term?cfg?.dongsan_history?.[win.term]?.subgroups:null;
-      const grid=buildExportGrid(members,log,win,snap&&typeof snap==="object"?snap:null);
-      return ok({partition:part,term:win.term,start:win.start,end:win.end,generatedAt:new Date().toISOString(),...grid});
+      const grid=await exportGridFor(sb,part,cfg,url.searchParams.get("term")||"");
+      if(!grid) return fail(400,"모르는 학기입니다 — 2026-fall처럼 적어 주세요");
+      return ok(grid);
     }
 
     // ── 동산 리더 링크 ───────────────────────────────────────────────────────────────
