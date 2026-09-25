@@ -5,8 +5,10 @@ import {
   addSheetSource,
   getSheetSync,
   removeSheetSource,
+  rotateSheetExportToken,
   rotateSheetSyncToken,
   runSheetSync,
+  type SheetSyncSettings,
   type SheetSyncOutcome,
 } from '../../lib/api'
 import { refreshRoster } from '../../lib/live'
@@ -17,6 +19,9 @@ import { Select } from '../../components/ui/Select'
 import { Tag } from '../../components/ui/Tag'
 import { groupsOfPartition, termKeyLabel } from '../../lib/partition'
 import { usePartition } from '../../lib/useAppConfig'
+// 시트에 붙일 스크립트 원문. 화면에서 키를 채워 통째로 복사해 주므로, 사람이 저장소에서
+// 파일을 찾아 TOKEN 줄을 고칠 일이 없다 — 붙여넣고 '설치하기'만 누르면 된다.
+import exportScript from '../../../../scripts/sheet-sync/Export.gs?raw'
 
 // 동산이 출석을 적는 구글 시트를 출석부에 붙이는 곳.
 //
@@ -175,6 +180,8 @@ export function SheetSyncSection() {
         </div>
       )}
 
+      <ExportPanel data={data} copy={copy} />
+
       {/* 지난번에 무슨 일이 있었나 */}
       {data?.lastRun && (
         <div className="surface-panel flex flex-col gap-3 p-4">
@@ -189,6 +196,61 @@ export function SheetSyncSection() {
           {data.lastRun.outcomes.map((o) => <OutcomeCard key={o.sourceId} outcome={o} />)}
         </div>
       )}
+    </div>
+  )
+}
+
+// 반대 방향 — 출석부의 예배 출석을 구글 시트로. 서버에는 구글 계정이 없어서 시트가 당긴다:
+// 받을 스프레드시트에 Export.gs를 붙이면 그 스크립트가 몇 분마다 서버에서 표를 받아 적는다.
+// 여기서 하는 일은 키를 내주고 그 키가 들어간 스크립트를 복사해 주는 것뿐이다.
+function ExportPanel({ data, copy }: { data: SheetSyncSettings | undefined; copy: (text: string) => Promise<void> }) {
+  const { t } = useTranslation()
+  const toast = useToast()
+  const qc = useQueryClient()
+  const token = data?.exportToken || ''
+
+  const rotate = useMutation({
+    mutationFn: rotateSheetExportToken,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['sheetSync'] })
+      if (token) toast({ title: t('admin.sheetSync.exportRotated'), tone: 'ok' })
+    },
+    onError: () => toast({ title: t('common.error'), tone: 'err' }),
+  })
+
+  const script = () => {
+    let text = exportScript.replace("'여기에 내보내기 키를 붙여넣으세요'", `'${token}'`)
+    // 서버가 알려 준 주소가 있으면 그것을 쓴다 (미리보기 배포처럼 주소가 다른 곳에서도 맞도록).
+    if (data?.exportUrl) text = text.replace(/var ENDPOINT = '[^']*';/, `var ENDPOINT = '${data.exportUrl}';`)
+    return text
+  }
+
+  return (
+    <div className="surface-panel flex flex-col gap-3 p-4">
+      <span className="text-sm font-semibold text-text">{t('admin.sheetSync.exportTitle')}</span>
+      <p className="text-xs text-muted">{t('admin.sheetSync.exportDesc')}</p>
+      <span className="field-label">{t('admin.sheetSync.exportTokenLabel')}</span>
+      {token ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <code className="min-w-0 flex-1 truncate rounded-xl bg-fill px-3 py-2 font-mono text-xs text-text">{token}</code>
+          <Button variant="ghost" onClick={() => rotate.mutate()} disabled={rotate.isPending}>
+            {t('admin.sheetSync.exportRotate')}
+          </Button>
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted">{t('admin.sheetSync.exportNoToken')}</span>
+          <Button variant="secondary" onClick={() => rotate.mutate()} disabled={rotate.isPending}>
+            {rotate.isPending ? t('common.loading') : t('admin.sheetSync.exportCreate')}
+          </Button>
+        </div>
+      )}
+      {!!token && (
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={() => copy(script())}>{t('admin.sheetSync.exportCopyScript')}</Button>
+        </div>
+      )}
+      <p className="text-xs text-muted">{t('admin.sheetSync.exportSteps')}</p>
     </div>
   )
 }

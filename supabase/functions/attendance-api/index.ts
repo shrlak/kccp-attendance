@@ -7,6 +7,7 @@ import { csvUrl, matchPerson, mergeSheetMarks, nameCounts, normalizeMarks, parse
 import { findLink, findLinkFor, leadersOf, newLinkToken, parseLinks, recentSundays, reconcileTermLinks, sundaysBetween, type DongsanLink } from "./dongsanLink.ts";
 import { deleteMembersKeepingAttendance } from "./memberDelete.ts";
 import { selectAll } from "./page.ts";
+import { buildExportGrid, exportWindow } from "./sheetExport.ts";
 // Decrypt-side of the weekly R2 backup pipeline (see scripts/backup/). age-encryption is
 // FiloSottile's own pure-JS port of `age` (no native/subprocess dependency, which Deno
 // edge functions can't shell out to anyway); postgres.js's .unsafe() with no parameters
@@ -567,7 +568,9 @@ const SHEET_SOURCE="sheet";
 // 동기화 자체는 학기와 무관하게 돈다 (지난 학기 시트를 다시 읽어도 그 학기 날짜에 같은 값이
 // 들어갈 뿐이다). 학기를 보는 것은 sheetCoveredGroups 하나다.
 interface SyncSource { id: string; gid: string; title: string; group: string; term: string }
-interface SyncSettings { token: string; sources: SyncSource[]; lastRun: unknown }
+// exportToken은 반대 방향(출석부 → 시트, /api/sheet/export)의 열쇠다. 읽기 전용이라 sync
+// 토큰과 따로 둔다 — 내보내기 시트에 붙인 키가 새어도 명단에 무언가를 부어 넣을 수는 없다.
+interface SyncSettings { token: string; exportToken: string; sources: SyncSource[]; lastRun: unknown }
 
 // deno-lint-ignore no-explicit-any
 function syncSettings(cfg: any): SyncSettings {
@@ -577,7 +580,7 @@ function syncSettings(cfg: any): SyncSettings {
     .filter((x: any)=>x&&typeof x.id==="string"&&x.id)
     // deno-lint-ignore no-explicit-any
     .map((x: any)=>({id:String(x.id),gid:String(x.gid||""),title:String(x.title||""),group:String(x.group||""),term:String(x.term||"")}));
-  return {token:typeof s.token==="string"?s.token:"",sources,lastRun:s.lastRun??null};
+  return {token:typeof s.token==="string"?s.token:"",exportToken:typeof s.exportToken==="string"?s.exportToken:"",sources,lastRun:s.lastRun??null};
 }
 
 function newSyncToken() {
@@ -1266,8 +1269,9 @@ Deno.serve(async (req: Request) => {
       const role=await auth();
       if(role?.role!=="super_admin") return fail(403,"Not authorized");
       const s=syncSettings(await getCfg(sb,actingPartition));
-      return ok({token:s.token,sources:s.sources,lastRun:s.lastRun,
-        pingUrl:`${url.origin}${raw.slice(0,raw.indexOf("/api"))}/api/sheet/sync`});
+      const base=`${url.origin}${raw.slice(0,raw.indexOf("/api"))}`;
+      return ok({token:s.token,exportToken:s.exportToken,sources:s.sources,lastRun:s.lastRun,
+        pingUrl:`${base}/api/sheet/sync`,exportUrl:`${base}/api/sheet/export`});
     }
 
     if(req.method==="POST"&&p==="/api/admin/sheet-sync") {
@@ -1278,6 +1282,7 @@ Deno.serve(async (req: Request) => {
       const {action}=body;
       let next={...s};
       if(action==="rotate-token") next.token=newSyncToken();
+      else if(action==="rotate-export-token") next.exportToken=newSyncToken();
       else if(action==="add-source") {
         const parsedUrl=parseSheetUrl(String(body.url||""));
         if(!parsedUrl) return fail(400,"구글 시트 링크가 아닙니다");
@@ -1304,7 +1309,7 @@ Deno.serve(async (req: Request) => {
       else return fail(400,"Unknown action");
       await db(sb,actingPartition).from("config").update({sheet_sync:{...next},updated_at:new Date().toISOString()}).eq("id",1);
       await addAudit(adb,"sheet-sync-config",xDev,String(action),actingPartition);
-      return ok({token:next.token,sources:next.sources,lastRun:next.lastRun});
+      return ok({token:next.token,exportToken:next.exportToken,sources:next.sources,lastRun:next.lastRun});
     }
 
     // 지금 동기화 — 관리자가 버튼을 눌렀을 때. 시트가 두드리는 경로와 같은 일을 한다.
@@ -1340,6 +1345,34 @@ Deno.serve(async (req: Request) => {
       await db(sb,part).from("config").update({sheet_sync:{...syncSettings(cfg),lastRun}}).eq("id",1);
       actingPartition=part; // 자동 백업이 이 부의 줄기로 나가도록
       return ok({status:"ok",outcomes});
+    }
+
+    // 출석부 → 구글 시트. 시트에 붙인 Apps Script(scripts/sheet-sync/Export.gs)가 몇 분마다
+    // 여기를 부르고 받은 표를 탭에 옮겨 적는다 — 서버에는 구글 계정이 없어서 시트에 쓸 수
+    // 있는 것은 그 스크립트뿐이다. 표를 짜는 규칙은 sheetExport.ts에 있다. 로그인이 아니라
+    // 내보내기 키로 들어오고, 키가 어느 부의 것이냐가 곧 어느 명단을 내줄 것이냐다. 나가는
+    // 것은 이름·부서·동산과 예배 O/X뿐이다 — 연락처는 이 문으로 나가지 않는다.
+    if(req.method==="GET"&&p==="/api/sheet/export") {
+      const token=req.headers.get("x-export-token")||url.searchParams.get("token")||"";
+      if(!token) return fail(401,"Not authorized");
+      const [youthCfg,adultCfg]=await Promise.all([getCfg(sb,"youth"),getCfg(sb,"adult")]);
+      const part: Partition|null=tokenEq(syncSettings(youthCfg).exportToken,token)?"youth"
+        :tokenEq(syncSettings(adultCfg).exportToken,token)?"adult":null;
+      if(!part) return fail(401,"Not authorized");
+      const cfg=part==="adult"?adultCfg:youthCfg;
+      const today=localDate();
+      const win=exportWindow(today,cfg,url.searchParams.get("term")||"",USES_SEMESTERS.includes(part));
+      if(!win) return fail(400,"모르는 학기입니다 — 2026-fall처럼 적어 주세요");
+      const pdb=db(sb,part);
+      const [members,log]=await Promise.all([
+        selectAll<any>(()=>pdb.from("members").select("*").order("id",{ascending:true})),
+        selectAll<any>(()=>pdb.from("attendance_log").select("id,member_id,name,date,is_guest").eq("kind","worship")
+          .gte("date",win.start).lte("date",win.end).order("date",{ascending:true}).order("id",{ascending:true})),
+      ]);
+      // 끝난 학기는 그 학기의 편성 스냅숏으로 가른다 (롤오버가 지금 편성을 비웠다).
+      const snap=win.term?cfg?.dongsan_history?.[win.term]?.subgroups:null;
+      const grid=buildExportGrid(members,log,win,snap&&typeof snap==="object"?snap:null);
+      return ok({partition:part,term:win.term,start:win.start,end:win.end,generatedAt:new Date().toISOString(),...grid});
     }
 
     // ── 동산 리더 링크 ───────────────────────────────────────────────────────────────
