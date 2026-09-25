@@ -850,7 +850,15 @@ live** at https://shrlak.github.io/kccp-attendance/.
   10분마다 `GET /api/sheet/export`를 부르고, 부서마다 탭 하나(`출석부 · 대학부` …)를 통째로
   다시 쓴다. 표를 짜는 규칙은 전부 서버의 `buildExportGrid`에 있고 스크립트는 받아 적기만
   한다 (파서를 서버에 둔 것과 같은 이유).
-- **열쇠는 `config.sheet_sync.exportToken`** — 동기화 토큰(`token`)과 **따로다**: 읽기 전용
+- **기본 길은 링크만 붙여넣기다** (`googleSheets.ts`, `sheet_sync.exportTargets`): 구글은 로그인
+  없는 쓰기를 받지 않으므로 서버가 **서비스 계정**(`GOOGLE_SERVICE_ACCOUNT_JSON`, Supabase 함수
+  시크릿)으로 쓴다 — 링크가 '편집자'로 열린 시트는 그 계정도 쓸 수 있어 사람이 할 일은 링크
+  하나다. `maybeSheetPush`가 `maybeSheetPull`과 같은 시계(`/api/roster` + 청구권
+  `config.last_sheet_push_at`, `20260902`, 기본 10분)로 돌고, 붙이는 순간 한 번 써서 권한 문제를
+  그 자리에서 보여준다. 표는 스크립트 길과 **같은 `exportGridFor`**가 짠다. 새로 만든 탭에만 모양
+  (고정·굵게·O/X 조건부 색)을 입힌다 — 매번 입히면 조건부 규칙이 쌓인다. 계정이 없으면 화면이
+  그렇다고 말하고 아래 스크립트 길(접혀 있다)을 쓴다.
+- **스크립트 길의 열쇠는 `config.sheet_sync.exportToken`** — 동기화 토큰(`token`)과 **따로다**: 읽기 전용
   문이라 새어도 명단에 부어 넣을 수 없게. `syncSettings()`가 그 칸을 들고 다니므로 sheet_sync를
   쓰는 모든 자리가 `{...syncSettings(cfg), …}`로 써야 키가 지워지지 않는다. 나가는 것은
   이름·부서·동산·예배 O/X뿐 (연락처 없음). 설정 탭의 `ExportPanel`이 키를 내주고 **키가 채워진

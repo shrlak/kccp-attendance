@@ -217,14 +217,26 @@
       "unmatched": "{{count}} names needing a look",
       "warnings": "{{count}} warnings",
       "exportTitle": "Attendance → Sheet export",
-      "exportDesc": "Sends worship attendance recorded in the kiosk and admin panel to a Google Sheet. Paste the script into the receiving spreadsheet and every 10 minutes it fills one tab per group (출석부 · 대학부, 출석부 · 청년부) with this term's grid. Only people assigned to a 동산 are included, sorted by 동산 then name. Those tabs are fully rewritten on each refresh, so keep hand-written notes in other tabs.",
+      "exportDesc": "Sends worship attendance recorded in the kiosk and admin panel to a Google Sheet. Paste the sheet link and the server rewrites one tab per group (출석부 · 대학부, 출석부 · 청년부) with this term's grid every 10 minutes. Only people assigned to a 동산 are included, sorted by 동산 then name. Those tabs are fully rewritten on each refresh, so keep hand-written notes in other tabs.",
       "exportTokenLabel": "Export key",
       "exportNoToken": "No export key yet.",
       "exportCreate": "Create export key",
       "exportRotate": "Issue new key",
       "exportRotated": "Issued a new export key. Sheets using the old key stop receiving — copy and paste the script again.",
       "exportCopyScript": "Copy script (with key)",
-      "exportSteps": "In the receiving spreadsheet: Extensions → Apps Script → paste the copied script and save → run '설치하기' from the function list → allow permissions. The sheet does not need to be public. This key only exposes names, group, 동산 and worship O/X — no contact info. It is a different key from the 동산 sheet sync key."
+      "exportSteps": "In the receiving spreadsheet: Extensions → Apps Script → paste the copied script and save → run '설치하기' from the function list → allow permissions. The sheet does not need to be public. This key only exposes names, group, 동산 and worship O/X — no contact info. It is a different key from the 동산 sheet sync key.",
+      "pushLinkLabel": "Google Sheet link to receive attendance",
+      "pushTitlePlaceholder": "Youth attendance (app)",
+      "pushAdd": "Connect sheet",
+      "pushAdded": "Connected the sheet and sent attendance",
+      "pushNow": "Send now",
+      "pushDone": "Sent attendance to the sheet",
+      "pushFailedCount": "Could not write to {{count}} sheet(s) — see the reason below",
+      "pushShareHint": "Share the sheet as 'Anyone with the link — Editor' and the link is all it takes.",
+      "pushShareAlt": "If you'd rather not share the link publicly, add this account as an editor instead:",
+      "pushLast": "Last sent",
+      "pushNoAccount": "The server has no Google account connected yet, so link connection is unavailable (GOOGLE_SERVICE_ACCOUNT_JSON required). Until then you can use the script method below.",
+      "scriptAlt": "Connect with a script (no server Google account)"
     }
   }
 }

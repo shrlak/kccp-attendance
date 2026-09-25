@@ -7,16 +7,17 @@ import { SheetSyncSection } from './SheetSyncSection'
 
 beforeAll(async () => { await i18n.init() })
 
-function stub(exportToken: string) {
-  vi.stubGlobal(
-    'fetch',
-    vi.fn().mockImplementation(() =>
-      Promise.resolve(new Response(JSON.stringify({
-        sources: [], token: '', lastRun: null, exportToken,
-        exportUrl: 'https://example.test/functions/v1/attendance-api/api/sheet/export',
-      }), { status: 200 })),
-    ),
+function stub(exportToken: string, extra: Record<string, unknown> = {}) {
+  const fetchMock = vi.fn().mockImplementation(() =>
+    Promise.resolve(new Response(JSON.stringify({
+      sources: [], token: '', lastRun: null, exportToken,
+      exportUrl: 'https://example.test/functions/v1/attendance-api/api/sheet/export',
+      exportTargets: [], lastPush: null, serviceAccountEmail: null,
+      ...extra,
+    }), { status: 200 })),
   )
+  vi.stubGlobal('fetch', fetchMock)
+  return fetchMock
 }
 
 const writeText = vi.fn().mockResolvedValue(undefined)
@@ -50,5 +51,37 @@ describe('출석부 → 시트 내보내기', () => {
     expect(text).toContain("var TOKEN = 'abc123';")
     expect(text).toContain("var ENDPOINT = 'https://example.test/functions/v1/attendance-api/api/sheet/export';")
     expect(text).toContain('function 가져오기()')
+  })
+})
+
+describe('출석부 → 시트, 링크만 붙여넣기', () => {
+  it('서버에 구글 계정이 없으면 그렇다고 말하고 연결 버튼이 눌리지 않는다', async () => {
+    stub('')
+    renderIt()
+    expect(await screen.findByText(/서버에 구글 계정이 아직 연결되지 않아/)).toBeInTheDocument()
+    expect(screen.getByText('시트 연결').closest('button')).toBeDisabled()
+  })
+
+  it('링크를 붙여넣고 연결하면 그 링크로 add-export-target을 보낸다', async () => {
+    const fetchMock = stub('', { serviceAccountEmail: 'sa@kccp.iam.gserviceaccount.com' })
+    renderIt()
+    expect(await screen.findByText('sa@kccp.iam.gserviceaccount.com')).toBeInTheDocument()
+    const link = 'https://docs.google.com/spreadsheets/d/abc123/edit'
+    fireEvent.change(screen.getByLabelText('출석을 받을 구글 시트 링크'), { target: { value: link } })
+    fireEvent.click(screen.getByText('시트 연결'))
+    await waitFor(() => {
+      const bodies = fetchMock.mock.calls.map((c) => String((c[1] as RequestInit | undefined)?.body ?? ''))
+      expect(bodies.some((b) => b.includes('"add-export-target"') && b.includes(link))).toBe(true)
+    })
+  })
+
+  it('지난번에 못 쓴 시트는 그 이유를 줄에 적는다', async () => {
+    stub('', {
+      serviceAccountEmail: 'sa@kccp.iam.gserviceaccount.com',
+      exportTargets: [{ id: 'abc', title: '대청부 출석' }],
+      lastPush: { at: Date.now(), by: 'auto', outcomes: [{ id: 'abc', title: '대청부 출석', tabs: [], error: '이 시트에 쓸 권한이 없습니다' }] },
+    })
+    renderIt()
+    expect(await screen.findByText('이 시트에 쓸 권한이 없습니다')).toBeInTheDocument()
   })
 })

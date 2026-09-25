@@ -780,6 +780,30 @@ export interface SheetSyncSettings {
   exportToken?: string
   /** 내보내기 스크립트(Export.gs)가 부르는 주소. */
   exportUrl?: string
+  /** 링크만 붙여 둔 내보내기 시트들 — 서버가 직접 쓴다. */
+  exportTargets?: SheetExportTarget[]
+  lastPush?: SheetPushRun | null
+  /** 서버의 구글 계정. null이면 링크 연동이 꺼져 있다 (GOOGLE_SERVICE_ACCOUNT_JSON 미설정). */
+  serviceAccountEmail?: string | null
+}
+
+export interface SheetExportTarget {
+  id: string
+  title: string
+}
+
+export interface SheetPushOutcome {
+  id: string
+  title: string
+  /** 이번에 쓴 탭 이름들. */
+  tabs: string[]
+  error?: string
+}
+
+export interface SheetPushRun {
+  at: number
+  by: 'admin' | 'auto'
+  outcomes: SheetPushOutcome[]
 }
 
 export const getSheetSync = () => api<SheetSyncSettings>('GET', '/api/admin/sheet-sync')
@@ -792,6 +816,16 @@ export const removeSheetSource = (id: string, gid: string) =>
 
 export const rotateSheetSyncToken = () =>
   api<SheetSyncSettings>('POST', '/api/admin/sheet-sync', { action: 'rotate-token' })
+
+// 붙이는 즉시 서버가 한 번 써 본다 — 권한이 없으면 이 응답의 lastPush에 이유가 실려 온다.
+export const addSheetExportTarget = (url: string, title: string) =>
+  api<SheetSyncSettings>('POST', '/api/admin/sheet-sync', { action: 'add-export-target', url, title }, undefined, 60_000)
+
+export const removeSheetExportTarget = (id: string) =>
+  api<SheetSyncSettings>('POST', '/api/admin/sheet-sync', { action: 'remove-export-target', id })
+
+export const runSheetPush = () =>
+  api<{ lastPush: SheetPushRun }>('POST', '/api/admin/sheet-push/run', {}, undefined, 60_000)
 
 // 처음 누르면 키가 생기고, 그 뒤로는 새 키로 갈아 끼운다 (예전 키는 그 자리에서 닫힌다).
 export const rotateSheetExportToken = () =>
