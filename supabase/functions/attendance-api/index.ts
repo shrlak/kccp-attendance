@@ -1369,7 +1369,9 @@ Deno.serve(async (req: Request) => {
         selectAll<any>(()=>pdb.from("attendance_log").select("id,member_id,name,date,is_guest").eq("kind","worship")
           .gte("date",win.start).lte("date",win.end).order("date",{ascending:true}).order("id",{ascending:true})),
       ]);
-      const grid=buildExportGrid(members,log,win);
+      // 끝난 학기는 그 학기의 편성 스냅숏으로 가른다 (롤오버가 지금 편성을 비웠다).
+      const snap=win.term?cfg?.dongsan_history?.[win.term]?.subgroups:null;
+      const grid=buildExportGrid(members,log,win,snap&&typeof snap==="object"?snap:null);
       return ok({partition:part,term:win.term,start:win.start,end:win.end,generatedAt:new Date().toISOString(),...grid});
     }
 

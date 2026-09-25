@@ -12,7 +12,9 @@ import { currentSeason, lastEndedTermKey, scheduleOf, semesterDatesOf, termBound
 //
 // 표의 규칙은 출석부 탭과 같다:
 //  · 열 = 그 기간에 실제로 예배 출석이 찍힌 날짜 (예배가 없던 주일에 X 열을 세우지 않는다)
-//  · 줄 = 부서마다 한 블록, 그 안에서 동산 → 이름 순. 운영 계정·방문자는 없다
+//  · 줄 = **동산이 배정된 사람만**, 부서마다 한 블록, 그 안에서 동산 → 이름 순. 운영
+//    계정·방문자·동산 미지정은 없다. 끝난 학기는 그 학기의 편성 스냅숏(`subgroups`)으로
+//    가른다 — 롤오버가 지금 편성을 비운 뒤라, 지금 값으로 보면 아무도 남지 않는다
 //  · 칸 = O · X · 등록일 이전은 빈칸 · 상태 표기(방학·귀국 …)가 덮는 날은 그 말
 //  · 떠난 사람(무기한 표기 또는 귀국/이주/졸업)은 그 표기가 표 전체를 덮을 때만 빠진다 —
 //    학기 중간에 떠난 사람의 앞쪽 O는 남는다 (web lib/status.ts와 같은 규칙)
@@ -96,6 +98,8 @@ export function buildExportGrid(
   members: ExportMember[],
   log: ExportLogRow[],
   window: { start: string; end: string },
+  /** 끝난 학기의 편성 (config.dongsan_history[term].subgroups, member id → 동산). 있으면 그것이 유일한 출처다. */
+  subgroups?: Record<string, string> | null,
 ): ExportGrid {
   const inWindow = log.filter((e) => !e.is_guest && e.date >= window.start && e.date <= window.end);
   const dates = [...new Set(inWindow.map((e) => e.date))].sort();
@@ -121,6 +125,9 @@ export function buildExportGrid(
   const rowsByGroup = new Map<string, ExportRow[]>();
   for (const m of members) {
     if (m.is_staff) continue;
+    // 동산이 배정된 사람만 담는다.
+    const subgroup = (subgroups ? subgroups[m.id] : m.subgroup) || "";
+    if (!subgroup) continue;
     const marks = marksOf(m);
     const attended = present.get(m.id) ?? new Set<string>();
     // 떠난 사람은 그 표기가 표 전체를 덮을 때만 빠진다.
@@ -136,17 +143,14 @@ export function buildExportGrid(
       return note ?? "X";
     });
     const group = m.group_name || "";
-    const row: ExportRow = { name: m.name, subgroup: m.subgroup || "", cells, total: attended.size };
+    const row: ExportRow = { name: m.name, subgroup, cells, total: attended.size };
     rowsByGroup.set(group, [...(rowsByGroup.get(group) || []), row]);
   }
 
   const blocks = [...rowsByGroup.entries()]
     .sort(([a], [b]) => groupRank(a) - groupRank(b) || a.localeCompare(b))
     .map(([group, rows]) => {
-      rows.sort((a, b) =>
-        // 동산 미지정은 블록 맨 아래
-        (a.subgroup ? 0 : 1) - (b.subgroup ? 0 : 1) || a.subgroup.localeCompare(b.subgroup) || a.name.localeCompare(b.name)
-      );
+      rows.sort((a, b) => a.subgroup.localeCompare(b.subgroup) || a.name.localeCompare(b.name));
       const totals = dates.map((_, i) => rows.filter((r) => r.cells[i] === "O").length);
       return { group, rows, totals };
     });

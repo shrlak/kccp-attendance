@@ -4,7 +4,7 @@ import { buildExportGrid, exportWindow, type ExportMember } from "./sheetExport.
 
 const W = { start: "2026-08-16", end: "2026-12-20" };
 const m = (id: string, extra: Partial<ExportMember> = {}): ExportMember => ({
-  id, name: id, group_name: "대학부", subgroup: "", ...extra,
+  id, name: id, group_name: "대학부", subgroup: "호연동산", ...extra,
 });
 
 Deno.test("columns are the dates that actually had worship attendance, inside the window", () => {
@@ -37,7 +37,7 @@ Deno.test("O / X / blank before registration / status note", () => {
   assertEquals(byName.brk, ["X", "방학", "방학"]);
 });
 
-Deno.test("blocks go 대학부 → 청년부, 동산 then name, 동산 미지정 last; staff and guests are out", () => {
+Deno.test("blocks go 대학부 → 청년부, 동산 then name; 동산 미지정, staff and guests are out", () => {
   const members = [
     m("z", { group_name: "청년부", subgroup: "민서동산" }),
     m("b", { subgroup: "" }),
@@ -51,7 +51,7 @@ Deno.test("blocks go 대학부 → 청년부, 동산 then name, 동산 미지정
   ];
   const g = buildExportGrid(members, log, W);
   assertEquals(g.blocks.map((b) => b.group), ["대학부", "청년부"]);
-  assertEquals(g.blocks[0].rows.map((r) => r.name), ["a", "c", "b"]);
+  assertEquals(g.blocks[0].rows.map((r) => r.name), ["a", "c"]);
   assertEquals(g.blocks[0].totals, [1]);
 });
 
@@ -108,4 +108,11 @@ Deno.test("window: unknown or future term is refused, not swapped", () => {
 });
 Deno.test("window: a partition without terms gets the calendar year", () => {
   assertEquals(exportWindow("2026-09-25", {}, "", false), { start: "2026-01-01", end: "2026-09-25", term: "" });
+});
+
+Deno.test("a finished term is split by its snapshot, not the live (cleared) 동산", () => {
+  const members = [m("a", { subgroup: "" }), m("b", { subgroup: "" }), m("c", { subgroup: "새동산" })];
+  const g = buildExportGrid(members, [{ member_id: "a", date: "2026-06-07" }],
+    { start: "2026-05-17", end: "2026-08-02" }, { a: "건영동산", b: "중호동산" });
+  assertEquals(g.blocks[0].rows.map((r) => [r.name, r.subgroup]), [["a", "건영동산"], ["b", "중호동산"]]);
 });
