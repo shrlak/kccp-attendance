@@ -30,6 +30,9 @@ export default defineConfig({
       },
     },
   },
+  // 설정 탭이 시트에 붙일 Apps Script(scripts/sheet-sync/Export.gs)를 `?raw`로 들여와 키를
+  // 채워 복사해 준다. 그 파일은 web/ 밖이라 dev 서버가 기본으로 막으므로 그 폴더 하나만 연다.
+  server: { fs: { allow: ['.', '../scripts/sheet-sync'] } },
   plugins: [
     react(),
     tailwindcss(),

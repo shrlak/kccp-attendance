@@ -215,7 +215,16 @@
       "counts": "{{added}} added \u00b7 {{removed}} reverted \u00b7 {{marked}} people updated",
       "created": "{{count}} newly registered",
       "unmatched": "{{count}} names needing a look",
-      "warnings": "{{count}} warnings"
+      "warnings": "{{count}} warnings",
+      "exportTitle": "Attendance → Sheet export",
+      "exportDesc": "Sends worship attendance recorded in the kiosk and admin panel to a Google Sheet. Paste the script into the receiving spreadsheet and every 10 minutes it fills one tab per group (출석부 · 대학부, 출석부 · 청년부) with this term's grid. Those tabs are fully rewritten on each refresh, so keep hand-written notes in other tabs.",
+      "exportTokenLabel": "Export key",
+      "exportNoToken": "No export key yet.",
+      "exportCreate": "Create export key",
+      "exportRotate": "Issue new key",
+      "exportRotated": "Issued a new export key. Sheets using the old key stop receiving — copy and paste the script again.",
+      "exportCopyScript": "Copy script (with key)",
+      "exportSteps": "In the receiving spreadsheet: Extensions → Apps Script → paste the copied script and save → run '설치하기' from the function list → allow permissions. The sheet does not need to be public. This key only exposes names, group, 동산 and worship O/X — no contact info. It is a different key from the 동산 sheet sync key."
     }
   }
 }

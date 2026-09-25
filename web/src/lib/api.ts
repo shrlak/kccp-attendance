@@ -776,6 +776,10 @@ export interface SheetSyncSettings {
   lastRun: SheetSyncRun | null
   /** Apps Script가 두드릴 주소 (설치 안내에 그대로 보여준다). */
   pingUrl?: string
+  /** 반대 방향(출석부 → 시트)의 읽기 전용 키. 아직 안 만들었으면 빈 문자열. */
+  exportToken?: string
+  /** 내보내기 스크립트(Export.gs)가 부르는 주소. */
+  exportUrl?: string
 }
 
 export const getSheetSync = () => api<SheetSyncSettings>('GET', '/api/admin/sheet-sync')
@@ -788,6 +792,10 @@ export const removeSheetSource = (id: string, gid: string) =>
 
 export const rotateSheetSyncToken = () =>
   api<SheetSyncSettings>('POST', '/api/admin/sheet-sync', { action: 'rotate-token' })
+
+// 처음 누르면 키가 생기고, 그 뒤로는 새 키로 갈아 끼운다 (예전 키는 그 자리에서 닫힌다).
+export const rotateSheetExportToken = () =>
+  api<SheetSyncSettings>('POST', '/api/admin/sheet-sync', { action: 'rotate-export-token' })
 
 // 시트를 읽는 데는 왕복이 몇 번 걸린다 (시트 내려받기 + 명단 대조 + 쓰기) — 기본 12초로는
 // 사람 수가 많은 시트에서 끊긴다.
