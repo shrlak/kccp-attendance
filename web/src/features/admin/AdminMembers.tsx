@@ -314,11 +314,13 @@ export function AdminMembers() {
           화면이 왜 비었는지 알 수가 없다. 고를 것이 하나뿐이면(학기 종료 롤오버 직후) 트랙
           자체가 뜨지 않는다. */}
       <SubgroupChips sections={subgroupSections} value={subgroup} onChange={pickSubgroup} noneChip={hasUnassigned} />
-      </div>
-      </div>
-      {/* 처지 · 학교 줄 — 새가족 탭과 **같은 컴포넌트**다 (TraitFilter). 두 탭이 같은 명단을
-          다르게 가르면 '대학부 CMU'가 탭마다 다른 사람들을 뜻하게 된다. */}
+      {/* 처지 · 학교 트랙 — 새가족 탭과 **같은 컴포넌트**다 (TraitFilter). 두 탭이 같은 명단을
+          다르게 가르면 '대학부 CMU'가 탭마다 다른 사람들을 뜻하게 된다. 부서·동산 트랙에
+          이어 **같은 고정 줄**에 흐른다 — 위에서 아래로 좁혀 가는 한 벌의 칩이라, 학교만
+          명단과 함께 밀려 올라가면 그 줄을 바꾸러 매번 맨 위로 되돌아가야 한다. */}
       <TraitFilter members={inSubgroup} group={group} career={career} school={school} onCareer={pickCareer} onSchool={setSchool} />
+      </div>
+      </div>
       {!selectMode && (
         <div className="mb-4 flex items-center gap-2 section-kicker">
           <Users className="size-4 text-subtle" aria-hidden />

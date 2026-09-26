@@ -1,10 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import type { Member } from '../../lib/api'
 import { Pill, PillTrack } from './GroupFilter'
-import {
-  careersOf, matchesCareer, schoolsOf, careerAxis, schoolAxis,
-  type CareerFilter, type SchoolFilter,
-} from './filters'
+import { traitChips, type CareerFilter, type SchoolFilter } from './filters'
 import { SCHOOL_NAMES } from './eduDongsanTraits'
 import { Briefcase, GraduationCap } from '../../components/ui/Icon'
 
@@ -15,6 +12,11 @@ import { Briefcase, GraduationCap } from '../../components/ui/Icon'
 // 부서 줄은 여기 없다: 멤버 탭은 자기 칩 줄로, 새가족 탭은 부서·동산 `GroupFilter`로 이미
 // 부서를 고르고 있어서, 이 컴포넌트가 받는 `members`는 **그 부서로 좁혀진 뒤의 명단**이다.
 // 축이 부서마다 다른 규칙(`careerAxis`/`schoolAxis`)은 filters.ts 하나에만 산다.
+//
+// **감싸는 줄 없이 트랙만 내놓는다** — 부서·동산 트랙이 선 그 줄(패널 헤더 밑에 붙어
+// 스크롤을 따라오는 칩 줄)에 이어 흐르라는 것이다. 예전에는 이 두 줄이 그 고정 줄 **밑**에
+// 따로 서 있어서, 명단을 내려가면 부서·동산은 따라오는데 학교만 화면 밖으로 사라졌다 —
+// 위에서 아래로 좁혀 가는 한 벌의 칩인데 그중 마지막 줄만 손이 닿지 않았다.
 export function TraitFilter({
   members,
   group,
@@ -31,23 +33,15 @@ export function TraitFilter({
   onSchool: (s: SchoolFilter) => void
 }) {
   const { t } = useTranslation()
-  // 아래 줄의 칩은 **위에서 고른 것 안에서** 뽑는다 — 청년부 대학원생의 학교 칩은 그
-  // 사람들의 학교여야 고른 뒤에 빈 화면이 나오지 않는다.
-  const careerChips = careerAxis(group) ? careersOf(members) : []
-  const inCareer = members.filter((m) => matchesCareer(m, career))
-  const schools = schoolAxis(group, career) ? schoolsOf(inCareer) : []
-  // 고를 것이 없으면 줄이 없다: 학교를 하나도 읽어내지 못한 부(장년부)에는 '기타' 하나만
-  // 남는데, 그 칩은 전체와 같은 묶음이라 고를 뜻이 없다.
-  const showCareers = careerChips.length > 1
-  const showSchools = schools.length > 1 && schools.some((s) => s !== 'none')
-  if (!showCareers && !showSchools) return null
+  const { careers: careerChips, schools } = traitChips(members, group, career)
+  if (careerChips.length === 0 && schools.length === 0) return null
 
   return (
-    <div className="mb-4 flex flex-wrap items-start gap-2">
+    <>
       {/* 처지 칩 — 청년부의 가름이다. 그 부서는 대학원생과 직장인이 반씩이라 학교 하나로는
-          갈리지 않는다. 아래 학교 줄과 **곱해진다**: 대학원생을 고르면 학교 칩이 그 사람들의
+          갈리지 않는다. 뒤의 학교 트랙과 **곱해진다**: 대학원생을 고르면 학교 칩이 그 사람들의
           학교로 좁혀져, 청년부 대학원생을 CMU · Pitt으로 가르는 자리가 된다. */}
-      {showCareers && (
+      {careerChips.length > 0 && (
         <PillTrack label={t('admin.members.careerFilter')}>
           <Briefcase className="mx-1.5 size-3.5 shrink-0 text-subtle" aria-hidden />
           <Pill active={!career} onClick={() => onCareer('')}>
@@ -60,10 +54,10 @@ export function TraitFilter({
           ))}
         </PillTrack>
       )}
-      {/* 학교 칩 — 위 줄과 곱해지는 다른 가름이다 (대학부 안의 CMU, 청년부 대학원생 안의
+      {/* 학교 칩 — 앞 트랙과 곱해지는 다른 가름이다 (대학부 안의 CMU, 청년부 대학원생 안의
           Pitt). 청년부에서는 **직장인을 고른 동안에만** 내려간다 — 그 사람에게 학교는 지금
           어디에 있는지를 말해 주지 않는다. */}
-      {showSchools && (
+      {schools.length > 0 && (
         <PillTrack label={t('admin.members.schoolFilter')}>
           <GraduationCap className="mx-1.5 size-3.5 shrink-0 text-subtle" aria-hidden />
           <Pill active={!school} onClick={() => onSchool('')}>
@@ -76,6 +70,6 @@ export function TraitFilter({
           ))}
         </PillTrack>
       )}
-    </div>
+    </>
   )
 }

@@ -136,6 +136,17 @@ describe('AdminNewFamily — 처지 · 학교 칩', () => {
     expect(screen.getAllByText('대학씨엠').length).toBeGreaterThan(0)
   })
 
+  it('학교 트랙은 부서·동산과 같은 고정 줄에 선다', async () => {
+    await renderTab([
+      school('대학씨엠', '대학생 · CMU Math'),
+      school('대학핏', '대학생 · UPitt nursing'),
+      school('청년핏', '대학원생 · Pitt Nursing', '청년부'),
+    ])
+    // 그 밑에 따로 서 있으면 명단을 내려가는 동안 부서는 따라오는데 학교만 화면 밖으로 밀려난다.
+    const groupTrack = screen.getByRole('group', { name: '부서' })
+    expect(screen.getByRole('group', { name: '학교' }).parentElement).toBe(groupTrack.parentElement)
+  })
+
   it('학교를 아무도 적지 않은 부에서는 칩 줄이 없다', async () => {
     await renderTab([school('김장년', '', '장년부'), school('이장년', '', '장년부')])
     expect(screen.queryByRole('group', { name: '학교' })).toBeNull()
