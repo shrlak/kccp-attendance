@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useRoster } from './useRoster'
 import { easternNow } from '../../lib/checkinWindow'
-import { filterLog, filterMembers, matchesCareer, matchesSchool, NO_FILTER, type CareerFilter, type Filter, type SchoolFilter } from './filters'
+import { filterLog, filterMembers, matchesCareer, matchesSchool, traitChips, NO_FILTER, type CareerFilter, type Filter, type SchoolFilter } from './filters'
 import { semesterKey, newFamilyBySemester, monthlyRegistrations, newFamilyWeek } from './newFamily'
 import { NewFamilyWeekChip } from './NewFamilyWeekChip'
 import { copyNewFamilyCards, saveNewFamilyCards } from './newFamilyCardImage'
@@ -78,6 +78,8 @@ export function AdminNewFamily() {
   // 아래 화면 전부 — 학기 블록 · 월별 등록 · 내보내기 · 카톡 QR — 는 그 칩까지 걸린 명단을
   // 읽는다. 골라 놓은 학교가 내보내기에는 안 걸리면 화면에 보이던 것과 다른 것이 나간다.
   const inGroup = filterMembers(data.members, filter)
+  const traits = traitChips(inGroup, filter.group, career)
+  const hasTraits = traits.careers.length > 0 || traits.schools.length > 0
   const scopedMembers = inGroup.filter((m) => matchesCareer(m, career) && matchesSchool(m, school))
   // 학기별 섹션: 이번 학기 + 새가족 표시가 붙어 있어(또는 내려간 지 1년이 안 돼) 넘어온 이전 학기들.
   const semesters = newFamilyBySemester(scopedMembers, today, configCalendar(cfg), partition)
@@ -94,9 +96,10 @@ export function AdminNewFamily() {
 
   return (
     <>
-      {/* 부서를 바꾸면 아래 두 줄의 선택은 비운다 — 축이 부서마다 다르므로(청년부는 처지,
+      {/* 부서를 바꾸면 뒤의 두 트랙의 선택은 비운다 — 축이 부서마다 다르므로(청년부는 처지,
           그 밖은 학교) 남겨 두면 사라진 칩으로 계속 좁히게 되고, 화면이 왜 비었는지 알 수
-          없다. 멤버 탭의 pickGroup/pickCareer와 같은 규칙이다. */}
+          없다. 멤버 탭의 pickGroup/pickCareer와 같은 규칙이다. 처지·학교 트랙은 부서·동산과
+          **같은 고정 줄**에 선다 — 새가족 명단을 내려가도 학교를 바꿀 수 있어야 한다. */}
       <GroupFilter
         members={data.members}
         value={filter}
@@ -105,18 +108,21 @@ export function AdminNewFamily() {
           setCareer('')
           setSchool('')
         }}
-      />
-      <TraitFilter
-        members={inGroup}
-        group={filter.group}
-        career={career}
-        school={school}
-        onCareer={(c) => {
-          setCareer(c)
-          setSchool('')
-        }}
-        onSchool={setSchool}
-      />
+      >
+        {hasTraits && (
+          <TraitFilter
+            members={inGroup}
+            group={filter.group}
+            career={career}
+            school={school}
+            onCareer={(c) => {
+              setCareer(c)
+              setSchool('')
+            }}
+            onSchool={setSchool}
+          />
+        )}
+      </GroupFilter>
 
       <div className="mb-1.5 flex flex-wrap items-center gap-2">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">

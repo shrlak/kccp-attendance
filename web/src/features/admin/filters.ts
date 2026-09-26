@@ -173,6 +173,27 @@ export function schoolAxis(group: string, career: CareerFilter): boolean {
   return careerAxis(group) ? career !== 'work' : true
 }
 
+// 처지·학교 트랙(TraitFilter)에 내걸 칩 — 고를 것이 없는 줄은 빈 목록이다. 새가족 탭은
+// 이 값으로 고정 칩 줄(GroupFilter)을 세울지를 가른다: 부서·동산이 하나뿐인 리더에게도
+// 학교 칩은 있을 수 있어서, 그 줄의 유무를 부서·동산만 보고 정하면 학교가 갈 자리가 없어진다.
+export function traitChips(
+  members: Member[],
+  group: string,
+  career: CareerFilter,
+): { careers: CareerChip[]; schools: SchoolChip[] } {
+  // 아래 줄의 칩은 **위에서 고른 것 안에서** 뽑는다 — 청년부 대학원생의 학교 칩은 그
+  // 사람들의 학교여야 고른 뒤에 빈 화면이 나오지 않는다.
+  const careers = careerAxis(group) ? careersOf(members) : []
+  const inCareer = members.filter((m) => matchesCareer(m, career))
+  const schools = schoolAxis(group, career) ? schoolsOf(inCareer) : []
+  // 고를 것이 없으면 줄이 없다: 학교를 하나도 읽어내지 못한 부(장년부)에는 '기타' 하나만
+  // 남는데, 그 칩은 전체와 같은 묶음이라 고를 뜻이 없다.
+  return {
+    careers: careers.length > 1 ? careers : [],
+    schools: schools.length > 1 && schools.some((s) => s !== 'none') ? schools : [],
+  }
+}
+
 export function filterMembers(members: Member[], f: Filter): Member[] {
   return members.filter((m) => (!f.group || m.group_name === f.group) && (!f.subgroup || m.subgroup === f.subgroup))
 }

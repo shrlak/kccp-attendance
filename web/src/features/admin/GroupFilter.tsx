@@ -21,16 +21,32 @@ export function StickyFilterBar({ children }: { children: ReactNode }) {
 }
 
 // Shared 부서 → 동산 pill filter for the Today/Sheet/새가족 tabs. Renders nothing when the
-// scoped roster has only one group and one 동산 (e.g. a 동산 leader — already pinned).
-export function GroupFilter({ members, value, onChange }: { members: Member[]; value: Filter; onChange: (f: Filter) => void }) {
+// scoped roster has only one group and one 동산 (e.g. a 동산 leader — already pinned) and
+// the caller has no tracks of its own to add.
+//
+// `children`은 그 줄에 이어 흐를 트랙이다 — 새가족 탭의 처지·학교 칩(TraitFilter)이 여기
+// 앉는다. 좁혀 가는 한 벌의 칩이라 같은 고정 줄에 있어야 명단을 내려가도 다 따라온다.
+// 넘길 것이 없을 때는 falsy를 넘겨야 이 줄이 사라진다 (부르는 쪽이 `traitChips`로 가른다).
+export function GroupFilter({
+  members,
+  value,
+  onChange,
+  children,
+}: {
+  members: Member[]
+  value: Filter
+  onChange: (f: Filter) => void
+  children?: ReactNode
+}) {
   const { t } = useTranslation()
   const groups = groupsOf(members)
   const sections = subgroupSectionsOf(members, value.group)
-  if (groups.length <= 1 && countSubgroups(sections) <= 1) return null
+  if (groups.length <= 1 && countSubgroups(sections) <= 1 && !children) return null
 
   return (
     <StickyFilterBar>
-      {/* 부서 트랙과 동산 트랙이 한 줄에 나란히 선다 — 폭이 모자라면 동산 트랙이 다음 줄로 내려간다. */}
+      {/* 부서 트랙과 동산 트랙(과 넘겨받은 트랙)이 한 줄에 나란히 선다 — 폭이 모자라면 뒤의
+          트랙부터 다음 줄로 내려간다. */}
       <div className="flex flex-wrap items-start gap-2">
         {groups.length > 1 && (
           <PillTrack label={t('admin.members.group')}>
@@ -49,6 +65,7 @@ export function GroupFilter({ members, value, onChange }: { members: Member[]; v
           value={value.subgroup}
           onChange={(subgroup) => onChange({ ...value, subgroup })}
         />
+        {children}
       </div>
     </StickyFilterBar>
   )

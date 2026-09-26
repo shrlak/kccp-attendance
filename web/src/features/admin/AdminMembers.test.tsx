@@ -302,6 +302,16 @@ describe('AdminMembers — 부서마다 다른 축', () => {
     expect(screen.queryByRole('group', { name: '학생/직장' })).toBeNull()
   })
 
+  it('처지·학교 트랙은 부서·동산과 같은 고정 줄에 흐른다', async () => {
+    rosterData.data = roster(people)
+    renderWithProviders(<AdminMembers />)
+    await userEvent.click(row('부서').getByRole('button', { name: '청년부' }))
+    // 그 밑에 따로 서 있으면 명단을 내려가는 동안 부서는 따라오는데 학교만 화면 밖으로 밀려난다.
+    const shared = screen.getByRole('group', { name: '부서' }).parentElement
+    expect(screen.getByRole('group', { name: '학교' }).parentElement).toBe(shared)
+    expect(screen.getByRole('group', { name: '학생/직장' }).parentElement).toBe(shared)
+  })
+
   it('청년부는 처지와 학교 두 줄을 함께 내걸고, 대학원생을 고르면 학교가 그 사람들의 것으로 좁혀진다', async () => {
     rosterData.data = roster(people)
     renderWithProviders(<AdminMembers />)
