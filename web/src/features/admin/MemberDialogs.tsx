@@ -37,6 +37,11 @@ const STATUS_PRESETS = ['이주', '한국 귀국', '졸업', '방학']
 // 부서 선택 후보 — 로그인한 부의 것만. 대학·청년부에는 예전부터 쓰이던 EM/Adult Ministry
 // 항목이 남아 있고, 장년부는 장년부 하나뿐이다.
 const EXTRA_YOUTH_GROUPS = ['EM', 'Adult Ministry']
+
+function sameMarkList(a: StatusMark[], b: StatusMark[]): boolean {
+  return a.length === b.length &&
+    a.every((m, i) => m.note === b[i].note && (m.start || null) === (b[i].start || null) && (m.end || null) === (b[i].end || null))
+}
 function groupOptions(partition: Partition): string[] {
   const own = groupsOfPartition(partition)
   return partition === 'adult' ? own : [...own, ...EXTRA_YOUTH_GROUPS]
@@ -88,6 +93,11 @@ export function EditModal({
     notes: member.notes,
     statusMarks: statusMarks(member),
   })
+  // 상태 표기는 **고쳤을 때만** 보낸다. 표기 중에는 시트 연동이 적은 것이 있고, 서버는 이
+  // 목록에서 빠진 시트 표기를 "관리자가 지웠다"로 읽어 다시 붙지 않게 막는다 (sheetSync.ts
+  // reconcileEditedMarks) — 창을 연 뒤에 동기화가 새로 붙인 표기가 전화번호만 고친 저장에
+  // 휩쓸려 막히면 안 된다.
+  const [openedMarks] = useState(() => statusMarks(member))
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -160,9 +170,10 @@ export function EditModal({
 
   async function save() {
     setSaving(true)
+    const base: MemberEdit = sameMarkList(f.statusMarks ?? [], openedMarks) ? { ...f, statusMarks: undefined } : f
     try {
       await updateMember(member.id, isAdult ? {
-        ...f,
+        ...base,
         name: adultCard.name,
         nameEn: adultCard.nameEn,
         gender: adultCard.gender,
@@ -186,7 +197,7 @@ export function EditModal({
         // 종이의 빈 줄은 보내지 않는다.
         family: packFamily(adultCard.family),
       } : {
-        ...f,
+        ...base,
         name: card.name,
         gender: card.gender,
         phone: card.phone,

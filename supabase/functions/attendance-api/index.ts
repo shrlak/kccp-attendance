@@ -3,7 +3,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 import { ADULT_GROUP, ADULT_SCHEMA, canAssignDongsan, canChoosePartition, canReadDongsanNames, canViewLoginLog, dbOf, inScope, inScopeGroup, partitionOfGroup, resolveAdmin, scopeFilter, type Partition, type Role, type Scope } from "./auth.ts";
 import { currentSeason, DEFAULT_SEMESTER_DATES, isSummerTerm, lastEndedTermKey, mergeSchedule, rollSchedule, sameSchedule, scheduleOf, scheduleToDates, semesterDatesOf, subgroupSnapshot, termBounds, trimHistory, validSchedule } from "./term.ts";
 import { availableCardModels, buildCardRequest, cardModelChain, hasGen3Options, parseCardResponse } from "./gemini.ts";
-import { csvUrl, matchPerson, mergeSheetMarks, nameCounts, normalizeMarks, parseAttendanceSheet, parseSheetUrl, sameMarks, type ParsedSheet } from "./sheetSync.ts";
+import { csvUrl, matchPerson, mergeSheetMarks, nameCounts, normalizeMarks, parseAttendanceSheet, parseSheetUrl, reconcileEditedMarks, sameMarks, type ParsedSheet } from "./sheetSync.ts";
 import { findLink, findLinkFor, leadersOf, newLinkToken, parseLinks, recentSundays, reconcileTermLinks, sundaysBetween, type DongsanLink } from "./dongsanLink.ts";
 import { deleteMembersKeepingAttendance } from "./memberDelete.ts";
 import { selectAll } from "./page.ts";
@@ -651,9 +651,14 @@ async function applySheet(pdb: any, source: SyncSource, parsed: ParsedSheet, out
   // 후보 명단. 시트에 부서가 적혀 있지 않으므로(동산 이름뿐이다) 어느 부서의 시트인지는
   // 등록할 때 사람이 정해 준 값(source.group)으로만 알 수 있다. 봄·가을처럼 부서마다 시트가
   // 따로일 때 그 값이 후보를 그 부서로 좁혀 준다. 여름 합동 시트는 비어 있어 부 전체가 후보다.
-  let rq=pdb.from("members").select("id,name,group_name,subgroup,status_marks,registration_date,member_role");
+  // `*`인 이유: sheet_mark_overrides는 나중에 붙은 칸이라(20260903), 이름을 짚어 고르면
+  // 함수가 마이그레이션보다 먼저 배포되는 순간 이 질의가 통째로 실패한다.
+  let rq=pdb.from("members").select("*");
   if(source.group) rq=rq.eq("group_name",source.group);
-  const {data:roster}=await rq;
+  const {data:roster,error:rosterErr}=await rq;
+  // 명단을 못 읽었으면 여기서 멈춘다. 빈 명단으로 계속 가면 시트의 모든 이름이 '명단에
+  // 없는 사람'이 되어 전원이 새 멤버로 한 번 더 만들어진다.
+  if(rosterErr) throw new Error(`명단을 읽지 못했습니다: ${rosterErr.message}`);
   const candidates=(roster||[]) as any[];
   const counts=nameCounts(parsed.people);
 
@@ -730,7 +735,8 @@ async function applySheet(pdb: any, source: SyncSource, parsed: ParsedSheet, out
 
   // 상태 표기와 등록일자. 사람마다 갱신이지만 실제로 바뀐 줄만 쓴다.
   for(const {person,member} of resolved) {
-    const merged=mergeSheetMarks(member.status_marks,person.spans);
+    // 관리자가 앱에서 고치거나 지운 시트 표기는 다시 쓰지 않는다 (sheetSync.ts reconcileEditedMarks).
+    const merged=mergeSheetMarks(member.status_marks,person.spans,member.sheet_mark_overrides);
     const patch: any={};
     if(!sameMarks(normalizeMarks(member.status_marks),merged)) patch.status_marks=merged;
     // 등록일자는 앞으로만 당긴다: 시트가 말하는 합류일이 지금 적힌 것보다 이르면 그것으로.
@@ -2005,7 +2011,9 @@ Deno.serve(async (req: Request) => {
       if(!role) return fail(401,"Not authorized");
       if(role.role==="pastor") return fail(403,"Read-only");
       const {memberId}=body; if(!memberId) return fail(400,"memberId required");
-      const {data:m}=await adb.from("members").select("name,group_name,subgroup,new_member_since").eq("id",memberId).single();
+      // `*`: 상태 표기를 저장할 때 지금의 status_marks · sheet_mark_overrides가 필요한데, 뒤의 것은
+      // 나중에 붙은 칸이라 이름을 짚으면 마이그레이션 전에는 이 질의가 실패해 편집이 전부 404가 된다.
+      const {data:m}=await adb.from("members").select("*").eq("id",memberId).single();
       if(!m) return fail(404,"Member not found");
       // 부 경계는 최고관리자에게도 적용된다 — scopeFilter가 자기 부만 돌려주므로 예외 없이 검사.
       const editScope=scopeFilter(role,summerNow(await getCfg(sb,actingPartition),role.partition));
@@ -2047,7 +2055,15 @@ Deno.serve(async (req: Request) => {
         const marks=cleanStatusMarks(body.statusMarks);
         if(!marks) return fail(400,"statusMarks must be a list");
         const cur=currentStatusMark(marks,localDate());
-        upd.status_marks=marks;
+        // 화면은 표기의 출처(source)를 모르고 보낸다. 시트가 적은 표기가 그대로 돌아오면
+        // 출처를 되붙이고, 고쳐지거나 지워졌으면 시트가 다시 쓰지 않도록 남긴다 — 안 그러면
+        // 다음 동기화가 시트 것을 또 얹어 같은 표기가 둘이 되고, 관리자가 끝나는 날을 적어
+        // 풀어 준 사람이 기한 없는 시트 표기로 다시 숨겨진다.
+        const row=m as {status_marks?:unknown;sheet_mark_overrides?:unknown};
+        const kept=reconcileEditedMarks(row.status_marks,marks,row.sheet_mark_overrides);
+        upd.status_marks=kept.marks;
+        // 칸이 아직 없으면(마이그레이션 전) 넣지 않는다 — 없는 칸을 쓰면 업데이트 전체가 실패한다.
+        if("sheet_mark_overrides" in row) upd.sheet_mark_overrides=kept.overrides;
         upd.status_note=cur.note; upd.status_start=cur.start; upd.status_end=cur.end;
       }
       await adb.from("members").update(upd).eq("id",memberId);
