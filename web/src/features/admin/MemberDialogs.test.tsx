@@ -200,6 +200,21 @@ describe('EditModal — 새가족 등록 카드 as the form', () => {
     expect(payload.statusMarks.map((mark: { note: string }) => mark.note)).toEqual(['방학', '한국 귀국'])
   })
 
+  it('상태 표기를 건드리지 않은 저장은 표기를 보내지 않는다', async () => {
+    // 서버는 목록에서 빠진 시트 표기를 "관리자가 지웠다"로 읽는다 — 다른 칸만 고친 저장이
+    // 창을 연 뒤에 동기화가 붙인 표기를 지운 것으로 읽히면 안 된다.
+    const { updateMember } = await import('../../lib/api')
+    ;(updateMember as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ok' })
+    const marked = { ...filled, status_marks: [{ note: '한국', start: '2026-06-07', end: null }] }
+    renderWithProviders(<EditModal member={marked} onClose={vi.fn()} onAttendance={vi.fn()} />)
+
+    await userEvent.click(screen.getByRole('button', { name: '해당없음 N/A' }))
+    await userEvent.click(screen.getByRole('button', { name: '저장' }))
+    const payload = (updateMember as ReturnType<typeof vi.fn>).mock.calls[0][1]
+    expect(payload.baptismStatus).toBe('해당없음')
+    expect(payload.statusMarks).toBeUndefined()
+  })
+
   it('표기 삭제 버튼으로 한 칸만 지운다', async () => {
     renderWithProviders(<EditModal member={filled} onClose={vi.fn()} onAttendance={vi.fn()} />)
     await userEvent.click(screen.getByRole('button', { name: '방학' }))

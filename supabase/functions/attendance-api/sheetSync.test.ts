@@ -12,6 +12,7 @@ import {
   parseCsv,
   parseSheetDate,
   parseSheetUrl,
+  reconcileEditedMarks,
   sameMarks,
   type SheetPerson,
   type StoredMark,
@@ -177,6 +178,47 @@ Deno.test("상태 표기는 시트 것만 갈아 끼우고 사람이 적은 것�
   ]);
   // 시트에서 표기가 사라지면 시트가 붙였던 것도 같이 사라진다.
   assertEquals(mergeSheetMarks(existing, []), [{ note: "방학", start: "2026-06-01", end: "2026-08-01" }]);
+});
+
+Deno.test("멤버 편집을 그대로 지나간 시트 표기는 시트 것으로 남는다 — 늘어나지 않는다", () => {
+  const before: StoredMark[] = [
+    { note: "출장", start: "2026-06-21", end: "2026-06-28", source: "sheet" },
+    { note: "방학", start: "2026-05-09", end: "2026-08-15" },
+  ];
+  // 화면은 source를 모르고 {note,start,end}만 돌려보낸다.
+  const edited = before.map(({ note, start, end }) => ({ note, start, end }));
+  const out = reconcileEditedMarks(before, edited, []);
+  assertEquals(out.marks, before);
+  assertEquals(out.overrides, []);
+  // 그러면 다음 동기화는 바꿀 것이 없다 (예전에는 여기서 '출장'이 둘이 됐다).
+  const synced = mergeSheetMarks(out.marks, [{ note: "출장", start: "2026-06-21", end: "2026-06-28" }], out.overrides);
+  assertEquals(sameMarks(out.marks, synced), true);
+});
+
+Deno.test("관리자가 끝나는 날을 적어 풀어 준 사람은 동기화가 다시 숨기지 않는다", () => {
+  // 여름 시트의 '한국'이 시트 끝까지 이어져 있어 기한 없는 표기(= 숨김)로 들어왔다.
+  const sheetSpan = { note: "한국", start: "2026-06-07", end: null };
+  const before: StoredMark[] = [{ ...sheetSpan, source: "sheet" }];
+  const out = reconcileEditedMarks(before, [{ note: "한국", start: "2026-06-07", end: "2026-08-20" }], []);
+  assertEquals(out.marks, [{ note: "한국", start: "2026-06-07", end: "2026-08-20" }]);
+  assertEquals(out.overrides, [{ note: "한국", start: "2026-06-07" }]);
+  assertEquals(mergeSheetMarks(out.marks, [sheetSpan], out.overrides), out.marks);
+});
+
+Deno.test("관리자가 지운 시트 표기는 돌아오지 않고, 시트가 새로 적은 구간은 들어온다", () => {
+  const before: StoredMark[] = [{ note: "이주", start: "2026-07-12", end: null, source: "sheet" }];
+  const out = reconcileEditedMarks(before, [], []);
+  assertEquals(out.marks, []);
+  assertEquals(out.overrides, [{ note: "이주", start: "2026-07-12" }]);
+  // 같은 구간 — 시트가 끝나는 날을 바꿔도 — 은 다시 쓰지 않는다.
+  assertEquals(mergeSheetMarks(out.marks, [{ note: "이주", start: "2026-07-12", end: "2026-08-02" }], out.overrides), []);
+  // 다른 구간은 새 사실이다.
+  assertEquals(
+    mergeSheetMarks(out.marks, [{ note: "출장", start: "2026-07-19", end: "2026-07-26" }], out.overrides),
+    [{ note: "출장", start: "2026-07-19", end: "2026-07-26", source: "sheet" }],
+  );
+  // 한 번 남긴 열쇠는 다음 편집에서도 그대로다 (겹쳐 쌓이지도 않는다).
+  assertEquals(reconcileEditedMarks([], [], out.overrides).overrides, out.overrides);
 });
 
 Deno.test("바뀐 것이 없으면 쓰지 않는다", () => {

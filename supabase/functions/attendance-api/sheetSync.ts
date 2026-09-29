@@ -410,15 +410,75 @@ export function normalizeMarks(existing: unknown): StoredMark[] {
     .filter((m): m is StoredMark => !!m && typeof (m as StoredMark).note === "string");
 }
 
-export function mergeSheetMarks(existing: unknown, spans: SheetSpan[]): StoredMark[] {
+export function mergeSheetMarks(existing: unknown, spans: SheetSpan[], overrides: unknown = []): StoredMark[] {
   const kept = normalizeMarks(existing).filter((m) => m.source !== "sheet");
-  const fromSheet: StoredMark[] = spans.map((s) => ({
-    note: s.note,
-    start: s.start,
-    end: s.end,
-    source: "sheet",
-  }));
+  const skip = new Set(normalizeOverrides(overrides).map(overrideKey));
+  const fromSheet: StoredMark[] = spans
+    .filter((s) => !skip.has(overrideKey(s)))
+    .map((s) => ({ note: s.note, start: s.start, end: s.end, source: "sheet" }));
   return [...kept, ...fromSheet];
+}
+
+// ── 관리자가 고친 시트 표기 ──────────────────────────────────────────────────────────
+//
+// 시트가 적은 표기를 관리자가 앱에서 고치거나 지우면, **그 뒤로는 관리자의 말이 이긴다.**
+// 예전에는 이것이 거꾸로였다: 멤버 편집 창은 {note,start,end}만 알고 source를 모르므로
+// 저장하는 순간 시트 표기가 '사람이 적은 표기'로 바뀌었고, 다음 동기화는 제 것이 없어졌다고
+// 보고 시트 것을 **또** 얹었다. 그래서 (1) 아무 칸이나 고쳐 저장할 때마다 같은 표기가 하나씩
+// 늘었고 (2) 시트가 끝까지 닫지 않은 구간(= 기한 없음 = 숨김)에 관리자가 끝나는 날을 적어
+// 두어도, 10분 뒤 기한 없는 시트 표기가 다시 붙어 그 사람이 또 숨겨졌다 (이래현 — 여름 시트의
+// '한국'이 시트 끝까지 이어져 있었다).
+//
+// 그래서 두 가지를 한다:
+//  · 편집 창을 **그대로 지나간** 시트 표기는 source:'sheet'를 되붙인다 (늘어나지 않는다).
+//  · 고쳐지거나 지워진 시트 표기는 `members.sheet_mark_overrides`에 {note,start}로 남기고,
+//    동기화는 그 열쇠의 구간을 다시 쓰지 않는다. 열쇠에 끝나는 날이 없는 이유: 관리자가 고친
+//    것이 바로 그 칸이라, 넣으면 시트의 구간이 한 칸만 늘어나도 도로 살아난다. 시트가
+//    **다른** 구간(다른 말 또는 다른 시작일)을 적으면 새 사실이라 그대로 들어온다.
+
+/** 관리자가 앱에서 고치거나 지운 시트 표기 하나. 동기화는 이 열쇠의 구간을 다시 쓰지 않는다. */
+export interface MarkOverride {
+  note: string;
+  start: string | null;
+}
+
+function overrideKey(m: { note: string; start: string | null }): string {
+  return `${norm(m.note)}|${m.start ?? ""}`;
+}
+
+export function normalizeOverrides(value: unknown): MarkOverride[] {
+  return (Array.isArray(value) ? value : [])
+    .filter((o): o is MarkOverride => !!o && typeof (o as MarkOverride).note === "string")
+    .map((o) => ({ note: o.note, start: o.start ?? null }));
+}
+
+/**
+ * 멤버 편집으로 들어온 표기 목록(화면은 source를 모른다)을 저장할 모양으로 바꾼다.
+ * `before`는 저장 전의 status_marks, `overrides`는 지금까지의 sheet_mark_overrides.
+ */
+export function reconcileEditedMarks(
+  before: unknown,
+  edited: { note: string; start: string | null; end: string | null }[],
+  overrides: unknown,
+): { marks: StoredMark[]; overrides: MarkOverride[] } {
+  const fromSheet = normalizeMarks(before).filter((m) => m.source === "sheet");
+  const used = fromSheet.map(() => false);
+  const marks = edited.map((m): StoredMark => {
+    const i = fromSheet.findIndex((s, j) =>
+      !used[j] && norm(s.note) === norm(m.note) && (s.start ?? null) === m.start && (s.end ?? null) === m.end
+    );
+    if (i < 0) return { note: m.note, start: m.start, end: m.end };
+    used[i] = true;
+    return { note: m.note, start: m.start, end: m.end, source: "sheet" };
+  });
+  const next = normalizeOverrides(overrides);
+  const keys = new Set(next.map(overrideKey));
+  fromSheet.forEach((s, j) => {
+    if (used[j] || keys.has(overrideKey(s))) return;
+    keys.add(overrideKey(s));
+    next.push({ note: s.note, start: s.start ?? null });
+  });
+  return { marks, overrides: next };
 }
 
 /** 두 표기 목록이 같은가 — 같으면 쓰기를 건너뛴다(쓸데없는 갱신을 막는다). */
