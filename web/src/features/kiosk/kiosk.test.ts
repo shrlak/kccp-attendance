@@ -3,10 +3,7 @@ import {
   presentNamesToday,
   attendanceCount,
   filterByName,
-  splitColumns,
-  kioskColumns,
-  KIOSK_COLS_DEPT,
-  KIOSK_COLS,
+  kioskBlocks,
   todayEntryFor,
   hiddenByStatus,
 } from './kiosk'
@@ -38,25 +35,7 @@ const log = (name: string, date: string, role?: string, extra: Partial<LogEntry>
   ...extra,
 })
 
-describe('splitColumns', () => {
-  it('splits into balanced columns, earlier columns getting any remainder', () => {
-    expect(splitColumns([1, 2, 3, 4, 5, 6, 7], 4).map((c) => c.length)).toEqual([2, 2, 2, 1])
-    expect(splitColumns([1, 2, 3, 4], 4).map((c) => c.length)).toEqual([1, 1, 1, 1])
-    expect(splitColumns([1], 4).map((c) => c.length)).toEqual([1, 0, 0, 0])
-  })
-  it('always returns n columns, even when empty', () => {
-    expect(splitColumns([], 4).map((c) => c.length)).toEqual([0, 0, 0, 0])
-  })
-  it('distributes round-robin (item i -> column i % n), so a sorted input reads left-to-right then down', () => {
-    expect(splitColumns([1, 2, 3, 4, 5, 6, 7], 4)).toEqual([[1, 5], [2, 6], [3, 7], [4]])
-  })
-  it('covers every element exactly once', () => {
-    const all = [1, 2, 3, 4, 5]
-    expect(splitColumns(all, 4).flat().sort()).toEqual(all)
-  })
-})
-
-describe('kioskColumns', () => {
+describe('kioskBlocks', () => {
   const members = [
     member('A', '대학부'),
     member('B', '대학부'),
@@ -65,37 +44,25 @@ describe('kioskColumns', () => {
     member('V', '대학부', 'visitor'),
   ]
 
-  it('buckets 대학부/청년부 into KIOSK_COLS columns each, rest into others', () => {
-    const cols = kioskColumns(members)
-    expect(KIOSK_COLS).toBe(4)
-    expect(cols.depts.map((d) => d.key)).toEqual(['대학부', '청년부'])
-    expect(cols.depts[0].total).toBe(2) // A, B (visitor excluded)
-    expect(cols.depts[0].columns).toHaveLength(4)
-    expect(cols.depts[0].columns.flat().map((m) => m.name)).toEqual(['A', 'B'])
-    expect(cols.depts[1].total).toBe(1) // C
-    expect(cols.others.map((m) => m.name)).toEqual(['D'])
+  it('buckets 대학부/청년부 into their own blocks, rest into others', () => {
+    const blocks = kioskBlocks(members)
+    expect(blocks.depts.map((d) => d.key)).toEqual(['대학부', '청년부'])
+    expect(blocks.depts[0].total).toBe(2) // A, B (visitor excluded)
+    expect(blocks.depts[0].members.map((m) => m.name)).toEqual(['A', 'B'])
+    expect(blocks.depts[1].total).toBe(1) // C
+    expect(blocks.others.map((m) => m.name)).toEqual(['D'])
   })
 
-  // 부서만 보기: 한 부서가 화면 전체를 쓰므로 8열. 나눈 개수와 화면 격자의 열 수가 같아야
-  // 한 줄을 왼쪽→오른쪽으로 읽는 순서가 가나다 순이 된다.
-  it('splits into 8 columns when a single 부서 has the whole width', () => {
-    expect(KIOSK_COLS_DEPT).toBe(8)
-    const eight = [...'가나다라마바사아자차'].map((n) => member(n, '대학부'))
-    const cols = kioskColumns(eight, KIOSK_COLS_DEPT)
-    expect(cols.depts[0].columns).toHaveLength(8)
-    // 10명 / 8열 → 앞의 두 열만 2명 (round-robin), 첫 줄은 가나다라마바사아 순으로 읽힌다.
-    expect(cols.depts[0].columns.map((c) => c.length)).toEqual([2, 2, 1, 1, 1, 1, 1, 1])
-    expect(cols.depts[0].columns.map((c) => c[0].name)).toEqual([...'가나다라마바사아'])
-    expect(cols.depts[0].total).toBe(10)
-  })
-
-  it('defaults to KIOSK_COLS when no column count is given (both 부서 side by side)', () => {
-    expect(kioskColumns(members).depts[0].columns).toHaveLength(KIOSK_COLS)
+  // 격자가 한 줄씩 채워지므로 블록의 목록 순서가 곧 화면의 읽는 순서다 — 열이 2개(폰 세로)든
+  // 4개든 8개든. 예전처럼 열로 미리 나눠 두면 화면의 열 수가 그 수와 다를 때 순서가 깨졌다.
+  it('keeps each block as one flat 가나다 list, so any column count reads in order', () => {
+    const ten = [...'차자아사마바라다나가'].map((n) => member(n, '대학부'))
+    expect(kioskBlocks(ten).depts[0].members.map((m) => m.name)).toEqual([...'가나다라마바사아자차'])
   })
 
   it('excludes visitors from every bucket', () => {
-    const cols = kioskColumns(members)
-    const all = [...cols.depts.flatMap((d) => d.columns.flat()), ...cols.others]
+    const blocks = kioskBlocks(members)
+    const all = [...blocks.depts.flatMap((d) => d.members), ...blocks.others]
     expect(all.find((m) => m.name === 'V')).toBeUndefined()
   })
 
@@ -104,25 +71,30 @@ describe('kioskColumns', () => {
   // 섞여 들어와도 장년부 격자에는 들어가지 않고 아래 "그 외"로 빠진다는 것.
   it('장년부 kiosk draws one 부서 block, not the 대학부/청년부 pair', () => {
     const adults = [member('갑', '장년부'), member('을', '장년부'), member('X', '청년부')]
-    const cols = kioskColumns(adults, KIOSK_COLS, 'adult')
-    expect(cols.depts.map((d) => d.key)).toEqual(['장년부'])
-    expect(cols.depts[0].columns.flat().map((m) => m.name)).toEqual(['갑', '을'])
-    expect(cols.others.map((m) => m.name)).toEqual(['X'])
+    const blocks = kioskBlocks(adults, 'adult')
+    expect(blocks.depts.map((d) => d.key)).toEqual(['장년부'])
+    expect(blocks.depts[0].members.map((m) => m.name)).toEqual(['갑', '을'])
+    expect(blocks.others.map((m) => m.name)).toEqual(['X'])
   })
 
   it('defaults to the 대학·청년부 blocks when no 부 is given', () => {
-    expect(kioskColumns(members).depts.map((d) => d.key)).toEqual(['대학부', '청년부'])
+    expect(kioskBlocks(members).depts.map((d) => d.key)).toEqual(['대학부', '청년부'])
   })
 
   it('sorts each 부서 bucket 가나다 순 regardless of roster order', () => {
     const unordered = [member('다영', '대학부'), member('가영', '대학부'), member('나영', '대학부')]
-    const cols = kioskColumns(unordered)
-    expect(cols.depts[0].columns.flat().map((m) => m.name)).toEqual(['가영', '나영', '다영'])
+    expect(kioskBlocks(unordered).depts[0].members.map((m) => m.name)).toEqual(['가영', '나영', '다영'])
+  })
+
+  // 기기 언어가 영어여도 한글 이름이 가나다 순으로 먼저 온다 — 기본 정렬은 영문을 앞에 세운다.
+  it('puts Korean names first in 가나다 order, English names after, whatever the device locale', () => {
+    const mixed = [member('Daniel', '대학부'), member('박지민', '대학부'), member('alex', '대학부'), member('강민', '대학부')]
+    expect(kioskBlocks(mixed).depts[0].members.map((m) => m.name)).toEqual(['강민', '박지민', 'alex', 'Daniel'])
   })
 
   it('sorts others 가나다 순 too', () => {
     const unordered = [member('나', 'EM'), member('가', 'EM')]
-    expect(kioskColumns(unordered).others.map((m) => m.name)).toEqual(['가', '나'])
+    expect(kioskBlocks(unordered).others.map((m) => m.name)).toEqual(['가', '나'])
   })
 })
 
