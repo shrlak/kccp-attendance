@@ -52,39 +52,29 @@ export function hiddenByStatus(m: Member, today: string): boolean {
   return hiddenFromKiosk(m, today)
 }
 
-// Columns per department block. Both 부서 side by side → each gets 4; 부서만 보기 hands the
-// whole width to one 부서, so it gets 8 and twice as many names fit without scrolling.
-export const KIOSK_COLS = 4
-export const KIOSK_COLS_DEPT = 8
-
-export interface KioskColumns {
-  // One entry per department, in this 부's kioskDepts() order. `columns` is always length
-  // `cols` (see kioskColumns); `total` is the department's member count for the header.
-  depts: { key: KioskDept; total: number; columns: Member[][] }[]
+export interface KioskBlocks {
+  // One entry per department, in this 부's kioskDepts() order, each list 가나다 순.
+  // `total` is the department's member count for the header.
+  depts: { key: KioskDept; total: number; members: Member[] }[]
   // Members outside this 부's departments, in a flat section below the department grids.
   others: Member[]
 }
 
-// Split a list into `n` columns round-robin (item i → column i % n), so — given an
-// already 가나다-sorted `list` — reading the grid left-to-right across a row, then down
-// to the next row, follows alphabetical order. Balances column lengths as evenly as
-// possible, earlier columns getting any remainder (e.g. n=4, list of 7 → [2,2,2,1]).
-export function splitColumns<T>(list: T[], n: number): T[][] {
-  const cols: T[][] = Array.from({ length: n }, () => [])
-  list.forEach((item, i) => cols[i % n].push(item))
-  return cols
-}
+// 가나다 순은 기기의 언어 설정을 따르지 않는다 — 영어로 설정된 태블릿에서는 기본 정렬이
+// 영문 이름을 한글보다 앞에 세우므로, 같은 명단이 기기마다 다른 순서로 나온다. 'ko'로
+// 고정하면 어디서든 한글 이름이 가나다 순으로 먼저, 영문 이름이 그 뒤에 온다.
+const koreanOrder = new Intl.Collator('ko')
+const byName = (a: Member, b: Member) => koreanOrder.compare(a.name, b.name)
 
-const byName = (a: Member, b: Member) => a.name.localeCompare(b.name)
-
-// Bucket non-visitor members into the department grids + the "other" overflow, each
-// bucket explicitly sorted 가나다 순 (name.localeCompare) so the kiosk grid reads
-// alphabetically regardless of the roster's incoming order.
-export function kioskColumns(
-  members: Member[],
-  cols: number = KIOSK_COLS,
-  partition: Partition = 'youth',
-): KioskColumns {
+// Bucket non-visitor members into the department blocks + the "other" overflow, each
+// bucket sorted 가나다 순 regardless of the roster's incoming order.
+//
+// 목록을 열로 미리 나누지 않는다. 예전에는 4열(부서만 보기는 8열)로 round-robin 나눠 두고
+// 열마다 세로로 쌓았는데, 그 순서는 **화면의 열 수가 나눈 수와 같을 때만** 가나다였다 —
+// 폰 세로 화면처럼 격자가 2열로 접히면 첫 줄이 1·2번째, 둘째 줄이 5·6번째 이름이 되어
+// 3·4번째는 한참 아래로 밀려났다. 이제 격자 한 칸이 이름 하나이고 줄 단위로 채워지므로
+// (CSS grid의 기본 흐름) 열이 몇 개든 왼쪽→오른쪽, 위→아래로 읽는 순서가 곧 가나다다.
+export function kioskBlocks(members: Member[], partition: Partition = 'youth'): KioskBlocks {
   const depts = kioskDepts(partition)
   const visible = members.filter((m) => !isVisitor(m))
   const buckets: Record<string, Member[]> = {}
@@ -97,7 +87,7 @@ export function kioskColumns(
   return {
     depts: depts.map((key) => {
       const sorted = [...buckets[key]].sort(byName)
-      return { key, total: sorted.length, columns: splitColumns(sorted, cols) }
+      return { key, total: sorted.length, members: sorted }
     }),
     others: others.sort(byName),
   }

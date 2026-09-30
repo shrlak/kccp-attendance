@@ -6,14 +6,12 @@ import { easternNow } from '../../lib/checkinWindow'
 import { memberCheckin, removeAttendance, type Member } from '../../lib/api'
 import { resolveGroupColor, hexTint } from '../admin/groupColors'
 import {
-  kioskColumns,
+  kioskBlocks,
   filterByName,
   presentNamesToday,
   attendanceCount,
   todayEntryFor,
   hiddenByStatus,
-  KIOSK_COLS,
-  KIOSK_COLS_DEPT,
   kioskDepts,
   type KioskDept,
 } from './kiosk'
@@ -126,9 +124,9 @@ export function KioskView({ onExit }: { onExit: () => void }) {
   const wide = deptView || depts.length === 1
   const scoped = deptView ? members.filter((m) => m.group_name === deptOnly) : members
   const visible = filterByName(scoped.filter((m) => !hiddenByStatus(m, today)), search)
-  // 한 부서가 화면 전체를 쓰므로 4열이 아니라 8열로 쪼갠다. 나눈 개수와 아래 격자의 열 수는
-  // 같아야 한다 — 그래야 한 줄을 왼쪽에서 오른쪽으로 읽는 순서가 가나다 순이 된다.
-  const cols = kioskColumns(visible, wide ? KIOSK_COLS_DEPT : KIOSK_COLS, partition)
+  // 한 부서가 화면 전체를 쓰면 열이 두 배(4→8)로 넉넉해진다 — 열 수는 격자가 정하고, 이름은
+  // 줄 단위로 채워지므로 열이 몇 개든 가나다 순으로 읽힌다 (kioskBlocks).
+  const cols = kioskBlocks(visible, partition)
   // 부서를 골랐으면 그 부서 블록만 남긴다 — 반대쪽 부서가 빈 칸으로 자리를 차지하지 않도록.
   const deptBlocks = deptView ? cols.depts.filter((d) => d.key === deptOnly) : cols.depts
   const hasAnyResult = deptBlocks.some((d) => d.total > 0) || cols.others.length > 0
@@ -277,32 +275,29 @@ export function KioskView({ onExit }: { onExit: () => void }) {
                 const color = resolveGroupColor(cfg?.groupColors, dept.key)
                 return (
                   <div key={dept.key} className="rounded-[26px] border border-border/60 p-4" style={{ background: hexTint(color, 0.07) }}>
-                    {/* Full-width department header, so every column below starts on the same
-                        line — the round-robin split reads alphabetically across each row. */}
+                    {/* Full-width department header over a row-major grid: names fill each row
+                        left to right, then the next row, so the 가나다 순 holds at any column
+                        count — 2 on a portrait phone, 4 on a tablet, 8 for a full-width 부서. */}
                     <div
                       className="mb-3 flex items-baseline gap-2 border-b-2 pb-2 text-xs font-bold uppercase tracking-wide"
                       style={{ color, borderColor: color }}
                     >
                       {dept.key} <span className="text-subtle">{dept.total}</span>
                     </div>
-                    <div
-                      className={
-                        'grid grid-cols-2 items-start gap-x-3 gap-y-2 ' +
-                        (wide
-                          ? 'min-[480px]:grid-cols-4 min-[900px]:grid-cols-8'
-                          : 'min-[480px]:grid-cols-4')
-                      }
-                    >
-                      {dept.columns.map((part, i) => (
-                        <div key={`${dept.key}-${i}`} className="flex flex-col gap-2">
-                          {part.length ? (
-                            part.map((m) => <Tile key={m.id} m={m} done={isPresent(m)} onTap={onTap} />)
-                          ) : (
-                            <div className="py-3 text-center text-xs text-subtle">—</div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
+                    {dept.members.length ? (
+                      <div
+                        className={
+                          'grid grid-cols-2 gap-x-3 gap-y-2 ' +
+                          (wide
+                            ? 'min-[480px]:grid-cols-4 min-[900px]:grid-cols-8'
+                            : 'min-[480px]:grid-cols-4')
+                        }
+                      >
+                        {dept.members.map((m) => <Tile key={m.id} m={m} done={isPresent(m)} onTap={onTap} />)}
+                      </div>
+                    ) : (
+                      <div className="py-3 text-center text-xs text-subtle">—</div>
+                    )}
                   </div>
                 )
               })}
