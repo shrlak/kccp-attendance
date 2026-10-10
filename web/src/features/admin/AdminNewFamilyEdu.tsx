@@ -120,7 +120,7 @@ export function AdminNewFamilyEdu() {
   // 사람이므로, 미수강도 다른 한 주차만 들은 사람도 함께 위로 올라온다.
   const session = focusEduSession(today)
   const openToday = !!session && session.date === today
-  // 그다음 교육 — 한 바퀴에 쉬는 주일이 끼어 있어 "다음 주"가 아닐 때가 있다.
+  // 그다음 교육 — 행사로 건너뛰는 주일이 끼면 "다음 주"가 아닐 때가 있다.
   const following = session ? nextEduSession(addIsoDays(session.date, 1)) : null
   // 위 블록은 **교육이 아직 안 끝난 사람 전부**다 (eduUnfinished 머리말): 오늘 여는 주차가
   // 비어 있는 사람에 더해, 오늘 것은 들었지만 나머지 한 주가 남은 사람까지. 그 안에서는
@@ -654,7 +654,7 @@ function ScheduleBanner({
 }: {
   session: EduSession | null
   openToday: boolean // 오늘이 바로 그 주일인가 (아니면 다음에 열리는 것을 가리킨다)
-  following: EduSession | null // 그다음 교육 — 쉬는 주일이 끼어 있어 '다음 주'가 아닐 수 있다
+  following: EduSession | null // 그다음 교육 — 건너뛰는 주일이 끼면 '다음 주'가 아닐 수 있다
   due: number
   lang: string
 }) {

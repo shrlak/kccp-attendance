@@ -3,9 +3,10 @@ import { sundaysBetween } from './newFamily'
 
 // 새가족 교육 일정 — **어느 주일에 몇 주차를 여는가**.
 //
-// 교육은 두 주 과정인데 매주 열리지도, 격주로 열리지도 않는다: 한 바퀴가 세 주일이다 —
-// **1주차 · 2주차 · 쉬는 주일**. 그래서 날짜만 보고 주차를 셈할 수 없고, 시작 주일 하나와
-// 이 반복이 함께 있어야 한다. 그것이 아래 EDU_TERMS 한 줄이다.
+// 교육은 두 주 과정이고 **1주차 · 2주차가 쉬는 주일 없이 번갈아 돈다**. 다만 교회 행사로
+// 교육을 건너뛰는 주일이 끼면 그 뒤의 주차가 한 칸씩 밀리므로, 날짜만 보고 주차를 셈할 수
+// 없다 — 시작 주일 하나와 이 반복, 그리고 건너뛴 주일이 함께 있어야 한다. 그것이 아래
+// EDU_TERMS 한 줄이다.
 //
 // 이 파일이 정하는 것은 **일정뿐이고, 누가 이수했는지는 아니다.** 이수는 사람마다 붙는
 // 체크 두 개(`new_member_edu_week1/2`)로 남고 날짜가 없다 — 그래서 "지난 9월 27일에 누가
@@ -21,16 +22,25 @@ export interface EduSession {
 interface EduTerm {
   start: string // ISO — 첫 교육이 열리는 주일 (cycle의 첫 칸이 이 날에 놓인다)
   end: string // ISO, 포함 — 이 날까지만 연다
-  cycle: (EduWeek | null)[] // 주일 단위로 도는 반복. null = 쉬는 주일
+  cycle: EduWeek[] // 교육을 여는 주일마다 한 칸씩 도는 반복
+  // 교육을 열지 않는 주일 → 그 이유. 이 주일은 반복의 칸을 쓰지 않으므로 그 뒤의 주차가
+  // 한 칸씩 밀린다 (1주차를 열 차례에 쉬었으면 다음 주일이 1주차다). 날짜만 적지 않고 이유를
+  // 함께 적는 것은, 날짜만 남으면 나중에 "그날은 왜 쉬었지"에 아무도 답할 수 없기 때문이다.
+  skip?: Record<string, string>
 }
 
 // **한 학기가 한 줄이다.** 2026 가을은 9월 6일 1주차로 시작해 12월 27일 2주차로 끝난다 —
-// 그 사이 주일들이 [1주차, 2주차, 쉼]을 계속 돌고 마지막 바퀴가 12/27에서 정확히 닫힌다.
-// 다음 학기가 정해지면 여기에 한 줄을 더한다. **끝난 학기는 지우지 않는다** — 지우면 지난
-// 주일에 무엇을 열었는지 되물을 자리가 사라진다 (이수 체크에는 날짜가 없으므로 그 답을
-// 가진 곳이 여기뿐이다).
+// 그 사이 주일들이 1주차 · 2주차를 번갈아 돌고(9/20 하루만 쉬었다) 마지막 바퀴가 12/27에서
+// 정확히 닫힌다. 다음 학기가 정해지면 여기에 한 줄을 더한다. **끝난 학기는 지우지 않는다** —
+// 지우면 지난 주일에 무엇을 열었는지 되물을 자리가 사라진다 (이수 체크에는 날짜가 없으므로
+// 그 답을 가진 곳이 여기뿐이다).
 const EDU_TERMS: EduTerm[] = [
-  { start: '2026-09-06', end: '2026-12-27', cycle: [1, 2, null] },
+  {
+    start: '2026-09-06',
+    end: '2026-12-27',
+    cycle: [1, 2],
+    skip: { '2026-09-20': '전교인체육대회' },
+  },
 ]
 
 // 일정은 상수에서 나오므로 한 번만 펼쳐 둔다 (날짜순 오름차순).
@@ -41,17 +51,16 @@ export function eduSessions(): EduSession[] {
   const out: EduSession[] = []
   for (const term of EDU_TERMS) {
     // 시작일이 주일이 아니어도 sundaysBetween이 그 뒤 첫 주일부터 세므로, 반복의 첫 칸은
-    // 언제나 "실제로 교육을 여는 첫 주일"에 놓인다.
-    sundaysBetween(term.start, term.end).forEach((date, i) => {
-      const week = term.cycle[i % term.cycle.length]
-      if (week) out.push({ date, week })
-    })
+    // 언제나 "실제로 교육을 여는 첫 주일"에 놓인다. 건너뛴 주일은 칸을 쓰지 않는다.
+    sundaysBetween(term.start, term.end)
+      .filter((date) => !term.skip?.[date])
+      .forEach((date, i) => out.push({ date, week: term.cycle[i % term.cycle.length] }))
   }
   cached = out.sort((a, b) => a.date.localeCompare(b.date))
   return cached
 }
 
-// 그 날짜에 여는 교육 — 쉬는 주일과 주중은 null.
+// 그 날짜에 여는 교육 — 건너뛴 주일과 주중은 null.
 export function eduSessionOn(date: string): EduSession | null {
   return eduSessions().find((s) => s.date === date) ?? null
 }
