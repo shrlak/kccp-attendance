@@ -1,9 +1,17 @@
 import { describe, it, expect } from 'vitest'
-import { eduSessions, eduSessionOn, nextEduSession, focusEduSession, needsEduWeek, eduUnfinished } from './eduSchedule'
+import {
+  eduSessions,
+  eduSessionOn,
+  nextEduSession,
+  focusEduSession,
+  needsEduWeek,
+  needsEduSession,
+  eduUnfinished,
+} from './eduSchedule'
 
 // 교육은 1주차 · 2주차가 쉬는 주일 없이 번갈아 돈다. 다만 행사로 건너뛴 주일(2026 가을은
 // 9/20 전교인체육대회)이 끼거나 실제 순서가 어긋나면(10/11을 2주차로 열었다) 그 뒤가 밀리므로,
-// "격주"로 날짜를 맞힐 수 없고 이 표가 유일한 답이다.
+// "격주"로 날짜를 맞힐 수 없고 이 표가 유일한 답이다. 10/18부터는 두 주차를 함께 연다.
 describe('eduSchedule — 1주차 · 2주차가 번갈아 도는 일정', () => {
   it('2026 가을은 9/6 1주차 · 9/13 2주차, 9/20은 건너뛰고 9/27부터 다시 1주차 · 2주차다', () => {
     expect(eduSessionOn('2026-09-06')?.week).toBe(1)
@@ -11,17 +19,20 @@ describe('eduSchedule — 1주차 · 2주차가 번갈아 도는 일정', () => 
     expect(eduSessionOn('2026-09-20')).toBeNull()
     expect(eduSessionOn('2026-09-27')?.week).toBe(1)
     expect(eduSessionOn('2026-10-04')?.week).toBe(2)
-    // 10/11은 2주차로 열었다 — 그날부터 2주차 · 1주차로 다시 센다.
+    // 10/11은 2주차로 열었다 — 그날 연 것은 그대로 남는다.
     expect(eduSessionOn('2026-10-11')?.week).toBe(2)
-    expect(eduSessionOn('2026-10-18')?.week).toBe(1)
-    expect(eduSessionOn('2026-10-25')?.week).toBe(2)
-    expect(eduSessionOn('2026-11-01')?.week).toBe(1)
-    expect(eduSessionOn('2026-12-20')?.week).toBe(2)
+  })
+
+  it('10/18부터는 1 · 2주차를 함께 연다', () => {
+    expect(eduSessionOn('2026-10-18')?.week).toBe('both')
+    expect(eduSessionOn('2026-10-25')?.week).toBe('both')
+    expect(eduSessionOn('2026-11-01')?.week).toBe('both')
+    expect(eduSessionOn('2026-12-20')?.week).toBe('both')
   })
 
   it('12월 27일까지 이어지고 그 뒤로는 없다', () => {
     const all = eduSessions()
-    expect(all[all.length - 1]).toEqual({ date: '2026-12-27', week: 1 })
+    expect(all[all.length - 1]).toEqual({ date: '2026-12-27', week: 'both' })
     expect(nextEduSession('2026-12-28')).toBeNull()
     expect(focusEduSession('2027-01-03')).toBeNull()
   })
@@ -31,12 +42,11 @@ describe('eduSchedule — 1주차 · 2주차가 번갈아 도는 일정', () => 
     for (const s of all) expect(new Date(`${s.date}T00:00:00Z`).getUTCDay()).toBe(0)
     // 9/6 ~ 12/27의 주일 17번 중 9/20 하나를 뺀 16번.
     expect(all).toHaveLength(16)
-    expect(all.filter((s) => s.week === 1)).toHaveLength(8)
-    expect(all.filter((s) => s.week === 2)).toHaveLength(8)
-    // 10/11부터는 2주차 · 1주차가 빠짐없이 번갈아 선다.
-    all
-      .filter((s) => s.date >= '2026-10-11')
-      .forEach((s, i) => expect(s.week).toBe(i % 2 === 0 ? 2 : 1))
+    // 9/6 · 9/27 1주차, 9/13 · 10/4 · 10/11 2주차, 10/18부터 11번은 두 주차 함께.
+    expect(all.filter((s) => s.week === 1).map((s) => s.date)).toEqual(['2026-09-06', '2026-09-27'])
+    expect(all.filter((s) => s.week === 2).map((s) => s.date)).toEqual(['2026-09-13', '2026-10-04', '2026-10-11'])
+    expect(all.filter((s) => s.week === 'both')).toHaveLength(11)
+    expect(all.filter((s) => s.date >= '2026-10-18').every((s) => s.week === 'both')).toBe(true)
   })
 
   it('주중에는 다음에 열리는 교육을, 주일 당일에는 그 날 것을 가리킨다', () => {
@@ -48,6 +58,8 @@ describe('eduSchedule — 1주차 · 2주차가 번갈아 도는 일정', () => 
     // 토요일 10/10 — 내일 10/11은 2주차다.
     expect(focusEduSession('2026-10-10')).toEqual({ date: '2026-10-11', week: 2 })
     expect(focusEduSession('2026-10-11')).toEqual({ date: '2026-10-11', week: 2 })
+    // 10/12 월요일 — 다음 주일 10/18은 두 주차를 함께 연다.
+    expect(focusEduSession('2026-10-12')).toEqual({ date: '2026-10-18', week: 'both' })
   })
 })
 
@@ -83,6 +95,16 @@ describe('eduUnfinished', () => {
     expect(eduUnfinished(m(true, false))).toBe(true)
     expect(eduUnfinished(m(false, true))).toBe(true)
     expect(eduUnfinished(m(true, true))).toBe(false)
+  })
+
+  it('두 주차를 함께 여는 주일에는 아직 수료하지 않은 사람 전부가 그날의 대상이다', () => {
+    const people = [m(false, false), m(true, false), m(false, true), m(true, true)]
+    expect(people.map((p) => needsEduSession(p, 'both'))).toEqual([true, true, true, false])
+    // 한 주차만 여는 주일에는 needsEduWeek와 같다.
+    for (const p of people) {
+      expect(needsEduSession(p, 1)).toBe(needsEduWeek(p, 1))
+      expect(needsEduSession(p, 2)).toBe(needsEduWeek(p, 2))
+    }
   })
 
   it('어느 주일이든 같은 사람들이다 — 그 안의 순서만 주차가 정한다', () => {

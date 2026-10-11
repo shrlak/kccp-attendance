@@ -20,8 +20,9 @@ import {
   eduStage,
   eduUnfinished,
   focusEduSession,
-  needsEduWeek,
+  needsEduSession,
   nextEduSession,
+  type EduOpen,
   type EduSession,
 } from './eduSchedule'
 import {
@@ -124,11 +125,14 @@ export function AdminNewFamilyEdu() {
   const following = session ? nextEduSession(addIsoDays(session.date, 1)) : null
   // 위 블록은 **교육이 아직 안 끝난 사람 전부**다 (eduUnfinished 머리말): 오늘 여는 주차가
   // 비어 있는 사람에 더해, 오늘 것은 들었지만 나머지 한 주가 남은 사람까지. 그 안에서는
-  // 오늘 그 자리에 앉을 사람(needsEduWeek)이 먼저 온다.
+  // 오늘 그 자리에 앉을 사람(needsEduSession)이 먼저 온다 — 두 주차를 함께 여는 주일에는
+  // 블록 전체가 그 사람들이라 순서를 가르지 않는다.
   // 아직 두 주를 다 마치지 않은 사람 — 위 블록의 명단이자, 전체 선택이 집는 명단이다.
   const unfinished = visible.filter(eduUnfinished)
   const due = session
-    ? [...unfinished].sort((a, b) => Number(needsEduWeek(b, session.week)) - Number(needsEduWeek(a, session.week)))
+    ? [...unfinished].sort(
+        (a, b) => Number(needsEduSession(b, session.week)) - Number(needsEduSession(a, session.week)),
+      )
     : []
   const rest = session ? visible.filter((m) => !eduUnfinished(m)) : visible
 
@@ -659,7 +663,9 @@ function ScheduleBanner({
   lang: string
 }) {
   const { t } = useTranslation()
-  const week = (n: number) => t('admin.newfamilyEdu.schedule.week', { n })
+  // 두 주차를 함께 여는 주일은 한 주차 이름 대신 '1·2주차 함께'라고 적는다.
+  const week = (open: EduOpen) =>
+    open === 'both' ? t('admin.newfamilyEdu.schedule.both') : t('admin.newfamilyEdu.schedule.week', { n: open })
   if (!session)
     return (
       <p className="mb-4 rounded-2xl border border-dashed border-border px-3.5 py-2.5 text-xs text-muted">
