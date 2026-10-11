@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { eduSessions, eduSessionOn, nextEduSession, focusEduSession, needsEduWeek, eduUnfinished } from './eduSchedule'
 
 // 교육은 1주차 · 2주차가 쉬는 주일 없이 번갈아 돈다. 다만 행사로 건너뛴 주일(2026 가을은
-// 9/20 전교인체육대회)이 끼면 그 뒤가 한 칸씩 밀리므로, "격주"로 날짜를 맞힐 수 없고 이 표가
-// 유일한 답이다.
+// 9/20 전교인체육대회)이 끼거나 실제 순서가 어긋나면(10/11을 2주차로 열었다) 그 뒤가 밀리므로,
+// "격주"로 날짜를 맞힐 수 없고 이 표가 유일한 답이다.
 describe('eduSchedule — 1주차 · 2주차가 번갈아 도는 일정', () => {
   it('2026 가을은 9/6 1주차 · 9/13 2주차, 9/20은 건너뛰고 9/27부터 다시 1주차 · 2주차다', () => {
     expect(eduSessionOn('2026-09-06')?.week).toBe(1)
@@ -11,16 +11,17 @@ describe('eduSchedule — 1주차 · 2주차가 번갈아 도는 일정', () => 
     expect(eduSessionOn('2026-09-20')).toBeNull()
     expect(eduSessionOn('2026-09-27')?.week).toBe(1)
     expect(eduSessionOn('2026-10-04')?.week).toBe(2)
-    // 쉬는 주일이 따로 돌지 않는다 — 2주차 다음 주일은 곧바로 1주차다.
-    expect(eduSessionOn('2026-10-11')?.week).toBe(1)
-    expect(eduSessionOn('2026-10-18')?.week).toBe(2)
-    expect(eduSessionOn('2026-11-01')?.week).toBe(2)
-    expect(eduSessionOn('2026-12-20')?.week).toBe(1)
+    // 10/11은 2주차로 열었다 — 그날부터 2주차 · 1주차로 다시 센다.
+    expect(eduSessionOn('2026-10-11')?.week).toBe(2)
+    expect(eduSessionOn('2026-10-18')?.week).toBe(1)
+    expect(eduSessionOn('2026-10-25')?.week).toBe(2)
+    expect(eduSessionOn('2026-11-01')?.week).toBe(1)
+    expect(eduSessionOn('2026-12-20')?.week).toBe(2)
   })
 
   it('12월 27일까지 이어지고 그 뒤로는 없다', () => {
     const all = eduSessions()
-    expect(all[all.length - 1]).toEqual({ date: '2026-12-27', week: 2 })
+    expect(all[all.length - 1]).toEqual({ date: '2026-12-27', week: 1 })
     expect(nextEduSession('2026-12-28')).toBeNull()
     expect(focusEduSession('2027-01-03')).toBeNull()
   })
@@ -32,8 +33,10 @@ describe('eduSchedule — 1주차 · 2주차가 번갈아 도는 일정', () => 
     expect(all).toHaveLength(16)
     expect(all.filter((s) => s.week === 1)).toHaveLength(8)
     expect(all.filter((s) => s.week === 2)).toHaveLength(8)
-    // 1주차와 2주차가 빠짐없이 번갈아 선다.
-    all.forEach((s, i) => expect(s.week).toBe(i % 2 === 0 ? 1 : 2))
+    // 10/11부터는 2주차 · 1주차가 빠짐없이 번갈아 선다.
+    all
+      .filter((s) => s.date >= '2026-10-11')
+      .forEach((s, i) => expect(s.week).toBe(i % 2 === 0 ? 2 : 1))
   })
 
   it('주중에는 다음에 열리는 교육을, 주일 당일에는 그 날 것을 가리킨다', () => {
@@ -42,8 +45,9 @@ describe('eduSchedule — 1주차 · 2주차가 번갈아 도는 일정', () => 
     expect(focusEduSession('2026-09-07')).toEqual({ date: '2026-09-13', week: 2 })
     // 건너뛴 주일(전교인체육대회) — 그 날은 열지 않으므로 다음 주일을 가리킨다.
     expect(focusEduSession('2026-09-20')).toEqual({ date: '2026-09-27', week: 1 })
-    // 토요일 10/10 — 내일 10/11은 1주차다.
-    expect(focusEduSession('2026-10-10')).toEqual({ date: '2026-10-11', week: 1 })
+    // 토요일 10/10 — 내일 10/11은 2주차다.
+    expect(focusEduSession('2026-10-10')).toEqual({ date: '2026-10-11', week: 2 })
+    expect(focusEduSession('2026-10-11')).toEqual({ date: '2026-10-11', week: 2 })
   })
 })
 
