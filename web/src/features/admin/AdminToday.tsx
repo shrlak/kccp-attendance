@@ -187,8 +187,10 @@ export function AdminToday() {
         </div>
       )}
       <IconKey items={['newFamily', 'visitor']} />
-      {/* Today's check-ins run 4 per row from 640px up; phones in portrait keep 2, where
-          four cards of name + 동산 + check-in time can't fit legibly across the screen. */}
+      {/* Today's check-ins: 2 per row on a phone, 3 from 640px, 4 from 1024px. 체크인 시각은
+          이름 **밑** 줄이다 — 예전에는 이름 오른쪽에 붙어 있어서 폰의 두 칸짜리 격자에서 아바타와
+          시각 사이에 이름이 30px 남짓밖에 남지 않았고, 이름이 한 글자씩 세로로 꺾였다 (640px의
+          네 칸에서도 같았다). 이름은 한 줄로 두고 넘치면 말줄임으로 자른다. */}
       {todays.length === 0 ? (
         <div className="fx-rise grid place-items-center rounded-2xl border border-dashed border-border py-14 text-center">
           <div className="grid size-14 place-items-center rounded-full bg-fill text-subtle"><CalendarCheck className="size-6" aria-hidden /></div>
@@ -198,7 +200,7 @@ export function AdminToday() {
           </p>
         </div>
       ) : (
-        <ul className="fx-stagger grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+        <ul className="fx-stagger grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
           {todays.map((e) => {
             const tag = checkinTag(e, newMemberNames)
             const color = resolveGroupColor(cfg?.groupColors, e.group)
@@ -208,42 +210,41 @@ export function AdminToday() {
             return (
               <li
                 key={`${e.name}-${e.ts}`}
-                className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-surface px-3.5 py-3 shadow-[var(--shadow-sm)] transition-[box-shadow,transform] duration-200 [transition-timing-function:var(--ease-out-soft)] hover:-translate-y-0.5 hover:shadow-[var(--shadow)]"
+                className="flex min-w-0 items-center gap-2.5 rounded-2xl border border-border bg-surface px-3 py-3 shadow-[var(--shadow-sm)] transition-[box-shadow,transform] duration-200 [transition-timing-function:var(--ease-out-soft)] hover:-translate-y-0.5 hover:shadow-[var(--shadow)] sm:gap-3 sm:px-3.5"
               >
-                <div className="flex min-w-0 items-center gap-3">
-                  <div
-                    className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-sm font-bold"
-                    style={{ background: hexTint(color, 0.16), color }}
-                  >
-                    {(e.name || '?').slice(0, 1)}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 text-[15px] font-semibold text-text">
-                      {member ? (
-                        <button
-                          type="button"
-                          onClick={() => setEditingMember(member)}
-                          className="rounded text-left hover:text-primary focus-visible:text-primary focus-visible:outline-none"
-                        >
-                          {e.name}
-                        </button>
-                      ) : (
-                        e.name
-                      )}
-                      {tag && (
-                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
-                          {t(tag === 'visitor' ? 'admin.iconKey.visitor' : 'admin.iconKey.newFamily')}
-                        </span>
-                      )}
-                    </div>
-                    <div className="truncate text-[13px] text-muted">
-                      {[e.group, e.subgroup].filter(Boolean).join(' · ') || '—'}
-                    </div>
-                  </div>
+                <div
+                  className="grid size-9 shrink-0 place-items-center rounded-full text-sm font-bold sm:size-10"
+                  style={{ background: hexTint(color, 0.16), color }}
+                >
+                  {(e.name || '?').slice(0, 1)}
                 </div>
-                <span className="inline-flex shrink-0 items-center gap-1 tabular-nums text-xs font-medium text-subtle">
-                  <Clock className="size-3.5" aria-hidden />{e.time}
-                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex min-w-0 items-center gap-1.5 text-[15px] font-semibold text-text">
+                    {member ? (
+                      <button
+                        type="button"
+                        onClick={() => setEditingMember(member)}
+                        title={e.name}
+                        className="min-w-0 truncate rounded text-left hover:text-primary focus-visible:text-primary focus-visible:outline-none"
+                      >
+                        {e.name}
+                      </button>
+                    ) : (
+                      <span className="min-w-0 truncate" title={e.name}>{e.name}</span>
+                    )}
+                    {tag && (
+                      <span className="shrink-0 whitespace-nowrap rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                        {t(tag === 'visitor' ? 'admin.iconKey.visitor' : 'admin.iconKey.newFamily')}
+                      </span>
+                    )}
+                  </div>
+                  <div className="truncate text-[13px] text-muted">
+                    {[e.group, e.subgroup].filter(Boolean).join(' · ') || '—'}
+                  </div>
+                  <span className="mt-0.5 inline-flex items-center gap-1 tabular-nums text-xs font-medium text-subtle">
+                    <Clock className="size-3.5" aria-hidden />{e.time}
+                  </span>
+                </div>
               </li>
             )
           })}

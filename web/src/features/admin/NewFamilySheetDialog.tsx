@@ -57,6 +57,7 @@ export function NewFamilySheetDialog({
         sundays={newFamilySundays(today, semesterDates, partition)}
         groupBy={(m) => m.group_name || noGroup}
         caption={`${semesterLabel(today, lang, semesterDates, partition)} · ${t('admin.newfamily.sheet.caption', { n: members.length })}`}
+        fit="dialog"
       />
     </Dialog>
   )

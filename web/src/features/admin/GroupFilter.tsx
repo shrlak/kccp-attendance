@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import type { ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import type { Member } from '../../lib/api'
 import { groupsOf, subgroupSectionsOf, countSubgroups, NO_SUBGROUP, type Filter, type SubgroupSection } from './filters'
 
@@ -12,9 +12,26 @@ import { groupsOf, subgroupSectionsOf, countSubgroups, NO_SUBGROUP, type Filter,
 // 높이는 화면의 40%까지만 쓴다: 동산이 스물이 넘는 부에서는 이 줄이 화면을 통째로 덮을 수
 // 있는데, 고정은 명단을 보면서 고르라고 두는 것이라 명단이 안 보이면 뜻이 없다. 넘치면 이
 // 줄 안에서 스크롤된다.
+//
+// 높이는 `--filter-bar-h`로 내건다 (AdminApp이 헤더 높이를 --admin-header-h로 내거는 것과 같은
+// 방식) — 출석부 표의 스크롤 상자가 그만큼을 빼야 상자 머리가 이 줄 밑에 가려지지 않는다.
 export function StickyFilterBar({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = ref.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const root = document.documentElement
+    const publish = () => root.style.setProperty('--filter-bar-h', `${el.offsetHeight}px`)
+    publish()
+    const ro = new ResizeObserver(publish)
+    ro.observe(el)
+    return () => {
+      ro.disconnect()
+      root.style.removeProperty('--filter-bar-h')
+    }
+  }, [])
   return (
-    <div className="sticky top-[var(--admin-header-h,4.5rem)] z-10 -mx-[var(--gutter)] mb-5 flex max-h-[40vh] flex-col gap-2 overflow-y-auto border-b border-separator bg-canvas px-[var(--gutter)] pb-3 pt-2">
+    <div ref={ref} className="sticky top-[var(--admin-header-h,4.5rem)] z-10 -mx-[var(--gutter)] mb-5 flex max-h-[40vh] flex-col gap-2 overflow-y-auto border-b border-separator bg-canvas px-[var(--gutter)] pb-3 pt-2">
       {children}
     </div>
   )
@@ -116,7 +133,7 @@ export function SubgroupChips({
         // 묶음은 DOM에 남기되(contents) 칩은 트랙의 칩으로 흐른다 — 한 트랙 안에서 줄을 바꾼다.
         <div key={section.group || 'none'} className="contents">
           {labelled && (
-            <span className="section-kicker ml-1.5 border-l border-separator pl-2.5 pr-1">{section.group || '—'}</span>
+            <span className="section-kicker ml-1.5 shrink-0 whitespace-nowrap border-l border-separator pl-2.5 pr-1">{section.group || '—'}</span>
           )}
           {section.subgroups.map((sg) => (
             <Pill key={sg} active={value === sg} onClick={() => onChange(sg)}>
@@ -130,13 +147,20 @@ export function SubgroupChips({
 }
 
 // 칩이 앉는 회색 트랙 (세그먼트 컨트롤). 고른 칩만 흰 알약으로 떠오르고 나머지는 트랙 위의
-// 글자다. 칩이 많으면 트랙 안에서 줄을 바꾼다.
+// 글자다. 칩이 많으면 트랙 안에서 줄을 바꾼다 — **폰에서는 바꾸지 않고 옆으로 민다.** 동산이
+// 여덟을 넘으면 그 트랙 하나가 폰 폭에서 서너 줄이 되고, 칩 줄은 헤더 밑에 붙어 따라오는
+// 자리라(StickyFilterBar) 그 줄들이 화면의 3분의 1을 덮은 채 명단과 출석부를 가렸다. 한 줄로
+// 밀면 트랙마다 한 줄이고, 화면 끝에서 잘린 칩이 "옆에 더 있다"를 알려 준다.
 export function PillTrack({ label, className = '', children }: { label?: string; className?: string; children: ReactNode }) {
   return (
     <div
       role="group"
       aria-label={label}
-      className={'inline-flex max-w-full flex-wrap items-center gap-0.5 rounded-[1.4rem] bg-fill p-1 ' + className}
+      className={
+        'inline-flex max-w-full items-center gap-0.5 rounded-[1.4rem] bg-fill p-1 ' +
+        'max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:overscroll-x-contain max-sm:[scrollbar-width:none] max-sm:[&::-webkit-scrollbar]:hidden sm:flex-wrap ' +
+        className
+      }
     >
       {children}
     </div>
@@ -150,7 +174,7 @@ export function Pill({ active, onClick, children }: { active: boolean; onClick: 
       aria-pressed={active}
       onClick={onClick}
       className={
-        'min-h-8 rounded-full px-3.5 py-1 text-xs font-semibold ' +
+        'min-h-8 shrink-0 whitespace-nowrap rounded-full px-3.5 py-1 text-xs font-semibold ' +
         'transition-[background-color,border-color,color,transform,box-shadow] duration-200 [transition-timing-function:var(--ease-out-soft)] active:scale-[0.94] ' +
         (active
           ? 'bg-surface text-text shadow-[var(--shadow-sm)]'

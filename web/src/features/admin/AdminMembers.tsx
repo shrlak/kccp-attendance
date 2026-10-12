@@ -7,7 +7,7 @@ import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
-import { Search, ListChecks, Merge as MergeIcon, Users, AlertTriangle, EyeOff, ChevronDown, Trash2, HandHeart } from '../../components/ui/Icon'
+import { Search, ListChecks, Merge as MergeIcon, Users, AlertTriangle, EyeOff, ChevronDown, Trash2, HandHeart, ArrowUpDown } from '../../components/ui/Icon'
 import { mergeTargets, canMerge, mergeSummary, type MergeState } from './merge'
 import {
   groupsOf, groupChipsOf, subgroupSectionsOf, matchesGroup, matchesSubgroup, matchesCareer, matchesSchool,
@@ -15,6 +15,7 @@ import {
 } from './filters'
 import { Pill, PillTrack, SubgroupChips } from './GroupFilter'
 import { TraitFilter } from './TraitFilter'
+import { sortKeysFor, sortChipsOf, sortBlocks, matchesSortValue, NO_VALUE, OTHER_VALUE, type SortKey } from './memberSort'
 import { dongsanSectionsOf, flatDongsan } from './dongsan'
 import { newFamilyWeek } from './newFamily'
 import { NewFamilyWeekChip } from './NewFamilyWeekChip'
@@ -59,6 +60,10 @@ export function AdminMembers() {
   // 갈라 보는 자리는 여기 하나이고, 출석부·통계·오늘이 세는 것은 그 주일에 누가 왔는가라
   // 학교는 그 질문의 칸이 아니다.
   const [school, setSchool] = useState<SchoolFilter>('')
+  // 정렬 (성별 · 소속 · 세례여부 · 신앙생활 · 머물 기간 — 종이 등록 카드가 보기로 묻는 칸들).
+  // 부서 섹션 안에서 값마다 묶음이 서고, 고른 칸의 값 칩으로 좁힐 수도 있다 (memberSort.ts).
+  const [sortKey, setSortKey] = useState<SortKey>('')
+  const [sortValue, setSortValue] = useState('')
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [target, setTarget] = useState('')
@@ -84,6 +89,10 @@ export function AdminMembers() {
 
   const today = easternNow().date
   const q = search.trim().toLowerCase()
+  // 고를 수 있는 정렬은 그 칸을 읽어낼 수 있는 사람이 있는 칸뿐이다 (장년부에는 신앙생활 ·
+  // 머물 기간이 없다). 부를 건너가 그 칸이 사라졌으면 이름순으로 돌아간다.
+  const sortKeys = sortKeysFor([...data.members, ...data.hiddenMembers])
+  const activeSort: SortKey = sortKey && sortKeys.includes(sortKey) ? sortKey : ''
   // 이름 검색과 학교 칩은 곱해진다 — 둘 다 "지금 보고 싶은 사람"을 좁히는 같은 종류의 도구라
   // 세 목록(명단·숨긴 멤버·스태프)에 똑같이 걸린다.
   const byName = (list: Member[]) =>
@@ -92,6 +101,7 @@ export function AdminMembers() {
       .filter((m) => matchesSubgroup(m, subgroup))
       .filter((m) => matchesCareer(m, career))
       .filter((m) => matchesSchool(m, school))
+      .filter((m) => matchesSortValue(m, activeSort, sortValue))
   // 칩 줄은 **위 줄에서 고른 것 안에서** 뽑는다 — 청년부 대학원생의 학교 칩은 그 사람들의
   // 학교여야 고른 뒤에 빈 화면이 나오지 않는다. 대신 위 줄을 고치면 아래 줄의 선택은
   // **비운다** (`pickGroup`/`pickCareer`): 사라진 칩으로 계속 좁히고 있으면 화면이 왜
@@ -107,6 +117,12 @@ export function AdminMembers() {
   const subgroupSections = subgroupSectionsOf(data.members, group)
   const hasUnassigned = inGroup.some((m) => !m.subgroup)
   const inSubgroup = inGroup.filter((m) => matchesSubgroup(m, subgroup))
+  // 정렬 값 칩은 칩 줄의 맨 아래다 — 부서 · 동산 · 처지 · 학교로 좁혀진 뒤의 명단에서 뽑는다
+  // (아래 줄의 칩은 늘 위에서 고른 것 안에 있다).
+  const sortChips = sortChipsOf(
+    inSubgroup.filter((m) => matchesCareer(m, career) && matchesSchool(m, school)),
+    activeSort,
+  )
   // useRoster has already taken the 숨긴 멤버 out of `data.members` — they are off the roster
   // everywhere in the app, and this tab is the one place they still surface: the 숨긴 멤버
   // section at the bottom. 지워진 게 아니라 접혀 있을 뿐이라, 카드를 눌러 표기를 풀거나
@@ -150,16 +166,31 @@ export function AdminMembers() {
     setSubgroup('')
     setCareer('')
     setSchool('')
+    setSortValue('')
   }
   function pickSubgroup(sg: string) {
     setSubgroup(sg)
     setCareer('')
     setSchool('')
+    setSortValue('')
   }
   function pickCareer(c: CareerFilter) {
     setCareer(c)
     setSchool('')
+    setSortValue('')
   }
+  function pickSchool(s: SchoolFilter) {
+    setSchool(s)
+    setSortValue('')
+  }
+  // 정렬 칸을 바꾸면 고른 값은 비운다 — '여'로 좁혀 둔 채 세례여부로 바꾸면 그 칩은 사라지는데
+  // 명단은 계속 좁혀져 있게 된다.
+  function pickSort(k: SortKey) {
+    setSortKey(k)
+    setSortValue('')
+  }
+  const sortLabel = (v: string) =>
+    v === NO_VALUE ? t('admin.members.sort.none') : v === OTHER_VALUE ? t('admin.members.sort.other') : v
 
   function toggleSel(id: string) {
     setSelected((s) => {
@@ -216,7 +247,7 @@ export function AdminMembers() {
           보면서 고르라고 두는 것이라 명단이 안 보이면 뜻이 없다 (넘치면 이 줄 안에서 스크롤). */}
       <div className="sticky top-[var(--admin-header-h,4.5rem)] z-10 -mx-[var(--gutter)] mb-5 flex max-h-[40vh] flex-col gap-3 overflow-y-auto border-b border-separator bg-canvas px-[var(--gutter)] pb-3 pt-1">
       <div className="flex flex-wrap gap-2">
-        <div className="relative min-w-[220px] flex-1">
+        <div className="relative min-w-[7rem] flex-1">
           <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-subtle" aria-hidden />
           <Input
             value={search}
@@ -227,9 +258,21 @@ export function AdminMembers() {
           />
         </div>
         {(data.canBulkSubgroup || data.role !== 'pastor') && (
-          <Button variant="secondary" onClick={() => (selectMode ? exitSelect() : setSelectMode(true))}>
+          <Button
+            variant="secondary"
+            onClick={() => (selectMode ? exitSelect() : setSelectMode(true))}
+            aria-label={selectMode ? undefined : t('admin.members.selection.action')}
+          >
             <ListChecks className="size-4" aria-hidden />
-            {selectMode ? t('common.cancel') : t('admin.members.selection.action')}
+            {/* 폰에서는 '선택' 두 글자 — 검색 칸과 한 줄에 서야 고정 줄이 한 줄 덜 먹는다. */}
+            {selectMode ? (
+              t('common.cancel')
+            ) : (
+              <>
+                <span className="max-sm:hidden">{t('admin.members.selection.action')}</span>
+                <span className="sm:hidden">{t('admin.members.selection.short')}</span>
+              </>
+            )}
           </Button>
         )}
         {!selectMode && (
@@ -318,13 +361,59 @@ export function AdminMembers() {
           다르게 가르면 '대학부 CMU'가 탭마다 다른 사람들을 뜻하게 된다. 부서·동산 트랙에
           이어 **같은 고정 줄**에 흐른다 — 위에서 아래로 좁혀 가는 한 벌의 칩이라, 학교만
           명단과 함께 밀려 올라가면 그 줄을 바꾸러 매번 맨 위로 되돌아가야 한다. */}
-      <TraitFilter members={inSubgroup} group={group} career={career} school={school} onCareer={pickCareer} onSchool={setSchool} />
+      <TraitFilter members={inSubgroup} group={group} career={career} school={school} onCareer={pickCareer} onSchool={pickSchool} />
+      {/* 정렬 값 칩 — 고른 칸의 값마다 하나씩 (세례여부면 유아세례 · 입교 · 세례 · 해당없음 …).
+          줄 세우기만으로는 "입교한 사람만"을 볼 수 없어 같은 칸으로 좁히는 자리를 함께 둔다.
+          칩 줄의 맨 아래이고 위 줄을 고치면 비운다 (pickGroup …). 세례여부는 여러 개를 고를
+          수 있는 칸이라 '입교'는 '유아세례, 입교'로 적힌 사람도 데려온다 — 그래서 이 칩들만은
+          인원을 더하면 전체보다 클 수 있다. */}
+      {activeSort && sortChips.length > 1 && (
+        <PillTrack label={t(`admin.members.sort.keys.${activeSort}`)}>
+          <span className="section-kicker shrink-0 whitespace-nowrap pl-2 pr-1">{t(`admin.members.sort.keys.${activeSort}`)}</span>
+          <Pill active={!sortValue} onClick={() => setSortValue('')}>
+            {t('admin.filter.all')}
+          </Pill>
+          {sortChips.map((v) => (
+            <Pill key={v} active={sortValue === v} onClick={() => setSortValue(v)}>
+              {sortLabel(v)}
+            </Pill>
+          ))}
+        </PillTrack>
+      )}
       </div>
       </div>
-      {!selectMode && (
-        <div className="mb-4 flex items-center gap-2 section-kicker">
-          <Users className="size-4 text-subtle" aria-hidden />
-          {t('admin.nav.members')} · {members.length}
+      {/* 명단 머리줄 — 인원 옆, 오른쪽에 **정렬**이 선다. 정렬은 목록을 어떻게 늘어놓을지를
+          한 번 정하는 자리라 칩 줄처럼 화면을 따라다닐 필요가 없고, 고정 줄에 두면 폰에서 그만큼
+          명단이 가려진다 (값으로 좁히는 칩만 고정 줄에 붙는다). 폰에서 누르면 기기의 선택 창이
+          뜬다. 고를 칸이 하나도 없는 부에서는 뜨지 않는다. */}
+      {(!selectMode || sortKeys.length > 0) && (
+        <div className="mb-4 flex items-center justify-between gap-3">
+          {!selectMode ? (
+            <div className="flex items-center gap-2 section-kicker">
+              <Users className="size-4 text-subtle" aria-hidden />
+              {t('admin.nav.members')} · {members.length}
+            </div>
+          ) : (
+            <span />
+          )}
+          {sortKeys.length > 0 && (
+            <div className="relative w-[9.5rem] shrink-0 sm:w-44">
+              <ArrowUpDown className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-subtle" aria-hidden />
+              <Select
+                value={activeSort}
+                onChange={(e) => pickSort(e.target.value as SortKey)}
+                aria-label={t('admin.members.sort.label')}
+                className="pl-10"
+              >
+                <option value="">{t('admin.members.sort.name')}</option>
+                {sortKeys.map((k) => (
+                  <option key={k} value={k}>
+                    {t(`admin.members.sort.keys.${k}`)}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          )}
         </div>
       )}
       <IconKey items={['newMemberStar', 'eduWeek1', 'eduWeek2']} />
@@ -338,21 +427,34 @@ export function AdminMembers() {
             {group || '—'}
             <span className="rounded-full bg-fill px-2 py-0.5 text-xs font-semibold tabular-nums text-muted">{list.length}</span>
           </h3>
-          {/* 한 줄에 여섯 명까지 — 새가족 탭의 카드 격자와 같은 폭이다. 카드가 전화·학교/
-              직장·세례여부까지 담게 된 뒤로 여덟 칸은 그 값들을 한 글자도 못 읽게 만든다. */}
-          <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-            {list.map((m) => (
-              <MemberCard
-                key={m.id}
-                member={m}
-                today={today}
-                tint={tint}
-                selectMode={selectMode}
-                selected={selected.has(m.id)}
-                onOpen={() => (selectMode ? toggleSel(m.id) : setEditing(m))}
-              />
-            ))}
-          </ul>
+          {/* 정렬을 고르면 부서 섹션 **안에서** 값마다 묶음이 선다 (대학부 › 남 · 여 · 미기재).
+              부서를 넘어 섞지 않는 것은 섹션 머리줄이 이미 부서를 가르고 있어서다 — 그 줄을
+              지우면 같은 화면에서 부서가 사라진다. 이름순이면 묶음이 하나뿐이라 머리줄이 없다. */}
+          {sortBlocks(list, activeSort).map((block) => (
+            <div key={block.value || 'all'} className={activeSort ? 'mb-4 last:mb-0' : undefined}>
+              {activeSort && (
+                <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-muted">
+                  <span className="min-w-0 break-words">{sortLabel(block.value)}</span>
+                  <span className="shrink-0 rounded-full bg-fill px-2 py-0.5 text-[11px] font-semibold tabular-nums text-muted">{block.list.length}</span>
+                </h4>
+              )}
+              {/* 한 줄에 여섯 명까지 — 새가족 탭의 카드 격자와 같은 폭이다. 카드가 전화·학교/
+                  직장·세례여부까지 담게 된 뒤로 여덟 칸은 그 값들을 한 글자도 못 읽게 만든다. */}
+              <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+                {block.list.map((m) => (
+                  <MemberCard
+                    key={m.id}
+                    member={m}
+                    today={today}
+                    tint={tint}
+                    selectMode={selectMode}
+                    selected={selected.has(m.id)}
+                    onOpen={() => (selectMode ? toggleSel(m.id) : setEditing(m))}
+                  />
+                ))}
+              </ul>
+            </div>
+          ))}
         </section>
         )
       })}
