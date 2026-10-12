@@ -24,6 +24,8 @@ export function TraitFilter({
   school,
   onCareer,
   onSchool,
+  showCareer = true,
+  showSchool = true,
 }: {
   members: Member[] // 이미 부서로 좁혀진 명단
   group: string // 고른 부서 ('' = 전체) — 어느 축을 내걸지가 여기서 갈린다
@@ -31,9 +33,15 @@ export function TraitFilter({
   school: SchoolFilter
   onCareer: (c: CareerFilter) => void // 처지를 고치면 학교 선택은 부르는 쪽이 비운다
   onSchool: (s: SchoolFilter) => void
+  // 멤버 탭은 어느 줄을 내걸지 사람이 고른다 (memberFilters.ts) — 끈 줄은 그리지 않는다.
+  // 새가족 탭은 둘 다 그대로다.
+  showCareer?: boolean
+  showSchool?: boolean
 }) {
   const { t } = useTranslation()
-  const { careers: careerChips, schools } = traitChips(members, group, career)
+  const traits = traitChips(members, group, career)
+  const careerChips = showCareer ? traits.careers : []
+  const schools = showSchool ? traits.schools : []
   if (careerChips.length === 0 && schools.length === 0) return null
 
   return (

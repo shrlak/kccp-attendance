@@ -40,7 +40,11 @@ import { deleteMembers } from '../../lib/api'
 import { AdminMembers } from './AdminMembers'
 
 beforeAll(async () => { await i18n.init() })
-beforeEach(() => { vi.clearAllMocks() })
+beforeEach(() => {
+  vi.clearAllMocks()
+  // 칩 줄에 내걸 필터는 기기에 남는다 (memberFilters.ts) — 테스트마다 기본값에서 시작한다.
+  localStorage.clear()
+})
 
 function renderWithProviders(ui: React.ReactElement) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -531,28 +535,85 @@ describe('AdminMembers — 정렬 (등록 카드의 보기로)', () => {
     const young = screen.getByRole('heading', { name: /청년부/ }).closest('section')!
     expect(within(young).getAllByRole('heading', { level: 4 }).map((h) => h.textContent)).toEqual(['입교1'])
   })
+})
 
-  it("값 칩으로 좁힌다 — '입교'는 '유아세례, 입교'로 적힌 사람도 데려온다", async () => {
+describe('AdminMembers — 보여줄 필터 고르기', () => {
+  const people = () => [
+    member('a', '가세례', { baptism_status: '세례', gender: '여', school_or_work: '대학생 · CMU Math' }),
+    member('b', '나입교', { baptism_status: '유아세례, 입교', gender: '남', school_or_work: '대학생 · Pitt Bio' }),
+    member('c', '다입교', { baptism_status: '입교', gender: '여' }),
+    member('d', '라청년', { group_name: '청년부', subgroup: '2동산', baptism_status: '입교', gender: '여' }),
+  ]
+  const openPicker = () => userEvent.click(screen.getByRole('button', { name: /필터/ }))
+  const pickerRow = (name: string) => within(screen.getByRole('dialog')).getByRole('button', { name: new RegExp(`^${name}`) })
+
+  it('처음에는 예전의 칩 줄(부서 · 동산 · 학교)이 그대로이고, 등록 카드의 보기는 꺼져 있다', async () => {
     rosterData.data = roster(people())
     renderWithProviders(<AdminMembers />)
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: '정렬' }), 'baptism')
-    const track = screen.getByRole('group', { name: '세례여부' })
-    await userEvent.click(within(track).getByRole('button', { name: '입교' }))
-    expect(screen.getByText('나입교')).toBeInTheDocument()
-    expect(screen.getByText('라청년')).toBeInTheDocument()
-    expect(screen.queryByText('가세례')).not.toBeInTheDocument()
-    expect(screen.queryByText('다없음')).not.toBeInTheDocument()
+    expect(screen.getByRole('group', { name: '부서' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: '동산' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: '학교' })).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: '성별' })).not.toBeInTheDocument()
+
+    await openPicker()
+    expect(pickerRow('부서')).toHaveAttribute('aria-pressed', 'true')
+    expect(pickerRow('성별')).toHaveAttribute('aria-pressed', 'false')
+    // 줄마다 그 필터가 무엇으로 가르는지 미리 적혀 있다.
+    expect(pickerRow('세례여부')).toHaveTextContent('유아세례 · 입교 · 세례')
   })
 
-  it('정렬 칸이나 부서를 바꾸면 고른 값은 비워진다', async () => {
+  it('켠 필터만 칩 줄에 서고, 카드의 보기끼리는 곱해진다 (여 × 입교)', async () => {
     rosterData.data = roster(people())
     renderWithProviders(<AdminMembers />)
-    const select = screen.getByRole('combobox', { name: '정렬' })
-    await userEvent.selectOptions(select, 'gender')
+    await openPicker()
+    await userEvent.click(pickerRow('성별'))
+    await userEvent.click(pickerRow('세례여부'))
+    await userEvent.click(pickerRow('학교'))
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '완료' }))
+
+    expect(screen.queryByRole('group', { name: '학교' })).not.toBeInTheDocument()
     await userEvent.click(within(screen.getByRole('group', { name: '성별' })).getByRole('button', { name: '여' }))
-    expect(screen.queryByText('나입교')).not.toBeInTheDocument()
-    await userEvent.click(within(screen.getByRole('group', { name: '부서' })).getByRole('button', { name: '대학부' }))
-    expect(screen.getByText('나입교')).toBeInTheDocument()
-    expect(within(screen.getByRole('group', { name: '성별' })).getByRole('button', { name: '전체' })).toHaveAttribute('aria-pressed', 'true')
+    await userEvent.click(within(screen.getByRole('group', { name: '세례여부' })).getByRole('button', { name: '입교' }))
+    expect(screen.getByText('다입교')).toBeInTheDocument()
+    expect(screen.getByText('라청년')).toBeInTheDocument()
+    expect(screen.queryByText('가세례')).not.toBeInTheDocument() // 여자지만 입교가 아니다
+    expect(screen.queryByText('나입교')).not.toBeInTheDocument() // 입교지만 남자다
+    // 단추의 숫자는 지금 걸려 있는 필터의 수다.
+    expect(screen.getByRole('button', { name: /필터/ })).toHaveTextContent('2')
+  })
+
+  it('필터를 끄면 그 필터로 좁혀 둔 것도 풀린다 — 보이지 않는 칩이 명단을 좁히고 있으면 안 된다', async () => {
+    rosterData.data = roster(people())
+    renderWithProviders(<AdminMembers />)
+    await userEvent.click(within(screen.getByRole('group', { name: '부서' })).getByRole('button', { name: '청년부' }))
+    expect(screen.queryByText('가세례')).not.toBeInTheDocument()
+    await openPicker()
+    await userEvent.click(pickerRow('부서'))
+    expect(screen.queryByRole('group', { name: '부서' })).not.toBeInTheDocument()
+    expect(screen.getByText('가세례')).toBeInTheDocument()
+  })
+
+  it('부서를 바꿔도 카드 보기로 고른 값은 남는다 — 그 값이 새 명단에 없어도 칩은 남아 있다', async () => {
+    rosterData.data = roster(people())
+    renderWithProviders(<AdminMembers />)
+    await openPicker()
+    await userEvent.click(pickerRow('세례여부'))
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '완료' }))
+    await userEvent.click(within(screen.getByRole('group', { name: '세례여부' })).getByRole('button', { name: '세례' }))
+    await userEvent.click(within(screen.getByRole('group', { name: '부서' })).getByRole('button', { name: '청년부' }))
+    // 청년부에는 '세례'가 없지만 고른 값은 그대로 걸려 있고, 칩이 남아 있어 왜 비었는지 보인다.
+    const chip = within(screen.getByRole('group', { name: '세례여부' })).getByRole('button', { name: '세례' })
+    expect(chip).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByText('라청년')).not.toBeInTheDocument()
+  })
+
+  it('고른 필터는 이 기기에 남는다', async () => {
+    rosterData.data = roster(people())
+    const { unmount } = renderWithProviders(<AdminMembers />)
+    await openPicker()
+    await userEvent.click(pickerRow('성별'))
+    unmount()
+    renderWithProviders(<AdminMembers />)
+    expect(screen.getByRole('group', { name: '성별' })).toBeInTheDocument()
   })
 })
