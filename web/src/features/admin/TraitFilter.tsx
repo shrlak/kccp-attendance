@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import type { Member } from '../../lib/api'
 import { Pill, PillTrack } from './GroupFilter'
-import { traitChips, type CareerFilter, type SchoolFilter } from './filters'
+import { traitChips, pickChip, type CareerChip, type SchoolChip } from './filters'
 import { SCHOOL_NAMES } from './eduDongsanTraits'
 import { Briefcase, GraduationCap } from '../../components/ui/Icon'
 
@@ -19,27 +19,31 @@ import { Briefcase, GraduationCap } from '../../components/ui/Icon'
 // 위에서 아래로 좁혀 가는 한 벌의 칩인데 그중 마지막 줄만 손이 닿지 않았다.
 export function TraitFilter({
   members,
-  group,
+  groups,
   career,
   school,
   onCareer,
   onSchool,
   showCareer = true,
   showSchool = true,
+  multi = false,
 }: {
   members: Member[] // 이미 부서로 좁혀진 명단
-  group: string // 고른 부서 ('' = 전체) — 어느 축을 내걸지가 여기서 갈린다
-  career: CareerFilter
-  school: SchoolFilter
-  onCareer: (c: CareerFilter) => void // 처지를 고치면 학교 선택은 부르는 쪽이 비운다
-  onSchool: (s: SchoolFilter) => void
+  groups: readonly string[] // 고른 부서들 (빈 목록 = 전체) — 어느 축을 내걸지가 여기서 갈린다
+  career: readonly CareerChip[] // 빈 목록 = 전체
+  school: readonly SchoolChip[]
+  onCareer: (c: CareerChip[]) => void // 처지를 고치면 학교 선택은 부르는 쪽이 비운다
+  onSchool: (s: SchoolChip[]) => void
   // 멤버 탭은 어느 줄을 내걸지 사람이 고른다 (memberFilters.ts) — 끈 줄은 그리지 않는다.
   // 새가족 탭은 둘 다 그대로다.
   showCareer?: boolean
   showSchool?: boolean
+  // 한 줄에서 칩을 여러 개 함께 고를까 — 멤버 탭만 켠다. 새가족 탭은 이 두 줄이 하나만 고르는
+  // 부서·동산 줄(GroupFilter)에 이어 흐르므로, 한 줄 안에서 규칙이 갈리지 않게 하나씩이다.
+  multi?: boolean
 }) {
   const { t } = useTranslation()
-  const traits = traitChips(members, group, career)
+  const traits = traitChips(members, groups, career)
   const careerChips = showCareer ? traits.careers : []
   const schools = showSchool ? traits.schools : []
   if (careerChips.length === 0 && schools.length === 0) return null
@@ -52,11 +56,11 @@ export function TraitFilter({
       {careerChips.length > 0 && (
         <PillTrack label={t('admin.members.careerFilter')}>
           <Briefcase className="mx-1.5 size-3.5 shrink-0 text-subtle" aria-hidden />
-          <Pill active={!career} onClick={() => onCareer('')}>
+          <Pill active={career.length === 0} onClick={() => onCareer([])}>
             {t('admin.filter.all')}
           </Pill>
           {careerChips.map((c) => (
-            <Pill key={c} active={career === c} onClick={() => onCareer(c)}>
+            <Pill key={c} active={career.includes(c)} onClick={() => onCareer(pickChip(career, c, multi))}>
               {t(`admin.members.career.${c}`)}
             </Pill>
           ))}
@@ -68,11 +72,11 @@ export function TraitFilter({
       {schools.length > 0 && (
         <PillTrack label={t('admin.members.schoolFilter')}>
           <GraduationCap className="mx-1.5 size-3.5 shrink-0 text-subtle" aria-hidden />
-          <Pill active={!school} onClick={() => onSchool('')}>
+          <Pill active={school.length === 0} onClick={() => onSchool([])}>
             {t('admin.filter.all')}
           </Pill>
           {schools.map((s) => (
-            <Pill key={s} active={school === s} onClick={() => onSchool(s)}>
+            <Pill key={s} active={school.includes(s)} onClick={() => onSchool(pickChip(school, s, multi))}>
               {s === 'none' ? t('admin.members.school.none') : SCHOOL_NAMES[s]}
             </Pill>
           ))}

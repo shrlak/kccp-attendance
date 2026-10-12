@@ -10,12 +10,12 @@ import { useToast } from '../../components/ui/Toast'
 import { Search, ListChecks, Merge as MergeIcon, Users, AlertTriangle, EyeOff, ChevronDown, Trash2, HandHeart, ArrowUpDown, SlidersHorizontal } from '../../components/ui/Icon'
 import { mergeTargets, canMerge, mergeSummary, type MergeState } from './merge'
 import {
-  groupsOf, groupChipsOf, subgroupSectionsOf, matchesGroup, matchesSubgroup, matchesCareer, matchesSchool,
-  NO_GROUP, type CareerFilter, type SchoolFilter,
+  groupsOf, groupChipsOf, subgroupSectionsOf, matchesGroups, matchesSubgroups, matchesCareers, matchesSchools, pickChip,
+  NO_GROUP, type CareerChip, type SchoolChip,
 } from './filters'
 import { Pill, PillTrack, SubgroupChips } from './GroupFilter'
 import { TraitFilter } from './TraitFilter'
-import { sortKeysFor, sortChipsOf, sortBlocks, matchesSortValue, NO_VALUE, OTHER_VALUE, type SortKey } from './memberSort'
+import { sortKeysFor, sortChipsOf, sortBlocks, matchesSortValues, sortValueLabel, type SortKey } from './memberSort'
 import { readFilterDims, writeFilterDims, availableFilterDims, CARD_DIMS, type CardDim, type FilterDim } from './memberFilters'
 import { MemberFilterPicker } from './MemberFilterPicker'
 import { dongsanSectionsOf, flatDongsan } from './dongsan'
@@ -47,31 +47,37 @@ export function AdminMembers() {
   const [attendanceFor, setAttendanceFor] = useState<Member | null>(null)
   const [merging, setMerging] = useState(false)
   const [search, setSearch] = useState('')
+  // 칩 줄의 선택은 줄마다 **목록**이다 — 한 줄에서 칩을 여러 개 함께 고른다 (CMU + Pitt,
+  // 입교 + 세례). 빈 목록이 '전체'이고, 줄 안에서는 '또는', 줄과 줄 사이는 '그리고'다
+  // (filters.ts `pickChip`).
+  //
   // 부서로 좁혀 보는 칩 (대학부 · 청년부 …) — 아래 섹션 머리줄이 이미 부서를 가르고 있지만
   // 그것은 **함께 놓고 보는** 자리라, 한 부서만 보려면 다른 부서를 지나 스크롤해야 했다.
-  const [group, setGroup] = useState('')
+  const [groups, setGroups] = useState<string[]>([])
   // 동산 칩 (호연선규 · 동산 미지정 …) — **고른 부서 안의 동산만** 내건다. 부서 줄이 명단을
   // 반으로 가르고 나면 그다음 물음이 늘 "그 부서 안에서 이 동산은 누구누구인가"인데, 여태는
   // 그 답을 출석부 탭(GroupFilter)으로 건너가야 볼 수 있었고 거기서는 카드가 아니라 출석
   // 칸이 나온다.
-  const [subgroup, setSubgroup] = useState('')
+  const [subgroups, setSubgroups] = useState<string[]>([])
   // 처지 칩 (대학원생 · 직장인 · 기타) — 청년부에서만 뜨고, 아래 학교 칩과 곱해진다
   // (청년부 대학원생 → CMU · Pitt).
-  const [career, setCareer] = useState<CareerFilter>('')
+  const [career, setCareer] = useState<CareerChip[]>([])
   // 학교로 좁혀 보는 칩 (CMU · Pitt · Duquesne · 기타) — **이 탭에만 있다.** 명단을 학교로
   // 갈라 보는 자리는 여기 하나이고, 출석부·통계·오늘이 세는 것은 그 주일에 누가 왔는가라
   // 학교는 그 질문의 칸이 아니다.
-  const [school, setSchool] = useState<SchoolFilter>('')
-  // 정렬 (성별 · 소속 · 세례여부 · 신앙생활 · 머물 기간 — 종이 등록 카드가 보기로 묻는 칸들).
-  // 부서 섹션 안에서 값마다 묶음이 선다 (memberSort.ts). 그 값으로 **좁히는** 것은 아래의
-  // 카드 필터가 한다.
+  const [school, setSchool] = useState<SchoolChip[]>([])
+  // 정렬 (성별 · 소속 · 세례여부 · 신앙생활 · 머물 기간 — 종이 등록 카드가 보기로 묻는 칸들 —
+  // 과 새가족 · 새가족 교육 · 출생연도 · 등록 연도 · 목사님 심방 · 연락처). 부서 섹션 안에서
+  // 값마다 묶음이 서고(memberSort.ts), **그 칸의 칩 줄이 위 고정 줄에 함께 선다** — 필터 창에서
+  // 따로 켜지 않아도 된다 (`shown`). 묶음을 보다가 그중 하나만 남기는 일이 바로 이어지므로.
   const [sortKey, setSortKey] = useState<SortKey>('')
   // 칩 줄에 내걸 필터 — 사람이 고르고, 이 기기에 남는다 (memberFilters.ts). 고른 필터만
   // 칩 줄에 서고 그 줄에는 그 필터의 보기만 나온다.
   const [dims, setDims] = useState<FilterDim[]>(readFilterDims)
   const [pickerOpen, setPickerOpen] = useState(false)
-  // 카드 필터의 값 (성별 '여' · 세례여부 '입교' …). 서로 **곱해진다** — 여자이면서 입교한 사람.
-  const [cardValues, setCardValues] = useState<Partial<Record<CardDim, string>>>({})
+  // 카드 필터의 값 (성별 '여' · 세례여부 '입교' + '세례' …). 줄끼리는 **곱해진다** — 여자이면서
+  // 입교 또는 세례를 받은 사람.
+  const [cardValues, setCardValues] = useState<Partial<Record<CardDim, string[]>>>({})
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [target, setTarget] = useState('')
@@ -105,43 +111,48 @@ export function AdminMembers() {
   // 세 목록(명단·숨긴 멤버·스태프)에 똑같이 걸린다.
   const byName = (list: Member[]) =>
     (q ? list.filter((m) => m.name.toLowerCase().includes(q)) : list)
-      .filter((m) => matchesGroup(m, group))
-      .filter((m) => matchesSubgroup(m, subgroup))
-      .filter((m) => matchesCareer(m, career))
-      .filter((m) => matchesSchool(m, school))
-      .filter((m) => CARD_DIMS.every((d) => matchesSortValue(m, d, cardValues[d] ?? '')))
+      .filter((m) => matchesGroups(m, groups))
+      .filter((m) => matchesSubgroups(m, subgroups))
+      .filter((m) => matchesCareers(m, career))
+      .filter((m) => matchesSchools(m, school))
+      .filter((m) => CARD_DIMS.every((d) => matchesSortValues(m, d, cardValues[d] ?? [])))
   // 칩 줄은 **위 줄에서 고른 것 안에서** 뽑는다 — 청년부 대학원생의 학교 칩은 그 사람들의
   // 학교여야 고른 뒤에 빈 화면이 나오지 않는다. 대신 위 줄을 고치면 아래 줄의 선택은
-  // **비운다** (`pickGroup`/`pickCareer`): 사라진 칩으로 계속 좁히고 있으면 화면이 왜
+  // **비운다** (`pickGroups`/`pickCareer`): 사라진 칩으로 계속 좁히고 있으면 화면이 왜
   // 비었는지 알 수가 없다. 이름 검색만은 어느 줄에도 걸리지 않는다 — 검색어를 치는 동안
   // 칩이 사라졌다 나타나면 고를 수가 없다.
   const groupChips = groupChipsOf(data.members)
-  const inGroup = data.members.filter((m) => matchesGroup(m, group))
+  const inGroup = data.members.filter((m) => matchesGroups(m, groups))
   // 동산 칩은 고른 부서 안에서 뽑고(청년부를 고르면 청년부 동산만), 처지·학교 줄은 그
   // **동산까지 좁혀진 뒤의** 명단에서 뽑는다 — 아래 줄의 칩은 늘 위에서 고른 것 안에 있다.
   // 동산 줄은 **부서마다 한 줄**로 갈린다 (subgroupSectionsOf) — 이름만 늘어놓으면 그 동산이
   // 청년부 것인지 대학부 것인지는 이름을 아는 사람만 안다. '동산 미지정'은 그 부서에 실제로
   // 편성이 안 된 사람이 있을 때만 (칩을 다 더하면 그 부서 전체가 되어야 한다).
-  const subgroupSections = subgroupSectionsOf(data.members, group)
+  // 부서를 여러 개 골랐으면 그 부서들의 동산이 부서마다 한 줄씩 (이미 좁힌 명단에서 뽑는다).
+  const subgroupSections = subgroupSectionsOf(inGroup, '')
   const hasUnassigned = inGroup.some((m) => !m.subgroup)
-  const inSubgroup = inGroup.filter((m) => matchesSubgroup(m, subgroup))
+  const inSubgroup = inGroup.filter((m) => matchesSubgroups(m, subgroups))
   // 내걸 필터 = 사람이 고른 것 ∩ 이 명단에서 고를 것이 있는 것. 부를 건너가 사라진 필터는
   // 고른 채로 남아 있다가 돌아오면 다시 선다.
+  // **정렬로 고른 칸은 켜지 않아도 선다** — 묶음으로 늘어놓은 값 중 하나만 남기려는 것이 바로
+  // 다음 물음이라, 그 칩을 찾으러 필터 창을 다시 열게 하지 않는다. 정렬을 바꾸면 내려간다.
   const availableDims = availableFilterDims([...data.members, ...data.hiddenMembers])
-  const shown = (d: FilterDim) => dims.includes(d) && availableDims.includes(d)
+  const shown = (d: FilterDim) => (dims.includes(d) || d === activeSort) && availableDims.includes(d)
   // 카드 필터의 칩은 **명단의 자리(부서 · 동산 · 학생/직장 · 학교)로 좁혀진 뒤의** 명단에서
   // 뽑는다 — 청년부만 보고 있으면 청년부에 실제로 있는 값만 나온다. 카드 필터끼리는 서로를
   // 좁히지 않는다 (서로 곱해지는 독립된 축이라, 한쪽을 고칠 때마다 다른 쪽 칩이 들고 나면 고를
   // 수가 없다). 위 줄을 바꿔도 고른 값은 **비우지 않고**, 그 값이 새 명단에 없으면 칩을 남겨
   // 둔다 — 화면이 왜 비었는지가 칩에 보이고, 누르면 풀린다.
-  const inRoster = inSubgroup.filter((m) => matchesCareer(m, career) && matchesSchool(m, school))
+  const inRoster = inSubgroup.filter((m) => matchesCareers(m, career) && matchesSchools(m, school))
   const cardChips = (d: CardDim) => {
     const chips = sortChipsOf(inRoster, d)
-    const v = cardValues[d]
-    return v && !chips.includes(v) ? [...chips, v] : chips
+    const missing = (cardValues[d] ?? []).filter((v) => !chips.includes(v))
+    return [...chips, ...missing]
   }
+  // 단추의 숫자는 **걸려 있는 줄의 수**다 (칩 수가 아니다 — 입교 + 세례는 필터 하나).
   const activeFilters =
-    [group, subgroup, career, school].filter(Boolean).length + CARD_DIMS.filter((d) => cardValues[d]).length
+    [groups, subgroups, career, school].filter((l) => l.length > 0).length +
+    CARD_DIMS.filter((d) => (cardValues[d]?.length ?? 0) > 0).length
   // useRoster has already taken the 숨긴 멤버 out of `data.members` — they are off the roster
   // everywhere in the app, and this tab is the one place they still surface: the 숨긴 멤버
   // section at the bottom. 지워진 게 아니라 접혀 있을 뿐이라, 카드를 눌러 표기를 풀거나
@@ -180,40 +191,45 @@ export function AdminMembers() {
   // 안에 있으므로 부서를 바꾸면 방금 고른 동산은 그 부서에 있지도 않고, 축이 부서마다
   // 다르므로 (청년부는 처지, 그 밖은 학교) 남겨 두면 청년부에서 고른 '대학원생'이 대학부
   // 에서도 계속 걸린 채로 남는다.
-  function pickGroup(g: string) {
-    setGroup(g)
-    setSubgroup('')
-    setCareer('')
-    setSchool('')
+  function pickGroups(next: string[]) {
+    setGroups(next)
+    setSubgroups([])
+    setCareer([])
+    setSchool([])
   }
-  function pickSubgroup(sg: string) {
-    setSubgroup(sg)
-    setCareer('')
-    setSchool('')
+  function pickSubgroups(next: string[]) {
+    setSubgroups(next)
+    setCareer([])
+    setSchool([])
   }
-  function pickCareer(c: CareerFilter) {
-    setCareer(c)
-    setSchool('')
+  function pickCareer(next: CareerChip[]) {
+    setCareer(next)
+    setSchool([])
   }
-  function pickCard(d: CardDim, v: string) {
-    setCardValues((cur) => ({ ...cur, [d]: v }))
+  function pickCard(d: CardDim, next: string[]) {
+    setCardValues((cur) => ({ ...cur, [d]: next }))
   }
   // 필터를 칩 줄에서 내리면 **그 필터로 좁혀 둔 것도 푼다** — 보이지 않는 칩이 명단을 계속
   // 좁히고 있으면 화면이 왜 비었는지 알 길이 없다.
   function clearDim(d: FilterDim) {
-    if (d === 'group') setGroup('')
-    else if (d === 'subgroup') setSubgroup('')
-    else if (d === 'career') setCareer('')
-    else if (d === 'school') setSchool('')
-    else pickCard(d, '')
+    if (d === 'group') setGroups([])
+    else if (d === 'subgroup') setSubgroups([])
+    else if (d === 'career') setCareer([])
+    else if (d === 'school') setSchool([])
+    else pickCard(d, [])
   }
   function chooseFilters(next: FilterDim[]) {
-    for (const d of dims) if (!next.includes(d)) clearDim(d)
+    // 정렬로 서 있는 줄은 필터를 꺼도 그대로 보이므로 그 선택도 그대로 둔다.
+    for (const d of dims) if (!next.includes(d) && d !== activeSort) clearDim(d)
     setDims(next)
     writeFilterDims(next)
   }
-  const sortLabel = (v: string) =>
-    v === NO_VALUE ? t('admin.members.sort.none') : v === OTHER_VALUE ? t('admin.members.sort.other') : v
+  // 정렬을 바꾸면 정렬 때문에 서 있던 줄은 내려간다 — 그 줄로 좁혀 둔 것도 같이 푼다
+  // (chooseFilters와 같은 규칙: 보이지 않는 칩이 명단을 좁히고 있으면 안 된다).
+  function chooseSort(next: SortKey) {
+    if (activeSort && activeSort !== next && !dims.includes(activeSort)) clearDim(activeSort)
+    setSortKey(next)
+  }
 
   function toggleSel(id: string) {
     setSelected((s) => {
@@ -357,11 +373,12 @@ export function AdminMembers() {
           )}
         </div>
       )}
-      {/* 칩 줄 — **사람이 고른 필터만** 선다 (맨 앞의 '필터' 단추 → MemberFilterPicker). 아홉
-          줄을 다 늘어놓으면 폰에서 이 고정 줄이 화면을 덮고, 이번에 가를 한두 줄을 찾으려고
-          나머지를 지나가야 했다. 차례는 고정이다: 명단의 자리(부서 → 동산 → 학생/직장 → 학교,
-          위를 고르면 아래가 비워지는 사슬)가 먼저, 등록 카드의 보기(서로 곱해지는 독립된 축)가
-          그 뒤. 단추의 숫자는 지금 걸려 있는 필터의 수다. */}
+      {/* 칩 줄 — **사람이 고른 필터만** 선다 (맨 앞의 '필터' 단추 → MemberFilterPicker), 그리고
+          정렬로 고른 칸 하나. 열다섯 줄을 다 늘어놓으면 폰에서 이 고정 줄이 화면을 덮고, 이번에
+          가를 한두 줄을 찾으려고 나머지를 지나가야 했다. 차례는 고정이다: 명단의 자리(부서 → 동산
+          → 학생/직장 → 학교, 위를 고르면 아래가 비워지는 사슬)가 먼저, 등록 카드의 보기와 그 밖의
+          정보(서로 곱해지는 독립된 축)가 그 뒤. 줄마다 칩은 여러 개를 함께 고른다. 단추의 숫자는
+          지금 걸려 있는 줄의 수다. */}
       <div className="flex flex-wrap items-start gap-2">
       <button
         type="button"
@@ -381,11 +398,11 @@ export function AdminMembers() {
           보여주므로, 대학부만 훑으려면 청년부를 지나 내려가야 했다. */}
       {shown('group') && groupChips.length > 1 && (
         <PillTrack label={t('admin.members.group')}>
-          <Pill active={!group} onClick={() => pickGroup('')}>
+          <Pill active={groups.length === 0} onClick={() => pickGroups([])}>
             {t('admin.filter.all')}
           </Pill>
           {groupChips.map((g) => (
-            <Pill key={g} active={group === g} onClick={() => pickGroup(g)}>
+            <Pill key={g} active={groups.includes(g)} onClick={() => pickGroups(pickChip(groups, g, true))}>
               {g === NO_GROUP ? t('admin.members.noGroup') : g}
             </Pill>
           ))}
@@ -395,37 +412,39 @@ export function AdminMembers() {
           동산은 대학부 이름표 뒤에. 그리는 자리는 하나라 (SubgroupChips) 오늘·출석부·새가족
           탭의 같은 줄과 어긋나지 않는다. 고를 것이 하나뿐이면 트랙 자체가 뜨지 않는다. */}
       {shown('subgroup') && (
-        <SubgroupChips sections={subgroupSections} value={subgroup} onChange={pickSubgroup} noneChip={hasUnassigned} />
+        <SubgroupChips sections={subgroupSections} value={subgroups} onChange={pickSubgroups} noneChip={hasUnassigned} multi />
       )}
       {/* 학생/직장 · 학교 트랙 — 새가족 탭과 **같은 컴포넌트**다 (TraitFilter). 두 탭이 같은
           명단을 다르게 가르면 '대학부 CMU'가 탭마다 다른 사람들을 뜻하게 된다. 여기서는 둘을
           따로 켜고 끈다. */}
       <TraitFilter
         members={inSubgroup}
-        group={group}
+        groups={groups}
         career={career}
         school={school}
         onCareer={pickCareer}
         onSchool={setSchool}
         showCareer={shown('career')}
         showSchool={shown('school')}
+        multi
       />
-      {/* 등록 카드의 보기 — 성별 · 소속 · 세례여부 · 신앙생활 · 머물 기간. 세례여부는 여러 개를
+      {/* 등록 카드의 보기 — 성별 · 소속 · 세례여부 · 신앙생활 · 머물 기간 — 와 그 밖의 정보
+          (새가족 · 새가족 교육 · 출생연도 · 등록 연도 · 목사님 심방 · 연락처). 세례여부는 여러 개를
           고를 수 있는 칸이라 '입교'는 '유아세례, 입교'로 적힌 사람도 데려온다 (그래서 이 줄만은
-          칩의 인원을 더하면 전체보다 클 수 있다). */}
+          칩의 인원을 더하면 전체보다 클 수 있다). 칩은 여러 개를 함께 누른다 (입교 + 세례). */}
       {CARD_DIMS.filter(shown).map((d) => {
         const chips = cardChips(d)
         if (chips.length === 0) return null
-        const value = cardValues[d] ?? ''
+        const value = cardValues[d] ?? []
         return (
           <PillTrack key={d} label={t(`admin.members.sort.keys.${d}`)}>
             <span className="section-kicker shrink-0 whitespace-nowrap pl-2 pr-1">{t(`admin.members.sort.keys.${d}`)}</span>
-            <Pill active={!value} onClick={() => pickCard(d, '')}>
+            <Pill active={value.length === 0} onClick={() => pickCard(d, [])}>
               {t('admin.filter.all')}
             </Pill>
             {chips.map((v) => (
-              <Pill key={v} active={value === v} onClick={() => pickCard(d, v)}>
-                {sortLabel(v)}
+              <Pill key={v} active={value.includes(v)} onClick={() => pickCard(d, pickChip(value, v, true))}>
+                {sortValueLabel(t, d, v)}
               </Pill>
             ))}
           </PillTrack>
@@ -452,7 +471,7 @@ export function AdminMembers() {
               <ArrowUpDown className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-subtle" aria-hidden />
               <Select
                 value={activeSort}
-                onChange={(e) => setSortKey(e.target.value as SortKey)}
+                onChange={(e) => chooseSort(e.target.value as SortKey)}
                 aria-label={t('admin.members.sort.label')}
                 className="pl-10"
               >
@@ -485,7 +504,7 @@ export function AdminMembers() {
             <div key={block.value || 'all'} className={activeSort ? 'mb-4 last:mb-0' : undefined}>
               {activeSort && (
                 <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-muted">
-                  <span className="min-w-0 break-words">{sortLabel(block.value)}</span>
+                  <span className="min-w-0 break-words">{sortValueLabel(t, activeSort, block.value)}</span>
                   <span className="shrink-0 rounded-full bg-fill px-2 py-0.5 text-[11px] font-semibold tabular-nums text-muted">{block.list.length}</span>
                 </h4>
               )}
@@ -632,6 +651,7 @@ export function AdminMembers() {
           members={[...data.members, ...data.hiddenMembers]}
           available={availableDims}
           value={dims}
+          sortDim={activeSort}
           onChange={chooseFilters}
           onClose={() => setPickerOpen(false)}
         />

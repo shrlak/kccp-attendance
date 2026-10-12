@@ -29,6 +29,21 @@ export interface Filter {
 
 export const NO_FILTER: Filter = { group: '', subgroup: '' }
 
+// 칩 하나를 눌렀을 때의 다음 선택 — **빈 목록이 '전체'다.** 멤버 탭은 한 줄에서 칩을 **여러 개**
+// 함께 고른다(누르면 넣고, 다시 누르면 뺀다: CMU + Pitt, 입교 + 세례). 그 줄 안에서는 **또는**,
+// 줄과 줄 사이는 **그리고**다 — 대학부 또는 청년부이면서, 여자이면서, 입교 또는 세례.
+// 오늘·출석부·새가족 탭은 예전처럼 하나만 고른다(누른 칩 하나로 바뀐다): 그 탭들의 부서·동산
+// 줄(`Filter`)은 출석 줄을 세는 자리라 값 하나로만 좁힌다.
+export function pickChip<T>(cur: readonly T[], chip: T, multi: boolean): T[] {
+  if (!multi) return [chip]
+  return cur.includes(chip) ? cur.filter((c) => c !== chip) : [...cur, chip]
+}
+
+// 고른 것 중 하나에라도 맞으면 남는다 (고른 것이 없으면 전체).
+function anyOf<T>(picked: readonly T[], test: (v: T) => boolean): boolean {
+  return picked.length === 0 || picked.some(test)
+}
+
 // Preferred department order; anything else falls to the end, alphabetically. Both 부's
 // 부서 are listed — a roster only ever contains one 부's people (the server scopes it), so
 // this is just a stable ordering, not a claim that they appear together.
@@ -60,6 +75,10 @@ export function matchesGroup(m: Pick<Member, 'group_name'>, group: string): bool
   if (!group) return true
   if (group === NO_GROUP) return !m.group_name
   return m.group_name === group
+}
+
+export function matchesGroups(m: Pick<Member, 'group_name'>, groups: readonly string[]): boolean {
+  return anyOf(groups, (g) => matchesGroup(m, g))
 }
 
 // Distinct, non-empty 동산 for a group (or across all groups when group is ''), sorted.
@@ -124,6 +143,10 @@ export function matchesSubgroup(m: Pick<Member, 'subgroup'>, subgroup: string): 
   return m.subgroup === subgroup
 }
 
+export function matchesSubgroups(m: Pick<Member, 'subgroup'>, subgroups: readonly string[]): boolean {
+  return anyOf(subgroups, (sg) => matchesSubgroup(m, sg))
+}
+
 // 학교 칩이 실제로 나올 자리가 있는가 — 그 명단에 있는 묶음만 순서대로 (CMU → Pitt →
 // 학교 미기재). 장년부에는 CMU도 Pitt도 없으므로 빈 목록이 되고 칩 줄 자체가 사라진다.
 export function schoolsOf(members: Member[]): SchoolChip[] {
@@ -134,6 +157,10 @@ export function schoolsOf(members: Member[]): SchoolChip[] {
 export function matchesSchool(m: Pick<Member, 'school_or_work'>, school: SchoolFilter): boolean {
   if (!school) return true
   return (schoolOf(m) || 'none') === school
+}
+
+export function matchesSchools(m: Pick<Member, 'school_or_work'>, schools: readonly SchoolChip[]): boolean {
+  return anyOf(schools, (sc) => matchesSchool(m, sc))
 }
 
 // 대학원생/직장인 — `careerOf`가 읽는 값 중 이 화면이 가르는 것은 둘뿐이고, 나머지(대학생 ·
@@ -154,6 +181,10 @@ export function matchesCareer(m: Pick<Member, 'school_or_work'>, career: CareerF
   return careerChipOf(m) === career
 }
 
+export function matchesCareers(m: Pick<Member, 'school_or_work'>, careers: readonly CareerChip[]): boolean {
+  return anyOf(careers, (c) => matchesCareer(m, c))
+}
+
 // **부서마다 명단을 가르는 축이 다르다** — 멤버 탭·새가족 탭의 칩 줄이 그 축을 따른다:
 //   대학부 · 그 밖 — 학교로 (CMU · Pitt · Duquesne · 기타). 다 학부생이라 학교가 곧 자리다.
 //   청년부 — 처지로 (대학원생 · 직장인 · 기타)**와 함께** 학교로. 대학원생을 고르면 학교 줄이
@@ -165,12 +196,16 @@ export function matchesCareer(m: Pick<Member, 'school_or_work'>, career: CareerF
 // 없었는데, 전체 명단에서는 보이던 학교 줄이 청년부를 고르는 순간 사라져 **"청년부는 학교로
 // 못 가른다"로 읽혔다** (실제로는 한 번 더 눌러야 나오는 것이었다). 줄이 사라지는 것은 고를
 // 것이 없다는 뜻이어야 한다.
-export function careerAxis(group: string): boolean {
-  return group === '청년부'
+//
+// 고른 부서·처지는 **목록**이다 (멤버 탭은 여러 개를 함께 고른다): 처지 줄은 청년부 **하나만**
+// 고른 동안 서고(대학부와 함께 고르면 처지는 그 절반에게만 뜻이 있다), 학교 줄은 직장인 **하나만**
+// 고른 동안 내려간다 (대학원생과 함께 고르면 그 대학원생들의 학교는 여전히 고를 것이다).
+export function careerAxis(groups: readonly string[]): boolean {
+  return groups.length === 1 && groups[0] === '청년부'
 }
 
-export function schoolAxis(group: string, career: CareerFilter): boolean {
-  return careerAxis(group) ? career !== 'work' : true
+export function schoolAxis(groups: readonly string[], careers: readonly CareerChip[]): boolean {
+  return careerAxis(groups) ? !(careers.length === 1 && careers[0] === 'work') : true
 }
 
 // 처지·학교 트랙(TraitFilter)에 내걸 칩 — 고를 것이 없는 줄은 빈 목록이다. 새가족 탭은
@@ -178,14 +213,14 @@ export function schoolAxis(group: string, career: CareerFilter): boolean {
 // 학교 칩은 있을 수 있어서, 그 줄의 유무를 부서·동산만 보고 정하면 학교가 갈 자리가 없어진다.
 export function traitChips(
   members: Member[],
-  group: string,
-  career: CareerFilter,
+  groups: readonly string[],
+  career: readonly CareerChip[],
 ): { careers: CareerChip[]; schools: SchoolChip[] } {
   // 아래 줄의 칩은 **위에서 고른 것 안에서** 뽑는다 — 청년부 대학원생의 학교 칩은 그
   // 사람들의 학교여야 고른 뒤에 빈 화면이 나오지 않는다.
-  const careers = careerAxis(group) ? careersOf(members) : []
-  const inCareer = members.filter((m) => matchesCareer(m, career))
-  const schools = schoolAxis(group, career) ? schoolsOf(inCareer) : []
+  const careers = careerAxis(groups) ? careersOf(members) : []
+  const inCareer = members.filter((m) => matchesCareers(m, career))
+  const schools = schoolAxis(groups, career) ? schoolsOf(inCareer) : []
   // 고를 것이 없으면 줄이 없다: 학교를 하나도 읽어내지 못한 부(장년부)에는 '기타' 하나만
   // 남는데, 그 칩은 전체와 같은 묶음이라 고를 뜻이 없다.
   return {

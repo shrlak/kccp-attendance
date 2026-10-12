@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { Member } from '../../lib/api'
-import { sortBlockOf, sortChipsOf, sortBlocks, matchesSortValue, sortKeysFor, NO_VALUE, OTHER_VALUE } from './memberSort'
+import { sortBlockOf, sortChipsOf, sortBlocks, matchesSortValues, sortKeysFor, sortValueLabel, NO_VALUE, OTHER_VALUE } from './memberSort'
 
 const m = (id: string, extra: Partial<Member> = {}): Member => ({
   id, name: id, group_name: '대학부', subgroup: '', member_role: '', gender: '', phone: '',
@@ -39,7 +39,7 @@ describe('memberSort — 세례여부', () => {
 
   it("칩은 보기 하나하나이고, '입교'는 '유아세례, 입교'로 적힌 사람도 데려온다", () => {
     expect(sortChipsOf(list, 'baptism')).toEqual(['유아세례', '입교', '세례', '해당없음', NO_VALUE])
-    expect(list.filter((x) => matchesSortValue(x, 'baptism', '입교')).map((x) => x.id)).toEqual(['유아입교', '입교', '입교세례'])
+    expect(list.filter((x) => matchesSortValues(x, 'baptism', ['입교'])).map((x) => x.id)).toEqual(['유아입교', '입교', '입교세례'])
   })
 
   it('보기 밖의 말(장년부의 직분)은 보기 뒤에 많은 것부터 선다', () => {
@@ -71,7 +71,64 @@ describe('memberSort — 신앙생활 · 소속 · 머물 기간', () => {
 
 describe('memberSort — 고를 수 있는 정렬', () => {
   it('그 칸을 읽어낼 수 있는 사람이 없는 칸은 내걸지 않는다 (장년부의 신앙생활 · 머물 기간)', () => {
-    const adult = [m('a', { group_name: '장년부', baptism_status: '집사', gender: '여', school_or_work: '회사' })]
+    const adult = [
+      m('a', { group_name: '장년부', baptism_status: '집사', gender: '여', school_or_work: '회사' }),
+      m('b', { group_name: '장년부', baptism_status: '권사' }),
+    ]
     expect(sortKeysFor(adult)).toEqual(['gender', 'baptism'])
+  })
+  it('값이 하나뿐인 칸도 내걸지 않는다 — 모두 같은 값이면 아무것도 갈라 주지 않는다', () => {
+    expect(sortKeysFor([m('a', { gender: '여' }), m('b', { gender: '여' })])).toEqual([])
+  })
+})
+
+// 카드 밖의 그 밖의 정보 — 새가족 · 새가족 교육 · 출생연도 · 등록 연도 · 목사님 심방 · 연락처.
+describe('memberSort — 그 밖의 정보', () => {
+  it('새가족 교육은 새가족 탭과 같은 네 갈래이고, 교육 칸이 빈 일반 멤버는 미수강이 아니라 해당 없음이다', () => {
+    const list = [
+      m('done', { is_new_member: true, new_member_edu_week1: true, new_member_edu_week2: true }),
+      m('w2', { is_new_member: true, new_member_edu_week2: true }),
+      m('none', { is_new_member: true }),
+      m('old', {}),
+      // 표시가 내려간 뒤에도 이수 기록은 사실이다.
+      m('grad', { new_member_edu_week1: true, new_member_edu_week2: true }),
+    ]
+    expect(list.map((x) => sortBlockOf(x, 'edu'))).toEqual(['both', 'week2', 'none', 'na', 'both'])
+    expect(sortChipsOf(list, 'edu')).toEqual(['both', 'week2', 'none', 'na'])
+  })
+  it('장년부에는 새가족 교육이 없다 — 모두 해당 없음이라 고를 칸에서 빠진다', () => {
+    const adult = [m('a', { group_name: '장년부', is_new_member: true }), m('b', { group_name: '장년부' })]
+    expect(adult.map((x) => sortBlockOf(x, 'edu'))).toEqual(['na', 'na'])
+    expect(sortKeysFor(adult)).toContain('newMember')
+    expect(sortKeysFor(adult)).not.toContain('edu')
+  })
+  it('출생연도는 대학·청년부가 해마다, 장년부가 십 년마다 — 이른 해부터 선다', () => {
+    const list = [
+      m('a', { birth_date: '2003-05-01' }),
+      m('b', { birth_date: '1999-12-31' }),
+      m('c', { group_name: '장년부', birth_date: '1967-02-03' }),
+      m('d', {}),
+    ]
+    expect(list.map((x) => sortBlockOf(x, 'birthYear'))).toEqual(['2003', '1999', '1960s', NO_VALUE])
+    expect(sortChipsOf(list, 'birthYear')).toEqual(['1960s', '1999', '2003', NO_VALUE])
+  })
+  it('등록 연도 · 목사님 심방 · 연락처', () => {
+    expect(sortBlockOf(m('a', { registration_date: '2025-09-07' }), 'regYear')).toBe('2025')
+    expect(sortBlockOf(m('a', { registration_date: null }), 'regYear')).toBe(NO_VALUE)
+    expect(sortBlockOf(m('a', { pastoral_visit_requested: true }), 'pastoral')).toBe('yes')
+    expect(sortBlockOf(m('a', { pastoral_visit_requested: null }), 'pastoral')).toBe('no')
+    expect(sortBlockOf(m('a', { phone: '412', kakao_id: 'k' }), 'contact')).toBe('both')
+    expect(sortBlockOf(m('a', { phone_home: '412' }), 'contact')).toBe('phone')
+    expect(sortBlockOf(m('a', { kakao_id: 'k' }), 'contact')).toBe('kakao')
+    expect(sortBlockOf(m('a', {}), 'contact')).toBe('none')
+  })
+  it('칩의 말 — 카드의 보기는 적힌 그대로, 그 밖의 정보는 언어를 따르는 말로', () => {
+    const t = ((key: string, opts?: { year?: string }) => (opts?.year ? `${key}:${opts.year}` : key)) as unknown as Parameters<typeof sortValueLabel>[0]
+    expect(sortValueLabel(t, 'baptism', '입교')).toBe('입교')
+    expect(sortValueLabel(t, 'gender', NO_VALUE)).toBe('admin.members.sort.none')
+    expect(sortValueLabel(t, 'edu', 'week1')).toBe('admin.newfamily.eduFilter.week1')
+    expect(sortValueLabel(t, 'edu', 'na')).toBe('admin.members.info.edu.na')
+    expect(sortValueLabel(t, 'birthYear', '1960s')).toBe('admin.members.info.birthDecade:1960')
+    expect(sortValueLabel(t, 'contact', 'phone')).toBe('admin.members.info.contact.phone')
   })
 })

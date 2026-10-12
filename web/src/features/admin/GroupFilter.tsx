@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useEffect, useRef, type ReactNode } from 'react'
 import type { Member } from '../../lib/api'
-import { groupsOf, subgroupSectionsOf, countSubgroups, NO_SUBGROUP, type Filter, type SubgroupSection } from './filters'
+import { groupsOf, subgroupSectionsOf, countSubgroups, pickChip, NO_SUBGROUP, type Filter, type SubgroupSection } from './filters'
 
 // 필터 줄이 앉는 자리 — **패널 헤더 바로 밑에 붙어 스크롤을 따라온다** (엑셀의 행 고정과
 // 같은 뜻이다). 명단·출석부는 한 화면에 안 들어가는 표라, 아래로 내려가 있는 동안 지금
@@ -79,8 +79,8 @@ export function GroupFilter({
         )}
         <SubgroupChips
           sections={sections}
-          value={value.subgroup}
-          onChange={(subgroup) => onChange({ ...value, subgroup })}
+          value={value.subgroup ? [value.subgroup] : []}
+          onChange={(next) => onChange({ ...value, subgroup: next[0] ?? '' })}
         />
         {children}
       </div>
@@ -103,11 +103,14 @@ export function SubgroupChips({
   // 동산이 비어 있는 사람의 칩('동산 미지정')을 내걸까 — 멤버 탭만 쓴다. 출석부·오늘의
   // Filter.subgroup은 이름으로만 좁히므로(filterMembers) 그 자리에 자리표를 넣을 수 없다.
   noneChip = false,
+  // 칩을 여러 개 함께 고를까 (멤버 탭) — 아니면 누른 칩 하나로 바뀐다 (`pickChip`).
+  multi = false,
 }: {
   sections: SubgroupSection[]
-  value: string
-  onChange: (subgroup: string) => void
+  value: readonly string[] // 고른 동산들 — 빈 목록이 '전체'
+  onChange: (subgroups: string[]) => void
   noneChip?: boolean
+  multi?: boolean
 }) {
   const { t } = useTranslation()
   // 고를 것이 하나뿐이면 줄이 없다 — '전체'와 그 하나가 같은 사람들을 가리킨다 (칩 줄의
@@ -121,11 +124,11 @@ export function SubgroupChips({
   // 할 때는 같은 트랙 안에서 그 부서의 동산 앞에 부서 이름을 작게 적는다.
   return (
     <PillTrack label={t('admin.members.subgroup')}>
-      <Pill active={!value} onClick={() => onChange('')}>
+      <Pill active={value.length === 0} onClick={() => onChange([])}>
         {t('admin.filter.all')}
       </Pill>
       {noneChip && (
-        <Pill active={value === NO_SUBGROUP} onClick={() => onChange(NO_SUBGROUP)}>
+        <Pill active={value.includes(NO_SUBGROUP)} onClick={() => onChange(pickChip(value, NO_SUBGROUP, multi))}>
           {t('admin.members.noSubgroup')}
         </Pill>
       )}
@@ -136,7 +139,7 @@ export function SubgroupChips({
             <span className="section-kicker ml-1.5 shrink-0 whitespace-nowrap border-l border-separator pl-2.5 pr-1">{section.group || '—'}</span>
           )}
           {section.subgroups.map((sg) => (
-            <Pill key={sg} active={value === sg} onClick={() => onChange(sg)}>
+            <Pill key={sg} active={value.includes(sg)} onClick={() => onChange(pickChip(value, sg, multi))}>
               {sg}
             </Pill>
           ))}

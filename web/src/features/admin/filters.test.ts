@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { groupsOf, groupChipsOf, matchesGroup, subgroupsOf, subgroupSectionsOf, matchesSubgroup, schoolsOf, matchesSchool, careersOf, matchesCareer, careerAxis, schoolAxis, filterMembers, filterLog, NO_GROUP, NO_SUBGROUP } from './filters'
+import { groupsOf, groupChipsOf, matchesGroup, matchesGroups, subgroupsOf, subgroupSectionsOf, matchesSubgroup, matchesSubgroups, schoolsOf, matchesSchool, matchesSchools, careersOf, matchesCareer, matchesCareers, careerAxis, schoolAxis, pickChip, filterMembers, filterLog, NO_GROUP, NO_SUBGROUP } from './filters'
 import type { Member, LogEntry } from '../../lib/api'
 
 const m = (id: string, group: string, subgroup: string): Member => ({
@@ -154,17 +154,24 @@ describe('careersOf · matchesCareer', () => {
 
 describe('careerAxis · schoolAxis — 부서마다 다른 축', () => {
   it('대학부는 학교로 바로 간다', () => {
-    expect(careerAxis('대학부')).toBe(false)
-    expect(schoolAxis('대학부', '')).toBe(true)
+    expect(careerAxis(['대학부'])).toBe(false)
+    expect(schoolAxis(['대학부'], [])).toBe(true)
   })
   it('청년부는 처지와 학교 두 줄을 함께 내건다 — 직장인일 때만 학교가 내려간다', () => {
-    expect(careerAxis('청년부')).toBe(true)
+    expect(careerAxis(['청년부'])).toBe(true)
     // 청년부를 고르는 순간 학교 줄이 사라지면 "이 부서는 학교로 못 가른다"로 읽힌다.
-    expect(schoolAxis('청년부', '')).toBe(true)
-    expect(schoolAxis('청년부', 'grad')).toBe(true)
-    expect(schoolAxis('청년부', 'other')).toBe(true)
+    expect(schoolAxis(['청년부'], [])).toBe(true)
+    expect(schoolAxis(['청년부'], ['grad'])).toBe(true)
+    expect(schoolAxis(['청년부'], ['other'])).toBe(true)
     // 직장인에게 학교는 지금 어디에 있는지를 말해 주지 않는다.
-    expect(schoolAxis('청년부', 'work')).toBe(false)
+    expect(schoolAxis(['청년부'], ['work'])).toBe(false)
+  })
+  it('여러 개를 고르면: 처지 줄은 청년부 하나만일 때, 학교 줄은 직장인 하나만일 때 내려간다', () => {
+    // 대학부와 함께 고르면 처지는 그 절반에게만 뜻이 있다.
+    expect(careerAxis(['대학부', '청년부'])).toBe(false)
+    expect(careerAxis([])).toBe(false)
+    // 대학원생과 함께 고른 직장인 — 그 대학원생들의 학교는 여전히 고를 것이다.
+    expect(schoolAxis(['청년부'], ['work', 'grad'])).toBe(true)
   })
 })
 
@@ -178,5 +185,29 @@ describe('matchesSchool', () => {
   })
   it('빈 값은 전체다', () => {
     expect(schooled.every((x) => matchesSchool(x, ''))).toBe(true)
+  })
+})
+
+// 멤버 탭은 한 줄에서 칩을 여러 개 함께 고른다 — 줄 안에서는 '또는'.
+describe('pickChip · 목록으로 좁히기', () => {
+  it('여러 개 고르기: 누르면 넣고 다시 누르면 뺀다 / 하나 고르기: 누른 칩 하나로 바뀐다', () => {
+    expect(pickChip([], 'cmu', true)).toEqual(['cmu'])
+    expect(pickChip(['cmu'], 'pitt', true)).toEqual(['cmu', 'pitt'])
+    expect(pickChip(['cmu', 'pitt'], 'cmu', true)).toEqual(['pitt'])
+    expect(pickChip(['cmu'], 'pitt', false)).toEqual(['pitt'])
+  })
+  it('고른 것 중 하나에라도 맞으면 남고, 고른 것이 없으면 전체다', () => {
+    const list = [
+      s('c', '대학부', '대학생 · CMU'),
+      s('p', '대학부', '대학생 · Pitt'),
+      s('d', '청년부', '대학원생 · Duquesne'),
+      s('n', '', ''),
+    ]
+    expect(list.filter((x) => matchesSchools(x, ['cmu', 'pitt'])).map((x) => x.id)).toEqual(['c', 'p'])
+    expect(list.filter((x) => matchesSchools(x, [])).length).toBe(4)
+    expect(list.filter((x) => matchesGroups(x, ['청년부', NO_GROUP])).map((x) => x.id)).toEqual(['d', 'n'])
+    expect(list.filter((x) => matchesCareers(x, ['grad', 'other'])).map((x) => x.id)).toEqual(['c', 'p', 'd', 'n'])
+    expect(matchesSubgroups({ subgroup: '' }, ['호연동산', NO_SUBGROUP])).toBe(true)
+    expect(matchesSubgroups({ subgroup: '선규동산' }, ['호연동산', NO_SUBGROUP])).toBe(false)
   })
 })
