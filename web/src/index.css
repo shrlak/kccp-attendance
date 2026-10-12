@@ -176,6 +176,23 @@
     scrollbar-width: thin;
   }
 
+  /* 출석부 표가 두 방향으로 스크롤되는 상자 (AttendanceGrid). 높이는 화면에서 패널 헤더 ·
+     칩 줄(StickyFilterBar가 --filter-bar-h로 실측값을 내건다) · 폰의 아래 탭 막대를 뺀 만큼이라,
+     상자 머리를 칩 줄 밑에 맞추면 표가 한 화면에 들어오고 상자 안에서 머리줄이 붙어 있다.
+     아주 낮은 화면에서도 몇 줄은 보이도록 18rem 아래로는 줄이지 않는다. */
+  .grid-viewport {
+    max-height: max(18rem, calc(100dvh - var(--admin-header-h, 4.5rem) - var(--filter-bar-h, 0px) - 5rem - var(--safe-bottom, 0px)));
+  }
+  @media (min-width: 64rem) {
+    .grid-viewport {
+      max-height: max(18rem, calc(100dvh - var(--admin-header-h, 4.5rem) - var(--filter-bar-h, 0px) - 1.5rem));
+    }
+  }
+  /* 창(새가족 출석표) 안의 같은 표 — 창이 화면의 92%까지라 제목·범례를 뺀 만큼. */
+  .grid-viewport-dialog {
+    max-height: max(16rem, 62dvh);
+  }
+
   /* Elevated card/panel — the primary content container across the app. */
   .surface-panel {
     @apply border border-border bg-surface;

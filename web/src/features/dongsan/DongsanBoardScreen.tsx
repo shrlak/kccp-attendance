@@ -209,9 +209,10 @@ function Legend({ ctx }: { ctx?: 'adult' }) {
   )
 }
 
-// 스프레드시트의 칸. 출석부 탭(AdminSheet)의 CELL/STICKY_NAME과 같은 값이다 — 같은 표의
-// 다른 자리이므로 칸선도 같아야 한다. border-collapse는 고정된(sticky) 칸의 오른쪽 선을
-// 제대로 다시 그리지 않아, 이름 열의 경계선만 box-shadow로 그린다.
+// 스프레드시트의 칸. 출석부 탭(AttendanceGrid)과 같은 칸선 색이다 — 같은 표의 다른 자리이므로
+// 칸선도 같아야 한다. border-collapse는 고정된(sticky) 칸의 오른쪽 선을 제대로 다시 그리지
+// 않아, 이름 열의 경계선만 box-shadow로 그린다. (출석부 탭은 머리줄까지 위쪽에 고정하므로
+// border-separate로 칸마다 선을 들고 다니게 바꿨다 — 여기는 이름 열 하나만 고정한다.)
 // (칸선 #b7b7b7 = sheetPalette의 GRID_LINE, '이번 주' 테두리 #1f2937 = PAPER_INK. 여기서는
 // 값을 글자 그대로 적는다 — Tailwind는 소스에 **적혀 있는** 클래스 이름만 보므로 상수를 끼워
 // 넣어 만든 이름은 스타일이 아예 만들어지지 않는다.)

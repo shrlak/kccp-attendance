@@ -97,6 +97,31 @@ describe('AdminSheet 출석부 (Excel-style grid)', () => {
     expect(cellsOf(await rowOf('B'))).toEqual(['B', '0', '', '', '', '', '', '', '', '', ''])
   })
 
+  it('이름 · 예배 총 출석 열은 왼쪽에, 머리줄은 그 동산 표의 위쪽에 고정된다', async () => {
+    const { container } = renderSheet()
+    await screen.findByRole('heading', { name: '믿음동산' })
+
+    // 표는 두 방향으로 스크롤되는 상자 하나 안에 있다 — 그래야 머리줄이 붙을 자리가 생긴다.
+    const viewport = screen.getByTestId('attendance-grid-viewport')
+    expect(viewport.className).toContain('grid-viewport')
+    expect(viewport.className).toContain('overflow-y-auto')
+
+    // 동산마다 자기 머리줄이 있고, 그 칸들이 위쪽에 붙는다 (이름 칸은 왼쪽에도).
+    const heads = [...container.querySelectorAll('thead th')]
+    expect(heads.length).toBeGreaterThan(0)
+    for (const th of heads) expect(th.className).toMatch(/sticky top-\[var\(--band-h\)\]/)
+
+    // 몸통의 이름 칸과 예배 총 출석 칸이 왼쪽에 고정된다 — 두 번째 열은 이름 열 폭만큼 떨어져.
+    const row = [...container.querySelectorAll('tbody td')].find((td) => td.textContent === 'A')!.parentElement!
+    const [name, total] = [...row.querySelectorAll('td')]
+    expect(name.className).toContain('sticky left-0')
+    expect(total.className).toContain('sticky left-[var(--name-col)]')
+
+    // 동산 이름 띠도 상자 맨 위에 붙어, 머리줄만 남았을 때 어느 동산인지 읽힌다.
+    const band = screen.getByRole('heading', { name: '믿음동산' }).parentElement!
+    expect(band.className).toContain('sticky top-0')
+  })
+
   it('tells you when the running term will be archived, while nothing is finished yet', async () => {
     renderSheet()
     await screen.findByRole('heading', { name: '믿음동산' })

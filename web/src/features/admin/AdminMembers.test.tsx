@@ -502,3 +502,57 @@ describe('AdminMembers — 멤버 카드', () => {
     expect(screen.queryByRole('button', { name: /kccp_hoyeon/ })).toBeNull()
   })
 })
+
+describe('AdminMembers — 정렬 (등록 카드의 보기로)', () => {
+  const people = () => [
+    member('a', '가세례', { baptism_status: '세례', gender: '여', faith_duration: '모태신앙' }),
+    member('b', '나입교', { baptism_status: '유아세례, 입교', gender: '남' }),
+    member('c', '다없음', { baptism_status: '해당없음', gender: '남' }),
+    member('d', '라청년', { group_name: '청년부', baptism_status: '입교', gender: '여' }),
+  ]
+
+  it('기본은 이름순이고, 고를 수 있는 칸은 명단에 적힌 칸뿐이다', () => {
+    rosterData.data = roster(people())
+    renderWithProviders(<AdminMembers />)
+    const select = screen.getByRole('combobox', { name: '정렬' })
+    expect(select).toHaveValue('')
+    // 아무도 소속 · 머물 기간을 적지 않았으므로 그 두 칸은 고를 것이 없다.
+    expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual(['이름순', '성별', '세례여부', '신앙생활'])
+  })
+
+  it('세례여부를 고르면 부서 섹션 안에서 값마다 묶이고, 묶음 머리줄에 인원이 붙는다', async () => {
+    rosterData.data = roster(people())
+    renderWithProviders(<AdminMembers />)
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: '정렬' }), 'baptism')
+    const college = screen.getByRole('heading', { name: /대학부/ }).closest('section')!
+    const heads = within(college).getAllByRole('heading', { level: 4 }).map((h) => h.textContent)
+    expect(heads).toEqual(['유아세례, 입교1', '세례1', '해당없음1'])
+    // 부서를 넘어 섞지 않는다 — 청년부의 입교는 청년부 섹션에 따로 선다.
+    const young = screen.getByRole('heading', { name: /청년부/ }).closest('section')!
+    expect(within(young).getAllByRole('heading', { level: 4 }).map((h) => h.textContent)).toEqual(['입교1'])
+  })
+
+  it("값 칩으로 좁힌다 — '입교'는 '유아세례, 입교'로 적힌 사람도 데려온다", async () => {
+    rosterData.data = roster(people())
+    renderWithProviders(<AdminMembers />)
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: '정렬' }), 'baptism')
+    const track = screen.getByRole('group', { name: '세례여부' })
+    await userEvent.click(within(track).getByRole('button', { name: '입교' }))
+    expect(screen.getByText('나입교')).toBeInTheDocument()
+    expect(screen.getByText('라청년')).toBeInTheDocument()
+    expect(screen.queryByText('가세례')).not.toBeInTheDocument()
+    expect(screen.queryByText('다없음')).not.toBeInTheDocument()
+  })
+
+  it('정렬 칸이나 부서를 바꾸면 고른 값은 비워진다', async () => {
+    rosterData.data = roster(people())
+    renderWithProviders(<AdminMembers />)
+    const select = screen.getByRole('combobox', { name: '정렬' })
+    await userEvent.selectOptions(select, 'gender')
+    await userEvent.click(within(screen.getByRole('group', { name: '성별' })).getByRole('button', { name: '여' }))
+    expect(screen.queryByText('나입교')).not.toBeInTheDocument()
+    await userEvent.click(within(screen.getByRole('group', { name: '부서' })).getByRole('button', { name: '대학부' }))
+    expect(screen.getByText('나입교')).toBeInTheDocument()
+    expect(within(screen.getByRole('group', { name: '성별' })).getByRole('button', { name: '전체' })).toHaveAttribute('aria-pressed', 'true')
+  })
+})

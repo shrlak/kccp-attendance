@@ -194,14 +194,16 @@ export function KioskView({ onExit }: { onExit: () => void }) {
     <div className="fixed inset-0 z-[999] flex flex-col bg-canvas">
       {/* Header: title + live attendance count + exit */}
       <header className="material-bar flex items-center justify-between gap-3 border-b px-5 py-3 text-text pt-[calc(0.75rem+env(safe-area-inset-top))] sm:px-7">
-        <div className="flex items-center gap-3">
+        {/* 폰 폭에서는 제목 쪽이 줄어들고 오른쪽 단추들은 제 폭을 지킨다 — 예전에는 거꾸로
+            '나가기'가 눌려 '나/가/기'로 한 글자씩 세로로 꺾였다. */}
+        <div className="flex min-w-0 items-center gap-3">
           <KccpMark size={34} />
-          <div>
-            <div className="font-display text-lg font-bold tracking-tight">{t('kiosk.title')}</div>
-            <div className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">KCCP Sunday Check-in</div>
+          <div className="min-w-0">
+            <div className="truncate font-display text-lg font-bold tracking-tight">{t('kiosk.title')}</div>
+            <div className="mt-0.5 truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">KCCP Sunday Check-in</div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <div className="mr-1 hidden items-center gap-2 rounded-full bg-fill px-3.5 py-1.5 sm:flex">
             <Users className="size-4 text-primary" strokeWidth={2} aria-hidden />
             <span className="text-sm font-bold tabular-nums text-text">{count}</span>
@@ -214,10 +216,11 @@ export function KioskView({ onExit }: { onExit: () => void }) {
           <button
             type="button"
             onClick={onExit}
-            className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-border bg-surface px-4 text-sm font-semibold text-muted transition-[background-color,color,transform] duration-200 [transition-timing-function:var(--ease-out-soft)] hover:bg-surface-alt hover:text-text active:scale-[0.96]"
+            className="inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-border bg-surface px-4 text-sm font-semibold text-muted transition-[background-color,color,transform] duration-200 [transition-timing-function:var(--ease-out-soft)] hover:bg-surface-alt hover:text-text active:scale-[0.96]"
           >
             <DoorOpen className="size-4" strokeWidth={2} aria-hidden />
-            {t('kiosk.exit')}
+            {/* 360px 아래(작은 폰)에서는 문 아이콘만 — 글자까지 서면 제목이 '출석 …'으로 잘린다. */}
+            <span className="max-[359px]:sr-only">{t('kiosk.exit')}</span>
           </button>
         </div>
       </header>

@@ -762,12 +762,14 @@ function EduCard({
       </button>
       {/* Tap the body to open the member's full info/editor (feature parity with 새가족 tab) */}
       <button type="button" onClick={onOpen} className="block w-full text-left">
-        <div className="flex items-center gap-1.5 pr-7 text-sm font-semibold text-text">
+        {/* 이름과 '오늘 출석' 표는 자리가 모자라면 줄을 바꾼다 — 좁은 폰의 두 칸 격자에서 둘을
+            한 줄에 묶어 두면 표가 눌려 '오/늘/출/석'으로 한 글자씩 세로로 꺾였다. */}
+        <div className="flex flex-wrap items-center gap-1.5 pr-7 text-sm font-semibold text-text">
           {member.name}
           {/* 오늘 와 있는 사람 — 목록을 좁히지 않고도 눈에 띄도록 이름 옆에 점 하나. */}
           {here && (
             <span
-              className="inline-flex items-center gap-1 rounded-full bg-success/15 px-1.5 py-0.5 text-[10px] font-semibold text-success"
+              className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-success/15 px-1.5 py-0.5 text-[10px] font-semibold text-success"
               title={t('admin.newfamilyEdu.attend.today')}
             >
               <Check className="size-2.5" strokeWidth={3} aria-hidden />

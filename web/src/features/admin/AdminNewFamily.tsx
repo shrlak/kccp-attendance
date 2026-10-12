@@ -140,7 +140,9 @@ export function AdminNewFamily() {
             {t('admin.newfamily.carriedOverCount', { n: carriedOver })}
           </span>
         )}
-        <div className="ml-auto flex gap-2">
+        {/* 버튼 줄은 줄을 바꾼다 — 다섯 개가 폰 폭에 한 줄로 들어가지 않고, 못 바꾸면 버튼이
+            눌려서 글자가 한 자씩 세로로 꺾였다. */}
+        <div className="ml-auto flex flex-wrap justify-end gap-2">
           {/* 출석표 — 이 탭이 보여주는 새가족만으로 그린 출석부의 그 표 (NewFamilySheetDialog).
               카드에는 등록일만 있어서 "그 뒤로 계속 오고 있나"는 출석부 탭으로 건너가 이름을
               하나씩 찾아야 알 수 있었다. 목사님(읽기 전용)에게도 보인다 — 읽는 화면이다.
@@ -468,14 +470,14 @@ function ExportModal({ members, today, onClose }: { members: Member[]; today: st
         })}
       </ul>
       <div className="mt-4 flex flex-wrap gap-2">
-        <Button onClick={() => void confirmCopyCards()} disabled={busy !== null || selected.size === 0} className="flex-1 whitespace-pre-line text-center leading-tight">
+        <Button onClick={() => void confirmCopyCards()} disabled={busy !== null || selected.size === 0} className="flex-1 whitespace-pre-line! text-center leading-tight">
           {busy === 'cardsCopy' ? t('admin.newfamily.export.cardsCopyBusy') : t('admin.newfamily.export.cardsCopyConfirm', { n: selected.size })}
         </Button>
         <Button
           variant="secondary"
           onClick={() => void confirmSaveCards()}
           disabled={busy !== null || selected.size === 0}
-          className="flex-1 whitespace-pre-line text-center leading-tight"
+          className="flex-1 whitespace-pre-line! text-center leading-tight"
         >
           {busy === 'cardsSave' ? t('admin.newfamily.export.cardsSaveBusy') : t('admin.newfamily.export.cardsSaveConfirm', { n: selected.size })}
         </Button>
@@ -483,7 +485,7 @@ function ExportModal({ members, today, onClose }: { members: Member[]; today: st
           variant="secondary"
           onClick={() => void confirmExcel()}
           disabled={busy !== null || selected.size === 0}
-          className="flex-1 whitespace-pre-line text-center leading-tight"
+          className="flex-1 whitespace-pre-line! text-center leading-tight"
         >
           {busy === 'excel' ? t('admin.newfamily.export.excelBusy') : t('admin.newfamily.export.excelConfirm', { n: selected.size })}
         </Button>

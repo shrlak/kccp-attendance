@@ -17,7 +17,9 @@ export function StatsBar({ stats }: { stats: Stats }) {
           <span className="mb-3 grid size-8 place-items-center rounded-full bg-fill text-muted">
             <Icon className="size-4" strokeWidth={2} aria-hidden />
           </span>
-          <div className="font-display text-3xl font-bold tabular-nums tracking-tight text-text sm:text-4xl">{value}</div>
+          {/* 세 칸이 320px 폰에 나란히 서면 칸 안이 50px 남짓이라 세 자리 수(멤버 110명)가 칸 밖으로
+              비어져 나왔다 — 그 폭에서는 한 단계 작게 쓴다. */}
+          <div className="font-display text-2xl font-bold tabular-nums tracking-tight text-text min-[360px]:text-3xl sm:text-4xl">{value}</div>
           <div className="section-kicker mt-1 leading-4">{label}</div>
         </div>
       ))}
