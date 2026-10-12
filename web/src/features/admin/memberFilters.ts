@@ -1,6 +1,6 @@
 import type { Member } from '../../lib/api'
 import { groupChipsOf, subgroupSectionsOf, countSubgroups, careersOf, schoolsOf } from './filters'
-import { sortKeysFor, SORT_KEYS, type SortKey } from './memberSort'
+import { sortKeysFor, CARD_KEYS, INFO_KEYS, type SortKey } from './memberSort'
 
 // 멤버 탭에서 **어느 필터를 위에 내걸지 고른다** (`MemberFilterPicker`). 칩 줄이 가를 수 있는
 // 축은 아홉이다 — 명단의 자리(부서 · 동산 · 학생/직장 · 학교)와 종이 등록 카드의 보기(성별 ·
@@ -8,17 +8,25 @@ import { sortKeysFor, SORT_KEYS, type SortKey } from './memberSort'
 // 정작 이번에 가르고 싶은 한두 줄을 찾으려고 나머지를 지나가야 한다. 그래서 **고른 필터만**
 // 칩 줄에 서고, 그 줄에는 그 필터의 보기만 나온다.
 //
+// 카드 밖의 **그 밖의 정보**(새가족 · 새가족 교육 · 출생연도 · 등록 연도 · 목사님 심방 · 연락처)도
+// 같은 자리에서 고른다 — 카드의 보기와 똑같이 서로 곱해지는 독립된 축이다 (memberSort.ts).
+// 줄마다 칩은 **여러 개를 함께** 고를 수 있다 (filters.ts `pickChip`).
+//
 // 고른 것은 **이 기기에 남는다** (localStorage) — 사람마다 늘 보는 축이 정해져 있어서 (새가족
 // 팀은 세례여부, 동산 편성하는 사람은 동산) 탭을 열 때마다 다시 고르게 하면 이 장치가 짐이
 // 된다. 기기에만 남는 편의라 저장이 막힌 브라우저에서도 기본값으로 그대로 돈다.
 
+// 카드의 보기와 그 밖의 정보 — 둘 다 정렬로도 고를 수 있는 칸이고(SortKey), 칩 줄에서는 같은
+// 규칙(서로 곱해지는 독립된 축)으로 선다. 이름은 예전 그대로 CardDim이다.
 export type CardDim = Exclude<SortKey, ''>
 export type FilterDim = 'group' | 'subgroup' | 'career' | 'school' | CardDim
 
 // 칩 줄에 서는 차례 = 고르는 창에 늘어놓는 차례. 명단의 자리가 위(좁혀 가는 사슬), 카드의
-// 보기가 아래(서로 곱해지는 독립된 축)다.
+// 보기와 그 밖의 정보가 아래(서로 곱해지는 독립된 축)다.
 export const ROSTER_DIMS = ['group', 'subgroup', 'career', 'school'] as const satisfies readonly FilterDim[]
-export const CARD_DIMS: readonly CardDim[] = SORT_KEYS
+export const CARD_ONLY_DIMS: readonly CardDim[] = CARD_KEYS
+export const INFO_DIMS: readonly CardDim[] = INFO_KEYS
+export const CARD_DIMS: readonly CardDim[] = [...CARD_ONLY_DIMS, ...INFO_DIMS]
 export const FILTER_DIMS: readonly FilterDim[] = [...ROSTER_DIMS, ...CARD_DIMS]
 
 // 처음 여는 사람에게는 **이 장치가 생기기 전의 칩 줄 그대로**를 보여준다 — 부서 · 동산 ·

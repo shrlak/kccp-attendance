@@ -331,11 +331,19 @@ describe('AdminMembers — 부서마다 다른 축', () => {
     expect(screen.getByText('청년원생듀크')).toBeInTheDocument()
     expect(screen.queryByText('청년원생씨엠')).toBeNull()
 
-    // 직장인으로 옮기면 학교 줄과 그 선택이 함께 걷힌다 — 사라진 칩으로 계속 좁히고 있으면
-    // 화면이 왜 비었는지 알 수가 없다.
+    // 직장인을 함께 고르면 학교 줄은 그대로 선다 — 그 대학원생들의 학교는 여전히 고를 것이다.
+    // 처지를 고치면 학교 선택은 풀린다 (아래 줄의 칩이 바뀌므로).
     await userEvent.click(row('학생/직장').getByRole('button', { name: '직장인' }))
+    expect(screen.getByRole('group', { name: '학교' })).toBeInTheDocument()
+    expect(screen.getByText('청년직장')).toBeInTheDocument()
+    expect(screen.getByText('청년원생씨엠')).toBeInTheDocument()
+
+    // 직장인 하나만 남기면 학교 줄이 걷힌다 — 직장인에게 학교는 지금 어디에 있는지를 말해
+    // 주지 않는다.
+    await userEvent.click(row('학생/직장').getByRole('button', { name: '대학원생' }))
     expect(screen.queryByRole('group', { name: '학교' })).toBeNull()
     expect(screen.getByText('청년직장')).toBeInTheDocument()
+    expect(screen.queryByText('청년원생씨엠')).toBeNull()
   })
 
   it('부서를 바꾸면 그 아래 줄의 선택은 처음으로 돌아간다', async () => {
@@ -415,7 +423,13 @@ describe('AdminMembers — 동산 칩', () => {
     expect(row('동산').getByRole('button', { name: '민서셀' })).toBeInTheDocument()
     expect(row('동산').queryByRole('button', { name: '호연동산' })).toBeNull()
 
+    // 대학부를 함께 고르면 두 부서의 동산이 부서마다 한 줄씩 함께 선다.
     await userEvent.click(row('부서').getByRole('button', { name: '대학부' }))
+    expect(row('동산').getByRole('button', { name: '호연동산' })).toBeInTheDocument()
+    expect(row('동산').getByRole('button', { name: '민서셀' })).toBeInTheDocument()
+
+    // 청년부를 다시 눌러 빼면 대학부 동산만 남는다.
+    await userEvent.click(row('부서').getByRole('button', { name: '청년부' }))
     expect(row('동산').getByRole('button', { name: '호연동산' })).toBeInTheDocument()
     expect(row('동산').getByRole('button', { name: '선규동산' })).toBeInTheDocument()
     expect(row('동산').queryByRole('button', { name: '민서셀' })).toBeNull()
@@ -615,5 +629,132 @@ describe('AdminMembers — 보여줄 필터 고르기', () => {
     unmount()
     renderWithProviders(<AdminMembers />)
     expect(screen.getByRole('group', { name: '성별' })).toBeInTheDocument()
+  })
+})
+
+// 한 줄에서 칩을 여러 개 함께 고른다 — 줄 안에서는 '또는', 줄과 줄 사이는 '그리고'.
+describe('AdminMembers — 한 줄에서 여러 개 고르기', () => {
+  const people = () => [
+    member('c', '씨엠', { school_or_work: '대학생 · CMU Math', gender: '여', baptism_status: '입교' }),
+    member('p', '핏', { school_or_work: '대학생 · Pitt Bio', gender: '남', baptism_status: '세례' }),
+    member('d', '듀크', { school_or_work: '대학생 · Duquesne nursing', gender: '여', baptism_status: '해당없음' }),
+  ]
+  const row = (name: string) => within(screen.getByRole('group', { name }))
+
+  it('CMU와 Pitt을 함께 고르면 둘 다 남고, 다시 누르면 빠지고, 전체를 누르면 풀린다', async () => {
+    rosterData.data = roster(people())
+    renderWithProviders(<AdminMembers />)
+    await userEvent.click(row('학교').getByRole('button', { name: 'CMU' }))
+    await userEvent.click(row('학교').getByRole('button', { name: 'Pitt' }))
+    expect(screen.getByText('씨엠')).toBeInTheDocument()
+    expect(screen.getByText('핏')).toBeInTheDocument()
+    expect(screen.queryByText('듀크')).toBeNull()
+    expect(row('학교').getByRole('button', { name: '전체' })).toHaveAttribute('aria-pressed', 'false')
+
+    await userEvent.click(row('학교').getByRole('button', { name: 'CMU' }))
+    expect(screen.queryByText('씨엠')).toBeNull()
+    expect(screen.getByText('핏')).toBeInTheDocument()
+
+    await userEvent.click(row('학교').getByRole('button', { name: '전체' }))
+    expect(screen.getByText('씨엠')).toBeInTheDocument()
+    expect(screen.getByText('듀크')).toBeInTheDocument()
+  })
+
+  it('줄과 줄은 곱해진다 — (입교 또는 세례) 그리고 여자', async () => {
+    rosterData.data = roster(people())
+    renderWithProviders(<AdminMembers />)
+    await userEvent.click(screen.getByRole('button', { name: /필터/ }))
+    const dialog = within(screen.getByRole('dialog'))
+    await userEvent.click(dialog.getByRole('button', { name: /^성별/ }))
+    await userEvent.click(dialog.getByRole('button', { name: /^세례여부/ }))
+    await userEvent.click(dialog.getByRole('button', { name: '완료' }))
+
+    await userEvent.click(row('세례여부').getByRole('button', { name: '입교' }))
+    await userEvent.click(row('세례여부').getByRole('button', { name: '세례' }))
+    expect(screen.getByText('씨엠')).toBeInTheDocument()
+    expect(screen.getByText('핏')).toBeInTheDocument()
+    await userEvent.click(row('성별').getByRole('button', { name: '여' }))
+    expect(screen.getByText('씨엠')).toBeInTheDocument()
+    expect(screen.queryByText('핏')).toBeNull()
+    expect(screen.queryByText('듀크')).toBeNull()
+    // 단추의 숫자는 칩 수가 아니라 걸려 있는 줄의 수다.
+    expect(screen.getByRole('button', { name: /필터/ })).toHaveTextContent('2')
+  })
+})
+
+// 정렬에서 고른 칸은 필터 창에서 켜지 않아도 그 칸의 칩 줄이 위에 선다.
+describe('AdminMembers — 정렬로 고른 칸의 칩 줄', () => {
+  const people = () => [
+    member('a', '가세례', { baptism_status: '세례' }),
+    member('b', '나입교', { baptism_status: '입교' }),
+    member('c', '다없음', { baptism_status: '해당없음' }),
+  ]
+  const row = (name: string) => within(screen.getByRole('group', { name }))
+
+  it('정렬을 고르면 칩 줄이 서고, 정렬을 바꾸면 내려가며 그 줄로 좁힌 것도 풀린다', async () => {
+    rosterData.data = roster(people())
+    renderWithProviders(<AdminMembers />)
+    expect(screen.queryByRole('group', { name: '세례여부' })).toBeNull()
+
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: '정렬' }), 'baptism')
+    await userEvent.click(row('세례여부').getByRole('button', { name: '입교' }))
+    expect(screen.getByText('나입교')).toBeInTheDocument()
+    expect(screen.queryByText('가세례')).toBeNull()
+
+    // 필터 창에는 켜지 않은 채 '정렬 중'으로 적혀 있다.
+    await userEvent.click(screen.getByRole('button', { name: /필터/ }))
+    const sortRow = within(screen.getByRole('dialog')).getByRole('button', { name: /^세례여부/ })
+    expect(sortRow).toHaveAttribute('aria-pressed', 'false')
+    expect(sortRow).toHaveTextContent('정렬 중')
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '완료' }))
+
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: '정렬' }), '')
+    expect(screen.queryByRole('group', { name: '세례여부' })).toBeNull()
+    expect(screen.getByText('가세례')).toBeInTheDocument()
+  })
+
+  it('필터로도 켜 둔 칸은 정렬을 바꿔도 남는다', async () => {
+    rosterData.data = roster(people())
+    renderWithProviders(<AdminMembers />)
+    await userEvent.click(screen.getByRole('button', { name: /필터/ }))
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /^세례여부/ }))
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '완료' }))
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: '정렬' }), 'baptism')
+    await userEvent.click(row('세례여부').getByRole('button', { name: '입교' }))
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: '정렬' }), '')
+    expect(row('세례여부').getByRole('button', { name: '입교' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByText('가세례')).toBeNull()
+  })
+})
+
+// 카드 밖의 그 밖의 정보 — 새가족 · 새가족 교육 · 출생연도 · 등록 연도 · 목사님 심방 · 연락처.
+describe('AdminMembers — 그 밖의 정보로 가르기', () => {
+  const people = () => [
+    member('a', '김둘', { phone: '412-000-0000', kakao_id: 'kk', birth_date: '2001-03-04' }),
+    member('b', '이폰', { phone: '412-111-1111', birth_date: '2003-05-06' }),
+    member('c', '박무', { birth_date: '2001-07-08' }),
+  ]
+  const row = (name: string) => within(screen.getByRole('group', { name }))
+
+  it('필터 창의 그 밖의 정보에서 켜면 칩 줄이 서고, 그 값으로 가른다', async () => {
+    rosterData.data = roster(people())
+    renderWithProviders(<AdminMembers />)
+    await userEvent.click(screen.getByRole('button', { name: /필터/ }))
+    const dialog = within(screen.getByRole('dialog'))
+    expect(dialog.getByText('그 밖의 정보')).toBeInTheDocument()
+    expect(dialog.getByRole('button', { name: /^연락처/ })).toHaveTextContent('전화·카톡 · 전화만 · 연락처 없음')
+    await userEvent.click(dialog.getByRole('button', { name: /^연락처/ }))
+    await userEvent.click(dialog.getByRole('button', { name: /^출생연도/ }))
+    await userEvent.click(dialog.getByRole('button', { name: '완료' }))
+
+    await userEvent.click(row('연락처').getByRole('button', { name: '연락처 없음' }))
+    expect(screen.getByText('박무')).toBeInTheDocument()
+    expect(screen.queryByText('김둘')).toBeNull()
+
+    await userEvent.click(row('연락처').getByRole('button', { name: '전체' }))
+    await userEvent.click(row('출생연도').getByRole('button', { name: '2001년생' }))
+    expect(screen.getByText('김둘')).toBeInTheDocument()
+    expect(screen.getByText('박무')).toBeInTheDocument()
+    expect(screen.queryByText('이폰')).toBeNull()
   })
 })
