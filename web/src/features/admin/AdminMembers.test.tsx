@@ -435,6 +435,21 @@ describe('AdminMembers — 동산 칩', () => {
     expect(row('동산').queryByRole('button', { name: '민서셀' })).toBeNull()
   })
 
+  it('동산은 하나씩 고른다 — 다른 동산을 누르면 그 동산으로 바뀐다', async () => {
+    rosterData.data = roster(people)
+    renderWithProviders(<AdminMembers />)
+    await userEvent.click(row('동산').getByRole('button', { name: '호연동산' }))
+    await userEvent.click(row('동산').getByRole('button', { name: '선규동산' }))
+    expect(row('동산').getByRole('button', { name: '호연동산' })).toHaveAttribute('aria-pressed', 'false')
+    expect(row('동산').getByRole('button', { name: '선규동산' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText('대학나')).toBeInTheDocument()
+    expect(screen.queryByText('대학가')).toBeNull()
+    // 동산 미지정도 같은 줄의 칩이라 하나로 바뀐다.
+    await userEvent.click(row('동산').getByRole('button', { name: '동산 미지정' }))
+    expect(screen.getByText('청년나')).toBeInTheDocument()
+    expect(screen.queryByText('대학나')).toBeNull()
+  })
+
   it('동산이 비어 있는 사람도 자기 칩이 있다 — 칩을 다 더하면 그 부서가 된다', async () => {
     rosterData.data = roster(people)
     renderWithProviders(<AdminMembers />)
@@ -633,6 +648,7 @@ describe('AdminMembers — 보여줄 필터 고르기', () => {
 })
 
 // 한 줄에서 칩을 여러 개 함께 고른다 — 줄 안에서는 '또는', 줄과 줄 사이는 '그리고'.
+// 동산과 학교 줄만은 하나씩이다 (누른 칩 하나로 바뀐다).
 describe('AdminMembers — 한 줄에서 여러 개 고르기', () => {
   const people = () => [
     member('c', '씨엠', { school_or_work: '대학생 · CMU Math', gender: '여', baptism_status: '입교' }),
@@ -640,20 +656,46 @@ describe('AdminMembers — 한 줄에서 여러 개 고르기', () => {
     member('d', '듀크', { school_or_work: '대학생 · Duquesne nursing', gender: '여', baptism_status: '해당없음' }),
   ]
   const row = (name: string) => within(screen.getByRole('group', { name }))
+  async function showRow(name: RegExp) {
+    await userEvent.click(screen.getByRole('button', { name: /필터/ }))
+    const dialog = within(screen.getByRole('dialog'))
+    await userEvent.click(dialog.getByRole('button', { name }))
+    await userEvent.click(dialog.getByRole('button', { name: '완료' }))
+  }
 
-  it('CMU와 Pitt을 함께 고르면 둘 다 남고, 다시 누르면 빠지고, 전체를 누르면 풀린다', async () => {
+  it('입교와 세례를 함께 고르면 둘 다 남고, 다시 누르면 빠지고, 전체를 누르면 풀린다', async () => {
     rosterData.data = roster(people())
     renderWithProviders(<AdminMembers />)
-    await userEvent.click(row('학교').getByRole('button', { name: 'CMU' }))
-    await userEvent.click(row('학교').getByRole('button', { name: 'Pitt' }))
+    await showRow(/^세례여부/)
+    await userEvent.click(row('세례여부').getByRole('button', { name: '입교' }))
+    await userEvent.click(row('세례여부').getByRole('button', { name: '세례' }))
     expect(screen.getByText('씨엠')).toBeInTheDocument()
     expect(screen.getByText('핏')).toBeInTheDocument()
     expect(screen.queryByText('듀크')).toBeNull()
-    expect(row('학교').getByRole('button', { name: '전체' })).toHaveAttribute('aria-pressed', 'false')
+    expect(row('세례여부').getByRole('button', { name: '전체' })).toHaveAttribute('aria-pressed', 'false')
 
-    await userEvent.click(row('학교').getByRole('button', { name: 'CMU' }))
+    await userEvent.click(row('세례여부').getByRole('button', { name: '입교' }))
     expect(screen.queryByText('씨엠')).toBeNull()
     expect(screen.getByText('핏')).toBeInTheDocument()
+
+    await userEvent.click(row('세례여부').getByRole('button', { name: '전체' }))
+    expect(screen.getByText('씨엠')).toBeInTheDocument()
+    expect(screen.getByText('듀크')).toBeInTheDocument()
+  })
+
+  it('학교는 하나씩 고른다 — CMU를 고른 채 Pitt을 누르면 Pitt으로 바뀐다', async () => {
+    rosterData.data = roster(people())
+    renderWithProviders(<AdminMembers />)
+    await userEvent.click(row('학교').getByRole('button', { name: 'CMU' }))
+    expect(screen.getByText('씨엠')).toBeInTheDocument()
+    expect(screen.queryByText('핏')).toBeNull()
+
+    await userEvent.click(row('학교').getByRole('button', { name: 'Pitt' }))
+    expect(row('학교').getByRole('button', { name: 'CMU' })).toHaveAttribute('aria-pressed', 'false')
+    expect(row('학교').getByRole('button', { name: 'Pitt' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByText('씨엠')).toBeNull()
+    expect(screen.getByText('핏')).toBeInTheDocument()
+    expect(screen.queryByText('듀크')).toBeNull()
 
     await userEvent.click(row('학교').getByRole('button', { name: '전체' }))
     expect(screen.getByText('씨엠')).toBeInTheDocument()
