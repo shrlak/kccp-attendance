@@ -249,6 +249,11 @@ export function buildAttendanceModel(
     }
     bucket.push(m)
   }
+  // 미지정 블록은 **언제나 맨 끝**이다. 블록은 명단에서 처음 나온 순서로 서는데, 동산 없는
+  // 사람이 명단 앞쪽에 있으면 그 블록이 동산들 사이에 끼어 편성된 동산을 훑다가 중간에서
+  // 끊긴다 — 그 블록은 아직 편성되지 않은 나머지라 다 본 뒤에 오는 자리다.
+  const unassignedAt = order.indexOf(labels.unassigned)
+  if (unassignedAt >= 0) order.push(...order.splice(unassignedAt, 1))
 
   const sections = order.map((subgroup) => {
     const sectionMembers = byKey.get(subgroup)!
