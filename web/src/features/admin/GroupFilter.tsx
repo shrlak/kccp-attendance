@@ -103,14 +103,14 @@ export function SubgroupChips({
   // 동산이 비어 있는 사람의 칩('동산 미지정')을 내걸까 — 멤버 탭만 쓴다. 출석부·오늘의
   // Filter.subgroup은 이름으로만 좁히므로(filterMembers) 그 자리에 자리표를 넣을 수 없다.
   noneChip = false,
-  // 칩을 여러 개 함께 고를까 (멤버 탭) — 아니면 누른 칩 하나로 바뀐다 (`pickChip`).
-  multi = false,
 }: {
   sections: SubgroupSection[]
-  value: readonly string[] // 고른 동산들 — 빈 목록이 '전체'
+  // 고른 동산 — 빈 목록이 '전체'. **하나씩만 고른다** (누른 칩 하나로 바뀐다, `pickChip`):
+  // 멤버 탭도 이 줄에서는 여러 개를 함께 고르지 않는다. 동산은 "이 동산은 누구누구인가"를
+  // 묻는 자리라 두 동산을 섞어 놓으면 그 답이 흐려진다.
+  value: readonly string[]
   onChange: (subgroups: string[]) => void
   noneChip?: boolean
-  multi?: boolean
 }) {
   const { t } = useTranslation()
   // 고를 것이 하나뿐이면 줄이 없다 — '전체'와 그 하나가 같은 사람들을 가리킨다 (칩 줄의
@@ -128,7 +128,7 @@ export function SubgroupChips({
         {t('admin.filter.all')}
       </Pill>
       {noneChip && (
-        <Pill active={value.includes(NO_SUBGROUP)} onClick={() => onChange(pickChip(value, NO_SUBGROUP, multi))}>
+        <Pill active={value.includes(NO_SUBGROUP)} onClick={() => onChange(pickChip(value, NO_SUBGROUP, false))}>
           {t('admin.members.noSubgroup')}
         </Pill>
       )}
@@ -139,7 +139,7 @@ export function SubgroupChips({
             <span className="section-kicker ml-1.5 shrink-0 whitespace-nowrap border-l border-separator pl-2.5 pr-1">{section.group || '—'}</span>
           )}
           {section.subgroups.map((sg) => (
-            <Pill key={sg} active={value.includes(sg)} onClick={() => onChange(pickChip(value, sg, multi))}>
+            <Pill key={sg} active={value.includes(sg)} onClick={() => onChange(pickChip(value, sg, false))}>
               {sg}
             </Pill>
           ))}

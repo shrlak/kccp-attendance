@@ -47,9 +47,10 @@ export function AdminMembers() {
   const [attendanceFor, setAttendanceFor] = useState<Member | null>(null)
   const [merging, setMerging] = useState(false)
   const [search, setSearch] = useState('')
-  // 칩 줄의 선택은 줄마다 **목록**이다 — 한 줄에서 칩을 여러 개 함께 고른다 (CMU + Pitt,
+  // 칩 줄의 선택은 줄마다 **목록**이다 — 한 줄에서 칩을 여러 개 함께 고른다 (대학부 + 청년부,
   // 입교 + 세례). 빈 목록이 '전체'이고, 줄 안에서는 '또는', 줄과 줄 사이는 '그리고'다
-  // (filters.ts `pickChip`).
+  // (filters.ts `pickChip`). **동산과 학교만은 하나씩이다** (목록은 늘 비었거나 하나): 그 두
+  // 줄이 묻는 것은 "이 동산(이 학교)은 누구누구인가"라, 둘을 섞어 놓으면 그 답이 흐려진다.
   //
   // 부서로 좁혀 보는 칩 (대학부 · 청년부 …) — 아래 섹션 머리줄이 이미 부서를 가르고 있지만
   // 그것은 **함께 놓고 보는** 자리라, 한 부서만 보려면 다른 부서를 지나 스크롤해야 했다.
@@ -57,14 +58,14 @@ export function AdminMembers() {
   // 동산 칩 (호연선규 · 동산 미지정 …) — **고른 부서 안의 동산만** 내건다. 부서 줄이 명단을
   // 반으로 가르고 나면 그다음 물음이 늘 "그 부서 안에서 이 동산은 누구누구인가"인데, 여태는
   // 그 답을 출석부 탭(GroupFilter)으로 건너가야 볼 수 있었고 거기서는 카드가 아니라 출석
-  // 칸이 나온다.
+  // 칸이 나온다. 하나씩 고른다 (위).
   const [subgroups, setSubgroups] = useState<string[]>([])
   // 처지 칩 (대학원생 · 직장인 · 기타) — 청년부에서만 뜨고, 아래 학교 칩과 곱해진다
   // (청년부 대학원생 → CMU · Pitt).
   const [career, setCareer] = useState<CareerChip[]>([])
   // 학교로 좁혀 보는 칩 (CMU · Pitt · Duquesne · 기타) — **이 탭에만 있다.** 명단을 학교로
   // 갈라 보는 자리는 여기 하나이고, 출석부·통계·오늘이 세는 것은 그 주일에 누가 왔는가라
-  // 학교는 그 질문의 칸이 아니다.
+  // 학교는 그 질문의 칸이 아니다. 하나씩 고른다 (위).
   const [school, setSchool] = useState<SchoolChip[]>([])
   // 정렬 (성별 · 소속 · 세례여부 · 신앙생활 · 머물 기간 — 종이 등록 카드가 보기로 묻는 칸들 —
   // 과 새가족 · 새가족 교육 · 출생연도 · 등록 연도 · 목사님 심방 · 연락처). 부서 섹션 안에서
@@ -377,8 +378,8 @@ export function AdminMembers() {
           정렬로 고른 칸 하나. 열다섯 줄을 다 늘어놓으면 폰에서 이 고정 줄이 화면을 덮고, 이번에
           가를 한두 줄을 찾으려고 나머지를 지나가야 했다. 차례는 고정이다: 명단의 자리(부서 → 동산
           → 학생/직장 → 학교, 위를 고르면 아래가 비워지는 사슬)가 먼저, 등록 카드의 보기와 그 밖의
-          정보(서로 곱해지는 독립된 축)가 그 뒤. 줄마다 칩은 여러 개를 함께 고른다. 단추의 숫자는
-          지금 걸려 있는 줄의 수다. */}
+          정보(서로 곱해지는 독립된 축)가 그 뒤. 줄마다 칩은 여러 개를 함께 고른다 — 동산과 학교만
+          하나씩이다. 단추의 숫자는 지금 걸려 있는 줄의 수다. */}
       <div className="flex flex-wrap items-start gap-2">
       <button
         type="button"
@@ -410,13 +411,14 @@ export function AdminMembers() {
       )}
       {/* 동산 칩 — 부서마다 갈린다: 한 트랙 안에서 청년부 동산은 청년부 이름표 뒤에, 대학부
           동산은 대학부 이름표 뒤에. 그리는 자리는 하나라 (SubgroupChips) 오늘·출석부·새가족
-          탭의 같은 줄과 어긋나지 않는다. 고를 것이 하나뿐이면 트랙 자체가 뜨지 않는다. */}
+          탭의 같은 줄과 어긋나지 않는다. 고를 것이 하나뿐이면 트랙 자체가 뜨지 않는다. 동산은
+          하나씩 고른다 — 누르면 그 동산 하나로 바뀐다. */}
       {shown('subgroup') && (
-        <SubgroupChips sections={subgroupSections} value={subgroups} onChange={pickSubgroups} noneChip={hasUnassigned} multi />
+        <SubgroupChips sections={subgroupSections} value={subgroups} onChange={pickSubgroups} noneChip={hasUnassigned} />
       )}
       {/* 학생/직장 · 학교 트랙 — 새가족 탭과 **같은 컴포넌트**다 (TraitFilter). 두 탭이 같은
           명단을 다르게 가르면 '대학부 CMU'가 탭마다 다른 사람들을 뜻하게 된다. 여기서는 둘을
-          따로 켜고 끈다. */}
+          따로 켜고 끈다. 학생/직장은 여러 개를 함께, 학교는 하나씩 고른다. */}
       <TraitFilter
         members={inSubgroup}
         groups={groups}
@@ -426,7 +428,7 @@ export function AdminMembers() {
         onSchool={setSchool}
         showCareer={shown('career')}
         showSchool={shown('school')}
-        multi
+        multiCareer
       />
       {/* 등록 카드의 보기 — 성별 · 소속 · 세례여부 · 신앙생활 · 머물 기간 — 와 그 밖의 정보
           (새가족 · 새가족 교육 · 출생연도 · 등록 연도 · 목사님 심방 · 연락처). 세례여부는 여러 개를

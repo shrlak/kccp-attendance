@@ -10,7 +10,7 @@ import { sortKeysFor, CARD_KEYS, INFO_KEYS, type SortKey } from './memberSort'
 //
 // 카드 밖의 **그 밖의 정보**(새가족 · 새가족 교육 · 출생연도 · 등록 연도 · 목사님 심방 · 연락처)도
 // 같은 자리에서 고른다 — 카드의 보기와 똑같이 서로 곱해지는 독립된 축이다 (memberSort.ts).
-// 줄마다 칩은 **여러 개를 함께** 고를 수 있다 (filters.ts `pickChip`).
+// 줄마다 칩은 **여러 개를 함께** 고를 수 있다 (filters.ts `pickChip`) — 동산과 학교만 하나씩이다.
 //
 // 고른 것은 **이 기기에 남는다** (localStorage) — 사람마다 늘 보는 축이 정해져 있어서 (새가족
 // 팀은 세례여부, 동산 편성하는 사람은 동산) 탭을 열 때마다 다시 고르게 하면 이 장치가 짐이

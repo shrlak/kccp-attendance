@@ -26,7 +26,7 @@ export function TraitFilter({
   onSchool,
   showCareer = true,
   showSchool = true,
-  multi = false,
+  multiCareer = false,
 }: {
   members: Member[] // 이미 부서로 좁혀진 명단
   groups: readonly string[] // 고른 부서들 (빈 목록 = 전체) — 어느 축을 내걸지가 여기서 갈린다
@@ -38,9 +38,11 @@ export function TraitFilter({
   // 새가족 탭은 둘 다 그대로다.
   showCareer?: boolean
   showSchool?: boolean
-  // 한 줄에서 칩을 여러 개 함께 고를까 — 멤버 탭만 켠다. 새가족 탭은 이 두 줄이 하나만 고르는
+  // 처지 줄에서 칩을 여러 개 함께 고를까 — 멤버 탭만 켠다. 새가족 탭은 이 줄이 하나만 고르는
   // 부서·동산 줄(GroupFilter)에 이어 흐르므로, 한 줄 안에서 규칙이 갈리지 않게 하나씩이다.
-  multi?: boolean
+  // **학교 줄은 어느 탭에서나 하나씩이다** — 학교는 "이 학교 사람은 누구누구인가"를 묻는 자리라
+  // 두 학교를 섞어 놓으면 그 답이 흐려진다 (동산 줄 SubgroupChips와 같은 규칙).
+  multiCareer?: boolean
 }) {
   const { t } = useTranslation()
   const traits = traitChips(members, groups, career)
@@ -60,7 +62,7 @@ export function TraitFilter({
             {t('admin.filter.all')}
           </Pill>
           {careerChips.map((c) => (
-            <Pill key={c} active={career.includes(c)} onClick={() => onCareer(pickChip(career, c, multi))}>
+            <Pill key={c} active={career.includes(c)} onClick={() => onCareer(pickChip(career, c, multiCareer))}>
               {t(`admin.members.career.${c}`)}
             </Pill>
           ))}
@@ -76,7 +78,7 @@ export function TraitFilter({
             {t('admin.filter.all')}
           </Pill>
           {schools.map((s) => (
-            <Pill key={s} active={school.includes(s)} onClick={() => onSchool(pickChip(school, s, multi))}>
+            <Pill key={s} active={school.includes(s)} onClick={() => onSchool(pickChip(school, s, false))}>
               {s === 'none' ? t('admin.members.school.none') : SCHOOL_NAMES[s]}
             </Pill>
           ))}
