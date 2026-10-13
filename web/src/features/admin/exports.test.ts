@@ -185,6 +185,12 @@ describe('buildAttendanceModel', () => {
     const m = buildAttendanceModel(ms, [], ['2026-06-07'], today, labels)
     expect(m.sections.map((s) => s.subgroup)).toEqual(['건영동산', '동산 미지정'])
   })
+  it('puts the unassigned block last even when its members come first in the roster', () => {
+    // 명단 순서로는 미지정이 먼저 나오지만, 블록은 편성된 동산들 뒤에 선다.
+    const ms = [member('9', 'Z', '청년부', ''), member('1', 'A'), member('3', 'C', '청년부', '중호동산')]
+    const m = buildAttendanceModel(ms, [], ['2026-06-07'], today, labels)
+    expect(m.sections.map((s) => s.subgroup)).toEqual(['건영동산', '중호동산', '동산 미지정'])
+  })
   it('ignores attendance on dates before a member 등록일자', () => {
     // B registered 2026-06-01: a (stray) 05-31 attendance does not count toward their total.
     const ms = [member('1', 'A'), { ...member('2', 'B'), registration_date: '2026-06-01' }]
