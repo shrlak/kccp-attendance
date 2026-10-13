@@ -1,4 +1,5 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClient } from '../../lib/queryClient'
@@ -162,6 +163,22 @@ describe('AdminSheet 출석부 (Excel-style grid)', () => {
     expect(note.style.background).toBe('rgb(204, 204, 204)') // #CCCCCC
     // The KEY legend now includes the grey 기타 entry.
     expect(screen.getByText('기타')).toBeInTheDocument()
+  })
+
+  // 표의 이름을 누르면 멤버 탭 · 오늘 탭과 같은 멤버 정보 창이 열린다 — 출석부를 보다가 그
+  // 사람이 누구인지 보려고 멤버 탭으로 건너가 이름을 다시 찾지 않아도 된다.
+  it('opens the member dialog when a name in the grid is tapped', async () => {
+    renderSheet()
+    await screen.findByRole('heading', { name: '믿음동산' })
+
+    await userEvent.click(await screen.findByRole('button', { name: 'C' }))
+    const dialog = within(screen.getByRole('dialog'))
+    expect(dialog.getByRole('heading', { name: '멤버 편집' })).toBeInTheDocument()
+    expect(dialog.getByDisplayValue('C')).toBeInTheDocument()
+
+    // 그 창에서 '출석 기록'으로 넘어가는 것도 다른 탭과 같다.
+    await userEvent.click(dialog.getByRole('button', { name: '출석 기록' }))
+    expect(within(screen.getByRole('dialog')).getByText('출석 기록 · C')).toBeInTheDocument()
   })
 
   // 숨긴 멤버는 출석부에도 나오지 않는다 — 종료일 없는 표기는 명단에서 빠진 사람이고,
