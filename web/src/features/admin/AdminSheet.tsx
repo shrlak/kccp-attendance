@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import { useRoster } from './useRoster'
 import { awayOn, type Lang } from './exports'
-import { addBulkAttendance, clearAttendance, configCalendar, type RosterResponse } from '../../lib/api'
+import { addBulkAttendance, clearAttendance, configCalendar, type Member, type RosterResponse } from '../../lib/api'
 import { easternNow } from '../../lib/checkinWindow'
 import { checkinCandidates } from './today'
 import { memberIdsPresentOn, toggleId } from './bulk'
@@ -14,6 +14,7 @@ import { AttendanceGrid } from './AttendanceGrid'
 import { ExportMenu } from './ExportMenu'
 import { ArchiveSection } from './ArchiveSection'
 import { StatsBar } from './StatsBar'
+import { EditModal, AttendanceModal } from './MemberDialogs'
 import { Dialog } from '../../components/ui/Dialog'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
@@ -26,6 +27,11 @@ import { useAppConfig } from '../../lib/useAppConfig'
 // "Attendance" sheet (color-coded 동산 blocks, O/X cells, 예배 총 출석 + 총 출석 rows) — plus a
 // bulk attendance entry (any admin except pastor).
 //
+// **표의 이름을 누르면 그 사람의 멤버 정보 창이 열린다** — 멤버 탭 · 오늘 탭 · 새가족 탭과 같은
+// 창(`EditModal`)이고, 거기서 '출석 기록'으로 넘어가는 것도 같다. 출석부를 보다가 "이 사람이
+// 누구지 / 연락처가 뭐지"가 궁금할 때마다 멤버 탭으로 건너가 이름을 다시 찾아야 했다. 범위와
+// 읽기 전용은 서버가 그대로 지킨다 (목사는 저장해도 거절되고 삭제 버튼이 없다).
+//
 // 시간순 '기록' 화면은 없앴다. 표가 이미 같은 사실을 담고 있고(누가 어느 주일에 왔나) 기록은
 // 그것을 한 번 더 늘어놓을 뿐이라, 두 화면을 같이 두면 어느 쪽이 정본인지가 흐려진다. 한 줄
 // 단위로 봐야 할 때는 내보내기의 엑셀(전체 기록 시트)이 그 자리를 대신한다.
@@ -34,6 +40,8 @@ export function AdminSheet() {
   const [bulk, setBulk] = useState(false)
   const [clearing, setClearing] = useState(false)
   const [filter, setFilter] = useState<Filter>(NO_FILTER)
+  const [editing, setEditing] = useState<Member | null>(null)
+  const [attendanceFor, setAttendanceFor] = useState<Member | null>(null)
   const { data, isLoading, isError } = useRoster(true)
   const { data: cfg } = useAppConfig()
 
@@ -95,6 +103,7 @@ export function AdminSheet() {
         today={today}
         filter={filter}
         semesterDates={configCalendar(cfg)}
+        onOpenMember={setEditing}
       />
       {/* Finished 학기 / 전환 기간 / 연도 출석부, downloadable — the tab's closing section. */}
       <ArchiveSection
@@ -106,6 +115,25 @@ export function AdminSheet() {
         semesterDates={configCalendar(cfg)}
         dongsanHistory={data.dongsanHistory}
       />
+      {editing && (
+        <EditModal
+          member={editing}
+          allowDelete={data.role !== 'pastor'}
+          onClose={() => setEditing(null)}
+          onAttendance={() => {
+            setAttendanceFor(editing)
+            setEditing(null)
+          }}
+        />
+      )}
+      {attendanceFor && (
+        <AttendanceModal
+          member={attendanceFor}
+          log={data.log}
+          readOnly={data.role === 'pastor'}
+          onClose={() => setAttendanceFor(null)}
+        />
+      )}
       {bulk && <BulkModal data={data} onClose={() => setBulk(false)} />}
       {clearing && <ClearDialog isSuper={data.role === 'super_admin'} onClose={() => setClearing(false)} />}
     </>

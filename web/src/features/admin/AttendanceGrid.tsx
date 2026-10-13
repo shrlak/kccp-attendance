@@ -41,6 +41,10 @@ const STICKY_TOTAL = 'sticky left-[var(--name-col)] z-[1] shadow-[2px_0_0_rgba(0
 // 고정 칸은 자기 표 안에서만 붙어 있으므로, 다음 동산 표가 올라오면 그 표의 머리줄이 자리를
 // 이어받는다 — 동산마다 머리줄이 고정되는 셈이다. 그 위에는 동산 이름 띠가 먼저 붙는다.
 const STICKY_HEAD = 'sticky top-[var(--band-h)] z-[2]'
+// 이름 칸 안의 버튼 — 누르면 그 사람의 멤버 정보 창이 열린다 (`onOpenMember`가 있을 때만).
+// 칸의 글자 모양(굵기·색)은 그대로 물려받고, 칸 폭을 넘는 이름은 칸과 똑같이 말줄임한다.
+const NAME_BUTTON =
+  'block w-full cursor-pointer truncate text-left underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none'
 const STICKY_HEAD_CORNER = 'sticky top-[var(--band-h)] z-[3]'
 const DARK = '#1f2937'
 
@@ -82,6 +86,7 @@ export function AttendanceGrid({
   groupBy,
   caption,
   fit = 'page',
+  onOpenMember,
 }: {
   members: Member[]
   log: LogEntry[]
@@ -100,6 +105,9 @@ export function AttendanceGrid({
   // 표가 스크롤되는 상자의 높이. 'page'(출석부 탭)는 헤더·칩 줄·아래 탭 막대를 뺀 화면
   // 높이이고, 'dialog'(새가족 출석표)는 창 안에 들어갈 만큼이다.
   fit?: 'page' | 'dialog'
+  // 이름 칸을 눌렀을 때. 주면 이름이 버튼이 되어 그 사람의 멤버 정보 창을 연다 (출석부 탭).
+  // 비우면 예전처럼 글자만 있다 — 새가족 출석표는 그 자체가 창이라 그 위에 창을 또 띄우지 않는다.
+  onOpenMember?: (m: Member) => void
 }) {
   const roleOf = useDongsanRole()
   const partition = usePartition()
@@ -227,6 +235,13 @@ export function AttendanceGrid({
                 <tbody>
                   {s.rows.map((r) => {
                     const role = roleOf(r.member.name, r.member.group_name, r.member.subgroup || '')
+                    const name = onOpenMember ? (
+                      <button type="button" onClick={() => onOpenMember(r.member)} title={r.member.name} className={NAME_BUTTON}>
+                        {r.member.name}
+                      </button>
+                    ) : (
+                      r.member.name
+                    )
                     return (
                     <tr key={r.member.id}>
                       {role ? (
@@ -238,10 +253,10 @@ export function AttendanceGrid({
                           style={{ background: role === '동산지기' ? '#FFF3C4' : '#FFF9E1' }}
                           title={r.member.name}
                         >
-                          {r.member.name}
+                          {name}
                         </td>
                       ) : (
-                        <td className={`${CELL} ${CLIP} ${STICKY_NAME} bg-white text-left font-medium`} title={r.member.name}>{r.member.name}</td>
+                        <td className={`${CELL} ${CLIP} ${STICKY_NAME} bg-white text-left font-medium`} title={r.member.name}>{name}</td>
                       )}
                       <td className={`${CELL} ${STICKY_TOTAL} bg-white text-center font-bold`}>{r.total}</td>
                       {r.marks.map((c, di) => {
