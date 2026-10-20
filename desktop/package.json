@@ -1,0 +1,36 @@
+{
+  "name": "kccp-attendance-desktop",
+  "productName": "KCCP 출석",
+  "version": "1.0.0",
+  "description": "한국중앙교회 피츠버그 출석 시스템 — 데스크톱 앱",
+  "author": "KCCP",
+  "main": "src/main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist:mac": "electron-builder --mac dmg --universal --publish never",
+    "dist:win": "electron-builder --win nsis portable --x64 --publish never"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "org.kccp.attendance",
+    "productName": "KCCP 출석",
+    "directories": { "output": "dist", "buildResources": "build" },
+    "files": ["src/**/*", "package.json"],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "build/icon.png",
+      "target": [{ "target": "dmg", "arch": ["universal"] }]
+    },
+    "dmg": { "title": "KCCP 출석 ${version}" },
+    "win": {
+      "icon": "build/icon.png",
+      "target": [{ "target": "nsis", "arch": ["x64"] }, { "target": "portable", "arch": ["x64"] }]
+    },
+    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true },
+    "artifactName": "KCCP-Attendance-${version}-${os}-${arch}.${ext}"
+  }
+}
