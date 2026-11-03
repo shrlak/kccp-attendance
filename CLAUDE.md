@@ -427,6 +427,34 @@ live** at https://shrlak.github.io/kccp-attendance/.
 - 학기 사이(전환 기간)는 이 길로 오지 않는다: 롤오버가 편성을 비운 뒤라 동산이 있는 멤버가
   없고, 칩은 명단에서 뽑으므로 고를 동산 자체가 없다.
 
+## 통계 탭에서 동산을 고르면 사람을 보여준다 (`AdminAnalytics.tsx` `DongsanSundayList` · `analytics.ts` `dongsanSundays`)
+- **동산 칩을 고르면 이 탭에 남는 것은**: 출석 추이 그래프(`AnalyticsCharts trendOnly`), 그
+  동산의 학교 · 새가족 막대(이름 상자, 아래 항목), **주일별 출석 · 결석 이름**. 부서별 비교 ·
+  요약 표 · 숫자 타일은 내린다 — 그 자리에서 묻는 것은 숫자가 아니라 사람이다. 장년부의 셀도 같다.
+- **주일 목록은 같은 창으로 자른 부 전체의 예배일**이다 (`worshipDates`): 그 동산이 통째로
+  빠진 주일도 목록에서는 한 줄, 그래프에서는 0이어야 한다 (`trendSeries`의 세 번째 인자).
+- 출석 = 그날 그 동산으로 찍힌 줄 그대로. 결석 = **지금** 그 동산 사람 중 그날 기록이 없는
+  사람, 단 등록일 전은 빼고(아직 오기 전) 상태 표기가 그날을 덮는 사람은 '상태 표기'에 표기와
+  함께 따로 선다 (방학을 결석으로 세지 않는다). 사람 맞추기는 `memberId` 먼저, 없으면 이름.
+  최근 주일이 위, 8주씩 펼친다.
+
+## 통계 탭의 동산 보기 그래프 · 이름 상자 (`AnalyticsCharts.tsx` `DongsanSchoolChart`·`DongsanNewFamilyCharts`·`ChartCanvas tipFor`)
+- **동산 칩을 골랐을 때만 선다** — 전체 보기의 학교별 비교 · 새가족 두 그래프(`NewFamilyCharts`:
+  등록 막대 + 출석 선)는 예전 그대로다.
+- **동산별 학교**: 가로축 = 동산, 쌓은 조각 = 학교(기타 포함). 동산 하나만 남으면(곧 동산을 골랐을
+  때) 가로축이 학교로 돈다. **새가족 등록 추이**: 칸마다 동산별로 쌓은 막대 (등록은 **지금의
+  동산** — 등록에는 그날의 동산이 없다). **새가족 출석 추이는 선 그래프로 둔다** (사용자 요청 —
+  추이는 선이다); 점 판정은 `index`/`intersect:false`라 그 칸 어디에서든 잡힌다. 재료는
+  `analytics.ts`의 `dongsanSchoolSeries`·`newFamilyRegistrationsByDongsan`·
+  `newFamilyAttendanceByDongsan`(출석은 **그날 찍힌 동산**)이고 **수가 아니라 이름을 들고 온다**.
+- **숫자는 늘 그려져 있고**(막대 `stackValueLabels`: 조각 안에 조각 수, 꼭대기에 합 · 선
+  `pointValueLabels`), **커서를 올리면(폰은 탭) 그 막대 조각 · 그 점의 사람 이름이 위에 뜬다** —
+  Chart.js 툴팁은 캔버스(224px) 안에 그려져 이름이 많으면 잘리므로 `tipFor`를 준 차트만 HTML
+  상자(`BarTipBox`)를 띄운다. 자리는 꼭대기 위가 기본이고 화면 위로 잘릴 때만 아래로 내린다.
+- 동산 색은 이름이 아니라 그래프 안의 자리로 돈다 (동산은 학기마다 새로 짜인다); '동산 미지정'은
+  늘 회색. 배치: 출석 추이 → 학교 · 새가족 그래프(그 동산에 새가족이 있을 때만) → 주일별 출석 ·
+  결석. 장년부는 학교를 못 읽으니 학교 그래프가 없다.
+
 ## 통계 탭의 새가족 블록 (`analytics.ts` 아래쪽 · `AdminAnalytics.tsx` `NewFamilySection`)
 - 위쪽 통계가 전체를 세는 자리라면 그 아래부터는 **새가족만** 센다: 숫자 타일(전체 · 이번 학기
   등록 · 최근 4주 출석 · 새가족 교육 이수), 그래프 둘(등록 막대 · 새가족 출석 선), 월별 표
@@ -1197,7 +1225,8 @@ Full Phase 1–4 parity + production cutover complete. Shipped: branded landing,
 (light/dark), 동산 admin tab (summer-combined names), bulk 동산 assign/unassign, clear-all
 attendance with super-approval, analytics layout, logout→home (a **reload stays put**: the
 route is the screen, and the admin panel's tab is remembered in `sessionStorage` via
-`web/src/features/admin/adminTab.ts`), 출석부 archives (`features/admin/archive.ts` +
+`web/src/features/admin/adminTab.ts`; with nothing remembered — a fresh sign-in — the panel
+opens on **오늘 on a Sunday and 멤버 every other day**, Eastern time, `defaultTab`), 출석부 archives (`features/admin/archive.ts` +
 `ArchiveSection.tsx`: the sheet rolls over to the next 학기 — or the gap between two, shown
 with the gap's own full Sunday set — the day a term ends, and every finished 학기/전환 기간,
 학년도 and calendar year is downloadable as an Excel workbook built from the log at click

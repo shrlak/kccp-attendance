@@ -2,7 +2,7 @@ import type { Member, LogEntry } from '../../lib/api'
 import { groupsOf, schoolsOf, type SchoolChip, type Filter } from './filters'
 import { subgroupsResetEachTerm, type Partition } from '../../lib/partition'
 import { schoolOf } from './eduDongsanTraits'
-import { onBreak } from '../../lib/status'
+import { onBreak, noteOn } from '../../lib/status'
 import { matchesEduFilter, worshipSunday, type EduFilter } from './newFamily'
 
 // ── Pure, immutable aggregation helpers for the Analytics tab ──────────────
@@ -78,8 +78,13 @@ export interface TrendPoint {
 // 4.1 — unique attendees per bucket, ascending. 주별은 기록이 있는 주일마다 한 점이고,
 // 월별은 그 달에 **한 번이라도** 온 사람 수다 (주일마다의 평균이 아니라 아래 월별 요약 표의
 // '출석 인원'과 같은 수 — 같은 화면의 두 곳이 다른 것을 세면 어느 쪽이 맞나 싶어진다).
-export function trendSeries(log: LogEntry[], gran: Granularity = 'week'): TrendPoint[] {
-  return distinctBuckets(log, gran).map((date) => ({ date, count: uniqueNamesIn(log, date, gran).size }))
+//
+// `worshipDates`는 **예배가 있었다고 알고 있는 날**이다 — 동산 하나로 좁히면 그 동산 사람이
+// 아무도 안 온 주일은 좁혀진 log에 줄이 없어 칸까지 사라지는데, 그날 부 전체로는 예배가
+// 있었으므로 0이 맞는 값이다 (아래 주일별 출석/결석 목록과 같은 주일들을 그린다).
+export function trendSeries(log: LogEntry[], gran: Granularity = 'week', worshipDates: string[] = []): TrendPoint[] {
+  const buckets = [...new Set([...distinctBuckets(log, gran), ...worshipDates.map((d) => bucketOf(d, gran))])].sort()
+  return buckets.map((date) => ({ date, count: uniqueNamesIn(log, date, gran).size }))
 }
 
 export interface GroupSeries {
@@ -240,6 +245,10 @@ function weeksBetween(from: string, to: string): string[] {
   return out
 }
 
+// 등록일은 주일이 아닌 날일 수 있으므로(카드를 나중에 옮겨 적는다) 주별에서만 주일로
+// 끌어당긴다. 달로 묶을 때는 적힌 날짜의 달이 곧 그 칸이다.
+const regBucketOf = (date: string, gran: Granularity): string => (gran === 'month' ? date.slice(0, 7) : worshipSunday(date))
+
 export interface NewFamilyRegPoint {
   bucket: string // 주별이면 그 주를 여는 주일("2026-06-07"), 월별이면 그 달("2026-06")
   count: number // 그 칸에서 등록한 새가족 수
@@ -260,9 +269,7 @@ export function newFamilyRegistrations(
   today?: string,
   gran: Granularity = 'week',
 ): NewFamilyRegPoint[] {
-  // 등록일은 주일이 아닌 날일 수 있으므로(카드를 나중에 옮겨 적는다) 주별에서만 주일로
-  // 끌어당긴다. 달로 묶을 때는 적힌 날짜의 달이 곧 그 칸이다.
-  const keyOf = (date: string) => (gran === 'month' ? date.slice(0, 7) : worshipSunday(date))
+  const keyOf = (date: string) => regBucketOf(date, gran)
   const byBucket = new Map<string, number>()
   for (const m of newFamilyMembers(members)) {
     if (!m.registration_date) continue
@@ -425,4 +432,139 @@ export function schoolSummary(members: Member[], log: LogEntry[]): SchoolRow[] {
       newFamily: mine.filter((m) => m.is_new_member).length,
     }
   })
+}
+
+// ── 동산 하나를 골랐을 때: 주일마다 누가 왔고 누가 안 왔나 ──────────────────────
+// 동산을 고르면 통계 탭이 묻는 것은 숫자가 아니라 사람이다 — "지난 주일에 우리 동산에서 누가
+// 빠졌나". 그래서 그 자리에서는 출석 추이 그래프 아래에 주일마다 출석/결석 이름을 늘어놓는다.
+//
+// - **주일 목록은 그 동산이 아니라 부 전체의 예배일에서 온다** (`dates`): 동산 사람이 아무도
+//   안 온 주일도 한 줄로 서야 한다 — 그날이 빠지면 "전원 결석"이 화면에서 사라진다.
+// - **출석은 그날의 기록 그대로**다 (`log`은 이미 동산으로 좁혀진 것): 그날 그 동산으로 찍힌
+//   사람이면 지금 다른 동산에 있어도 출석에 선다.
+// - **결석은 지금 그 동산 사람 중 그날 기록이 없는 사람**이다. 단 두 경우는 결석이 아니다:
+//   등록일 전(아직 오기 전이다 — 출석부의 회색 '새가족' 칸과 같은 규칙)과 상태 표기가 그날을
+//   덮는 사람(방학 · 출장 …). 뒤의 것은 `excused`에 표기와 함께 따로 담는다 — 결석으로 세면
+//   방학 간 사람이 빠진 사람처럼 읽히고, 아예 지우면 그 사람이 왜 없는지 알 수 없다.
+// - 사람 맞추기는 `memberId`가 먼저고(동명이인이 갈린다) 없는 옛 줄·손님 줄만 이름으로 본다.
+export interface DongsanSundayRow {
+  date: string
+  present: string[]
+  absent: string[]
+  excused: { name: string; note: string }[]
+}
+
+const koCollator = new Intl.Collator('ko')
+
+export function dongsanSundays(members: Member[], log: LogEntry[], dates: string[]): DongsanSundayRow[] {
+  const byDate = new Map<string, LogEntry[]>()
+  for (const e of log) {
+    const list = byDate.get(e.date)
+    if (list) list.push(e)
+    else byDate.set(e.date, [e])
+  }
+  return [...new Set(dates)]
+    .sort()
+    .reverse()
+    .map((date) => {
+      const entries = byDate.get(date) ?? []
+      const ids = new Set(entries.flatMap((e) => (e.memberId ? [e.memberId] : [])))
+      const names = new Set(entries.filter((e) => !e.memberId).map((e) => e.name))
+      const present = [...new Set(entries.map((e) => e.name))].sort(koCollator.compare)
+      const absent: string[] = []
+      const excused: { name: string; note: string }[] = []
+      for (const m of members) {
+        if (ids.has(m.id) || names.has(m.name)) continue
+        if (m.registration_date && date < m.registration_date) continue
+        const note = noteOn(m, date)
+        if (note) excused.push({ name: m.name, note })
+        else absent.push(m.name)
+      }
+      absent.sort(koCollator.compare)
+      excused.sort((a, b) => koCollator.compare(a.name, b.name))
+      return { date, present, absent, excused }
+    })
+}
+
+// ── 동산별 막대 ─────────────────────────────────────────────────────────────
+// 학교별 구성과 새가족 추이를 **동산마다 한 덩어리로** 쌓아 그리는 그래프의 재료. 막대(또는
+// 쌓인 조각) 하나가 동산 하나에 해당하고, 그 위에 커서를 올리면 그 조각의 사람 이름이 뜬다
+// — 그래서 수만이 아니라 **이름까지** 들고 온다 (`names[동산][칸]`).
+//
+// 동산의 열쇠는 이름이고 ''가 '동산 미지정'이다. 순서는 가나다, 미지정은 맨 끝 — 멤버 탭의
+// 칩 줄과 같은 자리다. 학기 종료 롤오버 직후처럼 모두가 미지정이면 덩어리 하나가 된다.
+export const NO_DONGSAN_KEY = ''
+
+export function dongsanOrder(keys: Iterable<string>): string[] {
+  const set = new Set(keys)
+  const named = [...set].filter((k) => k !== NO_DONGSAN_KEY).sort(koCollator.compare)
+  return set.has(NO_DONGSAN_KEY) ? [...named, NO_DONGSAN_KEY] : named
+}
+
+const sortedNames = (names: Iterable<string>): string[] => [...new Set(names)].sort(koCollator.compare)
+
+export interface DongsanSchoolSeries {
+  dongsans: string[] // 가로축 — 동산마다 막대 하나
+  schools: SchoolChip[] // 쌓는 조각 — schoolsOf와 같은 순서 (CMU → Pitt → Duquesne → 기타)
+  names: Record<string, string[][]> // names[학교][동산 자리] = 그 동산의 그 학교 사람
+}
+
+// 동산마다 사람이 어느 학교인가. 막대의 높이가 곧 그 동산 인원이다 (조각을 더하면 동산이
+// 되어야 하므로 '기타'도 조각이다 — 학교별 요약과 같은 규칙).
+export function dongsanSchoolSeries(members: Member[]): DongsanSchoolSeries {
+  const schools = schoolsOf(members)
+  const dongsans = dongsanOrder(members.map((m) => m.subgroup || NO_DONGSAN_KEY))
+  const chipOf = (m: Member): SchoolChip => schoolOf(m) || 'none'
+  const names: Record<string, string[][]> = {}
+  for (const school of schools) {
+    names[school] = dongsans.map((d) =>
+      sortedNames(members.filter((m) => (m.subgroup || NO_DONGSAN_KEY) === d && chipOf(m) === school).map((m) => m.name)),
+    )
+  }
+  return { dongsans, schools, names }
+}
+
+export interface DongsanStack {
+  buckets: string[] // 가로축 — 주일 또는 달
+  dongsans: string[] // 쌓는 조각
+  names: string[][][] // names[동산 자리][칸 자리]
+}
+
+// 칸마다 출석한 새가족을 **그날 그 사람이 찍힌 동산**으로 쌓는다 (출석 줄의 subgroup — 출석부와
+// 같은 규칙: 그날의 기록이다). 칸은 newFamilyTrend와 같은 자름이라 두 그래프가 같은 주일을
+// 가리킨다. `edu`로 새가족 교육 단계를 고르면 그 단계의 사람만 쌓인다.
+export function newFamilyAttendanceByDongsan(
+  members: Member[],
+  log: LogEntry[],
+  edu: EduFilter = 'all',
+  gran: Granularity = 'week',
+): DongsanStack {
+  const inCohort = newFamilyMatcher(members.filter((m) => matchesEduFilter(m, edu)))
+  const buckets = distinctBuckets(log, gran)
+  const rows = log.filter(inCohort)
+  const dongsans = dongsanOrder(rows.map((e) => e.subgroup || NO_DONGSAN_KEY))
+  const names = dongsans.map((d) =>
+    buckets.map((b) =>
+      sortedNames(rows.filter((e) => (e.subgroup || NO_DONGSAN_KEY) === d && bucketOf(e.date, gran) === b).map((e) => e.name)),
+    ),
+  )
+  return { buckets, dongsans, names }
+}
+
+// 칸마다 등록한 새가족을 **지금 그 사람의 동산**으로 쌓는다 (등록에는 그날의 동산이 적혀 있지
+// 않다). `buckets`는 newFamilyRegistrations가 만든 축 그대로 받는다 — 0으로 채운 칸까지 같아야
+// 두 막대가 같은 자리를 가리킨다.
+export function newFamilyRegistrationsByDongsan(members: Member[], buckets: string[], gran: Granularity = 'week'): DongsanStack {
+  const nf = newFamilyMembers(members).filter((m) => m.registration_date)
+  const dongsans = dongsanOrder(nf.map((m) => m.subgroup || NO_DONGSAN_KEY))
+  const names = dongsans.map((d) =>
+    buckets.map((b) =>
+      sortedNames(
+        nf
+          .filter((m) => (m.subgroup || NO_DONGSAN_KEY) === d && regBucketOf(m.registration_date as string, gran) === b)
+          .map((m) => m.name),
+      ),
+    ),
+  )
+  return { buckets, dongsans, names }
 }

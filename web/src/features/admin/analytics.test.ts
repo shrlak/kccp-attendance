@@ -6,13 +6,18 @@ import {
   semesterSummary,
   weeklyRecap,
   recapText,
-  newFamilyRegistrations,
   newFamilyTrend,
   newFamilyMonthly,
   newFamilyTotals,
   schoolSummary,
   clipToTerm,
   termWindowFor,
+  dongsanSundays,
+  dongsanOrder,
+  dongsanSchoolSeries,
+  newFamilyAttendanceByDongsan,
+  newFamilyRegistrationsByDongsan,
+  newFamilyRegistrations,
 } from './analytics'
 import type { Member, LogEntry } from '../../lib/api'
 
@@ -37,6 +42,13 @@ describe('trendSeries', () => {
   })
   it('is empty for an empty log', () => {
     expect(trendSeries([])).toEqual([])
+  })
+  it('draws a 0 on a known worship date the filtered log has no row for', () => {
+    const log = [e('A', '2026-06-07')]
+    expect(trendSeries(log, 'week', ['2026-05-31', '2026-06-07'])).toEqual([
+      { date: '2026-05-31', count: 0 },
+      { date: '2026-06-07', count: 1 },
+    ])
   })
 })
 
@@ -412,5 +424,83 @@ describe('clipToTerm — 동산으로 좁혔을 때의 창', () => {
 
   it('그 학기에 기록이 없으면 빈 목록이다 — 다른 학기 기록으로 채우지 않는다', () => {
     expect(clipToTerm(log, { start: '2026-06-01', end: '2026-08-02' })).toEqual([])
+  })
+})
+
+describe('dongsanSundays (동산 하나의 주일별 출석/결석)', () => {
+  const members: Member[] = [
+    m('가'),
+    m('나'),
+    { ...m('다'), registration_date: '2026-10-18' },
+    { ...m('라'), status_marks: [{ note: '방학', start: '2026-10-01', end: '2026-10-31' }] },
+  ]
+  it('lists present/absent per Sunday, newest first, and keeps Sundays nobody came to', () => {
+    const log = [
+      { ...e('가', '2026-10-11'), memberId: '가' },
+      { ...e('손님', '2026-10-11') },
+      { ...e('나', '2026-10-25'), memberId: '나' },
+    ]
+    const rows = dongsanSundays(members, log, ['2026-10-11', '2026-10-18', '2026-10-25', '2026-10-11'])
+    expect(rows.map((r) => r.date)).toEqual(['2026-10-25', '2026-10-18', '2026-10-11'])
+    const [d25, d18, d11] = rows
+    expect(d11.present).toEqual(['가', '손님'])
+    // 다는 아직 등록 전이라 결석이 아니다; 라는 방학 표기가 덮는다.
+    expect(d11.absent).toEqual(['나'])
+    expect(d11.excused).toEqual([{ name: '라', note: '방학' }])
+    expect(d18.present).toEqual([])
+    expect(d18.absent).toEqual(['가', '나', '다'])
+    expect(d25.absent).toEqual(['가', '다'])
+  })
+  it('matches by memberId first so a namesake does not mark someone present', () => {
+    const log = [{ ...e('가', '2026-10-11'), memberId: 'someone-else' }]
+    const [row] = dongsanSundays([m('가')], log, ['2026-10-11'])
+    expect(row.present).toEqual(['가'])
+    expect(row.absent).toEqual(['가'])
+  })
+})
+
+describe('동산별 막대 재료 (이름까지)', () => {
+  it('orders 동산 가나다 with 동산 미지정 last', () => {
+    expect(dongsanOrder(['호연', '', '가람', '호연'])).toEqual(['가람', '호연', ''])
+  })
+
+  it('dongsanSchoolSeries: names per (school, 동산), 기타 included so pieces add up to the 동산', () => {
+    const members: Member[] = [
+      { ...m('가', '대학부', '호연'), school_or_work: '대학생 · CMU CS' },
+      { ...m('나', '대학부', '호연'), school_or_work: 'Pitt Bio' },
+      { ...m('다', '대학부', '선규'), school_or_work: 'CMU Math' },
+      { ...m('라', '대학부', ''), school_or_work: '' },
+    ]
+    const s = dongsanSchoolSeries(members)
+    expect(s.dongsans).toEqual(['선규', '호연', ''])
+    expect(s.names.cmu).toEqual([['다'], ['가'], []])
+    expect(s.names.pitt).toEqual([[], ['나'], []])
+    expect(s.names.none).toEqual([[], [], ['라']])
+  })
+
+  it('newFamilyAttendanceByDongsan stacks new-family attendees by the 동산 logged that day', () => {
+    const members: Member[] = [{ ...m('새1'), is_new_member: true }, { ...m('새2'), is_new_member: true }, m('기존')]
+    const log: LogEntry[] = [
+      { ...e('새1', '2026-10-11'), memberId: '새1', subgroup: '호연' },
+      { ...e('새2', '2026-10-11'), memberId: '새2', subgroup: '선규' },
+      { ...e('기존', '2026-10-11'), memberId: '기존', subgroup: '호연' },
+      { ...e('새1', '2026-10-18'), memberId: '새1', subgroup: '호연' },
+    ]
+    const s = newFamilyAttendanceByDongsan(members, log)
+    expect(s.buckets).toEqual(['2026-10-11', '2026-10-18'])
+    expect(s.dongsans).toEqual(['선규', '호연'])
+    expect(s.names).toEqual([[['새2'], []], [['새1'], ['새1']]])
+  })
+
+  it('newFamilyRegistrationsByDongsan follows the registration axis, by current 동산', () => {
+    const members: Member[] = [
+      { ...m('새1', '대학부', '호연'), is_new_member: true, registration_date: '2026-10-14' },
+      { ...m('새2', '대학부', ''), is_new_member: true, registration_date: '2026-10-25' },
+    ]
+    const buckets = newFamilyRegistrations(members, '2026-10-25').map((p) => p.bucket)
+    const s = newFamilyRegistrationsByDongsan(members, buckets)
+    expect(buckets).toEqual(['2026-10-11', '2026-10-18', '2026-10-25'])
+    expect(s.dongsans).toEqual(['호연', ''])
+    expect(s.names).toEqual([[['새1'], [], []], [[], [], ['새2']]])
   })
 })

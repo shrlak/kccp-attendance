@@ -19,6 +19,15 @@ export type Tab = (typeof ADMIN_TABS)[number]
 
 const KEY = 'kccp-admin-tab'
 
+// 로그인하고 처음 보는 탭. **주일에는 오늘 탭**(그날 누가 왔는지를 보는 날이다), **그 밖의
+// 날에는 멤버 탭** — 주중에 패널을 여는 이유는 명단을 찾거나 고치기 위해서이고, 그날은 오늘
+// 탭에 찍힌 출석이 없어 빈 화면부터 보게 된다. 요일은 기기 시간대가 아니라 교회의
+// 시간대(America/New_York)로 센다 — 출석이 그 날짜로 찍힌다. 새로고침은 여기로 오지 않는다:
+// 기억해 둔 탭(readLastTab)이 있으면 그것이 먼저다.
+export function defaultTab(weekday: number): Tab {
+  return weekday === 0 ? 'today' : 'members'
+}
+
 export function isTab(value: unknown): value is Tab {
   return typeof value === 'string' && (ADMIN_TABS as readonly string[]).includes(value)
 }
