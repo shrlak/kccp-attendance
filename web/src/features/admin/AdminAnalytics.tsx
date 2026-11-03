@@ -15,6 +15,7 @@ import {
   newFamilyMonthly,
   newFamilyTotals,
   schoolSummary,
+  dongsanSundays,
   RECENT_WEEKS,
   type SemesterRow,
   type NewFamilyTotals,
@@ -29,7 +30,7 @@ import { seasonLabel } from '../../lib/partition'
 import { shortDate } from './sheet'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
-import { GraduationCap, Calendar, ListChecks, Copy, BarChart3, Sprout, UserPlus, CalendarCheck, Heart, type LucideIcon } from '../../components/ui/Icon'
+import { GraduationCap, Calendar, ListChecks, Copy, BarChart3, Sprout, UserPlus, CalendarCheck, Heart, Users, type LucideIcon } from '../../components/ui/Icon'
 import { configCalendar, type Member, type LogEntry } from '../../lib/api'
 import { usePartition, usePartitionT, useAppConfig } from '../../lib/useAppConfig'
 import { easternNow } from '../../lib/checkinWindow'
@@ -62,6 +63,9 @@ export function AdminAnalytics() {
   // 끌어내리지 않는다. (방학은 excludeOnBreak가 따로 걷어낸다.)
   const members = filterMembers(data.members, filter)
   const log = clipToTerm(excludeOnBreak(data.members, filterLog(data.log, filter)), termWindow)
+  // 같은 창 안에서 부 전체로 예배가 있던 날들 — 동산을 골랐을 때만 쓴다 (그 동산이 통째로 빠진
+  // 주일도 그래프에서는 0, 목록에서는 한 줄로 서야 한다).
+  const worshipDates = filter.subgroup ? [...new Set(clipToTerm(data.log, termWindow).map((e) => e.date))].sort() : []
 
   return (
     <>
@@ -78,15 +82,107 @@ export function AdminAnalytics() {
         </p>
       )}
       <GranularityToggle value={gran} onChange={setGran} />
-      <AnalyticsCharts members={members} log={log} gran={gran} />
-      <div className="fx-rise grid grid-cols-1 gap-4 lg:grid-cols-3">
+      {filter.subgroup ? (
+        // **동산 하나를 고르면 이 탭이 묻는 것이 바뀐다**: 부 전체의 숫자가 아니라 그 동산의
+        // 사람이다. 그래서 출석 추이 하나와 주일별 출석/결석 이름만 남기고 나머지(부서별 비교 ·
+        // 요약 표 · 학교별 · 새가족 블록)는 내린다. 주일 목록은 같은 창으로 자른 **부 전체의**
+        // 예배일이다 — 그 동산이 통째로 빠진 주일도 한 줄로 서야 한다.
+        <>
+          <AnalyticsCharts members={members} log={log} gran={gran} trendOnly worshipDates={worshipDates} />
+          <DongsanSundayList members={members} log={log} dates={worshipDates} />
+        </>
+      ) : (
+        <>
+          <AnalyticsCharts members={members} log={log} gran={gran} />
+          <div className="fx-rise grid grid-cols-1 gap-4 lg:grid-cols-3">
         <SemesterTable members={members} log={log} />
         <MonthlyTable members={members} log={log} />
         <WeeklyRecap log={log} />
       </div>
-      <SchoolBySchool members={members} log={log} />
-      <NewFamilySection members={members} log={log} gran={gran} today={today} term={term} />
+          <SchoolBySchool members={members} log={log} />
+          <NewFamilySection members={members} log={log} gran={gran} today={today} term={term} />
+        </>
+      )}
     </>
+  )
+}
+
+// 주일을 몇 개씩 펼치는가. 한 학기가 15~16주라 한 번 더 누르면 학기 전체가 나온다.
+const SUNDAY_PAGE = 8
+
+// 동산 하나의 주일별 출석/결석 — 최근 주일이 위. 계산은 analytics.ts dongsanSundays 하나다.
+function DongsanSundayList({ members, log, dates }: { members: Member[]; log: LogEntry[]; dates: string[] }) {
+  const t = usePartitionT()
+  const [shown, setShown] = useState(SUNDAY_PAGE)
+  const rows = dongsanSundays(members, log, dates)
+
+  return (
+    <Section title={t('admin.analytics.bySunday')} icon={<Users size={15} strokeWidth={2} aria-hidden />}>
+      {rows.length === 0 ? (
+        <Empty />
+      ) : (
+        <>
+          <ul className="divide-y divide-separator">
+            {rows.slice(0, shown).map((r) => (
+              <li key={r.date} className="py-3 first:pt-0 last:pb-0">
+                <div className="mb-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <span className="font-display text-base font-bold tabular-nums text-text">
+                    {r.date.slice(0, 4)}. {shortDate(r.date)}
+                  </span>
+                  <span className="text-xs text-muted">
+                    {t('admin.analytics.present')} <span className="font-semibold text-success">{r.present.length}</span>
+                    {' · '}
+                    {t('admin.analytics.absent')} <span className="font-semibold text-danger">{r.absent.length}</span>
+                  </span>
+                </div>
+                <NameRow label={t('admin.analytics.present')} names={r.present} tone="present" empty={t('admin.analytics.nobody')} />
+                <NameRow label={t('admin.analytics.absent')} names={r.absent} tone="absent" empty={t('admin.analytics.nobody')} />
+                {r.excused.length > 0 && (
+                  <NameRow
+                    label={t('admin.analytics.excused')}
+                    names={r.excused.map((x) => `${x.name} (${x.note})`)}
+                    tone="excused"
+                    empty=""
+                  />
+                )}
+              </li>
+            ))}
+          </ul>
+          {rows.length > shown && (
+            <div className="mt-3 flex justify-center">
+              <Button variant="secondary" size="sm" onClick={() => setShown((n) => n + SUNDAY_PAGE)}>
+                {t('admin.analytics.moreSundays', { n: rows.length - shown })}
+              </Button>
+            </div>
+          )}
+        </>
+      )}
+    </Section>
+  )
+}
+
+const NAME_TONE: Record<'present' | 'absent' | 'excused', string> = {
+  present: 'bg-success/10 text-text',
+  absent: 'bg-danger/10 text-text',
+  excused: 'bg-fill text-muted',
+}
+
+function NameRow({ label, names, tone, empty }: { label: string; names: string[]; tone: keyof typeof NAME_TONE; empty: string }) {
+  return (
+    <div className="mt-1.5 flex items-start gap-2">
+      <span className="section-kicker w-14 shrink-0 pt-1 leading-4">{label}</span>
+      {names.length === 0 ? (
+        <span className="pt-0.5 text-xs text-subtle">{empty}</span>
+      ) : (
+        <div className="flex min-w-0 flex-wrap gap-1">
+          {names.map((n, i) => (
+            <span key={`${n}-${i}`} className={'rounded-md px-1.5 py-0.5 text-xs ' + NAME_TONE[tone]}>
+              {n}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 

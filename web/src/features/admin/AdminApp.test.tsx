@@ -9,6 +9,14 @@ import { AdminApp } from './AdminApp'
 
 beforeAll(async () => { await i18n.init() })
 
+// 처음 여는 탭은 요일이 정한다 (주일 → 오늘, 그 밖 → 멤버). 테스트가 도는 날에 따라 결과가
+// 갈리지 않도록 교회 시간대의 요일만 고정한다 — 기본은 주일.
+const clock = vi.hoisted(() => ({ weekday: 0 }))
+vi.mock('../../lib/checkinWindow', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../../lib/checkinWindow')>()
+  return { ...real, easternNow: (now?: Date) => ({ ...real.easternNow(now), weekday: clock.weekday }) }
+})
+
 // Kitchen-sink payload that satisfies every query the admin tabs fire on mount
 // (config, roster) — the rail behavior under test never reads it.
 const apiStub = {
@@ -21,6 +29,7 @@ beforeEach(() => {
   // The panel remembers its tab in sessionStorage — clear it so tests don't inherit
   // each other's last tab.
   sessionStorage.clear()
+  clock.weekday = 0
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify(apiStub), { status: 200 })))
   useAdminAuth.setState({
     status: 'authed',
@@ -211,6 +220,30 @@ describe('AdminApp 탭 복원', () => {
     sessionStorage.setItem('kccp-admin-tab', 'not-a-tab')
     renderApp()
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('오늘')
+  })
+
+  it('opens on 멤버 on a day that is not Sunday', () => {
+    clock.weekday = 3
+    renderApp()
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('멤버')
+  })
+
+  it('falls back to 멤버 (not 오늘) on a weekday when the remembered tab is out of reach', () => {
+    clock.weekday = 5
+    sessionStorage.setItem('kccp-admin-tab', 'settings')
+    useAdminAuth.setState({
+      status: 'authed',
+      identity: { role: 'leader', group: '', subgroup: '', ministry: '' },
+    })
+    renderApp()
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('멤버')
+  })
+
+  it('a remembered tab still wins over the weekday default', () => {
+    clock.weekday = 2
+    sessionStorage.setItem('kccp-admin-tab', 'sheet')
+    renderApp()
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('출석부')
   })
 
   it('forgets the tab on sign-out, so the next sign-in starts on 오늘', () => {

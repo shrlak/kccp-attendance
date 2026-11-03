@@ -13,6 +13,7 @@ import {
   schoolSummary,
   clipToTerm,
   termWindowFor,
+  dongsanSundays,
 } from './analytics'
 import type { Member, LogEntry } from '../../lib/api'
 
@@ -37,6 +38,13 @@ describe('trendSeries', () => {
   })
   it('is empty for an empty log', () => {
     expect(trendSeries([])).toEqual([])
+  })
+  it('draws a 0 on a known worship date the filtered log has no row for', () => {
+    const log = [e('A', '2026-06-07')]
+    expect(trendSeries(log, 'week', ['2026-05-31', '2026-06-07'])).toEqual([
+      { date: '2026-05-31', count: 0 },
+      { date: '2026-06-07', count: 1 },
+    ])
   })
 })
 
@@ -412,5 +420,37 @@ describe('clipToTerm — 동산으로 좁혔을 때의 창', () => {
 
   it('그 학기에 기록이 없으면 빈 목록이다 — 다른 학기 기록으로 채우지 않는다', () => {
     expect(clipToTerm(log, { start: '2026-06-01', end: '2026-08-02' })).toEqual([])
+  })
+})
+
+describe('dongsanSundays (동산 하나의 주일별 출석/결석)', () => {
+  const members: Member[] = [
+    m('가'),
+    m('나'),
+    { ...m('다'), registration_date: '2026-10-18' },
+    { ...m('라'), status_marks: [{ note: '방학', start: '2026-10-01', end: '2026-10-31' }] },
+  ]
+  it('lists present/absent per Sunday, newest first, and keeps Sundays nobody came to', () => {
+    const log = [
+      { ...e('가', '2026-10-11'), memberId: '가' },
+      { ...e('손님', '2026-10-11') },
+      { ...e('나', '2026-10-25'), memberId: '나' },
+    ]
+    const rows = dongsanSundays(members, log, ['2026-10-11', '2026-10-18', '2026-10-25', '2026-10-11'])
+    expect(rows.map((r) => r.date)).toEqual(['2026-10-25', '2026-10-18', '2026-10-11'])
+    const [d25, d18, d11] = rows
+    expect(d11.present).toEqual(['가', '손님'])
+    // 다는 아직 등록 전이라 결석이 아니다; 라는 방학 표기가 덮는다.
+    expect(d11.absent).toEqual(['나'])
+    expect(d11.excused).toEqual([{ name: '라', note: '방학' }])
+    expect(d18.present).toEqual([])
+    expect(d18.absent).toEqual(['가', '나', '다'])
+    expect(d25.absent).toEqual(['가', '다'])
+  })
+  it('matches by memberId first so a namesake does not mark someone present', () => {
+    const log = [{ ...e('가', '2026-10-11'), memberId: 'someone-else' }]
+    const [row] = dongsanSundays([m('가')], log, ['2026-10-11'])
+    expect(row.present).toEqual(['가'])
+    expect(row.absent).toEqual(['가'])
   })
 })

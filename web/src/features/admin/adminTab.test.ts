@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { ADMIN_TABS, isTab, readLastTab, writeLastTab, clearLastTab } from './adminTab'
+import { ADMIN_TABS, isTab, readLastTab, writeLastTab, clearLastTab, defaultTab } from './adminTab'
 
 beforeEach(() => { sessionStorage.clear() })
 
@@ -27,5 +27,10 @@ describe('adminTab (마지막으로 보던 탭 기억)', () => {
       writeLastTab(tab)
       expect(readLastTab()).toBe(tab)
     }
+  })
+
+  it('starts on 오늘 only on Sunday, 멤버 every other day', () => {
+    expect(defaultTab(0)).toBe('today')
+    for (const wd of [1, 2, 3, 4, 5, 6]) expect(defaultTab(wd)).toBe('members')
   })
 })

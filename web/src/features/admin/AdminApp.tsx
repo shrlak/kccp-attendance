@@ -41,7 +41,8 @@ import { AdminDongsan } from './AdminDongsan'
 import { AdminSettings } from './AdminSettings'
 import { KioskView } from '../kiosk/KioskView'
 import { useAttendanceLive } from '../../lib/live'
-import { readLastTab, writeLastTab, clearLastTab, type Tab } from './adminTab'
+import { readLastTab, writeLastTab, clearLastTab, defaultTab, type Tab } from './adminTab'
+import { easternNow } from '../../lib/checkinWindow'
 import { prefetchPanelExtrasOnIdle } from '../../app/prefetch'
 
 // Compact administration shell. Desktop (lg+) keeps the 64 px icon rail that expands
@@ -57,8 +58,10 @@ export function AdminApp() {
   const signOut = useAdminAuth((s) => s.signOut)
   const choosePartition = useAdminAuth((s) => s.choosePartition)
   // Restored from the last visit in this browser tab, so a reload (or the Google OAuth
-  // round-trip) comes back to the same screen instead of 오늘.
-  const [tab, setTab] = useState<Tab>(() => readLastTab() ?? 'today')
+  // round-trip) comes back to the same screen. With nothing remembered (a fresh sign-in)
+  // it opens on 오늘 on a Sunday and on 멤버 every other day (adminTab.ts defaultTab).
+  const [startTab] = useState<Tab>(() => defaultTab(easternNow().weekday))
+  const [tab, setTab] = useState<Tab>(() => readLastTab() ?? startTab)
   const [kiosk, setKiosk] = useState(false)
   const [navOpen, setNavOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
@@ -174,8 +177,8 @@ export function AdminApp() {
   const visibleTabs = tabs.filter((item) => item.show)
   // A tab restored from before a reload can be out of this role's reach — a device that
   // was on 설정 signing back in as a leader, say. Fall back to 오늘 rather than rendering
-  // a titled but empty page.
-  const activeTab = visibleTabs.some((item) => item.id === tab) ? tab : 'today'
+  // a titled but empty page. (멤버 is shown to every role, so the start tab always is.)
+  const activeTab = visibleTabs.some((item) => item.id === tab) ? tab : startTab
   // Mobile bottom bar: the 4 everyday tabs stay one tap away; everything else lives in
   // the 더보기 sheet (any tab badges roll up onto 더보기 so they stay visible).
   const primaryTabs = visibleTabs.slice(0, 4)

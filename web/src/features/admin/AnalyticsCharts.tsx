@@ -115,12 +115,26 @@ export function ChartCanvas({ build }: { build: (tick: string, grid: string) => 
 
 // 4.1 + 4.2 — trend line + (when more than one 부서 is in scope) the grouped bar chart.
 // `gran`은 탭 맨 위의 주별/월별 토글이 정한다 — 아래 새가족 그래프도 같은 값을 받는다.
-export function AnalyticsCharts({ members, log, gran }: { members: Member[]; log: LogEntry[]; gran: Granularity }) {
+export function AnalyticsCharts({
+  members,
+  log,
+  gran,
+  trendOnly = false,
+  worshipDates,
+}: {
+  members: Member[]
+  log: LogEntry[]
+  gran: Granularity
+  // 동산 하나를 골랐을 때는 출석 추이 하나만 그린다 (부서별 비교는 그 자리에서 묻는 것이 아니다).
+  trendOnly?: boolean
+  // 예배가 있던 날 — 이 log에 줄이 없어도 0으로 그린다 (analytics.ts trendSeries).
+  worshipDates?: string[]
+}) {
   const { t } = useTranslation()
   const { data: cfg } = useAppConfig()
-  const trend = useMemo(() => trendSeries(log, gran), [log, gran])
+  const trend = useMemo(() => trendSeries(log, gran, worshipDates), [log, gran, worshipDates])
   const groups = useMemo(() => groupSeries(members, log, gran), [members, log, gran])
-  const showGroups = groups.groups.length > 1 && groups.dates.length > 0
+  const showGroups = !trendOnly && groups.groups.length > 1 && groups.dates.length > 0
 
   // Builders are memoized on their data so the chart only rebuilds when the underlying
   // series (or theme, handled inside ChartCanvas) actually changes.

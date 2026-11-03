@@ -427,6 +427,17 @@ live** at https://shrlak.github.io/kccp-attendance/.
 - 학기 사이(전환 기간)는 이 길로 오지 않는다: 롤오버가 편성을 비운 뒤라 동산이 있는 멤버가
   없고, 칩은 명단에서 뽑으므로 고를 동산 자체가 없다.
 
+## 통계 탭에서 동산을 고르면 사람을 보여준다 (`AdminAnalytics.tsx` `DongsanSundayList` · `analytics.ts` `dongsanSundays`)
+- **동산 칩을 고르면 이 탭에 남는 것은 둘뿐이다**: 출석 추이 그래프(`AnalyticsCharts trendOnly`)와
+  **주일별 출석 · 결석 이름**. 부서별 비교 · 요약 표 · 학교별 · 새가족 블록은 내린다 — 그 자리에서
+  묻는 것은 숫자가 아니라 "지난 주일에 우리 동산에서 누가 빠졌나"다. 장년부의 셀도 같다.
+- **주일 목록은 같은 창으로 자른 부 전체의 예배일**이다 (`worshipDates`): 그 동산이 통째로
+  빠진 주일도 목록에서는 한 줄, 그래프에서는 0이어야 한다 (`trendSeries`의 세 번째 인자).
+- 출석 = 그날 그 동산으로 찍힌 줄 그대로. 결석 = **지금** 그 동산 사람 중 그날 기록이 없는
+  사람, 단 등록일 전은 빼고(아직 오기 전) 상태 표기가 그날을 덮는 사람은 '상태 표기'에 표기와
+  함께 따로 선다 (방학을 결석으로 세지 않는다). 사람 맞추기는 `memberId` 먼저, 없으면 이름.
+  최근 주일이 위, 8주씩 펼친다.
+
 ## 통계 탭의 새가족 블록 (`analytics.ts` 아래쪽 · `AdminAnalytics.tsx` `NewFamilySection`)
 - 위쪽 통계가 전체를 세는 자리라면 그 아래부터는 **새가족만** 센다: 숫자 타일(전체 · 이번 학기
   등록 · 최근 4주 출석 · 새가족 교육 이수), 그래프 둘(등록 막대 · 새가족 출석 선), 월별 표
@@ -1197,7 +1208,8 @@ Full Phase 1–4 parity + production cutover complete. Shipped: branded landing,
 (light/dark), 동산 admin tab (summer-combined names), bulk 동산 assign/unassign, clear-all
 attendance with super-approval, analytics layout, logout→home (a **reload stays put**: the
 route is the screen, and the admin panel's tab is remembered in `sessionStorage` via
-`web/src/features/admin/adminTab.ts`), 출석부 archives (`features/admin/archive.ts` +
+`web/src/features/admin/adminTab.ts`; with nothing remembered — a fresh sign-in — the panel
+opens on **오늘 on a Sunday and 멤버 every other day**, Eastern time, `defaultTab`), 출석부 archives (`features/admin/archive.ts` +
 `ArchiveSection.tsx`: the sheet rolls over to the next 학기 — or the gap between two, shown
 with the gap's own full Sunday set — the day a term ends, and every finished 학기/전환 기간,
 학년도 and calendar year is downloadable as an Excel workbook built from the log at click
