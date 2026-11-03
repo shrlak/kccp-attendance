@@ -200,7 +200,8 @@ export function ChartCanvas({ build, tipFor }: { build: (tick: string, grid: str
         const options = config.options ?? {}
         config.options = {
           ...options,
-          interaction: { mode: 'nearest', intersect: true },
+          // 막대는 '그 막대 위에 있을 때'만; 선 그래프처럼 차트가 자기 판정을 들고 오면 그것을 쓴다.
+          interaction: options.interaction ?? { mode: 'nearest', intersect: true },
           plugins: {
             ...options.plugins,
             tooltip: {
@@ -395,6 +396,7 @@ export function AnalyticsCharts({
 // 묶는다 — 등록과 출석은 다른 사실이지만 둘 다 "새가족의 것"이라는 표시다. 기존 차트처럼
 // 테마별로 나누지 않는 중간 명도라 밝은 바탕과 어두운 바탕 양쪽에서 읽힌다.
 const NEW_FAMILY_COLOR = '#2E9E63'
+const NEW_FAMILY_TINT = 'rgba(46,158,99,0.14)'
 
 // 등록 막대를 몇 칸까지 그리는가. 주별 16주는 한 학기(15~16주)가 통째로 한 화면에 들어오는
 // 수이고, 월별 12달은 한 해를 넘겨 본다 — 둘 다 막대 스무 개를 넘지 않아 x축이 겹치지 않는다.
@@ -403,6 +405,154 @@ const REG_BUCKETS: Record<Granularity, number> = { week: 16, month: 12 }
 // 새가족만 따로 본 두 그래프 — 주별 등록(막대)과 주일별 새가족 출석(선). 둘 다 값이 점/막대
 // 위에 적히므로 그래프에서 바로 숫자를 읽을 수 있다.
 export function NewFamilyCharts({
+  members,
+  log,
+  showEdu,
+  today,
+  gran,
+}: {
+  members: Member[]
+  log: LogEntry[]
+  showEdu: boolean
+  today: string
+  gran: Granularity
+}) {
+  const { t } = useTranslation()
+  // 새가족 출석 추이를 새가족 교육 단계로 갈라 본다. 장년부에는 그 교육이 없으므로 칩도 없고
+  // 언제나 '전체'다.
+  const [edu, setEdu] = useState<EduFilter>('all')
+  const cohort = showEdu ? edu : 'all'
+  // 최근 칸만 그린다 — 그 앞은 아래 월별 표가 달 단위로 그대로 들고 있다. `today`를 넘겨
+  // 축을 지금 칸까지 이어 두므로, 마지막 몇 칸이 비어 있으면 그것이 곧 "요즘 등록이 없다"다.
+  const regs = useMemo(
+    () => newFamilyRegistrations(members, today, gran).slice(-REG_BUCKETS[gran]),
+    [members, today, gran],
+  )
+  const trend = useMemo(() => newFamilyTrend(members, log, cohort, gran), [members, log, cohort, gran])
+  const cohortLabel = cohort === 'all' ? t('admin.analytics.nfAttendance') : t(`admin.newfamily.eduFilter.${cohort}`)
+
+  const regBuild = useCallback(
+    (tick: string, grid: string): ChartConfiguration => ({
+      type: 'bar',
+      data: {
+        labels: regs.map((p) => axisLabel(p.bucket, gran)),
+        datasets: [
+          {
+            label: t('admin.analytics.nfRegistered'),
+            data: regs.map((p) => p.count),
+            backgroundColor: NEW_FAMILY_COLOR,
+            borderRadius: 4,
+            maxBarThickness: 32,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        layout: { padding: { top: 16 } },
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: tick }, grid: { display: false } },
+          y: { beginAtZero: true, ticks: { color: tick, precision: 0 }, grid: { color: grid } },
+        },
+      },
+      plugins: [pointValueLabels(tick)],
+    }),
+    [regs, t, gran],
+  )
+
+  const trendBuild = useCallback(
+    (tick: string, grid: string): ChartConfiguration => ({
+      type: 'line',
+      data: {
+        labels: trend.map((p) => axisLabel(p.date, gran)),
+        datasets: [
+          {
+            label: cohortLabel,
+            data: trend.map((p) => p.count),
+            borderColor: NEW_FAMILY_COLOR,
+            backgroundColor: NEW_FAMILY_TINT,
+            tension: 0.25,
+            fill: true,
+            pointRadius: 3,
+          },
+          // 한 단계만 골랐을 때 그 뒤에 새가족 전체를 흐린 점선으로 깔아 준다 — 미수강 3명은
+          // 새가족이 4명일 때와 40명일 때가 다른 사실이라, 고른 선만으로는 읽을 수 없다.
+          ...(cohort === 'all'
+            ? []
+            : [
+                {
+                  label: t('admin.analytics.nfAllNewFamily'),
+                  data: trend.map((p) => p.newFamily),
+                  borderColor: tick,
+                  borderDash: [4, 4],
+                  borderWidth: 1.5,
+                  tension: 0.25,
+                  fill: false,
+                  pointRadius: 0,
+                },
+              ]),
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        layout: { padding: { top: 16 } },
+        plugins: {
+          // 선이 둘일 때만 범례를 켠다 — 하나뿐이면 제목이 이미 그 이름이다.
+          legend: { display: cohort !== 'all', labels: { color: tick, boxHeight: 1 } },
+          // 점 위에 적히는 것은 인원수뿐이라, 그날 전체 출석 대비 비중은 눌렀을 때 나온다 —
+          // 20명 중 5명과 200명 중 5명은 같은 5가 아니다.
+          tooltip: {
+            callbacks: {
+              label: (item: { dataIndex: number; datasetIndex: number }) => {
+                const p = trend[item.dataIndex]
+                if (!p) return ''
+                if (item.datasetIndex === 1) return `${t('admin.analytics.nfAllNewFamily')} ${p.newFamily}`
+                const share = p.total === 0 ? 0 : Math.round((p.count / p.total) * 100)
+                return `${cohortLabel} ${p.count} / ${p.total} (${share}%)`
+              },
+            },
+          },
+        },
+        scales: {
+          x: { ticks: { color: tick }, grid: { color: grid } },
+          y: { beginAtZero: true, ticks: { color: tick, precision: 0 }, grid: { color: grid } },
+        },
+      },
+      plugins: [pointValueLabels(tick)],
+    }),
+    [trend, t, cohort, cohortLabel, gran],
+  )
+
+  if (regs.length === 0 && trend.length === 0) return null
+  const both = regs.length > 0 && trend.length > 0
+
+  return (
+    <div className={'grid gap-5 ' + (both ? 'md:grid-cols-2' : 'grid-cols-1')}>
+      {regs.length > 0 && (
+        <Panel title={t('admin.analytics.nfRegTrend')} icon={<UserPlus size={16} strokeWidth={2} aria-hidden />}>
+          <ChartCanvas build={regBuild} />
+        </Panel>
+      )}
+      {trend.length > 0 && (
+        <Panel
+          title={t('admin.analytics.nfAttendTrend')}
+          icon={<Sprout size={16} strokeWidth={2} aria-hidden />}
+          toolbar={showEdu ? <EduPills value={edu} onChange={setEdu} /> : undefined}
+        >
+          <ChartCanvas build={trendBuild} />
+        </Panel>
+      )}
+    </div>
+  )
+}
+
+
+// 동산 하나를 골랐을 때의 새가족 두 그래프 — 등록 · 출석 추이를 **동산별로 쌓은 막대**로 그리고,
+// 막대(조각)에 커서를 올리면 그 사람들의 이름이 뜬다. 전체 보기에서는 위의 NewFamilyCharts
+// (등록 막대 + 출석 선)가 그대로 서고 이 그래프는 동산을 골랐을 때만 나온다.
+export function DongsanNewFamilyCharts({
   members,
   log,
   showEdu,
@@ -480,67 +630,69 @@ export function NewFamilyCharts({
     }
   }
 
+  // 출석 추이는 **선 그래프 그대로** 둔다 (전체 보기의 새가족 출석 추이와 같은 모양). 점에 커서를
+  // 올리면 그 칸에 온 새가족의 이름이 뜬다 — 동산을 골랐으므로 그 동산 사람들이다.
   const trendBuild = useCallback(
-    (tick: string, grid: string): ChartConfiguration => {
-      const colors = dongsanColors(attStack.dongsans, NEW_FAMILY_COLOR)
-      const legend = attStack.dongsans.length > 1 || cohort !== 'all'
-      return {
-        type: 'bar',
-        data: {
-          labels: trend.map((p) => axisLabel(p.date, gran)),
-          datasets: [
-            ...attStack.dongsans.map((d, i) => ({
-              type: 'bar' as const,
-              label: dongsanName(d),
-              data: attStack.names[i].map((n) => n.length),
-              backgroundColor: colors[i],
-              stack: 'nf',
-              maxBarThickness: 32,
-            })),
-            // 한 단계만 골랐을 때 그 뒤에 새가족 전체를 흐린 점선으로 깔아 준다 — 미수강 3명은
-            // 새가족이 4명일 때와 40명일 때가 다른 사실이라, 고른 막대만으로는 읽을 수 없다.
-            // 자기 stack을 따로 가지므로 막대 위에 얹히지 않고 제 값 그대로 그려진다.
-            ...(cohort === 'all'
-              ? []
-              : [
-                  {
-                    type: 'line' as const,
-                    label: t('admin.analytics.nfAllNewFamily'),
-                    data: trend.map((p) => p.newFamily),
-                    borderColor: tick,
-                    borderDash: [4, 4],
-                    borderWidth: 1.5,
-                    tension: 0.25,
-                    fill: false,
-                    pointRadius: 0,
-                    stack: 'all',
-                  },
-                ]),
-          ],
+    (tick: string, grid: string): ChartConfiguration => ({
+      type: 'line',
+      data: {
+        labels: trend.map((p) => axisLabel(p.date, gran)),
+        datasets: [
+          {
+            label: cohortLabel,
+            data: trend.map((p) => p.count),
+            borderColor: NEW_FAMILY_COLOR,
+            backgroundColor: NEW_FAMILY_TINT,
+            tension: 0.25,
+            fill: true,
+            pointRadius: 3,
+            pointHoverRadius: 5,
+          },
+          // 한 단계만 골랐을 때 그 뒤에 새가족 전체를 흐린 점선으로 깔아 준다 — 미수강 3명은
+          // 새가족이 4명일 때와 40명일 때가 다른 사실이라, 고른 선만으로는 읽을 수 없다.
+          ...(cohort === 'all'
+            ? []
+            : [
+                {
+                  label: t('admin.analytics.nfAllNewFamily'),
+                  data: trend.map((p) => p.newFamily),
+                  borderColor: tick,
+                  borderDash: [4, 4],
+                  borderWidth: 1.5,
+                  tension: 0.25,
+                  fill: false,
+                  pointRadius: 0,
+                },
+              ]),
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        layout: { padding: { top: 16 } },
+        // 점은 작아서 정확히 그 위에 올리기 어렵다 — 그 주일 칸 어디에 있든 그 칸의 점을 잡는다.
+        interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { display: cohort !== 'all', labels: { color: tick, boxHeight: 1 } } },
+        scales: {
+          x: { ticks: { color: tick }, grid: { color: grid } },
+          y: { beginAtZero: true, ticks: { color: tick, precision: 0 }, grid: { color: grid } },
         },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          layout: { padding: { top: 16 } },
-          plugins: { legend: { display: legend, labels: { color: tick, boxHeight: 10 } } },
-          scales: stackedScales(tick, grid, legend),
-        },
-        plugins: [stackValueLabels(tick)],
-      }
-    },
-    [trend, attStack, t, cohort, gran, dongsanName],
+      },
+      plugins: [pointValueLabels(tick)],
+    }),
+    [trend, t, cohort, cohortLabel, gran],
   )
 
-  // 막대 위에 적히는 것은 인원수뿐이라, 그날 전체 출석 대비 비중은 상자의 둘째 줄에 적는다 —
-  // 20명 중 5명과 200명 중 5명은 같은 5가 아니다.
-  const trendTip: TipFor = (ds, j) => {
-    const names = attStack.names[ds]?.[j]
+  // 그 칸에 온 새가족 이름 — 동산 조각들을 합친 것 (한 동산을 골랐으면 그 동산 하나다). 둘째
+  // 줄은 그날 전체 출석 대비 비중: 20명 중 5명과 200명 중 5명은 같은 5가 아니다.
+  const trendTip: TipFor = (_ds, j) => {
     const p = trend[j]
-    if (!names || !p) return null
+    if (!p) return null
+    const names = [...new Set(attStack.names.flatMap((byBucket) => byBucket[j] ?? []))].sort(new Intl.Collator('ko').compare)
     const share = p.total === 0 ? 0 : Math.round((p.count / p.total) * 100)
     return {
-      title: `${axisLabel(p.date, gran)} · ${dongsanName(attStack.dongsans[ds])} ${names.length}`,
-      sub: `${cohortLabel} ${p.count} / ${p.total} (${share}%)`,
+      title: `${axisLabel(p.date, gran)} · ${cohortLabel} ${p.count}`,
+      sub: `${p.count} / ${p.total} (${share}%)`,
       names,
     }
   }

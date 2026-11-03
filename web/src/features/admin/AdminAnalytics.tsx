@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useRoster } from './useRoster'
 import { filterMembers, filterLog, NO_FILTER, type Filter } from './filters'
 import { GroupFilter } from './GroupFilter'
-import { AnalyticsCharts, NewFamilyCharts, GranularityToggle, SchoolChart, DongsanSchoolChart } from './AnalyticsCharts'
+import { AnalyticsCharts, NewFamilyCharts, DongsanNewFamilyCharts, GranularityToggle, SchoolChart, DongsanSchoolChart } from './AnalyticsCharts'
 import {
   monthlySummary,
   semesterSummary,
@@ -17,7 +17,6 @@ import {
   schoolSummary,
   dongsanSundays,
   newFamilyMembers,
-  NO_DONGSAN_KEY,
   RECENT_WEEKS,
   type SemesterRow,
   type NewFamilyTotals,
@@ -91,11 +90,12 @@ export function AdminAnalytics() {
         // 예배일이다 — 그 동산이 통째로 빠진 주일도 한 줄로 서야 한다.
         <>
           <AnalyticsCharts members={members} log={log} gran={gran} trendOnly worshipDates={worshipDates} />
-          {/* 그 동산의 학교 구성과 새가족 추이 — 막대마다 커서를 올리면 그 사람들의 이름이 뜬다. */}
+          {/* 그 동산의 학교 구성과 새가족 추이 — 막대마다 커서를 올리면 그 사람들의 이름이 뜬다.
+              이 두 그래프는 **동산을 골랐을 때만** 선다 (전체 보기는 예전의 학교별 · 새가족 그래프). */}
           <div className="fx-rise mb-5 grid gap-5">
             {hasReadableSchool(members) && <DongsanSchoolChart members={members} />}
             {newFamilyMembers(members).length > 0 && (
-              <NewFamilyCharts members={members} log={log} showEdu={partition !== 'adult'} today={today} gran={gran} />
+              <DongsanNewFamilyCharts members={members} log={log} showEdu={partition !== 'adult'} today={today} gran={gran} />
             )}
           </div>
           <DongsanSundayList members={members} log={log} dates={worshipDates} />
@@ -325,17 +325,9 @@ function SchoolBySchool({ members, log }: { members: Member[]; log: LogEntry[] }
   // 학교를 하나도 읽어내지 못하는 부(장년부)에는 '기타' 한 줄만 남는데, 그 수는 명단 전체와
   // 같아서 아무것도 말해 주지 않는다 — 그럴 때는 그래프도 표도 내걸지 않는다 (칩 줄과 같은 규칙).
   if (!rows.some((r) => r.school !== 'none')) return null
-  // 동산별 학교는 동산이 하나라도 짜여 있을 때만 — 모두가 '동산 미지정'이면 막대 하나가 위
-  // 학교별 그래프와 같은 말을 한 번 더 할 뿐이다 (학기 종료 롤오버 직후가 그렇다).
-  const hasDongsan = members.some((m) => (m.subgroup || NO_DONGSAN_KEY) !== NO_DONGSAN_KEY)
 
   return (
     <div className="fx-rise mt-4 grid gap-4 lg:grid-cols-2">
-      {hasDongsan && (
-        <div className="order-last lg:col-span-2">
-          <DongsanSchoolChart members={members} />
-        </div>
-      )}
       <SchoolChart rows={rows} />
       <Section title={t('admin.analytics.bySchool')} icon={<GraduationCap size={15} strokeWidth={2} aria-hidden />}>
         <SummaryTable

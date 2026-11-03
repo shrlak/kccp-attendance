@@ -438,21 +438,22 @@ live** at https://shrlak.github.io/kccp-attendance/.
   함께 따로 선다 (방학을 결석으로 세지 않는다). 사람 맞추기는 `memberId` 먼저, 없으면 이름.
   최근 주일이 위, 8주씩 펼친다.
 
-## 통계 탭의 동산별 막대 · 이름 상자 (`AnalyticsCharts.tsx` `DongsanSchoolChart`·`NewFamilyCharts`·`ChartCanvas tipFor`)
-- **막대 하나(쌓인 조각 하나)가 동산 하나다.** 동산별 학교: 가로축 = 동산, 조각 = 학교(기타
-  포함 — 조각을 더하면 그 동산 인원). 새가족 등록·출석 추이: 가로축 = 주일/달, 조각 = 동산
-  (출석은 **그날 찍힌 동산**, 등록은 **지금의 동산** — 등록에는 그날의 동산이 없다). 재료는
-  `analytics.ts`의 `dongsanSchoolSeries`·`newFamilyAttendanceByDongsan`·
-  `newFamilyRegistrationsByDongsan`이고 **수가 아니라 이름을 들고 온다** (`names[동산][칸]`).
-- **숫자는 늘 그려져 있다** (`stackValueLabels`: 조각 안에 조각 수, 꼭대기에 합). **커서를
-  올리면(폰은 탭) 그 조각 사람들의 이름이 막대 위에 뜬다** — Chart.js 툴팁은 캔버스(224px)
-  안에 그려져 이름이 많으면 잘리므로 `tipFor`를 준 차트만 HTML 상자(`BarTipBox`)를 띄운다.
-  자리는 막대 꼭대기 위가 기본이고 화면 위로 잘릴 때만 아래로 내린다.
+## 통계 탭의 동산 보기 그래프 · 이름 상자 (`AnalyticsCharts.tsx` `DongsanSchoolChart`·`DongsanNewFamilyCharts`·`ChartCanvas tipFor`)
+- **동산 칩을 골랐을 때만 선다** — 전체 보기의 학교별 비교 · 새가족 두 그래프(`NewFamilyCharts`:
+  등록 막대 + 출석 선)는 예전 그대로다.
+- **동산별 학교**: 가로축 = 동산, 쌓은 조각 = 학교(기타 포함). 동산 하나만 남으면(곧 동산을 골랐을
+  때) 가로축이 학교로 돈다. **새가족 등록 추이**: 칸마다 동산별로 쌓은 막대 (등록은 **지금의
+  동산** — 등록에는 그날의 동산이 없다). **새가족 출석 추이는 선 그래프로 둔다** (사용자 요청 —
+  추이는 선이다); 점 판정은 `index`/`intersect:false`라 그 칸 어디에서든 잡힌다. 재료는
+  `analytics.ts`의 `dongsanSchoolSeries`·`newFamilyRegistrationsByDongsan`·
+  `newFamilyAttendanceByDongsan`(출석은 **그날 찍힌 동산**)이고 **수가 아니라 이름을 들고 온다**.
+- **숫자는 늘 그려져 있고**(막대 `stackValueLabels`: 조각 안에 조각 수, 꼭대기에 합 · 선
+  `pointValueLabels`), **커서를 올리면(폰은 탭) 그 막대 조각 · 그 점의 사람 이름이 위에 뜬다** —
+  Chart.js 툴팁은 캔버스(224px) 안에 그려져 이름이 많으면 잘리므로 `tipFor`를 준 차트만 HTML
+  상자(`BarTipBox`)를 띄운다. 자리는 꼭대기 위가 기본이고 화면 위로 잘릴 때만 아래로 내린다.
 - 동산 색은 이름이 아니라 그래프 안의 자리로 돈다 (동산은 학기마다 새로 짜인다); '동산 미지정'은
-  늘 회색. 동산 하나만 남으면(동산을 골랐을 때) 학교 그래프는 가로축을 학교로 돌린다.
-- 전체 보기: 동산별 학교는 학교별 요약 아래 (동산이 하나라도 짜여 있을 때만), 새가족 두
-  그래프는 새가족 블록의 그 자리. 동산을 골랐을 때: 출석 추이 → 학교 · 새가족 두 그래프
-  (그 동산에 새가족이 있을 때만) → 주일별 출석 · 결석. 장년부는 학교를 못 읽으니 학교 그래프가 없다.
+  늘 회색. 배치: 출석 추이 → 학교 · 새가족 그래프(그 동산에 새가족이 있을 때만) → 주일별 출석 ·
+  결석. 장년부는 학교를 못 읽으니 학교 그래프가 없다.
 
 ## 통계 탭의 새가족 블록 (`analytics.ts` 아래쪽 · `AdminAnalytics.tsx` `NewFamilySection`)
 - 위쪽 통계가 전체를 세는 자리라면 그 아래부터는 **새가족만** 센다: 숫자 타일(전체 · 이번 학기
