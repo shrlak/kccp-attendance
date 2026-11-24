@@ -14,6 +14,12 @@ on:
         type: choice
         default: youth
         options: [youth, adult]
+      retry:
+        # Set only by the workflow itself (see "Retry once on a fresh runner") so that a
+        # retry never dispatches another retry.
+        description: 'Internal: this run is the automatic retry of a failed run'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -44,6 +50,7 @@ jobs:
     permissions:
       contents: read
       issues: write
+      actions: write   # dispatch the one automatic retry
     # A disposable Postgres the dump gets restored into so verification never touches
     # production — the backup is only trusted once a fresh restore from it round-trips
     # back to matching row counts.
@@ -56,7 +63,7 @@ jobs:
         ports:
           - 5433:5432
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U postgres"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -174,8 +181,28 @@ jobs:
       - name: Verify current backup and remove legacy dated copies
         run: python3 scripts/backup/prune-retention.py
 
+      # 한 번 실패하면 새 러너에서 한 번 더 돈다. 지금까지의 실패는 전부 그 러너의 네트워크
+      # 였다 (11-01 서명 키 curl, 11-11 우분투 미러 DNS) — 데이터는 멀쩡했고 다음 실행은 성공했다.
+      # 이 실행 안에서 다시 돌리면 같은 러너의 같은 네트워크를 다시 두드리므로, 새 실행을 띄운다.
+      # concurrency 그룹이 그것을 이 실행이 끝난 뒤로 줄 세운다. 재시도의 재시도는 없다
+      # (inputs.retry), 사람이 손으로 다시 돌린 실행도 다시 띄우지 않는다 (run_attempt).
+      - name: Retry once on a fresh runner
+        id: retry
+        if: failure() && !inputs.retry && github.run_attempt == 1
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { owner, repo } = context.repo
+            await github.rest.actions.createWorkflowDispatch({
+              owner, repo, workflow_id: 'backup.yml', ref: context.ref,
+              inputs: { partition: process.env.PARTITION || 'youth', retry: 'true' },
+            })
+            core.notice(`Dispatched one automatic retry of the ${process.env.PARTITION} backup.`)
+
+      # 이슈는 재시도까지 실패했을 때(또는 재시도를 띄우지 못했을 때)만 연다 — 재시도가 성공하면
+      # 사람이 할 일이 없다.
       - name: Open/update issue on failure
-        if: failure()
+        if: failure() && steps.retry.outcome != 'success'
         uses: actions/github-script@v8
         with:
           script: |
