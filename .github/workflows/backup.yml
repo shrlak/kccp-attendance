@@ -14,6 +14,12 @@ on:
         type: choice
         default: youth
         options: [youth, adult]
+      retry:
+        # Set only by the workflow itself (see "Retry once on a fresh runner") so that a
+        # retry never dispatches another retry.
+        description: 'Internal: this run is the automatic retry of a failed run'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -44,6 +50,7 @@ jobs:
     permissions:
       contents: read
       issues: write
+      actions: write   # dispatch the one automatic retry
     # A disposable Postgres the dump gets restored into so verification never touches
     # production — the backup is only trusted once a fresh restore from it round-trips
     # back to matching row counts.
@@ -56,7 +63,7 @@ jobs:
         ports:
           - 5433:5432
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U postgres"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -97,11 +104,34 @@ jobs:
       # 내려받기가 2분 동안 0바이트로 멈췄다가 `curl: (56)`로 끝나 youth 백업이 통째로 빠졌다).
       # 그래서 키는 짧은 제한 시간 + 재시도로 받고, 안 되면 apt.postgresql.org의 같은 키로
       # 넘어간다. apt도 저장소를 다시 두드리게 한다.
+      #
+      # 재시도로는 모자랐다 (2026-11-11): 러너의 DNS가 우분투 미러(azure.archive.ubuntu.com)를
+      # 12분 동안 못 찾아서 `apt-get install age`가 exit 100으로 끝났다. 그래서 평소 길은 우분투
+      # 미러를 아예 지나지 않는다 — age는 Go 모듈 프록시에서 빌드하고(sum.golang.org가 내용을
+      # 검증한다), apt는 apt.postgresql.org 목록만 새로 받는다. curl·ca-certificates는 러너
+      # 이미지에 이미 있다. 우분투 미러는 그 길이 막혔을 때의 대비책으로만 남는다.
       - name: Install age + PostgreSQL 17 client
         run: |
           APT="-o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30"
-          sudo apt-get $APT update
-          sudo apt-get $APT install -y age ca-certificates curl
+          ubuntu_updated=
+          ubuntu_update() {
+            [ -n "$ubuntu_updated" ] && return 0
+            sudo apt-get $APT update && ubuntu_updated=1
+          }
+
+          # age: Go 모듈 프록시 → 안 되면 우분투 apt.
+          AGE_VERSION=v1.2.1
+          if command -v go > /dev/null \
+             && timeout 300 go install "filippo.io/age/cmd/age@${AGE_VERSION}"; then
+            echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+            export PATH="$(go env GOPATH)/bin:$PATH"
+          else
+            echo "::warning::go install of age failed; falling back to the Ubuntu apt mirror."
+            ubuntu_update
+            sudo apt-get $APT install -y age
+          fi
+          age --version
+
           sudo install -d /usr/share/postgresql-common/pgdg
           KEY=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
           fetch_key() {
@@ -113,8 +143,17 @@ jobs:
           . /etc/os-release
           echo "deb [signed-by=$KEY] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" \
             | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
-          sudo apt-get $APT update
-          sudo apt-get $APT install -y postgresql-client-17
+          # pgdg 목록만 새로 받는다 (다른 목록은 지우지 않고 그대로 둔다). 나머지 의존성
+          # (libc·readline·ssl …)은 러너 이미지에 이미 깔려 있다. 그래도 설치가 안 되면 우분투
+          # 목록까지 받고 한 번 더.
+          sudo apt-get $APT update \
+            -o Dir::Etc::sourcelist=sources.list.d/pgdg.list \
+            -o Dir::Etc::sourceparts=- -o APT::Get::List-Cleanup=0
+          if ! sudo apt-get $APT install -y postgresql-client-17; then
+            echo "::warning::pgdg-only install failed; refreshing the Ubuntu lists and retrying."
+            ubuntu_update
+            sudo apt-get $APT install -y postgresql-client-17
+          fi
           echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
           /usr/lib/postgresql/17/bin/pg_dump --version
 
@@ -142,8 +181,28 @@ jobs:
       - name: Verify current backup and remove legacy dated copies
         run: python3 scripts/backup/prune-retention.py
 
+      # 한 번 실패하면 새 러너에서 한 번 더 돈다. 지금까지의 실패는 전부 그 러너의 네트워크
+      # 였다 (11-01 서명 키 curl, 11-11 우분투 미러 DNS) — 데이터는 멀쩡했고 다음 실행은 성공했다.
+      # 이 실행 안에서 다시 돌리면 같은 러너의 같은 네트워크를 다시 두드리므로, 새 실행을 띄운다.
+      # concurrency 그룹이 그것을 이 실행이 끝난 뒤로 줄 세운다. 재시도의 재시도는 없다
+      # (inputs.retry), 사람이 손으로 다시 돌린 실행도 다시 띄우지 않는다 (run_attempt).
+      - name: Retry once on a fresh runner
+        id: retry
+        if: failure() && !inputs.retry && github.run_attempt == 1
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { owner, repo } = context.repo
+            await github.rest.actions.createWorkflowDispatch({
+              owner, repo, workflow_id: 'backup.yml', ref: context.ref,
+              inputs: { partition: process.env.PARTITION || 'youth', retry: 'true' },
+            })
+            core.notice(`Dispatched one automatic retry of the ${process.env.PARTITION} backup.`)
+
+      # 이슈는 재시도까지 실패했을 때(또는 재시도를 띄우지 못했을 때)만 연다 — 재시도가 성공하면
+      # 사람이 할 일이 없다.
       - name: Open/update issue on failure
-        if: failure()
+        if: failure() && steps.retry.outcome != 'success'
         uses: actions/github-script@v8
         with:
           script: |
